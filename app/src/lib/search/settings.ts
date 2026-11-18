@@ -204,6 +204,10 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     ["Local Whisper", ["whisper", "whisper.cpp", "local", "offline", "gpu", "metal"]],
     ["Whisper model", ["whisper", "model", "download", "large", "turbo", "memory", "ram"]],
     ["On-device speech", ["apple", "offline", "local", "mac"]],
+    ["Dictation cleanup", ["dictation", "tidy", "voice", "qwen", "groq", "fallback"]],
+    ...(isMac
+      ? [["S1-mini by Superwhisper", ["s1-mini", "superwhisper", "dictation", "local", "offline", "download"]] satisfies Row]
+      : []),
   ]),
 
   page("narration", ["studio", "voice", "tts", "text to speech", "speech"]),

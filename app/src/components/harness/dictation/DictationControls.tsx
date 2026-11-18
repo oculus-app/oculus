@@ -32,6 +32,7 @@ export function DictationFeedback({ dictation: d }: { dictation: Dictation }) {
       <div className="mt-2 flex flex-wrap gap-2">
         {d.canRetry && <Button type="button" variant="outline" size="xs" onClick={() => void d.retry()}><ArrowCounterClockwise />{d.raw ? "Retry cleanup" : "Retry transcription"}</Button>}
         {d.raw && <Button type="button" variant="outline" size="xs" onClick={d.useTranscript}>Use original transcript</Button>}
+        {d.unconfigured && <Button type="button" variant="outline" size="xs" onClick={d.openCleanupSetup}>Open Transcription settings</Button>}
         <Button type="button" variant="ghost" size="xs" onClick={d.cancel}>Dismiss</Button>
       </div>
     </div>}
@@ -40,7 +41,9 @@ export function DictationFeedback({ dictation: d }: { dictation: Dictation }) {
         <DialogHeader><DialogTitle>Set up dictation</DialogTitle><DialogDescription>Choose how Oculus turns your voice into text. Then a model tidies the transcript before adding it to your draft.</DialogDescription></DialogHeader>
         {d.setupError && <p className="text-xs text-muted-foreground" data-selectable>{d.setupError}</p>}
         <TranscriptionSection />
-        <div className="flex justify-end"><Button type="button" onClick={() => { d.setSetup(false); void d.start(); }}>Start dictating</Button></div>
+        <div className="flex justify-end">{d.raw
+          ? <Button type="button" onClick={() => { d.setSetup(false); void d.retry(); }}>Retry cleanup</Button>
+          : <Button type="button" onClick={() => { d.setSetup(false); void d.start(); }}>Start dictating</Button>}</div>
       </DialogContent>
     </Dialog>
   </>;

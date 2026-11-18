@@ -32,8 +32,8 @@ export function PackDownloadRow<S extends { status: AlignerState; bytes: number 
   pack: PackDownload<S>;
   /** The Download button's text. */
   downloadLabel?: string;
-  /** Shown while it is not downloaded. */
-  missing: string;
+  /** Shown while it is not downloaded; none when its absence is fine. */
+  missing?: string;
   /** The confirmation's text after "Frees N MB." */
   deleteDescription: string;
 }) {
@@ -89,7 +89,7 @@ export function PackDownloadRow<S extends { status: AlignerState; bytes: number 
           {error}
         </p>
       ) : null}
-      {status && !present && !download && !error ? (
+      {missing && status && !present && !download && !error ? (
         <p className="mt-2 text-[11px] leading-relaxed text-warning">{missing}</p>
       ) : null}
 

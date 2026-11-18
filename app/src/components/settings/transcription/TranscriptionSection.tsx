@@ -2,6 +2,7 @@ import { isWindows } from "@/lib/platform";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { DotsSixVertical } from "@phosphor-icons/react";
+import { DictationCleanup } from "./DictationCleanup";
 import { GroqDialog } from "./GroqDialog";
 import { LocalWhisperDialog, useWhisperDownloads, whisperStatus } from "./LocalWhisper";
 import { OnDeviceSpeechDialog, speechStatus, type SpeechStatus } from "./OnDeviceSpeech";
@@ -57,11 +58,12 @@ const NO_LOCALES: readonly string[] = [];
 /**
  * Settings → Transcription: one language for every engine, and the engines in
  * the order a run tries them — each with its switch and a dialog for its own
- * setup (`GroqDialog`, `LocalWhisperDialog`, `OnDeviceSpeechDialog`). Rust
- * reads the `transcribe` row at the start of every run. Nothing here is
- * billed: saving a Groq key lists Groq's models, which is free, the speech
- * status only asks the OS what it has, and the Whisper listing reads the
- * models directory; only a model download the user starts goes online.
+ * setup (`GroqDialog`, `LocalWhisperDialog`, `OnDeviceSpeechDialog`); then
+ * which model tidies dictation (`DictationCleanup`). Rust reads the
+ * `transcribe` row at the start of every run. Nothing here is billed: saving
+ * a Groq key lists Groq's models, which is free, the speech status only asks
+ * the OS what it has, and the Whisper and S1-mini statuses read the disk;
+ * only a model download the user starts goes online.
  */
 export function TranscriptionSection() {
   const [settings, setSettings] = useState<TranscribeSettings | null>(null);
@@ -181,6 +183,8 @@ export function TranscriptionSection() {
           </p>
         ) : null}
       </div>
+
+      <DictationCleanup connected={connected} onOpenGroq={() => setDialog("groq")} />
 
       <GroqDialog
         open={dialog === "groq"}

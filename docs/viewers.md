@@ -24,9 +24,9 @@ library video in the media player, a video's transcript, and a web page.
 | Transcribe from a player | `app/src/hooks/lectures/useTranscription.ts`, `app/src/components/media/TranscribeEmpty.tsx` |
 | Transcript search and source-index mapping | `app/src/hooks/lectures/useTranscriptSearch.ts` |
 | Microphone clip transcription | `app/src-tauri/src/transcribe/dictation.rs` |
-| Dictation cleanup: Groq's Qwen, S1-mini, the `llama-server` sidecar, the commands | `app/src-tauri/src/transcribe/cleanup/`, `app/scripts/build-llama.mjs` |
+| Dictation cleanup: Groq's Qwen, S1-mini, the `llama-server` sidecar, the commands | `app/src-tauri/src/transcribe/cleanup/`, `app/scripts/build-llama.mjs`, `app/src/lib/dictation/cleanup.ts` |
 | Transcription of videos without captions | `app/src-tauri/src/transcribe/`, `app/src-tauri/src/providers/groq.rs`, `app/src/lib/lectures/transcribe/` |
-| Settings → Transcription: the language, the engine list and each engine's dialog | `app/src/components/settings/transcription/TranscriptionSection.tsx`, `app/src/components/settings/transcription/GroqDialog.tsx`, `app/src/components/settings/transcription/OnDeviceSpeech.tsx`, `app/src/components/settings/transcription/LocalWhisper.tsx` |
+| Settings → Transcription: the language, the engine list, each engine's dialog and dictation cleanup | `app/src/components/settings/transcription/TranscriptionSection.tsx`, `app/src/components/settings/transcription/GroqDialog.tsx`, `app/src/components/settings/transcription/OnDeviceSpeech.tsx`, `app/src/components/settings/transcription/LocalWhisper.tsx`, `app/src/components/settings/transcription/DictationCleanup.tsx` |
 | The on-device speech helper | `app/src-tauri/speech/main.swift`, `app/scripts/build-speech.mjs`, `app/src-tauri/src/transcribe/engines/apple.rs` |
 | Local Whisper: the engine, its model files | `app/src-tauri/src/transcribe/engines/whisper.rs`, `app/src-tauri/src/transcribe/engines/whisper_models/`, `app/scripts/build-whisper.mjs` |
 | Native light/dark preference for browser pages | `app/src-tauri/src/shell/native_layer/page_theme.rs`, `app/src/lib/ui/themes/apply.ts` |
@@ -663,7 +663,9 @@ model does it:
    fail, the error names both.
 3. **Neither**: the error says to add a Groq API key or download S1-mini in
    Settings → Transcription (on Windows and Linux, a Groq key only). The
-   composer then offers Use original transcript.
+   composer then offers Use original transcript, and Open Transcription
+   settings, which opens that page in its setup dialog
+   ([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
 
 S1-mini is a 0.6B normaliser (Qwen3-0.6B fine-tuned; Apache 2.0 plus a term
 that it is always named "S1-mini" by "Superwhisper", written exactly so).
@@ -710,7 +712,8 @@ that it is always named "S1-mini" by "Superwhisper", written exactly so).
   ([development.md](./development.md#llama-server-is-built-from-a-pinned-release)).
   On Windows and Linux S1-mini is unavailable and only Groq cleans.
 
-Settings → Transcription calls these; none calls Groq's chat endpoint:
+Settings → Transcription's Dictation cleanup block calls these; none calls
+Groq's chat endpoint:
 
 | Command | Arguments | Returns |
 | --- | --- | --- |
@@ -809,6 +812,15 @@ one up in Settings → Transcription.
   availability and downloaded languages. Model downloads are held by the page
   (`useWhisperDownloads`), so a row's status follows one after its dialog
   closes.
+- **Below the engines, Dictation cleanup** (`DictationCleanup`) says which
+  model tidies dictation now — Groq's Qwen 3.8 27B on the page's Groq key,
+  naming S1-mini as its fallback once downloaded; else S1-mini by
+  Superwhisper; else a warning of what to set up — and lists both as one
+  bordered group. Groq's row opens the same key dialog as the engine list.
+  S1-mini's row is Studio's `PackDownloadRow` (size, English only, runs on
+  this Mac; Download with a percentage, a bar and Cancel, then Delete behind
+  a confirmation), with `unavailable` as a warning beneath when its helper
+  is missing; on Windows and Linux the row is not shown.
 
 ### Groq: Whisper over HTTPS
 

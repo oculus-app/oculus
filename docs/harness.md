@@ -53,7 +53,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Earlier messages on ArrowUp, and the ⌘S stash | `app/src/lib/harness/promptHistory.ts`, `app/src/hooks/agents/usePromptHistory.ts`, `app/src/stores/chat/stashStore.ts`, `app/src/components/harness/composer/useComposerStash.ts`, `app/src/components/harness/composer/StashMenu.tsx`, `app/src/components/harness/composer/StashBadge.tsx` |
 | Studio's thread column and New video box, which use `Composer`'s `leading` (chips after the subject's) and `placeholder` | `app/src/components/studio/thread/ThreadColumn.tsx`, `app/src/components/studio/new/NewVideo.tsx` ([studio-page.md](./studio-page.md)) |
 | The subject Overview's ask bar: `Composer`'s `compact` mode and its settings menu, and the warp into the thread it starts | `app/src/pages/subject/content/overview/AskBar.tsx`, `app/src/components/harness/composer/settings/`, `app/src/lib/ui/warp.ts`, `app/src/hooks/ui/useWarpLanding.ts`, `app/src/styles/warp.css` |
-| Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-else-s1-mini)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts` |
+| Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-else-s1-mini)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src/lib/dictation/cleanup.ts` |
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
 | Files pasted or dropped into a composer: writing them, their chips, the shelf, their names | `app/src-tauri/src/harness/attach.rs`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
@@ -2790,7 +2790,9 @@ recording or conversion is pending; typing and attachments stay available.
 
 Failures keep the clip in memory for Retry transcription, or the successful
 transcript for Retry cleanup and Use original transcript. Dismiss releases
-both. A cleanup that comes back empty (filler-only speech) shows the same
+both. When a cleanup fails, `dictation_cleanup_status` (read-only) says
+whether any cleanup model is set up; if none is, the error also offers Open
+Transcription settings, the setup dialog whose button is then Retry cleanup. A cleanup that comes back empty (filler-only speech) shows the same
 choices. No dictation creates a thread or timeline row.
 
 ## Per-job models
