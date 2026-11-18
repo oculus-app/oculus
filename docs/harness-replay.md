@@ -427,8 +427,8 @@ Run in the implementation worktree, one heavy Cargo command at a time:
 
 ```sh
 cd app/src-tauri
-RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo test harness::
-RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo clippy --all-targets -- -D warnings
+RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo test -p oculus-harness harness::
+RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt
 ```
 
@@ -439,7 +439,7 @@ known failure only when implementing its invariant. Every row currently
 passes; the ignored `release_matrix_has_no_known_failures` test requires that:
 
 ```sh
-RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo test --lib -- --ignored --exact harness::testkit::matrix::release_matrix_has_no_known_failures
+RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo test -p oculus-harness --lib -- --ignored --exact harness::testkit::matrix::release_matrix_has_no_known_failures
 ```
 
 The invariant numbers below refer to the turn-model design: 1 durable command,
@@ -502,7 +502,7 @@ them through the store and checks the fold states and fence splitting. Rerun
 it, by its full name, after a bridge or settlement change:
 
 ```sh
-RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo test harness::testkit::matrix::write_timeline_fixtures -- --ignored --exact
+RUSTC_WRAPPER= CARGO_BUILD_JOBS=2 nice -n 15 cargo test -p oculus-harness harness::testkit::matrix::write_timeline_fixtures -- --ignored --exact
 ```
 
 The registry also replays the plain opencode text/reasoning/error recordings.
@@ -534,4 +534,4 @@ folding needs superseded attempts. No mutation proves protocol support.
 - The load-race projection strips `sequence`: its fresh store replays a stream whose sequence numbers the first pass already consumed.
 - A bridge's repeated terminal names a turn that is already over and is dropped whatever the thread holds. Only the app's own terminal, which names no turn, ends whatever is open: the open run settles, and with none open it is a turn's end with no run (`Terminal::Claim`). A session's terminal that names no turn, with nothing open, is dropped.
 - A Codex manifest answers `turn/start` with the recorded turn's own id, as the server does. The run is bound to that id, so a placeholder would leave the recording's `turn/completed` naming a turn nobody sent.
-- Run only the named offline release gate with `--ignored`, by its full path; the bridge suite also contains ignored live provider tests (a real opencode thread spends OpenRouter credit). Cargo ORs a filter before `--` with one after it, so `cargo test harness:: -- --ignored release_matrix` runs every ignored `harness::` test.
+- Run only the named offline release gate with `--ignored`, by its full path; the bridge suite also contains ignored live provider tests (a real opencode thread spends OpenRouter credit). Cargo ORs a filter before `--` with one after it, so `cargo test -p oculus-harness harness:: -- --ignored release_matrix` runs every ignored `harness::` test.

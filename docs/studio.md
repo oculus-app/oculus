@@ -44,7 +44,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | Text to Kokoro phonemes (the G2P), the lexicon, the guesser and its pack; the lint of a video's narration that needs them | `app/src-tauri/src/studio/voice/g2p/` (`guess/`, `lexicon.rs`), `app/src-tauri/src/studio/voice/lint/` |
 | The pronunciation review: suggestions stored one file each, the lexicon writer, finding a word in a video's narration; its Tauri commands and wrappers | `app/src-tauri/src/studio/voice/review/` (`key.rs`, `lexicon.rs`, `locate.rs`), `app/src-tauri/src/studio/commands/pronunciations.rs`, `app/src/lib/studio/pronunciations.ts` |
 | Settings -> Studio (Narration, Pronunciation, Word timing): the `voice` row and its engine, the server's model list, Kokoro's packs, voices and sample, the pronunciation review, the aligner download; its Tauri commands | `app/src/pages/settings/studio/`, `app/src/components/settings/voice/` (`pronunciations/`, `voices/`), `app/src/lib/studio/` (`voice.ts`, `voicePacks.ts`, `kokoroVoices.ts`, `aligner.ts`), `app/src-tauri/src/studio/commands/` (`voice.rs`, `kokoro.rs`, `voice_files.rs`, `aligner.rs`, `progress.rs`), `app/src-tauri/src/studio/tts/models.rs` |
-| Rendering a video: the export presets, ffmpeg's toolkit and the encoder choice, plan, workers and the reorder buffer, ffmpeg, the segment cache, the narration track, mux, the `.vtt` beside each narrated render, each preset's status, one render per folder | `app/src-tauri/src/studio/render/` (`preset.rs`, `toolkit.rs`, `settings.rs`, `export.rs`, `status.rs`), `app/src-tauri/build.rs` (`STUDIO_RENDER_BUILD`) |
+| Rendering a video: the export presets, ffmpeg's toolkit and the encoder choice, plan, workers and the reorder buffer, ffmpeg, the segment cache, the narration track, mux, the `.vtt` beside each narrated render, each preset's status, one render per folder | `app/src-tauri/src/studio/render/` (`preset.rs`, `toolkit.rs`, `settings.rs`, `export.rs`, `status.rs`), `app/src-tauri/crates/oculus-core/build.rs` (`STUDIO_RENDER_BUILD`) |
 | Rendering from the app: `studio_render`, `studio_render_cancel`, `studio_exports`, the `studio-render-progress` event and their wrappers; the page over them is [studio-page.md](./studio-page.md) | `app/src-tauri/src/studio/commands/render.rs`, `app/src/lib/studio/render.ts` |
 | The Studio page's commands: the video list, `studio_new_video`, a video's detail, stills and thumbnails; the `studio_videos` link table; a video thread's brief | `app/src-tauri/src/studio/commands/videos/`, `app/src-tauri/src/db/store/studio_videos.rs`, `app/src-tauri/src/harness/manager/studio.rs`, `app/src/lib/studio/videos.ts` |
 | The playground's and Themes page's commands: the theme and component lists, source, frame, validated write, history, restore and removal, each library's default theme; the shared snapshot listing; a new video's default theme | `app/src-tauri/src/studio/commands/components/`, `commands/themes/`, `commands/levels.rs`, `commands/history.rs`, `app/src-tauri/src/studio/libraries/defaults.rs`, `app/src/lib/studio/components.ts`, `app/src/lib/studio/themes.ts` |
@@ -527,7 +527,7 @@ We follow the *gradient* downhill, one small step at a time.
 
 ## Narration timing is forced alignment on the CPU
 
-The app crate times a clip's words (`app/src-tauri/src/studio/timing/`):
+`oculus-core` times a clip's words (`app/src-tauri/src/studio/timing/`):
 CTC forced alignment of the script against wav2vec2's letter emissions, run
 by ONNX Runtime on the CPU (`app/src-tauri/src/runtime/onnx/`). The model
 is Xenova's fp32 ONNX export of `facebook/wav2vec2-base-960h` (Apache-2.0,
@@ -1885,7 +1885,7 @@ error before any frame renders.
   (`scene_fingerprint`, which covers the scene before it), a hash of every
   file under `components/` and `assets/`, the render settings (quality,
   scale, size, fps, blur, filter, codec and tag arguments) and
-  `STUDIO_RENDER_BUILD`, which `app/src-tauri/build.rs` hashes from
+  `STUDIO_RENDER_BUILD`, which `app/src-tauri/crates/oculus-core/build.rs` hashes from
   studio-core's `src/`, `fonts/`, `themes/` and `library/assets/` (the
   bundled `starter:` images), the KaTeX port's `src/`,
   `data/` and `build.rs` (`app/math-core/katex/`), `src/studio/render/` and
@@ -2407,7 +2407,7 @@ its exact pixels when moved behind the same scene.
 `tests/narration.rs` covers scene lengths, stale and missing narration, the
 load errors, `word`/`wordEnd` (hyphenated words, and the nearest phrase on
 every miss) and a gallery of a narrated video with no manifest; the `narrated` fixture (a hand-written
-manifest, no audio) pins a card entering at its word. In the app crate, `cargo test --lib studio::` covers the TTS client
+manifest, no audio) pins a card entering at its word. In `oculus-core`, `cargo test -p oculus-core --lib studio::` covers the TTS client
 against a loopback fake server (WAV, empty, non-WAV, silent, 404, 429),
 the `/v1/models` listing (parsing, 404, non-JSON, unreachable), the Settings
 row's validation (`studio::commands`),
@@ -2426,7 +2426,7 @@ end-to-end narrate (`STUDIO_KOKORO`, `STUDIO_G2P_GUESSER`,
 `STUDIO_ALIGN_MODEL`), which prints its real-time factor and peak memory,
 and the review's two samples differing (`STUDIO_KOKORO`,
 `STUDIO_G2P_GUESSER`).
-`cargo test --lib studio::render` covers the presets' sizes and names,
+`cargo test -p oculus-core --lib studio::render` covers the presets' sizes and names,
 the encoder choice from canned `-encoders` lists (macOS's build, the
 Windows LGPL build before and after Studio's additions, VideoToolbox or
 x264 alone), the render plan, segment keys and tree hashes, the audio

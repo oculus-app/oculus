@@ -186,13 +186,13 @@ jobs:
       - name: Clippy
         working-directory: app
         run: |
-          (cd src-tauri && cargo clippy --release --locked --all-targets -- -D warnings)
+          (cd src-tauri && cargo clippy --release --locked --workspace --all-targets -- -D warnings)
           (cd keyd/core && cargo clippy --locked --all-targets --all-features -- -D warnings)
           (cd keyd && cargo clippy --locked --all-targets -- -D warnings)
           (cd keyd && cargo clippy --locked --all-targets --features dev -- -D warnings)
       - name: Rust tests
         working-directory: app/src-tauri
-        run: cargo test --release --locked
+        run: cargo test --release --locked --workspace
       - name: keyd core tests
         working-directory: app/keyd/core
         run: cargo test --locked --all-features
@@ -260,7 +260,7 @@ jobs:
         run: bun run stage-cli
       - name: Rust tests
         working-directory: app/src-tauri
-        run: cargo test --release --locked
+        run: cargo test --release --locked --workspace
       - name: keyd core tests
         working-directory: app/keyd/core
         run: cargo test --locked --all-features

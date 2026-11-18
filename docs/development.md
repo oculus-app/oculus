@@ -15,6 +15,7 @@ and stable Rust, plus the MSVC toolchain, Windows SDK and WebView2.
 | The dev wrapper, preflight and cross-shell test runner | `app/scripts/dev.mjs`, `app/scripts/predev.mjs`, `app/scripts/test.mjs` |
 | Vendored browser engine bindings | `app/src-tauri/vendor/wry/`, `app/src-tauri/vendor/wry/VENDORED.md`, `app/src-tauri/Cargo.toml` |
 | The app and CLI dev profile | `[profile.dev]` in `app/src-tauri/Cargo.toml` |
+| The Rust crates: the workspace and its shared dependencies, the layers' manifests, their roots, and core's calls up ([below](#the-rust-crates)) | `app/src-tauri/Cargo.toml`, `app/src-tauri/crates/`, `app/src-tauri/src/core_root.rs`, `app/src-tauri/src/harness_root.rs`, `app/src-tauri/src/lib.rs`, `app/src-tauri/src/runtime/upper.rs` |
 | Keeps the dev CLI current through a session | `app/scripts/watch-cli.mjs` |
 | Warms a new worktree from the main checkout's build | `app/scripts/warm-worktree.mjs` |
 | Native binary fetcher (ffmpeg) | `app/scripts/fetch-ffmpeg.mjs` |
@@ -122,8 +123,8 @@ fresh checkout run `bun run ffmpeg` and (on macOS)
 ## The app and CLI share one dev profile
 
 The app and CLI use the dev profile in `app/src-tauri/Cargo.toml`:
-dependencies at `opt-level = 3` without debug info, and the app crate at
-`debug = 1` without optimisation. The manifest profile applies wherever
+dependencies at `opt-level = 3` without debug info, and the workspace's own
+crates ([below](#the-rust-crates)) at `debug = 1` without optimisation. The manifest profile applies wherever
 Cargo runs. The CLI scripts also run Cargo from `app/src-tauri` so they
 read the same config and sccache wrapper as Tauri's app build.
 The app library emits only an `rlib` for the desktop app and CLI.
@@ -146,12 +147,57 @@ crate's leftover debug objects (hundreds of thousands of them, minutes to
 clone), and leaves a worktree that already has `target/debug` alone. It
 clones only on macOS. The T3 Code project runs it on every new worktree.
 
-The app crate is about 200k lines in one crate, so even an incremental
-build recompiles all of it: about 15 s for `cargo check` and 35 s for
-`cargo test --no-run`, which builds the library twice (rlib and test
-harness) and both binaries' test harnesses. While iterating, use
-`cargo check`; to run tests, use `cargo test --lib <filter>` (only the
-`oculus` binary has its own tests); run `cargo clippy` once at the end.
+## The Rust crates
+
+`app/src-tauri/Cargo.toml` is a workspace of three crates, each rebuilt
+only when it or a crate below it changes:
+
+| Crate | Root | Holds |
+| --- | --- | --- |
+| `oculus-core` | `src/core_root.rs` | agents, auth, db, embed, library, pages, parse, providers, revision, runtime, sources, studio, sync, transcribe, `elog!`, `test_support` |
+| `oculus-harness` | `src/harness_root.rs` | harness, lectures, proposals, widgets |
+| `app` (`app_lib`, both binaries) | `src/lib.rs` | shell, companion, `run()` and the command registry |
+
+The layers' manifests are in `app/src-tauri/crates/<name>/`, but their
+modules stay under `src/`: each manifest's `[lib] path` names its root
+there, and a root's `mod` lines resolve beside it. Each upper root
+re-exports the one below whole (`pub use oculus_core::*`), so `crate::db`
+reads the same in every crate and the CLI's `app_lib::…` paths still
+resolve. `#[tauri::command]` functions in any crate register in `lib.rs`'s
+`generate_handler!` by those paths. Dependencies are declared once, in
+`[workspace.dependencies]`; the profiles and `[patch]` apply only from the
+workspace root.
+
+Core names nothing above it. A file of an upper module that core needs
+(`harness/attach.rs`, `widgets/check/`, `widgets/transpile.rs`,
+`companion/assets/mime.rs`, `shell/browser/scope.rs` and
+`shell/browser/labels.rs`) is compiled into core at the same module path by
+`core_root.rs`, and its owning module re-exports it; editing one rebuilds
+core. The calls core makes up (ending the agents, clearing the browser's
+cookies, rendering opencode's config) go through `runtime::upper`, which
+`app_lib::bind_layers` fills in first thing in the app's `run()` and the
+CLI's `main`; a call before that panics.
+
+`test_support` is compiled for core's tests and under core's
+`test-support` feature, which the upper crates' dev-dependencies enable.
+The core and harness build scripts point `CARGO_MANIFEST_DIR` back at
+`app/src-tauri`, where their sources live, so `env!("CARGO_MANIFEST_DIR")`
+paths resolve alike in every crate; core's also hashes
+`STUDIO_RENDER_BUILD`, and the app's runs tauri-build.
+
+An edit recompiles its crate and every crate above it. Measured with
+incremental `cargo check`: a function body in `harness` about 4 s, a new
+method on `HarnessEvent` about 5 s, any edit in `shell` about 1 s, a body in
+`library` (core) about 4 s. Of a harness edit's check, the app crate
+takes about 1.5 s. `cargo test --no-run` after a harness edit takes 5 to
+9 s, and `cargo test --no-run -p oculus-harness --lib` 2 to 6 s.
+
+While iterating, use `cargo check`. To run tests, scope them to the crate:
+`cargo test -p oculus-harness --lib <filter>` (or `-p oculus-core`, or
+`--lib` alone for the app; only the `oculus` binary has its own tests).
+`cargo test`, `cargo clippy` and `cargo check --all-targets` from
+`app/src-tauri` cover only the app unless given `--workspace`; run
+`cargo clippy --workspace --all-targets` once at the end, as CI does.
 
 ## The speech helper is compiled, not fetched
 
@@ -287,7 +333,7 @@ CLI already built. `stage-keyd` precedes `stage-cli`, which bootstraps the CLI
 sidecar before tauri-build checks every `externalBin`. Native CI checks code
 and staging; installer creation and validation run in `release.yml`.
 
-The app's Windows dev-dependency enables keyd core's `test-support` for scripted
+Each crate's Windows dev-dependency enables keyd core's `test-support` for scripted
 brokers in release tests. `app/src-tauri/src/test_support/keyd.rs` registers
 only its isolated Windows test endpoint, for the fake's lifetime. A registered
 endpoint still requires the pipe server's live PID to be this test process;
@@ -642,7 +688,7 @@ The OpenUI skill signatures can be regenerated with `bun run docs:widgets` after
 - Anything under `app/src-tauri/` changing, templates included, rebuilds and relaunches the dev app.
 - React's dev build records a `performance.measure` entry per component render and WebKit never drops them, so without clearing the dev webview grows by gigabytes over a session. `app/src/lib/platform/devPerfEntries.ts` clears them in dev; a production build records none.
 - A dev rebuild SIGTERMs the app past Tauri's Exit event, so agent subprocesses can outlive it ([harness.md](./harness.md)).
-- `eprintln!` panics once stderr is a closed pipe, as it is for an app a dead `tauri dev` left running, and a panic inside a WebKit or Objective-C callback aborts the app. The app crate logs with `elog!` (`app/src-tauri/src/elog.rs`), which drops the write error; tests and the CLI binary keep `eprintln!`.
+- `eprintln!` panics once stderr is a closed pipe, as it is for an app a dead `tauri dev` left running, and a panic inside a WebKit or Objective-C callback aborts the app. Every crate logs with `elog!` (`app/src-tauri/src/elog.rs`, exported from `oculus-core`), which drops the write error; tests and the CLI binary keep `eprintln!`.
 - Adding `app/keyd` to a workspace, or building it outside `app/keyd`, changes its bytes and brings back the keychain prompt.
 - An OS call outside `app/keyd/core/src/platform/` in keyd's or the app's keyd code fails `bun run test`, and on Linux CI fails the build.
 - Deleting `~/Library/Application Support/com.tchan.oculus` is a full reset, sign-in included.
