@@ -127,14 +127,6 @@ fn a_synced_challenge_folder_ends_exactly_as_eds_zip() {
     assert!(lessons.join("03-q1a.md").is_file());
     assert!(lessons.parent().unwrap().join("1-l.md").is_file());
 
-    assert_eq!(
-        extras
-            .files
-            .iter()
-            .map(|f| f.path.as_str())
-            .collect::<Vec<_>>(),
-        ["q1a.py", "src/keep.txt", "src/new/data.txt"]
-    );
     assert_eq!(extras.note, None);
     let seen = seen.0.lock().unwrap();
     assert_eq!(
@@ -179,7 +171,6 @@ fn a_failed_download_leaves_the_folder_untouched() {
         Ok(b"not a zip".to_vec()),
     ] {
         let extras = engine.mirror_workspace(&subject(), "Q1a", SLIDE, zip, true);
-        assert!(extras.files.is_empty());
         assert_eq!(
             extras.note.as_deref(),
             Some("The challenge's files could not be fetched.")
@@ -207,7 +198,7 @@ fn an_empty_workspace_on_ed_empties_the_folder_and_says_so() {
 
     let extras = engine.mirror_workspace(&subject(), "Q1a", SLIDE, Ok(zip_of(&[])), false);
 
-    assert!(extras.files.is_empty());
+    assert_eq!(extras.note, None);
     assert!(!root.exists());
     assert!(data.join(FOLDER).with_extension("md").is_file());
     assert_eq!(engine.replaced_edits.get(), 0, "no edit record, no count");

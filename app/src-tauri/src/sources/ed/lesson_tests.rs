@@ -3,8 +3,8 @@
 //! The fixtures are trimmed answers from the live API.
 
 use super::lesson_md::{
-    lesson_index_md, lesson_url, slide_md, slide_url, sorted_slides, LessonPlace, LinkedFile,
-    SlideExtras, SlideFile,
+    lesson_index_md, lesson_url, slide_md, slide_url, sorted_slides, LessonPlace, SlideExtras,
+    SlideFile,
 };
 use super::lessons::{order_lessons, slide_statuses_of, workspace_host};
 use super::threads::thread_url;
@@ -177,17 +177,6 @@ fn fixture_extras() -> HashMap<i64, SlideExtras> {
         739598,
         SlideExtras {
             pdf: Some(format!("{STEM}/01-week-7-sockets.pdf")),
-            ..SlideExtras::default()
-        },
-    );
-    extras.insert(
-        831115,
-        SlideExtras {
-            files: vec![LinkedFile {
-                path: "q1a.py".into(),
-                rel: format!("{STEM}/03-q1a-tutorial-dfa/q1a.py"),
-                text: Some("dfa = DFA(\n    states={'q0'},\n)\n".into()),
-            }],
             ..SlideExtras::default()
         },
     );
@@ -365,17 +354,11 @@ fn the_fixture_lesson_renders_every_slide_type() {
     assert!(
         body.contains("![](https://static.au.edusercontent.com/files/Sv7OzG2sHzY0oggSqIfjiPfM)")
     );
-    // code: the brief, the file list beside the slide, the file inline
+    // code: the brief only; its workspace files sit in the slide's folder
     let code = md(831115);
     assert!(code.contains("Fill in the given scaffold"), "{code}");
-    assert!(
-        code.contains("- [q1a.py](./03-q1a-tutorial-dfa/q1a.py)"),
-        "{code}"
-    );
-    assert!(
-        code.contains("```python\ndfa = DFA(\n    states={'q0'},\n)\n```"),
-        "{code}"
-    );
+    assert!(!code.contains("**Files**"), "{code}");
+    assert!(!code.contains("q1a.py"), "{code}");
     // video, webpage
     assert!(md(499766).contains("[▶ W1.3: Introduction to gdb \\[Solution Video\\]](https://www.youtube.com/watch?v=1s5bXPqEcIE)"));
     assert!(md(563686).contains("[Lecture 18 Missed Segment](https://echo360.net.au/media/"));
@@ -403,7 +386,7 @@ fn a_challenge_slide_names_its_challenge_and_what_its_workspace_needs() {
     let l = lesson();
     let place = place(STEM, Some("au"));
     let mut extras = fixture_extras();
-    extras.get_mut(&831115).unwrap().challenge = Some(challenge());
+    extras.entry(831115).or_default().challenge = Some(challenge());
     let files = files_of(&l, STEM, extras);
     let code = files.iter().find(|f| f.id == 831115).unwrap();
     let md = slide_md(&l, &place, code).unwrap();
@@ -568,25 +551,27 @@ fn a_short_answer_solution_may_be_text() {
 fn unknown_slides_say_so_and_links_are_percent_encoded() {
     let l = lesson_of(json!([
         {"id": 1, "type": "surprise", "title": "A", "index": 0},
-        {"id": 2, "type": "code", "title": "B", "index": 1, "content": ""}
+        {"id": 2, "type": "pdf", "title": "B", "index": 1}
     ]));
     let mut extras = HashMap::new();
     extras.insert(
         2,
         SlideExtras {
-            files: vec![LinkedFile {
-                path: "my (draft).py".into(),
-                rel: "lessons/1-l/02-b/my (draft).py".into(),
-                text: None,
-            }],
+            pdf: Some("lessons/1-l/02-b (draft).pdf".into()),
             ..SlideExtras::default()
         },
     );
-    let md = slides_md(&l, extras);
+    let place = place("lessons/1-l", None);
+    let files = files_of(&l, place.stem, extras);
+    let md: String = files
+        .iter()
+        .filter_map(|f| slide_md(&l, &place, f))
+        .collect();
     assert!(md.contains("_Unsupported Ed slide type surprise._"), "{md}");
+    let index = lesson_index_md(&l, &place, &files);
     assert!(
-        md.contains("- [my (draft).py](./02-b/my%20%28draft%29.py)"),
-        "{md}"
+        index.contains("2. [B](1-l/02-b%20%28draft%29.pdf) · pdf"),
+        "{index}"
     );
 }
 

@@ -8,8 +8,11 @@ import {
   parseEdLesson,
   parseLessonIndex,
   resolveBeside,
+  isChallengeSlide,
   slideFiles,
   slideIcon,
+  slideWorkspace,
+  workspaceView,
   lessonIcon,
 } from "@/lib/ed/lessons";
 import { Code, File, FileCode, FilePy, FileText } from "@phosphor-icons/react";
@@ -96,6 +99,45 @@ describe("Ed lesson index", () => {
     expect(slideFiles(index, slides[1], [index, md, pdf])).toEqual({ md, pdf });
     expect(slideFiles(index, slides[0], [index, md, pdf])).toEqual({ md: undefined, pdf: undefined });
     expect(resolveBeside("a/b/c.md", "./d/../e.md")).toBe("a/b/e.md");
+  });
+
+  test("lists a challenge's workspace as Ed's tree, folders first", () => {
+    const index = file(1, "courses/C/Course/Lessons/123-assignment-1.md");
+    const [code, notes] = parseLessonIndex(A1)!.slides;
+    const dir = "courses/C/Course/Lessons/123-assignment-1/01-q1-group-project";
+    const rows = [
+      index,
+      file(2, `${dir}.md`),
+      file(3, `${dir}/main.py`),
+      file(4, `${dir}/src/util10.py`),
+      file(5, `${dir}/src/util2.py`),
+      file(6, `${dir}/README.md`),
+      file(7, "courses/C/Course/Lessons/123-assignment-1/02-notes.pdf"),
+    ];
+    expect(slideWorkspace(index, code, rows).map((e) => [e.kind, e.path, e.depth])).toEqual([
+      ["folder", "src", 0],
+      ["file", "src/util2.py", 1],
+      ["file", "src/util10.py", 1],
+      ["file", "main.py", 0],
+      ["file", "README.md", 0],
+    ]);
+    expect(slideWorkspace(index, code, [index])).toEqual([]);
+    expect(isChallengeSlide(code)).toBe(true);
+    expect(isChallengeSlide(notes)).toBe(false);
+  });
+
+  test("shows every workspace format read-only", () => {
+    expect(workspaceView("main.py")).toBe("text");
+    expect(workspaceView("analysis.ipynb")).toBe("text");
+    expect(workspaceView("README.md")).toBe("text");
+    expect(workspaceView("Makefile")).toBe("text");
+    expect(workspaceView("data.csv")).toBe("text");
+    expect(workspaceView("plot.PNG")).toBe("image");
+    expect(workspaceView("spec.pdf")).toBe("pdf");
+    expect(workspaceView("demo.mp4")).toBe("video");
+    expect(workspaceView("report.docx")).toBe("none");
+    expect(workspaceView("marks.xlsx")).toBe("none");
+    expect(workspaceView("bundle.zip")).toBe("none");
   });
 
   test("opens on the first slide not yet completed", () => {

@@ -13,7 +13,7 @@ library video in the media player, a video's transcript, and a web page.
 | The maths engine: loading, rendering, `rehypeMaths`, the visual field's edit model (`field.ts`) and the geometry of source-mapped maths (`geometry/`: where each caret stop is drawn, which stop a press lands on, a selection's bands); KaTeX's CSS and fonts | `app/src/lib/maths/`, `app/src/styles/katex/` |
 | Whiteboard and notebook files | `app/src/components/whiteboard/`, `app/src/lib/whiteboard/`; [drawing-whiteboard.md](./drawing-whiteboard.md) |
 | A parsed PDF's faces: PDF, Markdown | `app/src/components/files/FileViewer.tsx`, `app/src/components/files/FileMarkdown.tsx`, `app/src/components/files/pdf/pdfMdLink.ts`, `app/src/lib/pdf/pdfBlocks.ts` |
-| An Ed lesson's view: the slide sidebar and pane, a challenge slide's Open in Ed strip, the index reader, statuses Ed answered this session | `app/src/components/lessons/`, `app/src/hooks/data/useLessonIndex.ts`, `app/src/lib/ed/lessons.ts`, `app/src/lib/ed/slideStatus.ts`, `app/src/lib/ed/views.ts` |
+| An Ed lesson's view: the slide sidebar and pane, a challenge slide's Description \| Workspace strip and read-only workspace, the index reader, statuses Ed answered this session | `app/src/components/lessons/`, `app/src/hooks/data/useLessonIndex.ts`, `app/src/lib/ed/lessons.ts`, `app/src/lib/ed/slideStatus.ts`, `app/src/lib/ed/views.ts` |
 | The code editor and a library source file's read-only view | `app/src/components/code/`, `app/src/components/files/CodeFileViewer.tsx`, `fileLanguage` in `app/src/components/documents/editor/syntax/codeLanguages.ts`, `CODE_EXTS` in `app/src/lib/files/fileTypes.ts` |
 | Media player: clock, controls, keys, fullscreen, captions, dock frame, cue list | `app/src/components/media/`, `app/src/lib/lectures/media/`, `app/src/stores/lectures/playerPrefsStore.ts`, `app/src/hooks/lectures/useTranscriptDock.ts` |
 | Lecture player: two sources, playback owner, chapters, chat | `app/src/components/lectures/`, `app/src/lib/lectures/playback/`, `app/src/lib/lectures/playbackOwner.ts` |
@@ -406,14 +406,27 @@ whose list has slides (`useLessonIndex`), its body is `LessonView`
   PDF, any other slide's `.md`, both found by path beside the index
   (`slideFiles`). A slide whose rows a sync has not stored yet says so
   quietly. Links inside a slide open beside the page, as any file's do.
-- **Every challenge slide shows its `.md` read-only** (a slide with a
-  `challenge_id`, `code` or `jupyter`): the brief, the Files list of the
-  student's workspace as Ed holds it and each small text file's copy, all
-  written by the sync ([sync.md](./sync.md)). A file's link opens
-  `CodeFileViewer`, which never edits. Over it, a 40px strip
-  (`ChallengeHeader`) holds an Open in Ed pill that opens the slide's `url`
-  from the index (`openLinkOut`: an in-app tab, ⌘-click the system
-  browser), since Run, Mark and editing happen on Ed.
+- **A challenge slide switches Description | Workspace, as Ed does** (a
+  slide with a `challenge_id`, `code` or `jupyter`: `isChallengeSlide`). A
+  40px strip over it (`ChallengeHeader`) holds the switch (`PillTabs`) and an
+  Open in Ed pill that opens the slide's `url` from the index
+  (`openLinkOut`: an in-app tab, ⌘-click the system browser), since editing,
+  Run and Mark happen on Ed. Each slide opens on Description: its `.md`, the
+  brief, through `FileViewer`.
+- **Workspace shows the challenge's synced files, read-only**
+  (`WorkspacePane`): the rows under the slide's folder `<NN>-<slide-slug>/`
+  beside its `.md` (`slideWorkspace`, [sync.md](./sync.md)), as Ed's tree in
+  a 208px column (`WorkspaceTree`: folders first, then files, each by name,
+  workspace-relative), and the chosen file beside it, the first until one is
+  picked. Each column is its own one scroller; ↑/↓ step through the files.
+  Showing a file stamps it accessed. A slide whose folder holds no rows yet
+  says so quietly. Nothing in the pane edits (`WorkspaceFileView`, by
+  `workspaceView`): an image shows as itself, a PDF in `PDFViewer`, a video
+  in a bare `<video>` (the library's player would write a transcript into
+  the mirror), Office files, spreadsheets, archives and audio as a "No
+  preview" note, and every other file — source, `.ipynb`, `.md`, `.txt`,
+  `.csv`, files without an extension — as its text in `CodeFileViewer`; one
+  that is not UTF-8 text gets the same note.
 - **The slide rides in the URL** (`&slide=<Ed id>`, written with
   `replace`), so a restored tab or Back reopens it; without one the view
   opens on the first slide not completed (by the synced index, so a tick
