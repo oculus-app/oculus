@@ -11,7 +11,7 @@ use super::engines::{apple, groq, whisper};
 /// `{"order": [...], "language": string, "groq": {"enabled"},
 ///   "whisper": {"enabled", "model"}, "apple": {"enabled"}}`
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Settings {
+pub struct Settings {
     /// Each of [`ENGINES`] once, in the order a run tries them.
     pub order: Vec<&'static str>,
     pub language: Language,
@@ -26,7 +26,7 @@ pub(crate) struct Settings {
 /// `en_AU`, or a bare language code; `None` is the default, English in the
 /// Mac's region.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Language(Option<String>);
+pub struct Language(Option<String>);
 
 impl Language {
     /// Whisper's `-l`: the locale's language part, or `auto`. The default is
@@ -57,7 +57,7 @@ impl Language {
 /// the default order, every engine on, the default language, the model
 /// `pick` chooses. Without a top-level `language`, the older per-engine
 /// `apple.locale`, then `whisper.language`, stands in for it.
-pub(crate) fn settings_from(row: Option<&str>) -> Settings {
+pub fn settings_from(row: Option<&str>) -> Settings {
     let row = row.and_then(|row| serde_json::from_str::<serde_json::Value>(row).ok());
     let at = |path: &[&str]| {
         path.iter()

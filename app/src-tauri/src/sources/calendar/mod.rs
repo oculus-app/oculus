@@ -7,7 +7,7 @@
 //!   `child_events`: children replace the parent, filtered to this user's
 //!   sections when known (`fetch::my_section_codes`).
 
-pub(crate) mod command;
+pub mod command;
 mod fetch;
 mod parse;
 

@@ -9,7 +9,7 @@
 //! still sorts, confidently and meaninglessly. Vectors from a retired model
 //! stay in the table but are never scanned, and `IndexStats` counts them apart.
 
-pub(crate) mod commands;
+pub mod commands;
 #[cfg(test)]
 mod fts_tests;
 mod ingest;

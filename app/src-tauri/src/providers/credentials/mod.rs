@@ -7,7 +7,7 @@
 mod keychain;
 
 pub(crate) use keychain::Secret;
-pub(crate) use keyd_core::client::{Client as Credentialed, KeydError, RawResponse};
+pub use keyd_core::client::{Client as Credentialed, KeydError, RawResponse};
 
 /// A cloud key (Voyage, MinerU, Groq) as Settings stores it: in keyd's vault
 /// under `secret` when keyd is installed, else in the `keychain` item. Only

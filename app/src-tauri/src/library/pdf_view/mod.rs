@@ -13,7 +13,7 @@
 //! (github.com/storytold/pdfcraft, MIT OR Apache-2.0); the adapted part carries
 //! its licence notice below.
 
-pub(crate) mod commands;
+pub mod commands;
 mod documents;
 mod layout;
 mod links;

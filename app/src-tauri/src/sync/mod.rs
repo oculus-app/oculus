@@ -13,8 +13,8 @@ mod office;
 mod parse;
 mod phases;
 mod render;
-pub(crate) mod scrape;
-pub(crate) mod subjects;
+pub mod scrape;
+pub mod subjects;
 pub mod terms;
 #[cfg(test)]
 mod tests;

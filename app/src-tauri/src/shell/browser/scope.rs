@@ -7,18 +7,18 @@
 
 /// Whether a cookie scoped to `domain` was set on `host` itself (host-only, or
 /// a domain cookie naming exactly that host).
-pub(crate) fn on_host(domain: &str, host: &str) -> bool {
+pub fn on_host(domain: &str, host: &str) -> bool {
     domain.trim_start_matches('.').eq_ignore_ascii_case(host)
 }
 
 /// Whether a cookie scoped to `domain` reaches `host` from a parent domain.
-pub(crate) fn at_parent(domain: &str, host: &str) -> bool {
+pub fn at_parent(domain: &str, host: &str) -> bool {
     !on_host(domain, host) && sent_to(domain, host)
 }
 
 /// Whether a cookie scoped to `domain`, sent to `host`, is the university's
 /// session there: set on the host, or on a parent inside `university`.
-pub(crate) fn belongs(domain: &str, host: &str, university: Option<&str>) -> bool {
+pub fn belongs(domain: &str, host: &str, university: Option<&str>) -> bool {
     on_host(domain, host)
         || (at_parent(domain, host)
             && university.is_some_and(|u| sent_to(u, domain.trim_start_matches('.'))))
@@ -26,7 +26,7 @@ pub(crate) fn belongs(domain: &str, host: &str, university: Option<&str>) -> boo
 
 /// Whether a cookie scoped to `domain` is sent to `host`, as
 /// `cookies_for_url` decides it.
-pub(crate) fn sent_to(domain: &str, host: &str) -> bool {
+pub fn sent_to(domain: &str, host: &str) -> bool {
     let domain = domain.trim_start_matches('.');
     host == domain || host.ends_with(&format!(".{domain}"))
 }

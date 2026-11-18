@@ -13,7 +13,7 @@
 //! the second factor is not a second factor — the same deliberate trade as a
 //! password manager holding TOTP.
 
-pub(crate) mod commands;
+pub mod commands;
 mod credentials;
 mod keychain;
 mod login;

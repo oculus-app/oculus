@@ -1,28 +1,15 @@
-#[macro_use]
-mod elog;
+//! The app: the window, the in-app browser and device sharing, over
+//! `oculus-harness` and `oculus-core`, whose modules are re-exported whole so
+//! `app_lib::db` and the rest resolve for the `oculus` CLI
+//! (docs/development.md#the-rust-crates).
 
-pub mod agents;
-pub mod auth;
+#[macro_use(elog)]
+extern crate oculus_core;
+
+pub use oculus_harness::*;
+
 pub mod companion;
-pub mod db;
-pub mod embed;
-pub mod harness;
-pub mod lectures;
-pub mod library;
-pub mod pages;
-pub mod parse;
-pub mod proposals;
-pub mod providers;
-pub mod revision;
-pub mod runtime;
 pub mod shell;
-pub mod sources;
-pub mod studio;
-pub mod sync;
-#[cfg(test)]
-mod test_support;
-pub mod transcribe;
-pub mod widgets;
 
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -38,9 +25,6 @@ use sync::subjects::SubjectsState;
 pub fn bind_layers() {
     runtime::upper::bind(runtime::upper::Upper {
         stop_agents: harness::app::shutdown,
-        opencode_config_path: |data_dir| {
-            harness::thread_cwd(data_dir).join(harness::opencode::CONFIG_NAME)
-        },
         write_opencode_config: harness::write_opencode_config,
         clear_browser_sessions: |app, then| shell::browser::clear_sessions(app, then),
     });

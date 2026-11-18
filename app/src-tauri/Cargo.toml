@@ -20,10 +20,75 @@ crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-# Hashes the renderer's sources into `STUDIO_RENDER_BUILD` (build.rs).
-sha2 = "0.10"
 
 [dependencies]
+# Everything below the app shell (docs/development.md#the-rust-crates).
+oculus-core.workspace = true
+oculus-harness.workspace = true
+tauri.workspace = true
+tauri-plugin-opener.workspace = true
+tauri-plugin-dialog.workspace = true
+dirs.workspace = true
+keyd_core.workspace = true
+studio_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+ureq.workspace = true
+tungstenite.workspace = true
+tauri-plugin-sql.workspace = true
+sqlx.workspace = true
+base64.workspace = true
+rpassword.workspace = true
+tokio.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+tokio-tungstenite.workspace = true
+tokio-util.workspace = true
+socket2.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+scraper.workspace = true
+clap.workspace = true
+libc.workspace = true
+regex.workspace = true
+ring.workspace = true
+zip.workspace = true
+futures-util.workspace = true
+sha2.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2.workspace = true
+dispatch2.workspace = true
+objc2.workspace = true
+objc2-foundation.workspace = true
+objc2-app-kit.workspace = true
+objc2-web-kit.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+webview2-com.workspace = true
+windows-core.workspace = true
+windows-sys.workspace = true
+
+[dev-dependencies]
+oculus-core = { workspace = true, features = ["test-support"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+# Enables explicitly registered in-process fake brokers in Windows release tests.
+keyd_core = { workspace = true, features = ["test-support"] }
+
+# The app is the root package; `crates/` holds the manifests of the layers
+# below it, whose sources stay under `src/` (docs/development.md#the-rust-crates).
+# vendor/wry is a path dependency under this directory, not a member.
+[workspace]
+members = ["crates/oculus-core", "crates/oculus-harness"]
+exclude = ["vendor/wry"]
+
+# One version and feature set per dependency, shared by every member.
+[workspace.dependencies]
+oculus-core = { path = "crates/oculus-core" }
+oculus-harness = { path = "crates/oculus-harness" }
 # `unstable` is what enables multiwebview (`Window::add_child`) — every
 # in-app browser tab is a child WebView of the main window, see src/shell/browser/mod.rs.
 tauri = { version = "2", features = ["protocol-asset", "devtools", "unstable"] }
@@ -135,12 +200,10 @@ unicode-normalization = "0.1.25"
 # with the same address-change stream on Windows and Linux.
 if-watch = { version = "3.2.2", features = ["tokio"] }
 
-# The in-app browser seeds WebKit's cookie jar with the Canvas session (see
+# macOS only. The in-app browser seeds WebKit's cookie jar with the Canvas session (see
 # `seed_sessions` in src/shell/browser/seed.rs). WebKit cookie ordering uses
 # WKHTTPCookieStore directly; Windows uses Tauri cookie APIs. These are the same crates wry
 # already builds on.
-[target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3", features = ["apple-native"] }
 block2 = "0.6"
 # A memory-pressure dispatch source discards background browser tabs
 # (`src/shell/browser/discard.rs`).
@@ -157,10 +220,7 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 # and driven on the WKWebView directly (see `src/shell/browser/page.rs`).
 objc2-web-kit = { version = "0.3", features = ["block2", "WKHTTPCookieStore", "WKWebsiteDataStore", "WKWebView", "WKNavigation", "WKFindConfiguration", "WKFindResult", "WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController"] }
 
-[dev-dependencies]
-
-[target.'cfg(windows)'.dependencies]
-keyring = { version = "3", features = ["windows-native"] }
+# Windows only.
 dunce = "1"
 junction = "1"
 webview2-com = "0.38.2"
@@ -168,10 +228,6 @@ webview2-com = "0.38.2"
 # version webview2-com builds on (`src/shell/browser/teardown.rs`).
 windows-core = "0.61"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading", "Win32_System_JobObjects", "Win32_System_ProcessStatus", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_Input_KeyboardAndMouse", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi"] }
-
-[target.'cfg(windows)'.dev-dependencies]
-# Enables explicitly registered in-process fake brokers in Windows release tests.
-keyd_core = { package = "oculus-keyd-core", path = "../keyd/core", features = ["test-support"] }
 
 # The manifest profile applies to the app and CLI from every working directory.
 [profile.dev]

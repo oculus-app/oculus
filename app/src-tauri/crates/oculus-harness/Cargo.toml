@@ -1,0 +1,43 @@
+[package]
+name = "oculus-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+build = "build.rs"
+
+# The CLI agents as the app's chat, and what runs through them: lecture jobs,
+# chat widgets and proposals. Its root and modules stay under `src/`
+# (docs/development.md#the-rust-crates).
+[lib]
+name = "oculus_harness"
+path = "../../src/harness_root.rs"
+
+[dependencies]
+oculus-core.workspace = true
+tauri.workspace = true
+tauri-plugin-opener.workspace = true
+dirs.workspace = true
+keyd_core.workspace = true
+studio_core.workspace = true
+oxc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny_http.workspace = true
+url.workspace = true
+ureq.workspace = true
+sqlx.workspace = true
+base64.workspace = true
+tokio.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+libc.workspace = true
+regex.workspace = true
+ring.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+oculus-core = { workspace = true, features = ["test-support"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+# Enables explicitly registered in-process fake brokers in Windows release tests.
+keyd_core = { workspace = true, features = ["test-support"] }

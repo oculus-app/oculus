@@ -11,10 +11,10 @@
 //! the target folders every own-file creator takes are `ops`.
 //! docs/frontend.md has the browser this feeds.
 
-pub(crate) mod commands;
+pub mod commands;
 mod entries;
 mod listing;
-pub(crate) mod ops;
+pub mod ops;
 mod recordings;
 
 #[cfg(test)]

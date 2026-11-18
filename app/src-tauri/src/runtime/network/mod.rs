@@ -19,7 +19,7 @@ mod address;
 mod observer;
 mod watch;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub mod fake;
 #[cfg(test)]
 mod tests;

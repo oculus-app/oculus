@@ -13,7 +13,7 @@
 //! `fixtures/harness/` came from there.
 
 pub mod app;
-pub mod attach;
+pub use oculus_core::harness::attach;
 mod child;
 pub mod cli;
 mod core;

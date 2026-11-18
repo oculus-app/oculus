@@ -1,14 +1,14 @@
 //! Versioned drawing documents among each subject's own files: whiteboards
 //! (`<title>.whiteboard`) and notebooks (`<title>.notebook`), anywhere in the
 //! own zone, created in the folder `layout::own_dir` gives their kind.
-pub(crate) mod authority;
-pub(crate) mod drafts;
-pub(crate) mod export;
-pub(crate) mod export_pdf;
-pub(crate) mod images;
-pub(crate) mod imports;
+pub mod authority;
+pub mod drafts;
+pub mod export;
+pub mod export_pdf;
+pub mod images;
+pub mod imports;
 pub(crate) mod legacy;
-pub(crate) mod snapshots;
+pub mod snapshots;
 
 use super::ImportedFile;
 use crate::library::layout::{self, OwnKind};

@@ -9,7 +9,7 @@
 //! one is unconfigured or rate-limited; any other failure surfaces
 
 pub mod app;
-pub(crate) mod audio;
+pub mod audio;
 pub mod dictation;
 mod engine;
 mod engines;
@@ -20,4 +20,4 @@ mod vtt;
 pub use engine::{engine_label, Engine, EngineError, Segment, ENGINES};
 pub use engines::whisper_models;
 pub use pipeline::{resolve, run, vtt_path, Outcome, Step};
-pub(crate) use settings::{settings_from, Settings};
+pub use settings::{settings_from, Settings};

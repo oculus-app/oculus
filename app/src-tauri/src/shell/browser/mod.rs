@@ -29,10 +29,9 @@ mod discard;
 mod discard_test;
 pub(crate) mod downloads;
 mod favicon;
-mod labels;
 mod layout;
 mod page;
-pub(crate) mod scope;
+pub(crate) use oculus_core::shell::browser::scope;
 mod seed;
 mod teardown;
 #[cfg(test)]
@@ -40,8 +39,8 @@ mod tests;
 #[cfg(any(target_os = "windows", test))]
 mod windows;
 
-pub use labels::{LABEL_PREFIX, MAIN};
 pub use layout::{init, open_tab};
+pub use oculus_core::shell::browser::{LABEL_PREFIX, MAIN};
 pub use seed::{clear_sessions, seed_sessions};
 
 use std::collections::{HashMap, HashSet};

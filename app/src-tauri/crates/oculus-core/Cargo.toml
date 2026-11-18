@@ -1,0 +1,80 @@
+[package]
+name = "oculus-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+build = "build.rs"
+
+# Everything the agent harness and the app shell build on: the library,
+# database, sources, sync, parsing, retrieval, Studio and the rest. Its root
+# and modules stay under `src/` (docs/development.md#the-rust-crates).
+[lib]
+name = "oculus_core"
+path = "../../src/core_root.rs"
+
+[features]
+# `test_support`, for the tests of the crates above.
+test-support = []
+
+[build-dependencies]
+# Hashes the renderer's sources into `STUDIO_RENDER_BUILD` (build.rs).
+sha2.workspace = true
+
+[dependencies]
+tauri.workspace = true
+tauri-plugin-opener.workspace = true
+tauri-plugin-dialog.workspace = true
+dirs.workspace = true
+keyd_core.workspace = true
+studio_core.workspace = true
+oxc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny_http.workspace = true
+url.workspace = true
+ureq.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
+tungstenite.workspace = true
+tauri-plugin-sql.workspace = true
+sqlx.workspace = true
+base64.workspace = true
+half.workspace = true
+keyring.workspace = true
+tokio.workspace = true
+bytes.workspace = true
+if-addrs.workspace = true
+chrono.workspace = true
+scraper.workspace = true
+ego-tree.workspace = true
+libc.workspace = true
+regex.workspace = true
+ring.workspace = true
+zip.workspace = true
+imagesize.workspace = true
+hayro.workspace = true
+image.workspace = true
+lopdf.workspace = true
+calamine.workspace = true
+futures-util.workspace = true
+ort.workspace = true
+hound.workspace = true
+rubato.workspace = true
+sha2.workspace = true
+unicode-normalization.workspace = true
+if-watch.workspace = true
+
+# LLM provider API keys live in the platform's secret store, never in SQLite —
+# the store is an opt-in feature in keyring 3.
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { workspace = true, features = ["windows-native"] }
+dunce.workspace = true
+junction.workspace = true
+windows-sys.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+# Enables explicitly registered in-process fake brokers in Windows release tests.
+keyd_core = { workspace = true, features = ["test-support"] }

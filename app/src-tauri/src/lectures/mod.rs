@@ -2,11 +2,11 @@
 //! the app's session cache, paths and events.
 
 pub mod chapters;
-pub(crate) mod commands;
+pub mod commands;
 mod downloads;
 pub mod lecture_end;
 pub(crate) mod lecture_jobs;
-pub(crate) mod media;
+pub mod media;
 
 pub use downloads::DownloadCancels;
 

@@ -13,19 +13,19 @@
 //! docs/frontend.md has the commands' contract.
 
 mod busy;
-pub(crate) mod commands;
+pub mod commands;
 mod companions;
 mod copy;
 mod create;
 mod delete;
 pub(crate) mod error;
 mod events;
-pub(crate) mod guard;
+pub mod guard;
 mod journal;
 mod moves;
 pub(crate) mod names;
 mod pictures;
-pub(crate) mod reconcile;
+pub mod reconcile;
 mod relink;
 mod rows;
 

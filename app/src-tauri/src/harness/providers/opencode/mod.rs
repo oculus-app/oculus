@@ -51,7 +51,7 @@ pub const WRITER_AGENT: &str = "oculus-writer";
 pub const LECTURE_END_AGENT: &str = "oculus-lecture-end";
 pub const WIDGET_AGENT: &str = "oculus-widget";
 
-pub const CONFIG_NAME: &str = "opencode.json";
+pub const CONFIG_NAME: &str = crate::agents::OPENCODE_CONFIG_NAME;
 
 #[cfg(test)]
 pub(in crate::harness) mod replay;

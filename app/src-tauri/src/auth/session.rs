@@ -13,7 +13,7 @@ static ABSENT_LOGGED: AtomicBool = AtomicBool::new(false);
 
 /// Logs why a keyd call did not go through. An absent keyd is logged once per
 /// run: it is the same answer to every call after the first.
-pub(crate) fn report(what: &str, error: &KeydError) {
+pub fn report(what: &str, error: &KeydError) {
     if matches!(error, KeydError::Absent) && ABSENT_LOGGED.swap(true, Ordering::SeqCst) {
         return;
     }

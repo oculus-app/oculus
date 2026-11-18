@@ -140,7 +140,7 @@ pub(super) fn plan(
 }
 
 /// The input's `Duration: HH:MM:SS.ss` from ffmpeg's log.
-pub(crate) fn duration(log: &str) -> Option<f64> {
+pub fn duration(log: &str) -> Option<f64> {
     let rest = log.split("Duration: ").nth(1)?;
     let stamp = rest.split(',').next()?.trim();
     let mut parts = stamp.split(':');

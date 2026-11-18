@@ -12,8 +12,6 @@ use tauri::AppHandle;
 pub struct Upper {
     /// `harness::app::shutdown`: end every CLI agent.
     pub stop_agents: fn(&AppHandle),
-    /// Where `write_opencode_config` writes: `agents/opencode.json`.
-    pub opencode_config_path: fn(&Path) -> PathBuf,
     /// `harness::write_opencode_config`.
     pub write_opencode_config: fn(&Path) -> Result<PathBuf, String>,
     /// `shell::browser::clear_sessions`: delete the university's cookies

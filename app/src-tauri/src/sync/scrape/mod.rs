@@ -11,8 +11,8 @@ use crate::sync::{
     Engine, FileEvent, FileFailed, FileStart, Progress, Reporter, Subject, SyncOptions,
 };
 
-pub(crate) mod embeds;
-pub(crate) mod videos;
+pub mod embeds;
+pub mod videos;
 pub use videos::VideoCancels;
 
 #[derive(serde::Deserialize)]
@@ -242,7 +242,7 @@ pub fn parse_prioritise(relative_path: String) -> Result<(), String> {
 
 /// Await the same native work for a confirmed job card, so its durable result
 /// reflects completion rather than the point at which a worker was spawned.
-pub(crate) async fn confirmed<F, Fut>(
+pub async fn confirmed<F, Fut>(
     app: AppHandle,
     targets: Vec<Subject>,
     lectures: bool,
