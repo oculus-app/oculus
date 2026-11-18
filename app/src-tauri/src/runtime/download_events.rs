@@ -1,8 +1,8 @@
-//! A model download that reports progress as Tauri events, shared by the
+//! A model download that reports progress as Tauri events, shared by Studio's
 //! aligner (`studio-aligner-progress`), Kokoro's packs
 //! (`studio-voice-progress`) and Kokoro's voices
-//! (`studio-voice-file-progress`, each event naming its voice), like the
-//! Whisper models' (`transcribe::app`).
+//! (`studio-voice-file-progress`, each event naming its voice), and S1-mini
+//! (`dictation-s1-progress`), like the Whisper models' (`transcribe::app`).
 
 use std::cell::Cell;
 use std::path::Path;
@@ -31,7 +31,7 @@ struct Progress<'a> {
 /// `(received, total)` it reports and once more when it ends; `what` names
 /// the model and `dir` where it goes, for the log. Resolves with
 /// `download`'s own result, `Err(CANCELLED)` on a cancel.
-pub(super) fn download_with_events(
+pub(crate) fn download_with_events(
     app: &AppHandle,
     event: &str,
     id: Option<&str>,

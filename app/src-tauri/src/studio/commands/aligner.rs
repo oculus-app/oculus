@@ -5,7 +5,7 @@
 use serde::Serialize;
 use tauri::AppHandle;
 
-use super::progress::download_with_events;
+use crate::runtime::download_events::download_with_events;
 use crate::studio::timing::{self, Status, PACK};
 
 /// Display only, never persisted.

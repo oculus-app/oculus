@@ -40,7 +40,6 @@ export function DictationFeedback({ dictation: d }: { dictation: Dictation }) {
         <DialogHeader><DialogTitle>Set up dictation</DialogTitle><DialogDescription>Choose how Oculus turns your voice into text. Then a model tidies the transcript before adding it to your draft.</DialogDescription></DialogHeader>
         {d.setupError && <p className="text-xs text-muted-foreground" data-selectable>{d.setupError}</p>}
         <TranscriptionSection />
-        <p className="text-xs text-muted-foreground">Choose a small, fast model in Settings → Jobs → Dictation cleanup.</p>
         <div className="flex justify-end"><Button type="button" onClick={() => { d.setSetup(false); void d.start(); }}>Start dictating</Button></div>
       </DialogContent>
     </Dialog>

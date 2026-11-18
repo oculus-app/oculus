@@ -13,7 +13,6 @@ pub mod components;
 mod history;
 pub mod kokoro;
 mod levels;
-mod progress;
 pub mod pronunciations;
 pub mod render;
 #[cfg(test)]

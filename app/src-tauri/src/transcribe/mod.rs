@@ -7,9 +7,13 @@
 //! Apple's on-device recogniser — are tried in the order set in Settings →
 //! Transcription ([`Settings`]). A later engine answers only when an earlier
 //! one is unconfigured or rate-limited; any other failure surfaces
+//!
+//! Microphone clips take the same engines (`dictation`); `cleanup` turns
+//! their transcript into the message the speaker meant.
 
 pub mod app;
 pub(crate) mod audio;
+pub mod cleanup;
 pub mod dictation;
 mod engine;
 mod engines;

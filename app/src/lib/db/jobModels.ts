@@ -12,7 +12,6 @@ export type JobId =
   | "lectureChapters"
   | "lectureEnd"
   | "threadNaming"
-  | "dictationCleanup"
   | "documentSuggestions"
   | "revisionMarking"
   | "studioResearch"
@@ -63,11 +62,6 @@ export const JOBS: {
       "Name chats after the first reply.",
   },
   {
-    id: "dictationCleanup",
-    label: "Dictation cleanup",
-    description: "Tidies dictated messages after transcription. Removes filler words and fixes punctuation while keeping your meaning. A small, fast model.",
-  },
-  {
     id: "documentSuggestions",
     label: "Document suggestions",
     description:
@@ -107,7 +101,6 @@ export const DEFAULT_JOB_MODELS: JobModels = {
   lectureChapters: [{ provider: "codex", model: "gpt-5.6-luna", reasoningEffort: "xhigh" }],
   lectureEnd: [{ provider: "claude", model: "claude-haiku-4-5-20251001", reasoningEffort: null }],
   threadNaming: [{ provider: "claude", model: "claude-haiku-4-5-20251001", reasoningEffort: null }],
-  dictationCleanup: [{ provider: "claude", model: "claude-haiku-5-5", reasoningEffort: null }],
   documentSuggestions: [{ provider: "claude", model: "claude-sonnet-5-5", reasoningEffort: "medium" }],
   revisionMarking: [{ provider: "codex", model: "gpt-6-luna", reasoningEffort: "medium" }],
   studioResearch: [

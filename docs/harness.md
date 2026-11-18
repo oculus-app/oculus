@@ -53,7 +53,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Earlier messages on ArrowUp, and the ⌘S stash | `app/src/lib/harness/promptHistory.ts`, `app/src/hooks/agents/usePromptHistory.ts`, `app/src/stores/chat/stashStore.ts`, `app/src/components/harness/composer/useComposerStash.ts`, `app/src/components/harness/composer/StashMenu.tsx`, `app/src/components/harness/composer/StashBadge.tsx` |
 | Studio's thread column and New video box, which use `Composer`'s `leading` (chips after the subject's) and `placeholder` | `app/src/components/studio/thread/ThreadColumn.tsx`, `app/src/components/studio/new/NewVideo.tsx` ([studio-page.md](./studio-page.md)) |
 | The subject Overview's ask bar: `Composer`'s `compact` mode and its settings menu, and the warp into the thread it starts | `app/src/pages/subject/content/overview/AskBar.tsx`, `app/src/components/harness/composer/settings/`, `app/src/lib/ui/warp.ts`, `app/src/hooks/ui/useWarpLanding.ts`, `app/src/styles/warp.css` |
-| Voice dictation, microphone capture and cleanup job | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src-tauri/src/harness/app/dictation.rs` |
+| Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-else-s1-mini)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts` |
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
 | Files pasted or dropped into a composer: writing them, their chips, the shelf, their names | `app/src-tauri/src/harness/attach.rs`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
@@ -2768,15 +2768,16 @@ provider-verified model (Meta's Muse Spark) fails once in the timeline.
 
 Chat, Studio and the lecture dock have a microphone beside Send. Recording
 replaces its toolbar with a live amplitude trace, elapsed time, Cancel and
-Finish. Finish stops the microphone, transcribes the clip through the same
-engine order and language as videos ([viewers.md](./viewers.md#dictation-transcribes-private-microphone-clips)),
-then runs the `dictationCleanup` job in a separate one-off session. The brief
-allows only hesitation and accidental repetition removal plus punctuation,
-capitalization, spacing and paragraph cleanup. It keeps the original wording,
-language, script, slang and mixed-language speech, with no translation,
-paraphrasing or grammar rewriting. Dictated requests remain text to preserve. The cleaned text appends to the existing draft; it
-never sends automatically. Settings → Jobs selects its model and fallbacks,
-defaulting to a small model.
+Finish. Starting a recording calls `dictation_warm`, which loads the local
+cleanup model while the student speaks when it is the one that will answer.
+Finish stops the microphone, transcribes the clip through the same engine
+order and language as videos
+([viewers.md](./viewers.md#dictation-transcribes-private-microphone-clips)),
+then `dictation_cleanup` rewrites the transcript as the message the speaker
+meant: Groq when a Groq API key is saved, else S1-mini by Superwhisper on
+this Mac ([viewers.md](./viewers.md#dictation-cleanup-groq-else-s1-mini)).
+It is not a chat job and has no row in Settings → Jobs. The cleaned text
+appends to the existing draft; it never sends automatically.
 
 A read-only readiness check opens transcription setup when no engine is ready.
 The microphone is owned by one composer across split panes. Clips stop after
@@ -2789,9 +2790,8 @@ recording or conversion is pending; typing and attachments stay available.
 
 Failures keep the clip in memory for Retry transcription, or the successful
 transcript for Retry cleanup and Use original transcript. Dismiss releases
-both. An empty cleanup model chain surfaces the job's Settings hint and keeps
-the original transcript. No dictation creates a thread or timeline row.
-opencode uses the hidden, tool-denied `oculus-dictation` agent.
+both. A cleanup that comes back empty (filler-only speech) shows the same
+choices. No dictation creates a thread or timeline row.
 
 ## Per-job models
 
@@ -2802,7 +2802,7 @@ which has no default anywhere. A stored Claude job
 selection resolves to its Windows default in memory without rewriting the
 stored setting; supported provider selections keep their saved model and level.
 
-Chaptering, the lecture end, thread naming, dictation cleanup, document
+Chaptering, the lecture end, thread naming, document
 suggestions, revision marking and widget questions each name an ordered list
 of models (agent, model and level) in a Settings → Jobs
 row using `ModelPicker`. The first runs; when its run fails for any reason —

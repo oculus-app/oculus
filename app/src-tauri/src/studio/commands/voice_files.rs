@@ -8,7 +8,7 @@ use std::path::Path;
 use serde::Serialize;
 use tauri::AppHandle;
 
-use super::progress::download_with_events;
+use crate::runtime::download_events::download_with_events;
 use crate::runtime::onnx::Status;
 use crate::studio::tts::kokoro::{
     self,

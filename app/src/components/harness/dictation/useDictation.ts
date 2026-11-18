@@ -124,6 +124,9 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
         return;
       }
       if (!valid(id)) return;
+      // Loads S1-mini while the student speaks; a no-op when Groq cleans.
+      // A failure here resurfaces from the cleanup itself.
+      void invoke("dictation_warm").catch(() => {});
       const capture = await recordVoice();
       if (!valid(id)) { capture.cancel(); return; }
       recording.current = capture; setAnalyser(capture.analyser); setPhase("recording");

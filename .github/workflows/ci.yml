@@ -173,8 +173,8 @@ jobs:
           name: frontend-dist
           path: app/dist
 
-      - name: Fetch ffmpeg, build the speech helper and whisper-cli
-        run: bun run ffmpeg && bun run speech && bun run whisper
+      - name: Fetch ffmpeg, build the speech helper, whisper-cli and llama-server
+        run: bun run ffmpeg && bun run speech && bun run whisper && bun run llama
       # keyd's helper app, built for real: the release policy, signed and
       # verified, as the bundle would carry it.
       - name: Build, sign and stage oculus-keyd
