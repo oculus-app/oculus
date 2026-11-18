@@ -7,6 +7,7 @@
 //! in Canvas pages launch per link instead (`embed/`).
 
 mod auth;
+pub mod cache;
 pub mod embed;
 mod ffmpeg;
 mod media;

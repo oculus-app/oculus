@@ -29,6 +29,7 @@ mod discard;
 mod discard_test;
 pub(crate) mod downloads;
 mod favicon;
+mod labels;
 mod layout;
 mod page;
 pub(crate) mod scope;
@@ -39,6 +40,7 @@ mod tests;
 #[cfg(any(target_os = "windows", test))]
 mod windows;
 
+pub use labels::{LABEL_PREFIX, MAIN};
 pub use layout::{init, open_tab};
 pub use seed::{clear_sessions, seed_sessions};
 
@@ -48,12 +50,6 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, EventTarget, Manager};
-
-/// The window every page lives in, and the webview that hears about them.
-pub const MAIN: &str = "main";
-/// Page webviews are `browse-<tab id>`. Not in any capability: they hold
-/// remote content and must reach no Tauri command.
-pub const LABEL_PREFIX: &str = "browse-";
 
 /// WKWebView's default UA has no `Version/… Safari/…` suffix, and UA-sniffing
 /// sites (google.com) serve their no-JavaScript fallback to it. Keep the

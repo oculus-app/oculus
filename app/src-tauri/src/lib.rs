@@ -32,8 +32,23 @@ use lectures::Echo360Cache;
 use sync::scrape::ScrapeCancel;
 use sync::subjects::SubjectsState;
 
+/// Hand core the harness and shell functions it calls but cannot name
+/// (`runtime::upper`). First thing in every entry point: the app's [`run`]
+/// and the `oculus` CLI's `main`.
+pub fn bind_layers() {
+    runtime::upper::bind(runtime::upper::Upper {
+        stop_agents: harness::app::shutdown,
+        opencode_config_path: |data_dir| {
+            harness::thread_cwd(data_dir).join(harness::opencode::CONFIG_NAME)
+        },
+        write_opencode_config: harness::write_opencode_config,
+        clear_browser_sessions: |app, then| shell::browser::clear_sessions(app, then),
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    bind_layers();
     // Before anything opens a file in the data dir (`storage::storage_start_over`).
     library::storage::finish_start_over(&library::paths::data_dir());
     // An old library moves into the Drive tree before any window, job or

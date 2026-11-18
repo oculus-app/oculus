@@ -31,6 +31,7 @@ use output::*;
 
 fn main() {
     restore_sigpipe();
+    app_lib::bind_layers();
     app_lib::library::storage::finish_start_over(&paths::data_dir());
     // No credential goes through keyd until it serves the profile's university.
     keyd_core::client::bound::bind(app_lib::sources::institution::bound);

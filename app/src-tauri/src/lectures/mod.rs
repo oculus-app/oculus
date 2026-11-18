@@ -10,43 +10,6 @@ pub(crate) mod media;
 
 pub use downloads::DownloadCancels;
 
-use crate::runtime::clock::now_secs;
+use crate::sources::echo360::cache::get_or_auth;
+pub use crate::sources::echo360::cache::Echo360Cache;
 pub use crate::sources::echo360::Lecture as LectureData;
-use crate::sources::echo360::{self, Session};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
-#[derive(Clone)]
-pub struct Echo360Cache(pub Arc<Mutex<HashMap<i64, CachedSession>>>);
-
-pub struct CachedSession {
-    session: Session,
-    saved_unix: u64,
-}
-
-/// Cached so each request does not re-run the LTI launch through Canvas.
-const SESSION_TTL_SECS: u64 = 11 * 3600;
-
-fn get_or_auth(cache: &Echo360Cache, course_id: i64) -> Result<Session, String> {
-    {
-        let g = cache.0.lock().unwrap();
-        if let Some(c) = g.get(&course_id) {
-            if now_secs() - c.saved_unix < SESSION_TTL_SECS {
-                elog!("[oculus] echo360: reusing cached session for course {course_id}");
-                return Ok(c.session.clone_fields());
-            }
-        }
-    }
-    let session = echo360::connect(
-        &crate::sources::canvas::Canvas::open(&crate::library::paths::data_dir()),
-        course_id,
-    )?;
-    cache.0.lock().unwrap().insert(
-        course_id,
-        CachedSession {
-            session: session.clone_fields(),
-            saved_unix: now_secs(),
-        },
-    );
-    Ok(session)
-}

@@ -8,3 +8,4 @@ pub mod onnx;
 pub(crate) mod pipeline_events;
 pub mod platform;
 pub(crate) mod stream;
+pub mod upper;

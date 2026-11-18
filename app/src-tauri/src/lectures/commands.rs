@@ -23,18 +23,7 @@ pub async fn echo360_sync_lectures(
     cache: tauri::State<'_, Echo360Cache>,
     canvas_course_id: i64,
 ) -> Result<Vec<LectureData>, String> {
-    let cache = cache.inner().clone();
-    crate::runtime::blocking::run(move || {
-        let session = match get_or_auth(&cache, canvas_course_id) {
-            Err(e) if e == echo360::NO_TOOL => return Ok(Vec::new()),
-            other => other?,
-        };
-        echo360::syllabus(
-            &session,
-            echo360::lead_in_secs(&crate::library::paths::data_dir()),
-        )
-    })
-    .await
+    echo360::cache::sync_lectures(cache.inner(), canvas_course_id).await
 }
 
 /// Fetch one stream of a lecture (`source` 1 = Presenter screen, 2 = room

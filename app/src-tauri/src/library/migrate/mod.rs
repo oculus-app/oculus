@@ -250,11 +250,11 @@ async fn run_async(data_dir: &Path, hooks: &Hooks) -> Result<Outcome, String> {
 /// rendered again only when opencode has been used here. Its next server
 /// start renders it anyway, so a failure is logged, not fatal.
 fn regenerate_opencode_config(data_dir: &Path) {
-    let config = crate::harness::thread_cwd(data_dir).join(crate::harness::opencode::CONFIG_NAME);
-    if !config.is_file() {
+    let upper = crate::runtime::upper::upper();
+    if !(upper.opencode_config_path)(data_dir).is_file() {
         return;
     }
-    if let Err(e) = crate::harness::write_opencode_config(data_dir) {
+    if let Err(e) = (upper.write_opencode_config)(data_dir) {
         elog!("[oculus] library move: could not render opencode's config again: {e}");
     }
 }

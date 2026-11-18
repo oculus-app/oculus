@@ -5,8 +5,6 @@
 //! as `.google.com` or `.instructure.com` carries the student's other
 //! sessions, which the app must not copy, shadow with a host copy or delete.
 
-use super::seed::sent_to;
-
 /// Whether a cookie scoped to `domain` was set on `host` itself (host-only, or
 /// a domain cookie naming exactly that host).
 pub(crate) fn on_host(domain: &str, host: &str) -> bool {
@@ -24,6 +22,13 @@ pub(crate) fn belongs(domain: &str, host: &str, university: Option<&str>) -> boo
     on_host(domain, host)
         || (at_parent(domain, host)
             && university.is_some_and(|u| sent_to(u, domain.trim_start_matches('.'))))
+}
+
+/// Whether a cookie scoped to `domain` is sent to `host`, as
+/// `cookies_for_url` decides it.
+pub(crate) fn sent_to(domain: &str, host: &str) -> bool {
+    let domain = domain.trim_start_matches('.');
+    host == domain || host.ends_with(&format!(".{domain}"))
 }
 
 #[cfg(test)]

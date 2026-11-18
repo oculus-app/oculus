@@ -9,6 +9,7 @@ use super::layout::page;
 use super::page::reload_page;
 #[cfg(target_os = "macos")]
 use super::scope;
+pub(super) use super::scope::sent_to;
 use crate::sources::institution;
 
 /// A page on the university's hosts loads only after the saved sessions are
@@ -366,13 +367,6 @@ pub fn seed_sessions(app: &AppHandle, then: impl FnOnce() + Send + 'static) {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn seed_sessions(_app: &AppHandle, then: impl FnOnce() + Send + 'static) {
     then();
-}
-
-/// Whether a cookie scoped to `domain` is sent to `host`, as
-/// `cookies_for_url` decides it.
-pub(super) fn sent_to(domain: &str, host: &str) -> bool {
-    let domain = domain.trim_start_matches('.');
-    host == domain || host.ends_with(&format!(".{domain}"))
 }
 
 /// Deletes every cookie in WebKit's shared jar that is the university's

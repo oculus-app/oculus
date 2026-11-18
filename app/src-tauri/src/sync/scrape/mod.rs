@@ -265,8 +265,8 @@ where
         for (done, target) in targets.iter().enumerate() {
             app.emit("scrape-progress", serde_json::json!({"course":target.code,"phase":"lectures","done":done,"total":targets.len(),"runId":run_id})).ok();
             use tauri::Manager;
-            let lectures = crate::lectures::commands::echo360_sync_lectures(
-                app.state::<crate::lectures::Echo360Cache>(),
+            let lectures = crate::sources::echo360::cache::sync_lectures(
+                app.state::<crate::sources::echo360::cache::Echo360Cache>().inner(),
                 target.id,
             )
             .await?;
