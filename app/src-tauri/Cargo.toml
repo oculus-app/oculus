@@ -83,6 +83,8 @@ keyd_core = { workspace = true, features = ["test-support"] }
 # vendor/wry is a path dependency under this directory, not a member.
 [workspace]
 members = ["crates/oculus-core", "crates/oculus-harness"]
+# Plain `cargo test`, `check` and `clippy` here cover all three crates.
+default-members = [".", "crates/oculus-core", "crates/oculus-harness"]
 exclude = ["vendor/wry"]
 
 # One version and feature set per dependency, shared by every member.

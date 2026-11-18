@@ -195,9 +195,9 @@ takes about 1.5 s. `cargo test --no-run` after a harness edit takes 5 to
 While iterating, use `cargo check`. To run tests, scope them to the crate:
 `cargo test -p oculus-harness --lib <filter>` (or `-p oculus-core`, or
 `--lib` alone for the app; only the `oculus` binary has its own tests).
-`cargo test`, `cargo clippy` and `cargo check --all-targets` from
-`app/src-tauri` cover only the app unless given `--workspace`; run
-`cargo clippy --workspace --all-targets` once at the end, as CI does.
+All three crates are the workspace's default members, so a plain
+`cargo test`, `cargo check` or `cargo clippy` from `app/src-tauri` covers
+them all; run `cargo clippy --all-targets` once at the end, as CI does.
 
 ## The speech helper is compiled, not fetched
 
