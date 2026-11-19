@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use super::cleanup::Choice;
 use super::engine::{Engine, ENGINES, NO_ENGINE};
 use super::engines::{apple, groq, whisper};
 
@@ -9,7 +10,7 @@ use super::engines::{apple, groq, whisper};
 /// (`parseTranscribeSettings` in `app/src/lib/lectures/transcribe/settings.ts` mirrors it):
 ///
 /// `{"order": [...], "language": string, "groq": {"enabled"},
-///   "whisper": {"enabled", "model"}, "apple": {"enabled"}}`
+///   "whisper": {"enabled", "model"}, "apple": {"enabled"}, "cleanup": string}`
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Settings {
     /// Each of [`ENGINES`] once, in the order a run tries them.
@@ -20,6 +21,8 @@ pub(crate) struct Settings {
     /// A catalogue id; `None` lets `whisper_models::pick` choose.
     pub whisper_model: Option<String>,
     pub apple: bool,
+    /// Which engine tidies dictation (`cleanup`).
+    pub cleanup: Choice,
 }
 
 /// The one language every engine transcribes in: `auto`, a locale such as
@@ -55,8 +58,9 @@ impl Language {
 
 /// A missing row or key, or a value of the wrong type, reads as its default:
 /// the default order, every engine on, the default language, the model
-/// `pick` chooses. Without a top-level `language`, the older per-engine
-/// `apple.locale`, then `whisper.language`, stands in for it.
+/// `pick` chooses, automatic dictation cleanup. Without a top-level
+/// `language`, the older per-engine `apple.locale`, then `whisper.language`,
+/// stands in for it.
 pub(crate) fn settings_from(row: Option<&str>) -> Settings {
     let row = row.and_then(|row| serde_json::from_str::<serde_json::Value>(row).ok());
     let at = |path: &[&str]| {
@@ -91,6 +95,7 @@ pub(crate) fn settings_from(row: Option<&str>) -> Settings {
         whisper: enabled("whisper"),
         whisper_model: text(&["whisper", "model"]),
         apple: enabled("apple"),
+        cleanup: Choice::from_setting(text(&["cleanup"]).as_deref()),
     }
 }
 

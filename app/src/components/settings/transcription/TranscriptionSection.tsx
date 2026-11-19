@@ -44,6 +44,7 @@ function apply(settings: TranscribeSettings, patch: TranscribeSettingsPatch): Tr
     groq: { ...settings.groq, ...patch.groq },
     whisper: { ...settings.whisper, ...patch.whisper },
     apple: { ...settings.apple, ...patch.apple },
+    cleanup: patch.cleanup ?? settings.cleanup,
   };
 }
 
@@ -59,7 +60,7 @@ const NO_LOCALES: readonly string[] = [];
  * Settings → Transcription: one language for every engine, and the engines in
  * the order a run tries them — each with its switch and a dialog for its own
  * setup (`GroqDialog`, `LocalWhisperDialog`, `OnDeviceSpeechDialog`); then
- * which model tidies dictation (`DictationCleanup`). Rust reads the
+ * which engine tidies dictation and its setup (`DictationCleanup`). Rust reads the
  * `transcribe` row at the start of every run. Nothing here is billed: saving
  * a Groq key lists Groq's models, which is free, the speech status only asks
  * the OS what it has, and the Whisper and S1-mini statuses read the disk;
@@ -184,7 +185,12 @@ export function TranscriptionSection() {
         ) : null}
       </div>
 
-      <DictationCleanup connected={connected} onOpenGroq={() => setDialog("groq")} />
+      <DictationCleanup
+        choice={settings?.cleanup ?? null}
+        onChoose={(cleanup) => save({ cleanup })}
+        connected={connected}
+        onOpenGroq={() => setDialog("groq")}
+      />
 
       <GroqDialog
         open={dialog === "groq"}

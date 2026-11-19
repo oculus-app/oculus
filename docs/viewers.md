@@ -641,11 +641,25 @@ audio input to the hardened release bundle. The composer owns recording and
 the subsequent cleanup
 ([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
 
-## Dictation cleanup: Groq, else S1-mini
+## Dictation cleanup: Groq or S1-mini, as chosen
 
 `dictation_cleanup` (`app/src-tauri/src/transcribe/cleanup/`) turns a
-transcript of 1 to 100,000 bytes into the message the speaker meant. Which
-model does it:
+transcript of 1 to 100,000 bytes into the message the speaker meant. The
+`transcribe` settings row's `cleanup` key (`Choice` in `cleanup/mod.rs`)
+says which model does it:
+
+- **Automatic** (`auto`, the default; a missing or unknown value reads as
+  it): Groq when a Groq API key is saved, else S1-mini, as below.
+- **Groq** (`groq`): Groq alone. A failed call surfaces, nothing falls back,
+  and without a key the error says to add one or choose another cleanup.
+- **S1-mini** (`s1Mini`): S1-mini alone; dictation never goes to Groq and
+  the Groq key is never read. Not downloaded (or on Windows and Linux, where
+  it cannot run), the error says so.
+- **Off** (`off`): the transcript comes back as heard, without reading a key
+  or loading a model.
+
+`run` reads each route only when the choice needs it: S1-mini and Off never
+touch keyd or the keychain, Groq and Off never load S1-mini. Automatic runs:
 
 1. **Groq** when a Groq API key is saved — the transcription key, read the way
    transcription reads it (`settings::groq_auth`): through `oculus-keyd` when
@@ -656,7 +670,8 @@ model does it:
    `<transcript>…</transcript>` as the user message. The brief resolves
    self-corrections, drops fillers, keeps the speaker's words and tone, writes
    numbers as digits and spoken maths as `$…$`, and keeps every part in its
-   own language and script. A reply cut off at the cap is a failure.
+   own language and script. A reply cut off at the cap is a failure. Groq
+   alone sends the same request.
 2. **S1-mini by Superwhisper** when Groq has no key, or when Groq's call
    fails for any reason (a 429 included; nothing is retried) and S1-mini is
    installed. If Groq fails without S1-mini, Groq's error surfaces; if both
@@ -666,6 +681,8 @@ model does it:
    composer then offers Use original transcript, and Open Transcription
    settings, which opens that page in its setup dialog
    ([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
+   It offers the same when Groq alone has no key or S1-mini alone is not
+   downloaded.
 
 S1-mini is a 0.6B normaliser (Qwen3-0.6B fine-tuned; Apache 2.0 plus a term
 that it is always named "S1-mini" by "Superwhisper", written exactly so).
@@ -701,7 +718,8 @@ that it is always named "S1-mini" by "Superwhisper", written exactly so).
   oculus-s1-mini`, its output in `llama-server.log` beside the model; it
   loads in about 0.3 s and holds about 1 GB (RSS) with Metal, and a cleanup
   takes 0.05–0.3 s. `dictation_warm`, called when a recording starts, loads it
-  early; it does nothing when Groq has a key, S1-mini is not installed or the
+  early when S1-mini is the choice, or Automatic finds no Groq key; it does
+  nothing for Groq or Off, when S1-mini is not installed or when the
   language is not English. It stops after 5 minutes without a request, when
   S1-mini is removed and when the app exits (`RunEvent::Exit`). It runs under
   a `/bin/sh` watchdog that holds a pipe from the app and kills the server
@@ -717,7 +735,7 @@ Groq's chat endpoint:
 
 | Command | Arguments | Returns |
 | --- | --- | --- |
-| `dictation_cleanup_status` | — | `{ engine: "groq" \| "s1Mini" \| "none", groq: { configured, model, error? }, s1Mini: { name: "S1-mini", by: "Superwhisper", label: "S1-mini by Superwhisper", status: "missing" \| "downloading" \| "present", bytes, unavailable?, running, englishOnly } }` — `engine` is what a cleanup tries first; `unavailable` says why S1-mini cannot run here (another OS, or no helper in a dev checkout) |
+| `dictation_cleanup_status` | — | `{ choice: "auto" \| "groq" \| "s1Mini" \| "off", engine: "groq" \| "s1Mini" \| "off" \| "none", groq: { configured, model, error? }, s1Mini: { name: "S1-mini", by: "Superwhisper", label: "S1-mini by Superwhisper", status: "missing" \| "downloading" \| "present", bytes, unavailable?, running, englishOnly } }` — `choice` is the stored engine choice; `engine` is what a cleanup tries first under it, `none` when it has nothing set up; `unavailable` says why S1-mini cannot run here (another OS, or no helper in a dev checkout) |
 | `dictation_s1_download` | — | resolves when the three files are on disk; rejects with `cancelled` on a cancel. Progress arrives as `dictation-s1-progress` events: `{ phase: "downloading" \| "complete" \| "cancelled" \| "error", received, total, error? }` |
 | `dictation_s1_cancel` | — | `boolean`: a download was running |
 | `dictation_s1_remove` | — | bytes freed; stops the server first |
@@ -766,14 +784,14 @@ and `whisper-cli` is found, Apple's on-device recogniser on macOS when it is
 on and its helper is found. With none, the run fails at once and says to set
 one up in Settings → Transcription.
 
-- **One settings row, `transcribe`**, holds the order, the language and each
-  engine's switch:
+- **One settings row, `transcribe`**, holds the order, the language, each
+  engine's switch and the dictation cleanup choice:
   `{"order": ["groq", "whisper", "apple"], "language", "groq": {"enabled"},
-  "whisper": {"enabled", "model"}, "apple": {"enabled"}}`, parsed once per
+  "whisper": {"enabled", "model"}, "apple": {"enabled"}, "cleanup"}`, parsed once per
   run by `settings_from` in `settings/mod.rs` and mirrored by `parseTranscribeSettings`
   in `app/src/lib/lectures/transcribe/settings.ts`. A missing row, key or mistyped value reads
   as its default — the default order, every engine on, the default language,
-  the model `pick` chooses. An order keeps known names once each and appends
+  the model `pick` chooses, `auto` cleanup. An order keeps known names once each and appends
   any missing in the default order. Unknown keys survive both Rust and
   Settings, which rewrites the whole row (`writeTranscribeSettings`).
 - **One language for every engine.** `language` is `auto`, a locale such as
@@ -812,10 +830,15 @@ one up in Settings → Transcription.
   availability and downloaded languages. Model downloads are held by the page
   (`useWhisperDownloads`), so a row's status follows one after its dialog
   closes.
-- **Below the engines, Dictation cleanup** (`DictationCleanup`) says which
-  model tidies dictation now — Groq's Qwen 3.8 27B on the page's Groq key,
-  naming S1-mini as its fallback once downloaded; else S1-mini by
-  Superwhisper; else a warning of what to set up — and lists both as one
+- **Below the engines, Dictation cleanup** (`DictationCleanup`) chooses the
+  engine with a `SegmentToggle` — Automatic, Groq, S1-mini, Off (S1-mini
+  offered on macOS only, unless already chosen) — written to the row's
+  `cleanup`. A line under it says what that choice does now: Automatic is
+  Groq's Qwen 3.8 27B on the page's Groq key, naming S1-mini as its fallback
+  once downloaded, else S1-mini by Superwhisper; Groq alone says nothing
+  steps in; S1-mini alone says dictation never goes to Groq; Off says
+  dictation joins the draft as heard; a choice with nothing set up is a
+  warning of what to do (`engineLine`). Both engines are listed as one
   bordered group. Groq's row opens the same key dialog as the engine list.
   S1-mini's row is Studio's `PackDownloadRow` (size, English only, runs on
   this Mac; Download with a percentage, a bar and Cancel, then Delete behind

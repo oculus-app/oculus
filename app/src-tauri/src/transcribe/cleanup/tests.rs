@@ -35,42 +35,61 @@ impl Clean for &Fake {
     }
 }
 
+/// `run` under `choice` with these routes, counting each route's reads.
+fn clean(
+    choice: Choice,
+    groq: GroqRoute<&Fake>,
+    s1: Option<&Fake>,
+    reads: &Cell<(usize, usize)>,
+) -> Result<String, String> {
+    run(
+        choice,
+        || {
+            reads.set((reads.get().0 + 1, reads.get().1));
+            groq
+        },
+        || {
+            reads.set((reads.get().0, reads.get().1 + 1));
+            s1
+        },
+        "x",
+    )
+}
+
+fn auto(groq: GroqRoute<&Fake>, s1: Option<&Fake>) -> Result<String, String> {
+    clean(Choice::Auto, groq, s1, &Cell::new((0, 0)))
+}
+
 #[test]
 fn groq_with_a_key_answers_and_s1_is_never_asked() {
     let (groq, s1) = (Fake::ok("From Groq."), Fake::ok("From S1."));
+    let reads = Cell::new((0, 0));
     assert_eq!(
-        run(GroqRoute::Ready(&groq), Some(&s1), "x").unwrap(),
+        clean(Choice::Auto, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
         "From Groq."
     );
     assert_eq!(s1.calls.get(), 0);
+    assert_eq!(reads.get(), (1, 0), "S1-mini is not even loaded");
 }
 
 #[test]
 fn without_a_groq_key_s1_answers() {
     let s1 = Fake::ok("From S1.");
-    assert_eq!(
-        run(GroqRoute::<&Fake>::NoKey, Some(&s1), "x").unwrap(),
-        "From S1."
-    );
+    assert_eq!(auto(GroqRoute::NoKey, Some(&s1)).unwrap(), "From S1.");
 }
 
 #[test]
 fn a_failed_groq_call_falls_to_s1_when_it_is_installed() {
     let (groq, s1) = (Fake::failing("rate limited"), Fake::ok("From S1."));
     assert_eq!(
-        run(GroqRoute::Ready(&groq), Some(&s1), "x").unwrap(),
+        auto(GroqRoute::Ready(&groq), Some(&s1)).unwrap(),
         "From S1."
     );
     assert_eq!((groq.calls.get(), s1.calls.get()), (1, 1));
 
     let s1 = Fake::ok("From S1.");
     assert_eq!(
-        run(
-            GroqRoute::<&Fake>::Unreadable("keychain".into()),
-            Some(&s1),
-            "x"
-        )
-        .unwrap(),
+        auto(GroqRoute::Unreadable("keychain".into()), Some(&s1)).unwrap(),
         "From S1."
     );
 }
@@ -79,7 +98,7 @@ fn a_failed_groq_call_falls_to_s1_when_it_is_installed() {
 fn a_failed_groq_call_without_s1_surfaces_groqs_error() {
     let groq = Fake::failing("Groq's free-tier limit was hit");
     assert_eq!(
-        run(GroqRoute::Ready(&groq), None::<&Fake>, "x").unwrap_err(),
+        auto(GroqRoute::Ready(&groq), None).unwrap_err(),
         "Groq's free-tier limit was hit"
     );
 }
@@ -88,19 +107,156 @@ fn a_failed_groq_call_without_s1_surfaces_groqs_error() {
 fn both_failing_names_both() {
     let (groq, s1) = (Fake::failing("down"), Fake::failing("loop"));
     assert_eq!(
-        run(GroqRoute::Ready(&groq), Some(&s1), "x").unwrap_err(),
+        auto(GroqRoute::Ready(&groq), Some(&s1)).unwrap_err(),
         "Groq: down; S1-mini: loop"
     );
 }
 
 #[test]
 fn neither_says_what_to_set_up() {
-    let error = run(GroqRoute::<&Fake>::NoKey, None::<&Fake>, "x").unwrap_err();
+    let error = auto(GroqRoute::NoKey, None).unwrap_err();
     assert_eq!(error, NOTHING);
     assert!(error.contains("Settings → Transcription"));
     assert!(error.contains("Groq API key"));
     #[cfg(target_os = "macos")]
     assert!(error.contains("S1-mini by Superwhisper"));
+}
+
+#[test]
+fn groq_alone_never_falls_to_s1() {
+    let (groq, s1) = (
+        Fake::failing("Groq's free-tier limit was hit"),
+        Fake::ok("From S1."),
+    );
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        clean(Choice::Groq, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap_err(),
+        "Groq's free-tier limit was hit"
+    );
+    assert_eq!((s1.calls.get(), reads.get()), (0, (1, 0)));
+
+    let groq = Fake::ok("From Groq.");
+    assert_eq!(
+        clean(Choice::Groq, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
+        "From Groq."
+    );
+    let error = clean(Choice::Groq, GroqRoute::NoKey, Some(&s1), &reads).unwrap_err();
+    assert_eq!(error, GROQ_NO_KEY);
+    assert!(error.contains("no Groq API key"));
+    assert_eq!(
+        clean(
+            Choice::Groq,
+            GroqRoute::Unreadable("keychain refused".into()),
+            Some(&s1),
+            &reads
+        )
+        .unwrap_err(),
+        "keychain refused"
+    );
+    assert_eq!(s1.calls.get(), 0);
+}
+
+#[test]
+fn s1_alone_never_reads_groqs_key() {
+    let (groq, s1) = (Fake::ok("From Groq."), Fake::ok("From S1."));
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        clean(Choice::S1Mini, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
+        "From S1."
+    );
+    assert_eq!((groq.calls.get(), reads.get()), (0, (0, 1)));
+
+    let failing = Fake::failing("loop");
+    assert_eq!(
+        clean(
+            Choice::S1Mini,
+            GroqRoute::Ready(&groq),
+            Some(&failing),
+            &reads
+        )
+        .unwrap_err(),
+        "loop"
+    );
+    let error = clean(Choice::S1Mini, GroqRoute::Ready(&groq), None, &reads).unwrap_err();
+    assert_eq!(error, S1_MISSING);
+    assert!(error.contains("S1-mini by Superwhisper"));
+    assert_eq!(groq.calls.get(), 0);
+    assert_eq!(reads.get().0, 0);
+}
+
+#[test]
+fn off_returns_the_transcript_as_heard_and_reads_nothing() {
+    let (groq, s1) = (Fake::ok("From Groq."), Fake::ok("From S1."));
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        run(
+            Choice::Off,
+            || {
+                reads.set((1, 0));
+                GroqRoute::Ready(&groq)
+            },
+            || {
+                reads.set((0, 1));
+                Some(&s1)
+            },
+            "um so  this is it",
+        )
+        .unwrap(),
+        "um so  this is it"
+    );
+    assert_eq!(
+        (groq.calls.get(), s1.calls.get(), reads.get()),
+        (0, 0, (0, 0))
+    );
+}
+
+#[test]
+fn the_status_names_what_the_choice_tries_first() {
+    for (groq_key, s1_ready, auto) in [
+        (true, true, "groq"),
+        (true, false, "groq"),
+        (false, true, "s1Mini"),
+        (false, false, "none"),
+    ] {
+        assert_eq!(first_engine(Choice::Auto, groq_key, s1_ready), auto);
+        assert_eq!(
+            first_engine(Choice::Groq, groq_key, s1_ready),
+            if groq_key { "groq" } else { "none" }
+        );
+        assert_eq!(
+            first_engine(Choice::S1Mini, groq_key, s1_ready),
+            if s1_ready { "s1Mini" } else { "none" }
+        );
+        assert_eq!(first_engine(Choice::Off, groq_key, s1_ready), "off");
+    }
+}
+
+#[test]
+fn a_recording_warms_s1_only_when_it_will_answer() {
+    let asked = Cell::new(0);
+    let key = |has: bool| {
+        let asked = &asked;
+        move || {
+            asked.set(asked.get() + 1);
+            has
+        }
+    };
+    assert!(warms_s1(Choice::S1Mini, key(true)));
+    assert!(!warms_s1(Choice::Groq, key(false)));
+    assert!(!warms_s1(Choice::Off, key(false)));
+    assert_eq!(asked.get(), 0, "only Automatic asks for the key");
+    assert!(warms_s1(Choice::Auto, key(false)));
+    assert!(!warms_s1(Choice::Auto, key(true)));
+    assert_eq!(asked.get(), 2);
+}
+
+#[test]
+fn choices_round_trip_through_their_stored_names() {
+    for choice in [Choice::Auto, Choice::Groq, Choice::S1Mini, Choice::Off] {
+        assert_eq!(Choice::from_setting(Some(choice.name())), choice);
+    }
+    assert_eq!(Choice::from_setting(None), Choice::Auto);
+    assert_eq!(Choice::from_setting(Some("S1-mini")), Choice::Auto);
 }
 
 #[test]

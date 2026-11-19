@@ -37,6 +37,7 @@ test("a missing or mistyped row reads as the default order, every engine on, the
     groq: { enabled: true },
     whisper: { enabled: true, model: null },
     apple: { enabled: true },
+    cleanup: "auto" as const,
   };
   expect(await read_(null)).toEqual(defaults);
   expect(await read_("not json")).toEqual(defaults);
@@ -92,6 +93,18 @@ test("writing keeps keys this side doesn't know, and a language replaces the per
   expect(next.language).toBe("th_TH");
   await writeTranscribeSettings({ groq: { enabled: false } });
   expect(JSON.parse(stored!).groq).toEqual({ enabled: false });
+  expect((await writeTranscribeSettings({ cleanup: "s1Mini" })).cleanup).toBe("s1Mini");
+  expect(JSON.parse(stored!)).toMatchObject({ future: 1, cleanup: "s1Mini", groq: { enabled: false } });
+});
+
+// Mirrors `Choice::from_setting` in app/src-tauri/src/transcribe/cleanup/mod.rs.
+test("dictation cleanup is automatic unless a known choice is stored", async () => {
+  expect((await read_(null)).cleanup).toBe("auto");
+  for (const choice of ["groq", "s1Mini", "off", "auto"] as const) {
+    expect((await read_({ cleanup: choice })).cleanup).toBe(choice);
+  }
+  expect((await read_({ cleanup: "vosk" })).cleanup).toBe("auto");
+  expect((await read_({ cleanup: 7 })).cleanup).toBe("auto");
 });
 
 // Mirrors `Language::apple` in app/src-tauri/src/transcribe/settings/mod.rs.

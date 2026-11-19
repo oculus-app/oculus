@@ -4,6 +4,14 @@ import { DEFAULT_ENGINE_ORDER, type TranscribeEngine } from "./engines";
 // Rust reads it at the start of every run (`settings_from` in
 // `app/src-tauri/src/transcribe/settings/mod.rs`); the two parsers move together.
 
+/** Which engine tidies dictation (`Choice` in
+ *  `app/src-tauri/src/transcribe/cleanup/mod.rs`): Automatic is Groq with a
+ *  key, else S1-mini, S1-mini also when Groq fails; Groq or S1-mini alone use
+ *  only that engine; Off inserts the transcript as heard. */
+export type CleanupChoice = "auto" | "groq" | "s1Mini" | "off";
+
+const CLEANUP_CHOICES: readonly CleanupChoice[] = ["auto", "groq", "s1Mini", "off"];
+
 export interface TranscribeSettings {
   /** Each engine once, in the order a run tries them. */
   order: TranscribeEngine[];
@@ -13,6 +21,8 @@ export interface TranscribeSettings {
   groq: { enabled: boolean };
   whisper: { enabled: boolean; model: string | null };
   apple: { enabled: boolean };
+  /** Unknown or missing reads as `auto`. */
+  cleanup: CleanupChoice;
 }
 
 const TRANSCRIBE_KEY = "transcribe";
@@ -41,7 +51,8 @@ function resolveOrder(stored: unknown): TranscribeEngine[] {
 
 /**
  * The row as Rust reads it: a missing or mistyped value is its default — the
- * default order, every engine on, the default language, the picked model —
+ * default order, every engine on, the default language, the picked model,
+ * automatic dictation cleanup —
  * and without a top-level `language`, the older `apple.locale`, then
  * `whisper.language`, stands in for it.
  */
@@ -57,6 +68,7 @@ export function parseTranscribeSettings(row: Json): TranscribeSettings {
     groq: { enabled: enabled(groq) },
     whisper: { enabled: enabled(whisper), model: text(whisper.model) },
     apple: { enabled: enabled(apple) },
+    cleanup: CLEANUP_CHOICES.find((choice) => choice === row.cleanup) ?? "auto",
   };
 }
 
@@ -81,6 +93,7 @@ export interface TranscribeSettingsPatch {
   groq?: { enabled: boolean };
   whisper?: { enabled?: boolean; model?: string | null };
   apple?: { enabled: boolean };
+  cleanup?: CleanupChoice;
 }
 
 /**
@@ -101,6 +114,7 @@ export async function writeTranscribeSettings(
     if ("apple" in row) next.apple = apple;
     if ("whisper" in row) next.whisper = whisper;
   }
+  if (patch.cleanup) next.cleanup = patch.cleanup;
   for (const engine of ["groq", "whisper", "apple"] as const) {
     const part = patch[engine];
     if (part) next[engine] = { ...object(next[engine]), ...part };
