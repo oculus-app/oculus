@@ -1,6 +1,8 @@
 //! Naming a tool call: one table that turns each CLI's raw tool name and
 //! input into a [`ToolKind`] and a short title, and the cap on tool output.
 
+mod codex;
+
 use super::ToolKind;
 
 /// Classify a tool by raw name and input: one table for every bridge. Each CLI
@@ -68,7 +70,8 @@ pub fn classify(name: &str, input: &serde_json::Value) -> (ToolKind, String) {
         "ask_question" | "ask_permission" | "ask_custom_permission" => {
             (ToolKind::Other, any(&["Question", "Prompt"]))
         }
-        "Bash" | "commandExecution" | "bash" => {
+        "commandExecution" => codex::display(s("command")),
+        "Bash" | "bash" => {
             let cmd = s("command");
             let kind = if is_oculus_cli(&cmd) {
                 ToolKind::OculusCli

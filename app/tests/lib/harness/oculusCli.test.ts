@@ -48,6 +48,7 @@ describe("oculus CLI row titles", () => {
     expect(title(`oculus task add --title "Revise L12" -p 4`)?.em).toBe("Revise L12");
     expect(title(`oculus --help`)).toEqual({ title: "Ran oculus", em: undefined, icon: "library" });
     expect(title(`ls -la`)).toBeNull();
+    expect(title(`cd oculus && BIN=/tmp/oculus oculus read "page 4.pdf"`)?.em).toBe("page 4.pdf");
   });
 
   test("tallies merge across calls", () => {

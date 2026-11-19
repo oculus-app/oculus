@@ -326,6 +326,9 @@ themes are opt-in and keep the same structure.
   bubble. The ⌘S stash is a "Stash"
   pill above the box opening a popover; its eviction notice is a line inside
   that popover, not a toast ([harness.md](./harness.md#the-empty-box-earlier-messages-and-the-stash)).
+- **An expanded picture Read opens in the image lightbox.** Its thumbnail
+  and the zoomed view load the same asset. For notebook page paths and the
+  missing-image fallback, see [the harness timeline](./harness.md).
 - **A compact composer is one bar** (the subject Overview's ask bar): the
   hint on one line, a sliders button, the mic and send. It never reshapes on
   focus; it only grows taller as text wraps, controls pinned bottom-right.

@@ -499,7 +499,11 @@ still update the picker.
   divider, sized to content and folded behind Show more past 288px, never a
   scroller of its own.
 - **A shell command is its own label**, in mono, wrapping in full while
-  open; its detail is the output alone.
+  open, with the output in its detail. For a Codex command, the classifier
+  reads one literal `-lc` or `-c` script passed to zsh, bash or sh. A simple
+  `oculus` call or chain gets CLI wording. Pipes, redirects and substitutions
+  keep the full script visible. Unknown or ambiguous wrappers keep the wire
+  command. Approvals use the recorded command and working directory.
 - **A reasoning row has the Brain glyph.** Finished, it reads "Thought for 12s"
   and opens to the thought as muted markdown; while it streams, `LiveTail`
   shows a shimmering "Thinking" (`text-shimmer`) and the thought's latest
@@ -526,8 +530,10 @@ still update the picker.
   of replies alone keeps its own label.
 - **A Read of a picture expands to the picture** (`ReadPicture` in
   `WorkRow.tsx`), click for the lightbox. It loads over the asset protocol, so
-  only `courses/` and `agents/` under the data dir show; any other path fails
-  to load and the row falls back to its args.
+  the scope includes notebook snapshots in `whiteboard-pages/` alongside
+  `courses/`, `agents/` and `studio/videos/`. A Read naming the data dir’s
+  `canvas-pages/` subtree loads the corresponding `whiteboard-pages/` image.
+  A missing image leaves the recorded arguments and tool output visible.
 - **A citation opens the file at the cited spot.** One grammar
   (`app/src/lib/citations/`) reads an inline code span, a link's href or a
   bare path in prose: `courses/…`, `../courses/…`, `agents/…`, absolute,

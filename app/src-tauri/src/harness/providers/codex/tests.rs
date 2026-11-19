@@ -240,11 +240,13 @@ fn folds_a_recorded_thread() {
     let tools: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
-            HarnessEvent::ToolStarted { kind, title, .. } => Some((*kind, title.clone())),
+            HarnessEvent::ToolStarted {
+                kind, title, input, ..
+            } => Some((*kind, title.as_str(), input["command"].as_str())),
             _ => None,
         })
         .collect();
-    assert_eq!(tools, vec![(ToolKind::Bash, "/bin/zsh -lc ls".to_string())]);
+    assert_eq!(tools, vec![(ToolKind::Bash, "ls", Some("/bin/zsh -lc ls"))]);
     assert!(events.iter().any(|e| matches!(e, HarnessEvent::ToolFinished { ok: true, output, .. } if output.contains("oculus.db"))));
     let messages = events
         .iter()
@@ -393,7 +395,7 @@ fn a_string_callback_id_is_kept_as_sent_and_answered_on_it() {
     ask(
         &server,
         serde_json::json!("call-7"),
-        serde_json::json!({ "command": "touch x", "cwd": "/w", "itemId": "exec-1" }),
+        serde_json::json!({ "command": "/bin/zsh -lc 'oculus read x'", "cwd": "/w", "itemId": "exec-1" }),
     );
     let HarnessEvent::RequestAsked {
         request,
@@ -403,6 +405,8 @@ fn a_string_callback_id_is_kept_as_sent_and_answered_on_it() {
         panic!("the callback became a request");
     };
     assert_eq!(request.native_ref, "\"call-7\"");
+    assert_eq!(request.payload["command"], "/bin/zsh -lc 'oculus read x'");
+    assert_eq!(request.payload["cwd"], "/w");
     assert!(
         written.lock().unwrap().is_empty(),
         "it waits for the student"
