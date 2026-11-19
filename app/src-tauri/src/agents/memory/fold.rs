@@ -58,7 +58,9 @@ pub fn append(
                 body: Some(line.clone()),
                 ..Default::default()
             },
-        )?;
+        )
+        .map_err(|e| e.to_string())?
+        .written;
         return Ok(Appended {
             written,
             line,
@@ -68,7 +70,8 @@ pub fn append(
 
     let text = std::fs::read_to_string(&entry.path)
         .map_err(|e| format!("cannot read {}: {e}", entry.path))?;
-    let body = parse(&text).map(|(_, b)| b).unwrap_or(text);
+    let (_, body) =
+        parse(&text).ok_or_else(|| format!("cannot parse existing memory {}", entry.path))?;
     let (body, replaced, shown) = match replace {
         Some(fragment) => {
             let (body, old) = swap_line(&body, fragment, &line)?;
@@ -93,9 +96,12 @@ pub fn append(
         WriteSpec {
             name: Some(entry.front.name.clone()),
             body: Some(body),
+            replace: true,
             ..Default::default()
         },
-    )?;
+    )
+    .map_err(|e| e.to_string())?
+    .written;
     Ok(Appended {
         written,
         line: shown,
@@ -180,7 +186,10 @@ pub fn fold(
         spec.extra.push(("created".into(), created));
     }
 
-    let mut written = upsert(data_dir, code, spec, false)?;
+    spec.replace = true;
+    let mut written = upsert(data_dir, code, spec, false)
+        .map_err(|e| e.to_string())?
+        .written;
     let mut removed = Vec::new();
     for entry in entries.iter().filter(|e| e.front.name != target) {
         std::fs::remove_file(&entry.path)

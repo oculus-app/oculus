@@ -123,12 +123,18 @@ oculus memory append gaps "Quantum counting: the dummy qubit doubles N; the coun
 oculus memory append gaps "Quantum counting: dummy vs counting qubits — got it 27 Oct" --replace "dummy qubit" -s MULT20015
 ```
 
-`append` adds a list item; with `--replace` it changes the one line containing
-that text, and an empty line removes it. A page not filed yet is started by
-adding `--about` and `--type`. Rewrite a whole page with
-`oculus memory write <name> --body <file>`. A new name is for something none of
-the pages covers. When the bucket is full, the refusal lists what is there: put
-the fact in one of them, or fold two that overlap with
+`append` adds a list item. With `--replace <fragment>` it changes the one line
+containing that text. An empty line removes it. Start a page by adding
+`--about` and `--type`.
+
+`write` refuses a changed body over existing text and shows the current body.
+Use `append` for a new fact. For a deliberate whole-page rewrite, read the
+current page and use `oculus memory write <name> --replace --body <file>` with
+the complete body, including anything that still belongs there. To change
+only the front matter, leave out the body flags.
+
+A new name is for something none of the pages covers. When the bucket is full,
+the refusal lists the pages. Put the fact on one of them, or fold two that overlap with
 `oculus memory fold <a> <b> --into <a> --body <file>` — whose body is what holds
 across them, not their episodes pasted together.
 

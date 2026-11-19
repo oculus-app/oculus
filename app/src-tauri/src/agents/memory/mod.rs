@@ -26,7 +26,7 @@ pub use frontmatter::{parse, render, Entry, Front};
 pub use maintain::{reindex, relocate, remove};
 pub use query::{find, list};
 pub use slug::{humanize, slug};
-pub use write::{write, WriteSpec, Written};
+pub use write::{write, WriteError, WriteOutcome, WriteResult, WriteSpec, Written};
 
 /// The four kinds a memory can be, the templates' vocabulary. `feedback` and
 /// `project` also owe a **Why** and a **How to apply** — see [`WriteSpec`].

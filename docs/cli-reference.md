@@ -1326,23 +1326,27 @@ Write a memory — front matter, dates and index included.
 **This is the way to remember something, rather than writing the markdown by hand.** A
 memory is two files — the fact, and a line in that folder's `MEMORY.md` — and the second
 is the one that gets skipped, which is the one that decides whether the next
-conversation ever opens the first. Here the index is rewritten from the files every
-time, so it cannot go stale, and the front matter is built from the flags: pass the fact
-and how it is filed, and `name`, `created`, `updated` and the index are not yours to
-remember.
+conversation ever opens the first. Here the index is refreshed from the files on a
+successful write, and the front matter is built from the flags: pass the fact and how it
+is filed, and `name`, `created`, `updated` and the index are not yours to remember.
 
 **Filing is `-s` or nothing.** A fact that names one subject takes `-s <CODE>` and lands
 in that subject's bucket — always, including when it came up in a conversation scoped to
 nothing. Without `-s` it goes in the cross-subject bucket, which is for the student
 themselves and for what spans subjects.
 
-**A name that is already filed is updated, not duplicated**, keeping its `created` date
-and anything this call leaves out. That is what makes the store a record of what is true
-rather than a log of what was said.
+**An existing body is protected.** If the final body differs from existing text, the
+command refuses, shows the current body, and exits 1. Use `oculus memory append` for a
+line or `--replace` for a deliberate whole-body rewrite. A write can fill an empty body
+or update front matter without `--replace`. The comparison trims surrounding whitespace
+and keeps interior whitespace significant.
 
 **A bucket keeps twelve at most.** Past that a new name is refused with the names filed
-there: the fact is a line in one of them (`memory append`), a rewrite of one, or room
-made by `memory fold`.
+there. Use `memory append` or make room with `memory fold`.
+
+A successful write reports created, metadata updated, body replaced (including a fill),
+or unchanged. With `--json` the `outcome` is `created`, `metadata_updated`,
+`body_replaced`, or `unchanged`.
 
 The body is one line as `--text`, or a file with `--body` (`-` for stdin) — the shell an
 in-app agent runs through refuses a newline inside an argument, so anything with
@@ -1388,6 +1392,9 @@ Options:
 
       --body <FILE>
           The fact, from a file — or `-` for stdin
+
+      --replace
+          Allow replacing the entire body of a memory that already has text
 
       --why <TEXT>
           Why it is true, or why it matters. Required for feedback and project

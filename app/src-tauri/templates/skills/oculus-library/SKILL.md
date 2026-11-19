@@ -50,6 +50,10 @@ file written straight into a subject's folder is on disk at once but gets its
 record when your turn ends (a PDF is parsed then), so in the same turn read
 such a file by path.
 
+To keep a durable finding from the library, follow the Memory section of
+`AGENTS.md`. Use `oculus memory append` for a line on an existing page and
+`oculus memory write --replace` for a deliberate whole-body rewrite.
+
 ## The two passes
 
 `oculus grep` is a **locator, not a reader**. Its snippets are truncated and
