@@ -107,15 +107,14 @@ export function usageByRole(models: GroqReading[]): DictationUsage {
   return { transcription: latest("transcription"), cleanup: latest("cleanup") };
 }
 
-/** One meter in the toast after a dictation: a figure Groq reported. */
+/** One figure in the toast after a dictation: what Groq reported for a role. */
 export interface UsageRow {
   role: GroqReading["role"];
-  /** "Transcriptions today", "Cleanup tokens this minute". */
-  label: string;
+  /** "transcriptions", "cleanup tokens". */
+  noun: string;
+  window: "today" | "this minute";
   remaining: number;
   limit: number;
-  /** What is left, 0–1. */
-  left: number;
   /** Under a tenth of the limit. */
   warn: boolean;
   /** When the figure resets, ms since the epoch; absent when Groq gave none. */
@@ -137,10 +136,10 @@ export function usageRows(usage: DictationUsage): UsageRow[] {
     const remaining = Math.max(0, Math.min(f.remaining, f.limit));
     rows.push({
       role,
-      label: `${capital(NOUNS[role][day ? 0 : 1])} ${day ? "today" : "this minute"}`,
+      noun: NOUNS[role][day ? 0 : 1],
+      window: day ? "today" : "this minute",
       remaining,
       limit: f.limit,
-      left: remaining / f.limit,
       warn: remaining < f.limit / 10,
       resetsAt: f.reset === undefined ? undefined : r.readAt + f.reset * 1000,
     });
@@ -148,8 +147,8 @@ export function usageRows(usage: DictationUsage): UsageRow[] {
   return rows;
 }
 
-/** "1,999 of 2,000 left". */
-export const rowFigure = (row: UsageRow) => `${count(row.remaining)} of ${count(row.limit)} left`;
+/** "1,999". */
+export const rowCount = (row: UsageRow) => count(row.remaining);
 
 /** "resets in 3h 12m", "resets in 43s"; null once the reset has passed. */
 export function resetsIn(resetsAt: number | undefined, now: number): string | null {

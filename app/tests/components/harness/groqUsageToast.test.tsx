@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { GroqUsageCard, GroqUsageToast } from "@/components/harness/dictation/GroqUsageToast";
+import { GroqUsageLine, GroqUsageToast } from "@/components/harness/dictation/GroqUsageToast";
 import { usageRows, type GroqReading } from "@/lib/dictation/groqUsage";
 
 const NOW = new Date(2026, 10, 19, 14, 2).getTime();
@@ -13,6 +13,7 @@ const reading = (patch: Partial<GroqReading>): GroqReading => ({
   requestsReset: 11_520,
   ...patch,
 });
+const text = (html: string) => html.replace(/<svg.*?<\/svg>/g, "").replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'");
 
 describe("Groq usage toast", () => {
   test("no Groq reading draws nothing", () => {
@@ -20,28 +21,31 @@ describe("Groq usage toast", () => {
     expect(renderToStaticMarkup(<GroqUsageToast usage={{}} onDismiss={() => {}} />)).toBe("");
   });
 
-  test("a meter per figure, with its reset and a close", () => {
+  test("one line, the window said once, no resets while plenty is left", () => {
     const rows = usageRows({
       transcription: reading({}),
       cleanup: reading({ model: "qwen/qwen3.8-27b", role: "cleanup", requestsRemaining: 1996, requestsReset: 43 }),
     });
-    const html = renderToStaticMarkup(<GroqUsageCard rows={rows} now={NOW} onDismiss={() => {}} />);
-    expect(html).toContain("Transcriptions today");
-    expect(html).toContain("1,999 of 2,000 left");
-    expect(html).toContain("Cleanups today");
-    expect(html).toContain("Resets in 3h 12m");
-    expect(html).toContain("Resets in 43s");
-    expect(html.match(/role="meter"/g)).toHaveLength(2);
-    expect(html).toContain('aria-valuenow="1999"');
+    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} onDismiss={() => {}} />);
+    expect(text(html)).toBe("Groq left today1,999 transcriptions1,996 cleanups");
     expect(html).toContain('aria-label="Dismiss Groq usage"');
     expect(html).not.toContain("text-warning");
     expect(html).not.toContain("font-mono");
   });
 
-  test("under a tenth takes the warning colour", () => {
+  test("a low figure takes the warning colour and its reset", () => {
     const rows = usageRows({ transcription: reading({ requestsRemaining: 150 }) });
-    const html = renderToStaticMarkup(<GroqUsageCard rows={rows} now={NOW} onDismiss={() => {}} />);
+    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} onDismiss={() => {}} />);
     expect(html).toContain("text-warning");
-    expect(html).toContain("bg-warning");
+    expect(text(html)).toBe("Groq left today150 transcriptions, resets in 3h 12m");
+  });
+
+  test("mixed windows say each figure's own", () => {
+    const rows = usageRows({
+      transcription: reading({}),
+      cleanup: reading({ role: "cleanup", requestsLimit: undefined, requestsRemaining: undefined, tokensLimit: 6000, tokensRemaining: 5800 }),
+    });
+    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} onDismiss={() => {}} />);
+    expect(text(html)).toBe("Groq left1,999 transcriptions today5,800 cleanup tokens this minute");
   });
 });

@@ -3,9 +3,8 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 /**
- * A notice that drops in at the top centre of the window and leaves on its
- * own. Toasts are not a general pattern here (docs/ui.md names the one
- * caller); everything else says its news in place.
+ * A short notice that needs nothing back: it drops in at the top centre of
+ * the window and leaves on its own (docs/ui.md says when one fits).
  *
  * Portalled to the body and fixed under the tab strip, so it never moves
  * layout. It closes `duration` ms after opening, a timer that pauses while

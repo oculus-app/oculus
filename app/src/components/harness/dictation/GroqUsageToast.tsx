@@ -1,67 +1,70 @@
+import { Microphone, Sparkle, type Icon } from "@phosphor-icons/react";
+import { GroqIcon } from "@/components/icons/GroqIcon";
 import { ChipRemove } from "@/components/ui/ChipRemove";
 import { Toast } from "@/components/ui/Toast";
-import { resetsIn, rowFigure, usageRows, type DictationUsage, type UsageRow } from "@/lib/dictation/groqUsage";
+import { resetsIn, rowCount, usageRows, type DictationUsage, type UsageRow } from "@/lib/dictation/groqUsage";
 import { cn } from "@/lib/utils";
 
 /**
- * After a dictation Groq took part in, what Groq's answers say is left of its
- * allowance: the app's one toast (docs/ui.md). A meter per figure Groq
- * reported, in the warning colour under a tenth, each with its reset.
+ * After a dictation Groq took part in, one line of what Groq's answers say is
+ * left: Groq's bolt, "Groq left today", then each figure behind its role's
+ * icon. A figure under a tenth turns the warning colour, badge included, and
+ * says its reset.
  */
 export function GroqUsageToast({ usage, onDismiss }: { usage: DictationUsage | null; onDismiss: () => void }) {
   const rows = usage ? usageRows(usage) : [];
   return (
-    <Toast open={rows.length > 0} onClose={onDismiss}>
-      <GroqUsageCard rows={rows} now={Date.now()} onDismiss={onDismiss} />
+    <Toast open={rows.length > 0} onClose={onDismiss} className="w-auto max-w-full rounded-full">
+      <GroqUsageLine rows={rows} now={Date.now()} onDismiss={onDismiss} />
     </Toast>
   );
 }
 
+const ROLE_ICON: Record<UsageRow["role"], Icon> = { transcription: Microphone, cleanup: Sparkle };
+
 /** The toast's body, apart from its timing, so it renders on its own. */
-export function GroqUsageCard({ rows, now, onDismiss }: { rows: UsageRow[]; now: number; onDismiss: () => void }) {
+export function GroqUsageLine({ rows, now, onDismiss }: { rows: UsageRow[]; now: number; onDismiss: () => void }) {
+  // One window for every figure says it once, up front; mixed, each says its own.
+  const shared = rows.every((row) => row.window === rows[0]?.window) ? rows[0]?.window : undefined;
+  const warn = rows.some((row) => row.warn);
   return (
-    <div className="px-3.5 pt-2.5 pb-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-display text-[13px] font-semibold text-foreground">
-          Groq <span className="font-sans font-normal text-muted-foreground">allowance left</span>
-        </p>
-        <ChipRemove label="Dismiss Groq usage" onRemove={onDismiss} className="-mr-1" />
-      </div>
-      <ul className="mt-2 flex flex-col gap-2.5">
+    <div className="flex items-center gap-2.5 py-1.5 pr-2 pl-1.5 text-[13px]">
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-full",
+          warn ? "bg-warning/15 text-warning" : "bg-foreground/10 text-foreground",
+        )}
+      >
+        <GroqIcon size={16} />
+      </span>
+      <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-muted-foreground">
+        <span className="whitespace-nowrap">
+          <span className="font-semibold text-foreground">Groq</span> left{shared ? ` ${shared}` : ""}
+        </span>
         {rows.map((row) => (
-          <MeterRow key={row.role} row={row} now={now} />
+          <Figure key={row.role} row={row} now={now} withWindow={!shared} />
         ))}
-      </ul>
+      </p>
+      <ChipRemove label="Dismiss Groq usage" onRemove={onDismiss} />
     </div>
   );
 }
 
-function MeterRow({ row, now }: { row: UsageRow; now: number }) {
-  const reset = resetsIn(row.resetsAt, now);
+function Figure({ row, now, withWindow }: { row: UsageRow; now: number; withWindow: boolean }) {
+  const RoleIcon = ROLE_ICON[row.role];
+  const reset = row.warn ? resetsIn(row.resetsAt, now) : null;
   return (
-    <li>
-      <div className="flex items-baseline justify-between gap-3 text-xs">
-        <span className="min-w-0 truncate text-foreground">{row.label}</span>
-        <span className={cn("shrink-0 tabular-nums", row.warn ? "font-medium text-warning" : "text-foreground")}>
-          {rowFigure(row)}
-        </span>
-      </div>
-      <div
-        role="meter"
-        aria-label={`${row.label} left`}
-        aria-valuemin={0}
-        aria-valuemax={row.limit}
-        aria-valuenow={row.remaining}
-        className="mt-1.5 h-1 overflow-hidden rounded-full bg-foreground/10"
-      >
-        <div
-          className={cn("h-full rounded-full", row.warn ? "bg-warning" : "bg-primary")}
-          style={{ width: `${row.remaining > 0 ? Math.max(2, row.left * 100) : 0}%` }}
-        />
-      </div>
-      {reset ? <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">{capital(reset)}</p> : null}
-    </li>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <RoleIcon aria-hidden size={14} weight="bold" className={row.warn ? "text-warning" : undefined} />
+      <span>
+        <span className={cn("tabular-nums", row.warn ? "font-medium text-warning" : "text-foreground")}>
+          {rowCount(row)}
+        </span>{" "}
+        {row.noun}
+        {withWindow ? ` ${row.window}` : ""}
+        {reset ? <span className="tabular-nums">, {reset}</span> : null}
+      </span>
+    </span>
   );
 }
-
-const capital = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;

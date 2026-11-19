@@ -908,7 +908,7 @@ reading.
   Groq transcribed the clip, `dictation_cleanup` when Groq cleaned it, each
   only if the reading was taken during that call (`groq_usage::mark` before,
   `since` after). In `app/src/lib/dictation/groqUsage.ts`, the dictation
-  toast takes them through `usageRows` (a meter per reading: its requests
+  toast takes them through `usageRows` (a figure per reading: its requests
   per day, else its tokens per minute) and Settings' Groq row through
   `summarizeUsage` (requests per day when any reading has them, else tokens
   per minute); both warn under a tenth of a limit

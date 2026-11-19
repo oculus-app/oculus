@@ -220,7 +220,8 @@ themes are opt-in and keep the same structure.
   `@phosphor-icons/react`.
 - **Icons are Phosphor.** One Phosphor lacks is drawn in
   `app/src/components/icons/` on its `IconBase`, so it takes the same `size`
-  and `weight` props. The drawing editor's tool rail is the one exception: its
+  and `weight` props: opencode's mark and Groq's bolt (`GroqIcon`, the logo
+  without its wordmark). The drawing editor's tool rail is the one exception: its
   tools are coloured drawings in `app/src/components/whiteboard/toolArt/`
   ([drawing-whiteboard.md](./drawing-whiteboard.md#the-bars-are-docked-beside-the-drawing)).
 - **A CLI agent's mark is in its vendor's colours** (`ProviderMark`, files in
@@ -439,7 +440,8 @@ themes are opt-in and keep the same structure.
   It is portalled to the body and fixed at
   the top centre, just under the tab strip, so it never moves layout: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
-  wide at most. It drops in and lifts out (`toast-enter`, `toast-exit` in
+  wide at most unless the caller's `className` reshapes it (Groq's is a
+  content-wide pill). It drops in and lifts out (`toast-enter`, `toast-exit` in
   `utilities.css`; reduced motion fades only, and the entrance leaves no
   transform behind), is `role="status"` with `aria-live="polite"`, closes
   after 6 s with the timer paused while hovered or focused, on Escape or

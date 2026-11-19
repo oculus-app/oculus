@@ -2783,13 +2783,15 @@ appends to the existing draft; it never sends automatically.
 
 When Groq transcribed or cleaned the dictation, a toast at the top centre of
 the window (`GroqUsageToast`, from `DictationFeedback`; built on `Toast`,
-[ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)) says what Groq's
-answers left of its allowance, titled "Groq allowance left": a row per
-figure Groq reported (`usageRows`), "Transcriptions today" and "Cleanups
-today", or a model's tokens this minute when its answer had no daily
-figure. Each row is its label, "1,999 of 2,000 left" in `tabular-nums`, a
-slim meter of what is left (the warning colour, figure and bar, under a
-tenth) and a muted "Resets in 3h 12m" when Groq gave a reset
+[ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)) says in one
+pill-shaped line what Groq's answers left of its allowance: Groq's bolt
+(`GroqIcon`) in a round badge, "Groq left today", then a figure per role
+Groq reported (`usageRows`), a microphone before "1,999 transcriptions" and a
+sparkle before "1,996 cleanups", counts in `tabular-nums`. A model whose
+answer had no daily figure shows its tokens this minute, and then each
+figure names its own window. A figure under a tenth of its limit turns the
+warning colour, its icon and the badge with it, and adds ", resets in 3h 12m"
+when Groq gave a reset
 ([viewers.md](./viewers.md#groqs-answers-say-how-much-allowance-is-left)).
 It shows only once the dictation has settled and closes after 6 s (paused
 while hovered or focused), on Escape or its ×; the next dictation replaces

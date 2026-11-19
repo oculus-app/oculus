@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resetsIn, rowFigure, summarizeUsage, usageByRole, usageRows, type GroqReading } from "@/lib/dictation/groqUsage";
+import { resetsIn, rowCount, summarizeUsage, usageByRole, usageRows, type GroqReading } from "@/lib/dictation/groqUsage";
 import { usageText } from "@/components/settings/transcription/DictationCleanup";
 
 const READ_AT = new Date(2026, 10, 19, 14, 2).getTime();
@@ -67,12 +67,13 @@ describe("Groq's allowance after a dictation", () => {
   });
 });
 
-describe("the toast's meters", () => {
+describe("the toast's figures", () => {
   test("a row per reading, requests per day first", () => {
     const rows = usageRows({ transcription: whisper, cleanup: qwen });
-    expect(rows.map((r) => r.label)).toEqual(["Transcriptions today", "Cleanups today"]);
-    expect(rows.map(rowFigure)).toEqual(["1,986 of 2,000 left", "1,996 of 2,000 left"]);
-    expect(rows[0].left).toBeCloseTo(0.993);
+    expect(rows.map((r) => `${rowCount(r)} ${r.noun} ${r.window}`)).toEqual([
+      "1,986 transcriptions today",
+      "1,996 cleanups today",
+    ]);
     expect(rows[0].resetsAt).toBe(READ_AT + 179_560);
     expect(rows.some((r) => r.warn)).toBe(false);
   });
@@ -80,7 +81,8 @@ describe("the toast's meters", () => {
   test("tokens per minute only for a reading without requests", () => {
     const rows = usageRows({ cleanup: reading({ role: "cleanup", tokensLimit: 6000, tokensRemaining: 500 }) });
     expect(rows).toHaveLength(1);
-    expect(rows[0].label).toBe("Cleanup tokens this minute");
+    expect(rows[0].noun).toBe("cleanup tokens");
+    expect(rows[0].window).toBe("this minute");
     expect(rows[0].warn).toBe(true);
     expect(rows[0].resetsAt).toBeUndefined();
     expect(usageRows({ transcription: reading() })).toEqual([]);
@@ -90,7 +92,7 @@ describe("the toast's meters", () => {
     const [row] = usageRows({ transcription: reading({ requestsLimit: 2000, requestsRemaining: 199 }) });
     expect(row.warn).toBe(true);
     const [over] = usageRows({ transcription: reading({ requestsLimit: 2000, requestsRemaining: 2400 }) });
-    expect(over.left).toBe(1);
+    expect(over.remaining).toBe(2000);
   });
 
   test("resets read as a countdown", () => {
