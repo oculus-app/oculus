@@ -5,7 +5,7 @@ import { useSyncStore } from "@/stores/sync/syncStore";
 /** Window event raised once a `scrape-file`'s row is written, so a page that
  *  reloads on it reads the new row rather than racing the upsert. */
 export const FILE_SCRAPED_EVENT = "oculus:file-scraped";
-export type FileScraped = { subject_id: number; canvas_id: number | null };
+export type FileScraped = { subject_id: number; canvas_id: number | null; relative_path: string };
 
 /** Syncs the selected subjects; returns the run id its file ledger is keyed
  *  under. */

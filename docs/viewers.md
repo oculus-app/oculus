@@ -13,7 +13,7 @@ library video in the media player, a video's transcript, and a web page.
 | The maths engine: loading, rendering, `rehypeMaths`, the visual field's edit model (`field.ts`) and the geometry of source-mapped maths (`geometry/`: where each caret stop is drawn, which stop a press lands on, a selection's bands); KaTeX's CSS and fonts | `app/src/lib/maths/`, `app/src/styles/katex/` |
 | Whiteboard and notebook files | `app/src/components/whiteboard/`, `app/src/lib/whiteboard/`; [drawing-whiteboard.md](./drawing-whiteboard.md) |
 | A parsed PDF's faces: PDF, Markdown | `app/src/components/files/FileViewer.tsx`, `app/src/components/files/FileMarkdown.tsx`, `app/src/components/files/pdf/pdfMdLink.ts`, `app/src/lib/pdf/pdfBlocks.ts` |
-| An Ed lesson's view: the slide sidebar and pane, a challenge slide's Description \| Workspace strip and read-only workspace, the index reader, statuses Ed answered this session | `app/src/components/lessons/`, `app/src/hooks/data/useLessonIndex.ts`, `app/src/lib/ed/lessons.ts`, `app/src/lib/ed/slideStatus.ts`, `app/src/lib/ed/views.ts` |
+| An Ed lesson's view: the slide sidebar and pane, a challenge slide's Description \| Workspace strip and read-only workspace, the index reader, statuses Ed answered this session | `app/src/components/lessons/`, `app/src/hooks/data/useLessonIndex.ts`, `app/src/lib/ed/lessons.ts`, `app/src/lib/ed/slideStatus.ts`, `app/src/lib/ed/views.ts`, `app/src/lib/ed/workspace.ts` |
 | The code editor and a library source file's read-only view | `app/src/components/code/`, `app/src/components/files/CodeFileViewer.tsx`, `fileLanguage` in `app/src/components/documents/editor/syntax/codeLanguages.ts`, `CODE_EXTS` in `app/src/lib/files/fileTypes.ts` |
 | Media player: clock, controls, keys, fullscreen, captions, dock frame, cue list | `app/src/components/media/`, `app/src/lib/lectures/media/`, `app/src/stores/lectures/playerPrefsStore.ts`, `app/src/hooks/lectures/useTranscriptDock.ts` |
 | Lecture player: two sources, playback owner, chapters, chat | `app/src/components/lectures/`, `app/src/lib/lectures/playback/`, `app/src/lib/lectures/playbackOwner.ts` |
@@ -414,14 +414,22 @@ whose list has slides (`useLessonIndex`), its body is `LessonView`
   Open in Ed pill that opens the slide's `url` from the index
   (`openLinkOut`: an in-app tab, ⌘-click the system browser), since editing,
   Run and Mark happen on Ed. Each slide opens on Description: its `.md`, the
-  brief, through `FileViewer`.
+  brief, through `FileViewer`. With Workspace shown, a Resync pill before
+  Open in Ed fetches the challenge's files from Ed now (`resyncWorkspace`,
+  [sync.md](./sync.md)); its arrows spin and it is disabled while it runs.
+  The outcome is a muted line beside it, "Up to date" or "2 updated · 1 new
+  · 1 removed", that fades after four seconds; a failure stays as short
+  `text-destructive` text, the whole message in its tooltip. Nothing is
+  uploaded to Ed.
 - **Workspace shows the challenge's synced files, read-only**
   (`WorkspacePane`): the rows under the slide's folder `<NN>-<slide-slug>/`
   beside its `.md` (`slideWorkspace`, [sync.md](./sync.md)), as Ed's tree in
   a 208px column (`WorkspaceTree`: folders first, then files, each by name,
   workspace-relative), and the chosen file beside it, the first until one is
   picked. Each column is its own one scroller; ↑/↓ step through the files.
-  Showing a file stamps it accessed. A slide whose folder holds no rows yet
+  Showing a file stamps it accessed. The shown file remounts when a sync or
+  Resync rewrites it (its key holds `content_changed_at`), so it reads the
+  new bytes and the tree stays as it is. A slide whose folder holds no rows yet
   says so quietly. Nothing in the pane edits (`WorkspaceFileView`, by
   `workspaceView`): an image shows as itself, a PDF in `PDFViewer`, a video
   in a bare `<video>` (the library's player would write a transcript into
