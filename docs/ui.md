@@ -423,7 +423,10 @@ themes are opt-in and keep the same structure.
   Drive's browser, whose 48px header holds the toggle, the trail from Files,
   the folder search and New.
 - **View preferences use `useStoredState`**, with readers that own defaults and validation; `useStoredSet` keeps collapsed group keys. Storage failures leave the live view usable.
-- **No toasts, no bottom progress bars** — background jobs surface in the
+- **Toasts are allowed for short notices that need nothing back**: top
+  centre, dismissed by themselves after a few seconds (paused while hovered),
+  with a ×. A failure or anything that asks for a decision stays inline where
+  it happened. **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
