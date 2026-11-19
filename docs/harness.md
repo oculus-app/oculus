@@ -2782,7 +2782,7 @@ It is not a chat job and has no row in Settings → Jobs. The cleaned text
 appends to the existing draft; it never sends automatically.
 
 When Groq transcribed or cleaned the dictation, a toast at the top centre of
-the window (`GroqUsageToast`, from `DictationFeedback`; the app's one toast,
+the window (`GroqUsageToast`, from `DictationFeedback`; built on `Toast`,
 [ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)) says what Groq's
 answers left of its allowance, titled "Groq allowance left": a row per
 figure Groq reported (`usageRows`), "Transcriptions today" and "Cleanups
