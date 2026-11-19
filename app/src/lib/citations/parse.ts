@@ -72,11 +72,18 @@ function decodePath(raw: string): string {
   }
 }
 
+/** A location fragment, and a query after a file extension (a cache-buster).
+ *  Any other `#` or `?` is part of the file name. */
+const HREF_HASH = /#(?:L\d+(?:-L?\d+)?|page=\d+|t=\d+(?:\.\d+)?)$/;
+const HREF_QUERY = /\.[A-Za-z0-9]+(\?[^#?/]*)$/;
+
 /** Split a markdown destination before decoding its filesystem path. */
 export function splitLibraryHref(raw: string) {
-  const [beforeHash, hash = ""] = raw.split(/(#.*)/s, 2);
-  const [path, query = ""] = beforeHash.split(/(\?.*)/s, 2);
-  return { path, query, hash };
+  const h = HREF_HASH.exec(raw);
+  const hash = h ? h[0] : "";
+  const beforeHash = h ? raw.slice(0, h.index) : raw;
+  const query = HREF_QUERY.exec(beforeHash)?.[1] ?? "";
+  return { path: beforeHash.slice(0, beforeHash.length - query.length), query, hash };
 }
 
 function location(m: RegExpExecArray | null): CiteLocation {

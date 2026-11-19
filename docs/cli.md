@@ -295,7 +295,7 @@ Successful `write --json` emits one object on stdout.
 ```
 
 `subject` is omitted for the cross-subject bucket. `indexed` counts the
-memories in the bucket. `created` remains true only for the `created` outcome.
+memories in the bucket. `created` is true only for the `created` outcome.
 
 | `outcome` | Meaning |
 | --- | --- |

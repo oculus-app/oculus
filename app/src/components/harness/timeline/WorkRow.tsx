@@ -367,7 +367,7 @@ export const ToolRow = memo(function ToolRow({
               {review.label}
             </span>
           )}
-          {kind === "oculus_cli" ? null : !done ? (
+          {cli ? null : !done ? (
             <CircleNotch size={12} className="shrink-0 animate-spin" />
           ) : failed && !review ? (
             <span className="shrink-0 text-[11px] text-destructive">failed</span>

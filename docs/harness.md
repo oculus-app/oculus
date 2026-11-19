@@ -501,8 +501,10 @@ still update the picker.
 - **A shell command is its own label**, in mono, wrapping in full while
   open, with the output in its detail. For a Codex command, the classifier
   reads one literal `-lc` or `-c` script passed to zsh, bash or sh. A simple
-  `oculus` call or chain gets CLI wording. Pipes, redirects and substitutions
-  keep the full script visible. Unknown or ambiguous wrappers keep the wire
+  `oculus` call or chain gets CLI wording, including one that folds or drops
+  stderr (`2>&1`, `2>/dev/null`) or reads stdin from a file or heredoc, since
+  its exit status and stdout stay its own. Pipes, other redirects and
+  substitutions keep the full script visible. Unknown or ambiguous wrappers keep the wire
   command. Approvals use the recorded command and working directory.
 - **A reasoning row has the Brain glyph.** Finished, it reads "Thought for 12s"
   and opens to the thought as muted markdown; while it streams, `LiveTail`

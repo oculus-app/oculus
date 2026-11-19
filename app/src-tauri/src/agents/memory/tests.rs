@@ -774,3 +774,11 @@ fn fold_writes_one_memory_and_deletes_its_sources() {
         "a fold needs its body: {err}"
     );
 }
+
+#[test]
+fn closing_fence_may_carry_trailing_spaces() {
+    let (front, body) = parse("---\nname: gaps\n--- \t\n\n- one\n").expect("parses");
+    assert_eq!(front.name, "gaps");
+    assert_eq!(body, "- one\n");
+    assert!(parse("---\nname: gaps\n---x\n- one\n").is_none());
+}

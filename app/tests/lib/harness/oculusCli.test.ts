@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { describeOculusCli, shellCommands, summariseOculusCli } from "@/lib/harness";
+import { parseShell } from "@/lib/harness/cliArgs";
 
 const title = (line: string, done = true, output = "") =>
   summariseOculusCli(describeOculusCli(line, { ok: done ? true : null, output }));
@@ -11,6 +12,17 @@ describe("oculus CLI row titles", () => {
       ["oculus", "memory", "list"],
     ]);
     expect(shellCommands(`cd 'my dir'; oculus read x.pdf`)).toEqual([["cd", "my dir"], ["oculus", "read", "x.pdf"]]);
+  });
+
+  test("a heredoc is the command's stdin, not more commands", () => {
+    expect(parseShell(`oculus memory write gaps --body - <<'EOF'\n- one\n- oculus read x\nEOF`)).toEqual({
+      commands: [["oculus", "memory", "write", "gaps", "--body", "-"]],
+      combinedStatus: false,
+    });
+    expect(parseShell(`oculus memory write gaps --body - <<-EOF\n\tline\n\tEOF\noculus memory list`)).toEqual({
+      commands: [["oculus", "memory", "write", "gaps", "--body", "-"], ["oculus", "memory", "list"]],
+      combinedStatus: true,
+    });
   });
 
   test("memory commands say what happened to which memory", () => {

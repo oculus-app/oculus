@@ -130,6 +130,15 @@ test("local markdown refuses traversal and preserves citation locations", async 
   }
   expect(fullCitation("../courses/X/notes.pdf?v=2#page=4")).toMatchObject({ path: "courses/X/notes.pdf", page: 4 });
   expect(fullCitation("courses/X/lecture.mp4?v=2#t=0")).toMatchObject({ path: "courses/X/lecture.mp4", at: 0 });
+  expect(fullCitation("courses/X/Files/C#-intro.pdf")).toMatchObject({ path: "courses/X/Files/C#-intro.pdf" });
+  expect(fullCitation("agents/outputs/what?.md")).toMatchObject({ path: "agents/outputs/what?.md" });
+});
+
+test("an old oculus row the wording table cannot read still shows that it failed", async () => {
+  const title = "/bin/zsh -lc 'oculus task add x'";
+  const meta: ToolMeta = { kind: "oculus_cli", name: "commandExecution", input: { command: title }, ok: false };
+  await act(() => root.render(<ToolRow item={tool(title, meta)} running={false} />));
+  expect(host.textContent).toContain("failed");
 });
 
 test("a wrapped CLI call keeps its icon while its verb moves from live to failed or stopped", async () => {

@@ -27,6 +27,7 @@ export function parseShell(line: string) {
   let inWord = false;
   let quote: string | null = null;
   let dropping = false;
+  let heredoc: { delimiter: string; tabs: boolean } | null = null;
   const endWord = () => {
     if (inWord && !dropping) words.push(word);
     word = "";
@@ -47,7 +48,14 @@ export function parseShell(line: string) {
       continue;
     }
     const sep = SEPARATORS.find((s) => line.startsWith(s, i));
-    if (sep) {
+    if (sep === "\n" && heredoc) {
+      // The heredoc's body is the command's stdin, not more commands.
+      endCommand();
+      const end = heredocEnd(line, i + 1, heredoc);
+      if (line.slice(end).trim()) combinedStatus = true;
+      heredoc = null;
+      i = end - 1;
+    } else if (sep) {
       if (sep !== "&&" && words.length + Number(inWord) > 0 && line.slice(i + sep.length).trim()) combinedStatus = true;
       endCommand();
       i += sep.length - 1;
@@ -57,6 +65,12 @@ export function parseShell(line: string) {
     } else if (c === "\\" && i + 1 < line.length) {
       word += /^[A-Za-z]:/.test(word) && /[\w.]/.test(line[i + 1]) ? c : line[++i];
       inWord = true;
+    } else if (c === "<" && line[i + 1] === "<" && HEREDOC.test(line.slice(i))) {
+      const m = HEREDOC.exec(line.slice(i))!;
+      heredoc = { delimiter: m[2] ?? m[3] ?? m[4], tabs: m[1] === "-" };
+      endWord();
+      dropping = true;
+      i += m[0].length - 1;
     } else if (c === "|" || c === ">" || c === "<") {
       if (c === "|") combinedStatus = true;
       // `2>&1`: the fd number is part of the redirect, not an argument.
@@ -75,6 +89,21 @@ export function parseShell(line: string) {
   }
   endCommand();
   return { commands: out, combinedStatus };
+}
+
+const HEREDOC = /^<<(-?)[ \t]*(?:'(\w+)'|"(\w+)"|(\w+))/;
+
+/** Where the line after a heredoc's closing delimiter starts (or the end). */
+function heredocEnd(line: string, from: number, { delimiter, tabs }: { delimiter: string; tabs: boolean }) {
+  let at = from;
+  while (at < line.length) {
+    const nl = line.indexOf("\n", at);
+    const end = nl < 0 ? line.length : nl;
+    const text = line.slice(at, end);
+    if ((tabs ? text.replace(/^\t+/, "") : text) === delimiter) return Math.min(end + 1, line.length);
+    at = end + 1;
+  }
+  return line.length;
 }
 
 export function shellCommands(line: string) {

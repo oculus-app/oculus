@@ -88,7 +88,8 @@ pub(super) fn parse_with_body_suffix(text: &str) -> Option<(Front, &str)> {
     let rest = text.strip_prefix("---\n")?;
     let end = rest.find("\n---")?;
     let (head, tail) = rest.split_at(end);
-    let suffix = tail.strip_prefix("\n---")?;
+    // A closing fence may carry trailing spaces, as hand-written files do.
+    let suffix = tail.strip_prefix("\n---")?.trim_start_matches([' ', '\t']);
     if !suffix.is_empty() && !suffix.starts_with('\n') {
         return None;
     }

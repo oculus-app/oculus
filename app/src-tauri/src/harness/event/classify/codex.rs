@@ -67,7 +67,11 @@ pub(super) fn cli_chain(line: &str) -> bool {
         if !cli && !cd {
             return false;
         }
-        while word(&mut rest).is_some() {}
+        // `2>&1` would otherwise read as the word `2` and a redirect.
+        while !(cli && STDIO.is_match(rest)) && word(&mut rest).is_some() {}
+        if cli {
+            rest = own_stdio(rest);
+        }
         if rest.is_empty() {
             return cli;
         }
@@ -84,6 +88,47 @@ pub(super) fn cli_chain(line: &str) -> bool {
         rest = tail.trim_start_matches([' ', '\t', '\n']);
     }
     false
+}
+
+// Redirects that keep the call's exit status and stdout its own: stderr folded
+// or dropped, and stdin from a file or a heredoc.
+static STDIO: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:2>&1|2>[ \t]*/dev/null|<[ \t]*[\w./-]+)[ \t]*").unwrap());
+static HEREDOC: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"^<<(-?)[ \t]*(?:'(\w+)'|"(\w+)"|(\w+))[ \t]*(?:\n|$)"#).unwrap()
+});
+
+fn own_stdio(mut rest: &str) -> &str {
+    while let Some(m) = STDIO.find(rest) {
+        rest = &rest[m.end()..];
+    }
+    let Some(c) = HEREDOC.captures(rest) else {
+        return rest;
+    };
+    let tabs = !c[1].is_empty();
+    let delimiter = c
+        .get(2)
+        .or(c.get(3))
+        .or(c.get(4))
+        .map_or("", |m| m.as_str());
+    // Return from the newline that closes the delimiter line, so it separates
+    // the next command as it does in the shell.
+    let mut body = &rest[c.get(0).map_or(0, |m| m.end())..];
+    while !body.is_empty() {
+        let end = body.find('\n').unwrap_or(body.len());
+        let line = &body[..end];
+        let line = if tabs {
+            line.trim_start_matches('\t')
+        } else {
+            line
+        };
+        if line == delimiter {
+            return &body[end..];
+        }
+        body = body.get(end + 1..).unwrap_or("");
+    }
+    // An unterminated heredoc is not a call we can account for.
+    "<<"
 }
 
 pub(super) fn display(command: String) -> (ToolKind, String) {
@@ -120,6 +165,11 @@ mod tests {
             "'/path with spaces/oculus' read x",
             "./bin/oculus read 'a|b' && oculus read b",
             "cd 'my folder' && oculus read a;\noculus read b",
+            "oculus quiz add --batch f.json 2>&1",
+            "oculus read x 2>/dev/null && oculus read y",
+            "oculus memory write a --body - < body.md",
+            "oculus memory write a --body - <<'EOF'\n- one\n- two\nEOF",
+            "oculus memory write a --body - <<-EOF\n\tline\n\tEOF\noculus memory list",
         ] {
             // shlex quotes the argument as a literal, as Codex does for its wire command.
             let raw = format!("zsh -lc {}", shlex::try_quote(line).unwrap());
@@ -134,6 +184,8 @@ mod tests {
             "BIN=/tmp/oculus echo hello",
             "oculus read x | head",
             "oculus read x >log",
+            "oculus read x 2>&1 | head",
+            "oculus memory write a --body - <<EOF\nx\n",
             "echo $(oculus read x)",
             "oculus read $(get_path)",
             "oculus read a && echo done",
