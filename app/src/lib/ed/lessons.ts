@@ -214,16 +214,24 @@ interface TreeNode {
 
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 
+/** A slide's `.md`, library-relative, whether or not a sync has stored it;
+ *  a challenge's folder is the same path without `.md`. Null for a slide
+ *  with no `.md`. */
+export function slideMdPath(index: Pick<DbFile, "relative_path">, slide: LessonSlide): string | null {
+  return slide.file?.endsWith(".md") ? resolveBeside(index.relative_path, slide.file) : null;
+}
+
 /** A challenge slide's synced workspace: the rows under its folder,
- *  `<NN>-<slide-slug>/` beside its `.md` (`slideFiles`), as a tree with
+ *  `<NN>-<slide-slug>/` beside its `.md` (`slideMdPath`), as a tree with
  *  folders before files, each by name. Empty until a sync has stored one. */
 export function slideWorkspace(
   index: Pick<DbFile, "relative_path">,
   slide: LessonSlide,
   files: readonly DbFile[],
 ): WorkspaceEntry[] {
-  if (!slide.file?.endsWith(".md")) return [];
-  const dir = `${resolveBeside(index.relative_path, slide.file).slice(0, -".md".length)}/`;
+  const md = slideMdPath(index, slide);
+  if (!md) return [];
+  const dir = `${md.slice(0, -".md".length)}/`;
   const root: TreeNode = { folders: new Map(), files: [] };
   for (const file of files) {
     if (!file.relative_path.startsWith(dir)) continue;

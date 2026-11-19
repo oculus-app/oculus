@@ -39,7 +39,8 @@ export function WorkspacePane({
         <WorkspaceTree entries={entries} selected={shown.path} onSelect={setPicked} />
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <WorkspaceFileView key={shown.file.id} file={shown.file} files={files} />
+        {/* Remounted when a sync or resync rewrites the file, so it reads the new bytes. */}
+        <WorkspaceFileView key={`${shown.file.id}:${shown.file.content_changed_at}`} file={shown.file} files={files} />
       </div>
     </div>
   );

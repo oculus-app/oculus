@@ -56,8 +56,7 @@ impl Engine {
     ) -> Result<(), String> {
         let lesson = self.ed.lesson(lesson_id)?;
         let title = lesson["title"].as_str().unwrap_or("Lesson");
-        // The id leads, so a renamed lesson keeps its prefix.
-        let stem = layout::synced(SyncedKind::Lessons, &format!("{lesson_id}-{}", slug(title)));
+        let stem = lesson_stem(lesson_id, title);
         let region = self.ed.region();
         let place = LessonPlace {
             stem: &stem,
@@ -77,7 +76,7 @@ impl Engine {
                 continue;
             };
             let slide_title = slide["title"].as_str().unwrap_or("");
-            let slide_stem = format!("{stem}/{:02}-{}", i + 1, slug(slide_title));
+            let slide_stem = slide_stem(&stem, i + 1, slide_title);
             let extras = match (
                 slide["type"].as_str().unwrap_or(""),
                 ed::challenge_id(slide),
@@ -245,4 +244,17 @@ impl Engine {
             })
             .ok()
     }
+}
+
+/// A lesson's stem, subject-relative: `<lessons folder>/<id>-<slug>`, its
+/// index the `.md` and its slides' files the folder. The id leads, so a
+/// renamed lesson keeps its prefix.
+pub(super) fn lesson_stem(lesson_id: i64, title: &str) -> String {
+    layout::synced(SyncedKind::Lessons, &format!("{lesson_id}-{}", slug(title)))
+}
+
+/// The stem of the lesson's slide at 1-based `index`: `<NN>-<slug>` in the
+/// lesson's folder, which its files share (`ed::slide_workspace_dir`).
+pub(super) fn slide_stem(lesson_stem: &str, index: usize, title: &str) -> String {
+    format!("{lesson_stem}/{index:02}-{}", slug(title))
 }

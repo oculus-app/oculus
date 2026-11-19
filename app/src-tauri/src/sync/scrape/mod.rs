@@ -13,6 +13,7 @@ use crate::sync::{
 
 pub mod embeds;
 pub mod videos;
+pub mod workspace;
 pub use videos::VideoCancels;
 
 #[derive(serde::Deserialize)]

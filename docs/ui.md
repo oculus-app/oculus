@@ -13,7 +13,7 @@ Read this before any UI work.
 | Platform detection and shortcut labels | `app/src/lib/platform.ts` |
 | Text selection scopes | `app/src/styles/base.css`, `app/src/lib/ui/selectScope.ts` |
 | shadcn primitives (flat) | `app/src/components/ui/` |
-| The one toast (see below) | `app/src/components/ui/Toast.tsx` |
+| Toast shell (see below) | `app/src/components/ui/Toast.tsx` |
 | Composites built on them | `app/src/components/ui/layout/`, `app/src/components/ui/table/`, `app/src/components/ui/search/`, `app/src/components/ui/lightbox/` |
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
@@ -424,18 +424,19 @@ themes are opt-in and keep the same structure.
   Drive's browser, whose 48px header holds the toggle, the trail from Files,
   the folder search and New.
 - **View preferences use `useStoredState`**, with readers that own defaults and validation; `useStoredSet` keeps collapsed group keys. Storage failures leave the live view usable.
-- **No toasts, no bottom progress bars** — background jobs surface in the
+- **Toasts are allowed for short notices that need nothing back**: top
+  centre, dismissed by themselves after a few seconds (paused while hovered),
+  with a ×. A failure or anything that asks for a decision stays inline where
+  it happened. **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
   News is said in place: in the card, on a line by the control, or in a
   `BannerLane` card.
-- **The one toast is Groq's allowance after a dictation**
-  (`GroqUsageToast`, [harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
-  The owner asked for it: the figures belong to no control or card, and a
-  quiet line above the composer read as clutter. It is not a pattern to
-  reuse; any other toast needs the owner's say-so. `Toast`
-  (`app/src/components/ui/Toast.tsx`) is portalled to the body and fixed at
+- **Every toast uses `Toast`** (`app/src/components/ui/Toast.tsx`), whose
+  first use is Groq's allowance after a dictation (`GroqUsageToast`,
+  [harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
+  It is portalled to the body and fixed at
   the top centre, just under the tab strip, so it never moves layout: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
   wide at most. It drops in and lifts out (`toast-enter`, `toast-exit` in

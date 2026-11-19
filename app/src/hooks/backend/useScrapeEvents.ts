@@ -67,7 +67,7 @@ export function useScrapeEvents() {
           addLog(`${relative_path}: its row was not removed: ${err}`, "warning").catch(() => {});
         }
         window.dispatchEvent(
-          new CustomEvent<FileScraped>(FILE_SCRAPED_EVENT, { detail: { subject_id, canvas_id } }),
+          new CustomEvent<FileScraped>(FILE_SCRAPED_EVENT, { detail: { subject_id, canvas_id, relative_path } }),
         );
         return;
       }
@@ -116,7 +116,7 @@ export function useScrapeEvents() {
         });
       } catch { /* ignore */ }
       window.dispatchEvent(
-        new CustomEvent<FileScraped>(FILE_SCRAPED_EVENT, { detail: { subject_id, canvas_id } }),
+        new CustomEvent<FileScraped>(FILE_SCRAPED_EVENT, { detail: { subject_id, canvas_id, relative_path } }),
       );
       // Sync History ledger, only for a run started from this instance.
       const runId = useSyncStore.getState().runId;

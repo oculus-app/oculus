@@ -11,6 +11,7 @@ import {
   isChallengeSlide,
   slideFiles,
   slideIcon,
+  slideMdPath,
   slideWorkspace,
   workspaceView,
   lessonIcon,
@@ -122,6 +123,9 @@ describe("Ed lesson index", () => {
       ["file", "README.md", 0],
     ]);
     expect(slideWorkspace(index, code, [index])).toEqual([]);
+    // What a resync names to Rust, which strips `.md` for the folder.
+    expect(slideMdPath(index, code)).toBe(`${dir}.md`);
+    expect(slideMdPath(index, { ...code, file: null })).toBeNull();
     expect(isChallengeSlide(code)).toBe(true);
     expect(isChallengeSlide(notes)).toBe(false);
   });

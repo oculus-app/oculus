@@ -23,6 +23,7 @@ pub use dates::SourceDates;
 pub use engine::Engine;
 pub(crate) use office::{office_ext_of, office_to_pdf};
 pub use parse::{parse_key, parse_pdf, parse_pdf_reporting, ParseSummary};
+pub use phases::Mirrored;
 pub use render::slug;
 
 use std::collections::{HashMap, HashSet};

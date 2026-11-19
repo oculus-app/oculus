@@ -173,6 +173,7 @@ pub fn run() {
             sync::subjects::get_subjects,
             sync::scrape::scrape_content,
             sync::scrape::cancel_scrape,
+            sync::scrape::workspace::ed_resync_workspace,
             sync::scrape::videos::canvas_download_video,
             sync::scrape::videos::canvas_cancel_video,
             sync::scrape::embeds::commands::echo360_embed_info,

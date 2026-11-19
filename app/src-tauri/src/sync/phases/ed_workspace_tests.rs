@@ -6,8 +6,10 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::ed_workspace::EDIT_RECORDS;
-use crate::sync::{Engine, FileEvent, Reporter, Subject};
+use super::ed_lessons::{lesson_stem, slide_stem};
+use super::ed_workspace::{slide_stem_of, EDIT_RECORDS};
+use crate::library::paths;
+use crate::sync::{Engine, FileEvent, Mirrored, Reporter, Subject};
 use crate::test_support::Scratch;
 
 const SLIDE: &str = "Course/Lessons/1-l/03-q1a";
@@ -111,8 +113,17 @@ fn a_synced_challenge_folder_ends_exactly_as_eds_zip() {
     ]);
     let (engine, seen) = engine(&data);
 
-    let extras = engine.mirror_workspace(&subject(), "Q1a", SLIDE, Ok(zip), true);
+    let mirrored = engine.mirror_workspace(&subject(), "Q1a", SLIDE, Ok(zip), true);
 
+    assert_eq!(
+        mirrored,
+        Ok(Mirrored {
+            added: 1,
+            updated: 1,
+            unchanged: 1,
+            removed: 4,
+        })
+    );
     let want: BTreeMap<String, String> = [
         ("q1a.py", "dfa = 'ed'\n"),
         ("src/keep.txt", "old\n"),
@@ -127,7 +138,6 @@ fn a_synced_challenge_folder_ends_exactly_as_eds_zip() {
     assert!(lessons.join("03-q1a.md").is_file());
     assert!(lessons.parent().unwrap().join("1-l.md").is_file());
 
-    assert_eq!(extras.note, None);
     let seen = seen.0.lock().unwrap();
     assert_eq!(
         seen.files,
@@ -166,16 +176,12 @@ fn a_failed_download_leaves_the_folder_untouched() {
     let before = tree(&root);
     let (engine, seen) = engine(&data);
 
-    for zip in [
-        Err("could not reach the workspace server (Dns)".to_string()),
-        Ok(b"not a zip".to_vec()),
-    ] {
-        let extras = engine.mirror_workspace(&subject(), "Q1a", SLIDE, zip, true);
-        assert_eq!(
-            extras.note.as_deref(),
-            Some("The challenge's files could not be fetched.")
-        );
-    }
+    let failed = |zip| engine.mirror_workspace(&subject(), "Q1a", SLIDE, zip, true);
+    assert_eq!(
+        failed(Err("could not reach the workspace server (Dns)".into())),
+        Err("could not reach the workspace server (Dns)".into())
+    );
+    assert!(failed(Ok(b"not a zip".to_vec())).is_err());
 
     assert_eq!(tree(&root), before);
     assert_eq!(engine.replaced_edits.get(), 0);
@@ -196,9 +202,15 @@ fn an_empty_workspace_on_ed_empties_the_folder_and_says_so() {
     let root = edited_folder(&data);
     let (engine, seen) = engine(&data);
 
-    let extras = engine.mirror_workspace(&subject(), "Q1a", SLIDE, Ok(zip_of(&[])), false);
+    let mirrored = engine.mirror_workspace(&subject(), "Q1a", SLIDE, Ok(zip_of(&[])), false);
 
-    assert_eq!(extras.note, None);
+    assert_eq!(
+        mirrored,
+        Ok(Mirrored {
+            removed: 6,
+            ..Mirrored::default()
+        })
+    );
     assert!(!root.exists());
     assert!(data.join(FOLDER).with_extension("md").is_file());
     assert_eq!(engine.replaced_edits.get(), 0, "no edit record, no count");
@@ -222,13 +234,15 @@ fn a_kept_pdf_keeps_its_parse_and_a_dropped_one_takes_its_parse_along() {
     write(&root, "old_images/p1.png", "png");
     let (engine, _) = engine(&data);
 
-    engine.mirror_workspace(
-        &subject(),
-        "Q1a",
-        SLIDE,
-        Ok(zip_of(&[("notes.pdf", "pdf")])),
-        false,
-    );
+    engine
+        .mirror_workspace(
+            &subject(),
+            "Q1a",
+            SLIDE,
+            Ok(zip_of(&[("notes.pdf", "pdf")])),
+            false,
+        )
+        .unwrap();
 
     assert_eq!(
         tree(&root).into_keys().collect::<Vec<_>>(),
@@ -253,4 +267,45 @@ fn a_finished_run_says_how_many_edits_it_replaced_and_drops_the_records() {
     // With no records left, a later run says nothing.
     engine.forget_edit_records();
     assert_eq!(logs(&seen).len(), 1);
+}
+
+#[test]
+fn a_slide_files_path_gives_back_the_stem_the_sync_mirrored_under() {
+    let code = "COMP 30026";
+    let lesson = lesson_stem(1234, "Week 3: DFAs & NFAs!");
+    let stem = slide_stem(&lesson, 3, "Q1a — Build a DFA");
+    // The slide's file as the sync writes it (`write_synced`), which is the
+    // path the lesson view finds beside the index.
+    let md = paths::course_rel_path(code, &format!("{stem}.md")).unwrap();
+
+    assert_eq!(slide_stem_of(code, &md).as_deref(), Ok(stem.as_str()));
+    assert_eq!(
+        paths::course_rel_path(code, &stem).as_deref(),
+        md.strip_suffix(".md"),
+        "the mirror writes the folder beside the slide file"
+    );
+}
+
+#[test]
+fn a_path_that_is_not_a_lesson_slide_is_refused_before_anything_is_fetched() {
+    let data = Scratch::new("ed-mirror-stem");
+    let (engine, seen) = engine(&data);
+    for slide_md in [
+        "courses/OTHER/Course/Lessons/1-l/03-q1a.md",
+        "courses/COMP30026/Course/Files/notes.md",
+        "courses/COMP30026/Course/Lessons/1-l.md",
+        "courses/COMP30026/Course/Lessons/1-l/03-q1a/deeper.md",
+        "courses/COMP30026/Course/Lessons/1-l/../03-q1a.md",
+        "courses/COMP30026/Course/Lessons/1-l//03-q1a.md",
+        "courses/COMP30026/Course/Lessons/1-l/03-q1a.pdf",
+        FOLDER,
+    ] {
+        let refused = engine.resync_workspace(&subject(), 281410, "Q1a", slide_md);
+        assert!(refused.is_err(), "{slide_md} was taken");
+    }
+    assert_eq!(
+        slide_stem_of("COMP30026", &format!("{FOLDER}.md")).as_deref(),
+        Ok(SLIDE)
+    );
+    assert!(seen.0.lock().unwrap().files.is_empty());
 }
