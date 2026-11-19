@@ -506,10 +506,10 @@ leaves the last whole lesson.
   event, and only that: log lines go to the app log, and no progress,
   `scrape-log` or `scrape-complete` is sent. The command answers the counts
   (`Mirrored`: added, updated, unchanged, removed) or the fetch's error.
-  `resyncWorkspace` (`app/src/lib/ed/workspace.ts`) waits for the listener
-  to write every row under the folder (`FILE_SCRAPED_EVENT` carries the
-  path), then raises `WORKSPACE_RESYNCED_EVENT`, on which
-  `useSubjectFiles` reloads.
+  `resyncWorkspace` (`app/src/lib/ed/workspace.ts`) resolves with them as
+  soon as Rust answers; once the listener has written every row under the
+  folder (`FILE_SCRAPED_EVENT` carries the path, ten seconds at most) it
+  raises `WORKSPACE_RESYNCED_EVENT`, on which `useSubjectFiles` reloads.
 - Each deleted file is also a `scrape-file` event with action `removed`, the
   only phase that sends one, and its `files` row goes with it: the app's
   listener (`app/src/hooks/backend/useScrapeEvents.ts`) looks the row up by

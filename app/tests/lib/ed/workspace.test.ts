@@ -32,7 +32,7 @@ const scraped = (relative_path: string, subject_id = 7) =>
   );
 
 describe("a challenge's resync", () => {
-  test("names the slide to Rust and resolves once its rows are written", async () => {
+  test("names the slide to Rust, answers at once, and reloads once its rows are written", async () => {
     subjects = async () => [{ id: 7, code: "COMP30026_2026_SM2" }];
     let asked: Record<string, unknown> | null = null;
     // The listener writes rows after the command has answered.
@@ -58,6 +58,10 @@ describe("a challenge's resync", () => {
     window.addEventListener(WORKSPACE_RESYNCED_EVENT, () => (rowsAtReload = rows), { once: true });
 
     const result = await resyncWorkspace(slide);
+    // Answered before any row landed: the spinner is not held by them.
+    expect(rows).toBe(0);
+    expect(reloads).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 30));
 
     window.removeEventListener(WORKSPACE_RESYNCED_EVENT, onReload);
     window.removeEventListener(FILE_SCRAPED_EVENT, countRow);

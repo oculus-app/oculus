@@ -416,7 +416,7 @@ whose list has slides (`useLessonIndex`), its body is `LessonView`
   Run and Mark happen on Ed. Each slide opens on Description: its `.md`, the
   brief, through `FileViewer`. With Workspace shown, a Resync pill before
   Open in Ed fetches the challenge's files from Ed now (`resyncWorkspace`,
-  [sync.md](./sync.md)); its arrows spin and it is disabled while it runs.
+  [sync.md](./sync.md)); while it runs it shows a spinner and is disabled, until Rust answers.
   The outcome is a muted line beside it, "Up to date" or "2 updated · 1 new
   · 1 removed", that fades after four seconds; a failure stays as short
   `text-destructive` text, the whole message in its tooltip. Nothing is

@@ -21,8 +21,9 @@ const ROWS_WAIT_MS = 10_000;
  * Fetch a challenge's workspace from Ed now and mirror it into the slide's
  * folder (`ed_resync_workspace`, docs/sync.md); read-only, nothing goes to
  * Ed. `slideMd` is the slide's `.md` (`slideMdPath`). Each file is a
- * `scrape-file` event whose row the app's listener writes; this resolves once
- * those rows are written, then reloads the subject's file lists. Rejects with
+ * `scrape-file` event whose row the app's listener writes; this resolves when
+ * Rust answers, and the subject's file lists reload once those rows are
+ * written. Rejects with
  * Rust's message when the fetch failed or a sync is running.
  */
 export async function resyncWorkspace(slide: {
@@ -35,35 +36,38 @@ export async function resyncWorkspace(slide: {
   if (!subject) throw new Error("The subject is no longer in the library.");
   const dir = `${slide.slideMd.replace(/\.md$/, "")}/`;
 
-  // Counted from before the call, so no row's event slips by.
+  // Counted from before the call, so no row's event slips by. The rows land
+  // after Rust answers; the caller is not kept waiting for them.
   let written = 0;
   let expected = Infinity;
-  let landed = () => {};
-  const allLanded = new Promise<void>((resolve) => (landed = resolve));
+  let wait: ReturnType<typeof setTimeout> | undefined;
+  const finish = () => {
+    clearTimeout(wait);
+    window.removeEventListener(FILE_SCRAPED_EVENT, onRow);
+    window.dispatchEvent(new CustomEvent(WORKSPACE_RESYNCED_EVENT, { detail: { subjectId: slide.subjectId } }));
+  };
   const onRow = (e: Event) => {
     const { subject_id, relative_path } = (e as CustomEvent<FileScraped>).detail;
-    if (subject_id === slide.subjectId && relative_path.startsWith(dir) && ++written >= expected) landed();
+    if (subject_id === slide.subjectId && relative_path.startsWith(dir) && ++written >= expected) finish();
   };
   window.addEventListener(FILE_SCRAPED_EVENT, onRow);
-  let wait: ReturnType<typeof setTimeout> | undefined;
+  let result: WorkspaceResync;
   try {
-    const result = await invoke<WorkspaceResync>("ed_resync_workspace", {
+    result = await invoke<WorkspaceResync>("ed_resync_workspace", {
       subjectId: slide.subjectId,
       subjectCode: subject.code,
       challengeId: slide.challengeId,
       slideTitle: slide.title,
       slideMd: slide.slideMd,
     });
-    expected = result.added + result.updated + result.unchanged + result.removed;
-    if (written < expected) {
-      await Promise.race([allLanded, new Promise((resolve) => (wait = setTimeout(resolve, ROWS_WAIT_MS)))]);
-    }
-    window.dispatchEvent(new CustomEvent(WORKSPACE_RESYNCED_EVENT, { detail: { subjectId: slide.subjectId } }));
-    return result;
-  } finally {
-    clearTimeout(wait);
+  } catch (e) {
     window.removeEventListener(FILE_SCRAPED_EVENT, onRow);
+    throw e;
   }
+  expected = result.added + result.updated + result.unchanged + result.removed;
+  if (written >= expected) finish();
+  else wait = setTimeout(finish, ROWS_WAIT_MS);
+  return result;
 }
 
 /** A resync's outcome in a few words: what changed, else "Up to date". */

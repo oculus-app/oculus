@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowSquareOut, ArrowsClockwise } from "@phosphor-icons/react";
+import { ArrowSquareOut, ArrowsClockwise, CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { PillTabs } from "@/components/ui/table/PillTabs";
 import { openLinkOut } from "@/lib/files/canvasLinks";
@@ -42,7 +42,11 @@ export function ChallengeHeader({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [fading, setFading] = useState(false);
   const live = useRef(true);
-  useEffect(() => () => { live.current = false; }, []);
+  // Set again on mount: StrictMode's mount, unmount, mount would leave it false.
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; };
+  }, []);
 
   // A success says itself and fades; an error stays until the next resync.
   useEffect(() => {
@@ -89,7 +93,7 @@ export function ChallengeHeader({
         )}
         {view === "workspace" && onResync && (
           <Button size="xs" variant="secondary" className="shrink-0" disabled={running} onClick={() => void resync()}>
-            <ArrowsClockwise className={cn("will-change-transform", running && "animate-spin")} />
+            {running ? <CircleNotch className="animate-spin" /> : <ArrowsClockwise />}
             Resync
           </Button>
         )}
