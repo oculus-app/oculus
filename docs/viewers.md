@@ -835,7 +835,10 @@ one up in Settings → Transcription.
   The select offers Auto-detect, then on-device speech's locales when it
   lists them — the one engine that needs a region — else bare codes, English
   first, with a region shown only where a language has several
-  (`languageOptions`). The list is one bordered group in run order: a row
+  (`languageOptions`). Each choice leads with its region's flag
+  (`localeFlag`; a bare code takes the region it is most spoken in, Auto-detect
+  a globe, and Windows, which draws flag emoji as letters, none); the popup
+  shows about ten rows and scrolls, and typing a name jumps to it. The list is one bordered group in run order: a row
   drags to a new place (`useStripReorder`) or moves with the arrow keys on its
   handle, and carries a one-line status, its switch, and a button opening the
   engine's dialog — Groq's key, Whisper's models, on-device speech's

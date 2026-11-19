@@ -1,7 +1,7 @@
 import { isWindows } from "@/lib/platform";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { DotsSixVertical } from "@phosphor-icons/react";
+import { DotsSixVertical, Globe } from "@phosphor-icons/react";
 import { DictationCleanup } from "./DictationCleanup";
 import { GroqDialog } from "./GroqDialog";
 import { LocalWhisperDialog, useWhisperDownloads, whisperStatus } from "./LocalWhisper";
@@ -19,6 +19,7 @@ import {
   hasGroqKey,
   languageOptions,
   languageValue,
+  localeFlag,
   localeName,
   readTranscribeSettings,
   whisperModels,
@@ -246,11 +247,16 @@ function LanguageRow({ language, speech, defaultLocale, disabled, onChange }: {
       </div>
       <Select value={value} disabled={disabled} onValueChange={onChange}>
         <SelectTrigger aria-label="Transcription language" size="sm" className="h-7 w-56 text-xs">
-          <SelectValue placeholder="—">{shown}</SelectValue>
+          <SelectValue placeholder="—">
+            <LanguageMark value={value} />
+            {shown}
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        {/* About ten rows, then it scrolls; typing a name still jumps to it. */}
+        <SelectContent scrollFade className="max-h-[min(19rem,var(--radix-select-content-available-height))]">
           {options.map((option) => (
-            <SelectItem key={option.value} value={option.value} className="text-xs">
+            <SelectItem key={option.value} value={option.value} textValue={option.name} className="text-xs">
+              <LanguageMark value={option.value} />
               {option.name}
             </SelectItem>
           ))}
@@ -258,6 +264,18 @@ function LanguageRow({ language, speech, defaultLocale, disabled, onChange }: {
       </Select>
     </div>
   );
+}
+
+/** A language's flag, or a globe for Auto-detect. Windows draws flag emoji
+ *  as two letters, so it shows none. */
+function LanguageMark({ value }: { value: string }) {
+  if (value === "auto") return <Globe aria-hidden size={14} className="shrink-0 text-muted-foreground" />;
+  const flag = isWindows ? null : localeFlag(value);
+  return flag ? (
+    <span aria-hidden className="w-3.5 shrink-0 text-center text-[13px] leading-none">
+      {flag}
+    </span>
+  ) : null;
 }
 
 /**

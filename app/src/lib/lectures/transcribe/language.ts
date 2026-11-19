@@ -10,6 +10,22 @@ export function localeName(id: string): string {
   }
 }
 
+/**
+ * The flag for a locale's region, as an emoji ("en_AU" → 🇦🇺). A bare
+ * language takes the region it is most spoken in (`ja` → 🇯🇵); null when
+ * there is none to find.
+ */
+export function localeFlag(id: string): string | null {
+  let region: string | undefined;
+  try {
+    region = new Intl.Locale(id.replace(/_/g, "-")).maximize().region;
+  } catch {
+    return null;
+  }
+  if (!region || !/^[A-Z]{2}$/.test(region)) return null;
+  return String.fromCodePoint(...[...region].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
 function languageOf(id: string): string {
   return id.split(/[_-]/)[0].toLowerCase();
 }

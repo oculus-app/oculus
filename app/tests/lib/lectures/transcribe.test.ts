@@ -19,6 +19,7 @@ const {
   appleLocale,
   languageOptions,
   languageValue,
+  localeFlag,
   pickWhisperModel,
   readTranscribeSettings,
   writeTranscribeSettings,
@@ -135,6 +136,14 @@ test("the language list puts English first and shows a region only where a langu
   const bare = languageOptions([], "pt");
   expect(bare[1]).toEqual({ value: "en", name: "English" });
   expect(bare.some((o) => o.value === "pt" && o.name === "Portuguese")).toBe(true);
+});
+
+test("a language's flag is its region's, or where a bare language is most spoken", () => {
+  expect(localeFlag("en_AU")).toBe("🇦🇺");
+  expect(localeFlag("zh_HK")).toBe("🇭🇰");
+  expect(localeFlag("ja")).toBe("🇯🇵");
+  expect(localeFlag("auto")).toBeNull();
+  expect(localeFlag("not a locale")).toBeNull();
 });
 
 // Mirrors `pick` in app/src-tauri/src/transcribe/engines/whisper_models/models.rs.
