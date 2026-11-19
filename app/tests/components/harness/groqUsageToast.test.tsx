@@ -26,7 +26,7 @@ describe("Groq usage toast", () => {
       transcription: reading({}),
       cleanup: reading({ model: "qwen/qwen3.8-27b", role: "cleanup", requestsRemaining: 1996, requestsReset: 43 }),
     });
-    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} onDismiss={() => {}} />);
+    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} />);
     expect(text(html)).toBe("Groq left today1,999 transcriptions1,996 cleanups");
     expect(html).toContain('aria-label="Dismiss Groq usage"');
     expect(html).not.toContain("text-warning");
@@ -35,7 +35,7 @@ describe("Groq usage toast", () => {
 
   test("a low figure takes the warning colour and its reset", () => {
     const rows = usageRows({ transcription: reading({ requestsRemaining: 150 }) });
-    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} onDismiss={() => {}} />);
+    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} />);
     expect(html).toContain("text-warning");
     expect(text(html)).toBe("Groq left today150 transcriptions, resets in 3h 12m");
   });
@@ -45,7 +45,7 @@ describe("Groq usage toast", () => {
       transcription: reading({}),
       cleanup: reading({ role: "cleanup", requestsLimit: undefined, requestsRemaining: undefined, tokensLimit: 6000, tokensRemaining: 5800 }),
     });
-    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} onDismiss={() => {}} />);
+    const html = renderToStaticMarkup(<GroqUsageLine rows={rows} now={NOW} />);
     expect(text(html)).toBe("Groq left1,999 transcriptions today5,800 cleanup tokens this minute");
   });
 });

@@ -160,3 +160,18 @@
     opacity: 0;
   }
 }
+
+/* `ToastClose`'s ring: the stroke runs out over the toast's duration (set
+   inline), draining back towards twelve o'clock on a `-rotate-90` circle. */
+@utility toast-countdown {
+  animation: toast-countdown linear forwards;
+}
+
+@keyframes toast-countdown {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 1;
+  }
+}

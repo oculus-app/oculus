@@ -2793,9 +2793,10 @@ figure names its own window. A figure under a tenth of its limit turns the
 warning colour, its icon and the badge with it, and adds ", resets in 3h 12m"
 when Groq gave a reset
 ([viewers.md](./viewers.md#groqs-answers-say-how-much-allowance-is-left)).
-It shows only once the dictation has settled and closes after 6 s (paused
-while hovered or focused), on Escape or its ×; the next dictation replaces
-it, and Use original transcript keeps it. Sending and switching drafts
+It shows only once the dictation has settled and closes after 6 s, which
+the ring around its × counts down (paused while hovered or focused), or
+sooner on Escape or the ×; the next dictation replaces it, and Use original
+transcript keeps it. Sending and switching drafts
 leave it be. It never appears after a dictation Groq took no part in
 (S1-mini, local Whisper, on-device speech, or Off).
 

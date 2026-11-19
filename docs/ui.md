@@ -427,7 +427,7 @@ themes are opt-in and keep the same structure.
 - **View preferences use `useStoredState`**, with readers that own defaults and validation; `useStoredSet` keeps collapsed group keys. Storage failures leave the live view usable.
 - **Toasts are allowed for short notices that need nothing back**: top
   centre, dismissed by themselves after a few seconds (paused while hovered),
-  with a ×. A failure or anything that asks for a decision stays inline where
+  with a × ringed by the countdown. A failure or anything that asks for a decision stays inline where
   it happened. **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
@@ -438,14 +438,17 @@ themes are opt-in and keep the same structure.
   first use is Groq's allowance after a dictation (`GroqUsageToast`,
   [harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
   It is portalled to the body and fixed at
-  the top centre, just under the tab strip, so it never moves layout: a
+  the top centre, below the tab strip and the page's 48px header row, so it
+  never moves layout or covers a title: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
   wide at most unless the caller's `className` reshapes it (Groq's is a
   content-wide pill). It drops in and lifts out (`toast-enter`, `toast-exit` in
   `utilities.css`; reduced motion fades only, and the entrance leaves no
   transform behind), is `role="status"` with `aria-live="polite"`, closes
   after 6 s with the timer paused while hovered or focused, on Escape or
-  its ×, and only the newest stays open.
+  its `ToastClose`, and only the newest stays open. `ToastClose` is the ×
+  inside a ring that drains clockwise over those 6 s and holds while the
+  timer does (`toast-countdown`, a stroke animation, so no layer of its own).
   No placeholder UI, section-header icons or filler; stat cards only where
   the figures are the point (Home's Activity).
 - Slugs display through `humanizeSlug`, Canvas codes through `displayCode`

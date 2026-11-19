@@ -1,7 +1,6 @@
 import { Microphone, Sparkle, type Icon } from "@phosphor-icons/react";
 import { GroqIcon } from "@/components/icons/GroqIcon";
-import { ChipRemove } from "@/components/ui/ChipRemove";
-import { Toast } from "@/components/ui/Toast";
+import { Toast, ToastClose } from "@/components/ui/Toast";
 import { resetsIn, rowCount, usageRows, type DictationUsage, type UsageRow } from "@/lib/dictation/groqUsage";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +14,7 @@ export function GroqUsageToast({ usage, onDismiss }: { usage: DictationUsage | n
   const rows = usage ? usageRows(usage) : [];
   return (
     <Toast open={rows.length > 0} onClose={onDismiss} className="w-auto max-w-full rounded-full">
-      <GroqUsageLine rows={rows} now={Date.now()} onDismiss={onDismiss} />
+      <GroqUsageLine rows={rows} now={Date.now()} />
     </Toast>
   );
 }
@@ -23,12 +22,12 @@ export function GroqUsageToast({ usage, onDismiss }: { usage: DictationUsage | n
 const ROLE_ICON: Record<UsageRow["role"], Icon> = { transcription: Microphone, cleanup: Sparkle };
 
 /** The toast's body, apart from its timing, so it renders on its own. */
-export function GroqUsageLine({ rows, now, onDismiss }: { rows: UsageRow[]; now: number; onDismiss: () => void }) {
+export function GroqUsageLine({ rows, now }: { rows: UsageRow[]; now: number }) {
   // One window for every figure says it once, up front; mixed, each says its own.
   const shared = rows.every((row) => row.window === rows[0]?.window) ? rows[0]?.window : undefined;
   const warn = rows.some((row) => row.warn);
   return (
-    <div className="flex items-center gap-2.5 py-1.5 pr-2 pl-1.5 text-[13px]">
+    <div className="flex items-center gap-2.5 py-1.5 pr-1.5 pl-1.5 text-[13px]">
       <span
         aria-hidden
         className={cn(
@@ -46,7 +45,7 @@ export function GroqUsageLine({ rows, now, onDismiss }: { rows: UsageRow[]; now:
           <Figure key={row.role} row={row} now={now} withWindow={!shared} />
         ))}
       </p>
-      <ChipRemove label="Dismiss Groq usage" onRemove={onDismiss} />
+      <ToastClose label="Dismiss Groq usage" />
     </div>
   );
 }
