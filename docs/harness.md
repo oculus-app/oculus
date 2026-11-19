@@ -2781,18 +2781,21 @@ or S1-mini use only that one; Off leaves the transcript as heard
 It is not a chat job and has no row in Settings → Jobs. The cleaned text
 appends to the existing draft; it never sends automatically.
 
-When Groq transcribed or cleaned the dictation, a quiet line just above the
-box, where dictation's errors appear (`GroqUsageLine` in
-`DictationFeedback`), says what Groq's answers left of its allowance: "Groq
-today: 1,986 of 2,000 transcriptions · 1,996 of 2,000 cleanups left", only
-the parts Groq reported, in `tabular-nums`, in `text-warning` when any is
-under a tenth, with each figure's reset and the reading's time in its
-tooltip ([viewers.md](./viewers.md#groqs-answers-say-how-much-allowance-is-left)).
-It shows only once the dictation has settled, and stays until the draft is
-sent, the next dictation starts, the draft is switched, or its × dismisses
-it; Use original transcript keeps it. No timer hides it. It never appears
-after a dictation Groq took no part in (S1-mini, local Whisper, on-device
-speech, or Off).
+When Groq transcribed or cleaned the dictation, a toast at the top centre of
+the window (`GroqUsageToast`, from `DictationFeedback`; the app's one toast,
+[ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)) says what Groq's
+answers left of its allowance, titled "Groq allowance left": a row per
+figure Groq reported (`usageRows`), "Transcriptions today" and "Cleanups
+today", or a model's tokens this minute when its answer had no daily
+figure. Each row is its label, "1,999 of 2,000 left" in `tabular-nums`, a
+slim meter of what is left (the warning colour, figure and bar, under a
+tenth) and a muted "Resets in 3h 12m" when Groq gave a reset
+([viewers.md](./viewers.md#groqs-answers-say-how-much-allowance-is-left)).
+It shows only once the dictation has settled and closes after 6 s (paused
+while hovered or focused), on Escape or its ×; the next dictation replaces
+it, and Use original transcript keeps it. Sending and switching drafts
+leave it be. It never appears after a dictation Groq took no part in
+(S1-mini, local Whisper, on-device speech, or Off).
 
 A read-only readiness check opens transcription setup when no engine is ready.
 The microphone is owned by one composer across split panes. Clips stop after

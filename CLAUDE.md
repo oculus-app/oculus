@@ -52,7 +52,7 @@ source. This file is only the rules; the reasons behind them live in `docs/`.
   (`docs/harness.md`)
 - Retrieval embeds page images, not text. (`docs/retrieval.md`)
 - UI work: read `docs/ui.md` first — design tokens, the
-  primitives' sizes, no toasts, no native date inputs, page zoom, and the
+  primitives' sizes, no toasts (one named exception), no native date inputs, page zoom, and the
   WebKit drag traps. Screenshot the running app after UI changes
   (`docs/development.md`).
 

@@ -26,7 +26,8 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
   const [elapsed, setElapsed] = useState(0);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   // Groq's allowance as this dictation's Groq answers left it; null when
-  // Groq did no part of it. Cleared by the next dictation, a send or ×.
+  // Groq did no part of it. Its toast clears it on closing; the next
+  // dictation clears it on starting. A draft switch keeps it.
   const [usage, setUsage] = useState<DictationUsage | null>(null);
   const generation = useRef(0);
   const recording = useRef<Recording | null>(null);
@@ -44,7 +45,6 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setSetup(false);
     setUnconfigured(false);
     setAnalyser(null);
-    setUsage(null);
     return () => {
       generation.current++;
       recording.current?.cancel();
@@ -60,7 +60,7 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setPhase("error");
     pending.current = false;
   };
-  /** Drop the work in hand; `keepUsage` leaves the Groq line up. */
+  /** Drop the work in hand; `keepUsage` leaves the Groq toast to show. */
   const reset = useCallback((keepUsage: boolean) => {
     generation.current++;
     recording.current?.cancel();

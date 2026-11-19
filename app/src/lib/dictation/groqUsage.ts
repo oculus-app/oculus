@@ -106,3 +106,60 @@ export function usageByRole(models: GroqReading[]): DictationUsage {
     models.filter((m) => m.role === role).sort((a, b) => b.readAt - a.readAt)[0];
   return { transcription: latest("transcription"), cleanup: latest("cleanup") };
 }
+
+/** One meter in the toast after a dictation: a figure Groq reported. */
+export interface UsageRow {
+  role: GroqReading["role"];
+  /** "Transcriptions today", "Cleanup tokens this minute". */
+  label: string;
+  remaining: number;
+  limit: number;
+  /** What is left, 0–1. */
+  left: number;
+  /** Under a tenth of the limit. */
+  warn: boolean;
+  /** When the figure resets, ms since the epoch; absent when Groq gave none. */
+  resetsAt?: number;
+}
+
+/**
+ * One row per reading: its requests per day when Groq sent them, else its
+ * tokens per minute; a reading with neither has no row.
+ */
+export function usageRows(usage: DictationUsage): UsageRow[] {
+  const rows: UsageRow[] = [];
+  for (const role of ["transcription", "cleanup"] as const) {
+    const r = usage[role];
+    if (!r) continue;
+    const day = figure(r.requestsRemaining, r.requestsLimit, r.requestsReset);
+    const f = day ?? figure(r.tokensRemaining, r.tokensLimit, r.tokensReset);
+    if (!f) continue;
+    const remaining = Math.max(0, Math.min(f.remaining, f.limit));
+    rows.push({
+      role,
+      label: `${capital(NOUNS[role][day ? 0 : 1])} ${day ? "today" : "this minute"}`,
+      remaining,
+      limit: f.limit,
+      left: remaining / f.limit,
+      warn: remaining < f.limit / 10,
+      resetsAt: f.reset === undefined ? undefined : r.readAt + f.reset * 1000,
+    });
+  }
+  return rows;
+}
+
+/** "1,999 of 2,000 left". */
+export const rowFigure = (row: UsageRow) => `${count(row.remaining)} of ${count(row.limit)} left`;
+
+/** "resets in 3h 12m", "resets in 43s"; null once the reset has passed. */
+export function resetsIn(resetsAt: number | undefined, now: number): string | null {
+  if (resetsAt === undefined) return null;
+  const seconds = Math.round((resetsAt - now) / 1000);
+  if (seconds <= 0) return null;
+  if (seconds < 60) return `resets in ${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `resets in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `resets in ${hours}h${rest ? ` ${rest}m` : ""}`;
+}

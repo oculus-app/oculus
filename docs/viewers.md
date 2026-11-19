@@ -24,7 +24,7 @@ library video in the media player, a video's transcript, and a web page.
 | Transcribe from a player | `app/src/hooks/lectures/useTranscription.ts`, `app/src/components/media/TranscribeEmpty.tsx` |
 | Transcript search and source-index mapping | `app/src/hooks/lectures/useTranscriptSearch.ts` |
 | Microphone clip transcription | `app/src-tauri/src/transcribe/dictation.rs` |
-| Groq's allowance as its answers report it (`groq_usage`) | `app/src-tauri/src/transcribe/groq_usage.rs`, `app/src/lib/dictation/groqUsage.ts`, `app/src/components/harness/dictation/GroqUsageLine.tsx` |
+| Groq's allowance as its answers report it (`groq_usage`) | `app/src-tauri/src/transcribe/groq_usage.rs`, `app/src/lib/dictation/groqUsage.ts`, `app/src/components/harness/dictation/GroqUsageToast.tsx` |
 | Dictation cleanup: Groq's Qwen, S1-mini, the `llama-server` sidecar, the commands | `app/src-tauri/src/transcribe/cleanup/`, `app/scripts/build-llama.mjs`, `app/src/lib/dictation/cleanup.ts` |
 | Transcription of videos without captions | `app/src-tauri/src/transcribe/`, `app/src-tauri/src/providers/groq.rs`, `app/src/lib/lectures/transcribe/` |
 | Settings → Transcription: the language, the engine list, each engine's dialog and dictation cleanup | `app/src/components/settings/transcription/TranscriptionSection.tsx`, `app/src/components/settings/transcription/GroqDialog.tsx`, `app/src/components/settings/transcription/OnDeviceSpeech.tsx`, `app/src/components/settings/transcription/LocalWhisper.tsx`, `app/src/components/settings/transcription/DictationCleanup.tsx` |
@@ -899,10 +899,11 @@ reading.
 - **A dictation step returns its own reading**: `dictation_transcribe` when
   Groq transcribed the clip, `dictation_cleanup` when Groq cleaned it, each
   only if the reading was taken during that call (`groq_usage::mark` before,
-  `since` after). The composer's line and Settings' Groq row format them
-  through `summarizeUsage` (`app/src/lib/dictation/groqUsage.ts`):
-  requests per day when any reading has them, else tokens per minute,
-  warning under a tenth of a limit
+  `since` after). In `app/src/lib/dictation/groqUsage.ts`, the dictation
+  toast takes them through `usageRows` (a meter per reading: its requests
+  per day, else its tokens per minute) and Settings' Groq row through
+  `summarizeUsage` (requests per day when any reading has them, else tokens
+  per minute); both warn under a tenth of a limit
   ([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
 
 ### On-device speech: a Swift helper

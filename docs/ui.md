@@ -13,6 +13,7 @@ Read this before any UI work.
 | Platform detection and shortcut labels | `app/src/lib/platform.ts` |
 | Text selection scopes | `app/src/styles/base.css`, `app/src/lib/ui/selectScope.ts` |
 | shadcn primitives (flat) | `app/src/components/ui/` |
+| The one toast (see below) | `app/src/components/ui/Toast.tsx` |
 | Composites built on them | `app/src/components/ui/layout/`, `app/src/components/ui/table/`, `app/src/components/ui/search/`, `app/src/components/ui/lightbox/` |
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
@@ -427,6 +428,21 @@ themes are opt-in and keep the same structure.
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
+  News is said in place: in the card, on a line by the control, or in a
+  `BannerLane` card.
+- **The one toast is Groq's allowance after a dictation**
+  (`GroqUsageToast`, [harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
+  The owner asked for it: the figures belong to no control or card, and a
+  quiet line above the composer read as clutter. It is not a pattern to
+  reuse; any other toast needs the owner's say-so. `Toast`
+  (`app/src/components/ui/Toast.tsx`) is portalled to the body and fixed at
+  the top centre, just under the tab strip, so it never moves layout: a
+  `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
+  wide at most. It drops in and lifts out (`toast-enter`, `toast-exit` in
+  `utilities.css`; reduced motion fades only, and the entrance leaves no
+  transform behind), is `role="status"` with `aria-live="polite"`, closes
+  after 6 s with the timer paused while hovered or focused, on Escape or
+  its ×, and only the newest stays open.
   No placeholder UI, section-header icons or filler; stat cards only where
   the figures are the point (Home's Activity).
 - Slugs display through `humanizeSlug`, Canvas codes through `displayCode`
