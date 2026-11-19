@@ -328,12 +328,15 @@ pub(super) fn translate(ty: &str, p: &Value, st: &mut SessionState) -> Vec<Harne
                             }
                         }
                         Some(status @ ("completed" | "error")) => {
-                            let ok = status == "completed";
+                            let completed = status == "completed";
+                            let ok = completed
+                                && (part["tool"] != "bash"
+                                    || state["metadata"]["exit"].as_i64().is_none_or(|c| c == 0));
                             ensure_open(&mut out, st, &call, &input);
                             st.open_tools.remove(&call);
                             st.tool_output_len.remove(&call);
                             // A tool error (refusal, abort) does not end the turn.
-                            let output = if ok {
+                            let output = if completed {
                                 s(state, "output")
                             } else {
                                 state["error"]

@@ -10,6 +10,14 @@ use super::{count, deltas, errors, finishes, messages, replay};
 
 const V1_LS: &str = include_str!("../../../../../fixtures/harness/opencode-v1-ls.ndjson");
 
+#[test]
+fn completed_shell_call_keeps_its_nonzero_exit_and_output() {
+    let events = replay(&V1_LS.replace(r#""exit":0"#, r#""exit":1"#));
+    assert!(events.iter().any(|e| matches!(
+        e, HarnessEvent::ToolFinished { ok: false, output, .. } if output.contains("README-scratch")
+    )));
+}
+
 /// Two steps, one bash call with growing output snapshots, then a streamed
 /// answer. Opens on the user row (the anchor), closes once on `stop`.
 #[test]

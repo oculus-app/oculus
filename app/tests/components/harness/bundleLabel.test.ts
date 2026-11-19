@@ -57,7 +57,7 @@ describe("bundleLabel", () => {
 
   test("an oculus write outranks reads", () => {
     const items = [tool("read"), tool("oculus_cli", "oculus search 'x'"), tool("oculus_cli", "oculus memory write notes")];
-    expect(label(items)).toBe("Explored 1 file, saved a memory and performed 1 other action");
+    expect(label(items)).toBe("Explored 1 file, finished a memory write and performed 1 other action");
   });
 
   test("oculus reads rank with reads, and keep their own tallies", () => {
@@ -101,4 +101,21 @@ describe("CliAction.writes", () => {
     expect(writes("oculus memory list")).toBe(false);
     expect(writes("oculus task list")).toBe(false);
   });
+});
+
+test("bundle and chain totals use question IDs when present and count each refusal once", () => {
+  const command = (line: string, ok: boolean, output = "") => ({
+    ...tool("oculus_cli", line), meta: JSON.stringify({ kind: "oculus_cli", ok, output }),
+  });
+  expect(label([command("oculus quiz add --batch drafts.json -s CS", true, '{"ids":[1,2]}'),
+    command("oculus quiz add --prompt X -s CS", true)])).toBe("Drafted 3 questions");
+  expect(label([command(Array(3).fill("oculus quiz add -s CS --prompt X").join(" && "), true)]))
+    .toBe("Drafted 3 questions");
+  expect(label([command("oculus quiz add --batch drafts.json -s CS", true)]))
+    .toBe("Drafted a batch of questions");
+  expect(label([command("oculus memory write a", false, '{"code":"invalid_existing_memory"}'),
+    command("oculus memory write b", false, '{"code":"body_replacement_required"}')]))
+    .toBe("2 memory writes refused");
+  expect(label([command("oculus quiz add -s CS && oculus quiz add -s CS", false)]))
+    .toBe("Command chain failed");
 });

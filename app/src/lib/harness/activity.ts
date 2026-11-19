@@ -1,4 +1,5 @@
 import { parseToolMeta, toolVerb } from "./meta";
+import { describeOculusCli, summariseOculusCli } from "./oculusCli";
 import type { HarnessItem } from "./types";
 
 /** A path's last segment, so a read names the file and not its folders. */
@@ -17,6 +18,12 @@ export function activityLine(items: HarnessItem[] | undefined): string | null {
   if (last.kind !== "tool") return null;
   const meta = parseToolMeta(last);
   if (meta.ok != null) return null;
+  if (meta.kind === "oculus_cli") {
+    const actions = describeOculusCli(last.content ?? "", meta);
+    if (actions[0]?.state !== "live") return null;
+    const cli = summariseOculusCli(actions);
+    if (cli) return [cli.title, cli.em].filter(Boolean).join(" ");
+  }
   const verb = toolVerb(meta.kind ?? "other", false, meta.name);
   const what = (last.content ?? "").split("\n")[0].trim();
   return what ? `${verb} ${lastSegment(what)}` : verb;

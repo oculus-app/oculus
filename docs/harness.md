@@ -34,7 +34,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | A thread's selection, what a send does to its session (`decide_transition`), and the context handoff | `app/src-tauri/src/harness/core/decide/select.rs`, `app/src-tauri/src/harness/manager/transition.rs`, `app/src-tauri/src/harness/handoff/`, `app/src-tauri/src/harness/store/bindings.rs`, `app/src-tauri/src/harness/store/switching.sql` |
 | What each bridge can do (Stop, rewind, steering, switching), declared in Rust and read by the webview | `app/src-tauri/src/harness/providers/capabilities.rs`, `app/src/lib/harness/capabilities.ts`, `app/src/hooks/agents/useCapabilities.ts` |
 | Live state and event folding | `app/src/stores/chat/harnessStore.ts`, `app/src/hooks/backend/useBackendEvents.ts` |
-| Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Saved a memory" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
+| Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Checked widget" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
 | Unsent text per thread (and per new-thread box), and a new thread's chosen scope, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts` |
 | Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
@@ -511,14 +511,21 @@ still update the picker.
   opencode's part clock, else the consumer loop's `ThoughtClock` from the
   block's first delta. A block with no deltas, or a row from before, reads
   "Thought". A bundle of thoughts alone sums them.
-- **An `oculus …` row says what it did** — "Saved a memory", "Searched the
-  library for", "Moved 7 tasks to" — from `describeOculusCli`, which reads
-  the shell line (chains counted, pipes and redirects dropped) and gives each
-  command a glyph and a bundle clause ("saved 2 memories"). The command
-  leads the opened row's detail, muted above the output; a running one shimmers its verb. An
-  unrecognised command reads "Ran oculus" with its subcommand. A command
-  that changes the library (a memory, a task, a project, a sync, a render)
-  is marked `writes`.
+- **An `oculus …` row labels the command and its result.** The exact path in
+  `app/src/lib/harness/oculusCli.ts` supplies the icon, verb, emphasised subject
+  and bundle tally. The running verb shimmers beside a steady icon. The same
+  widget check reads “Checking widget” in the thread list and “Checked widget”
+  on completion. Expanding the row shows the command and its output.
+- A memory write reports creation, metadata update, body replacement, no change
+  or refusal when its result identifies one. A missing result at the end of a
+  run reads “Command stopped”. Failed calls and refused student-owned writes
+  keep their glyph in both the row and its bundle. Confirmation belongs to the
+  proposal card. Authentication and credential broker commands belong to the
+  student's terminal and share the unknown-command fallback.
+- An `&&` chain can count its successful calls. Other command separators can
+  mask an earlier failure, so the row names the chain. A failed chain has one
+  result. A question batch with returned IDs counts each question in the bundle;
+  without IDs the row counts the batch.
 - **A bundle names two things** (`bundleLabel` in `rows.ts`): one count per
   category, the two that rank highest in the order first seen, then
   "performed N other actions", joined with "and" — "Ran 3 commands, edited 2

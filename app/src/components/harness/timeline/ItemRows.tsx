@@ -11,13 +11,13 @@ import type { QuestionActions } from "./types";
 
 /** A running tool's output streams in; it subscribes itself so only this row
  *  re-renders. */
-function Tool({ item, dim }: { item: HarnessItem; dim: boolean }) {
+function Tool({ item, dim, running }: { item: HarnessItem; dim: boolean; running: boolean }) {
   const done = parseToolMeta(item).ok != null;
   const ref = item.ref_id;
   const liveOutput = useHarnessStore((s) =>
-    done || !ref ? undefined : s.live[item.thread_id]?.toolOutput[ref],
+    done || !running || !ref ? undefined : s.live[item.thread_id]?.toolOutput[ref],
   );
-  return <ToolRow item={item} dim={dim} liveOutput={liveOutput} />;
+  return <ToolRow item={item} dim={dim} running={running} liveOutput={liveOutput} />;
 }
 
 export const Item = memo(function Item({
@@ -28,6 +28,7 @@ export const Item = memo(function Item({
   onSignIn,
   role,
   folded,
+  running = false,
   stream,
 }: {
   item: HarnessItem;
@@ -42,6 +43,7 @@ export const Item = memo(function Item({
   role?: ReplyRole;
   /** Inside a run's fold: a reply is work, drawn without its widget fences. */
   folded?: boolean;
+  running?: boolean;
   /** The reply still streaming, drawn as the row it will become (`Timeline`). */
   stream?: boolean;
 }) {
@@ -53,7 +55,7 @@ export const Item = memo(function Item({
     case "thinking":
       return <ThinkingRow text={item.content ?? ""} ms={thoughtMs(item)} dim={dim} />;
     case "tool":
-      return <Tool item={item} dim={dim} />;
+      return <Tool item={item} dim={dim} running={running} />;
     case "error":
       return (
         <ErrorRow text={item.content ?? ""} auth={parseErrorMeta(item).auth} onSignIn={onSignIn} />

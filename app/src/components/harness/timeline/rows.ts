@@ -359,10 +359,10 @@ export function bundleLabel(items: HarnessItem[]): { label: string; icon: Bundle
   const clauses = new Map<string, Clause>();
   let replies = 0;
   let thoughts = 0;
-  const add = (key: string, at: number, c: Omit<Clause, "n" | "first">) => {
+  const add = (key: string, at: number, c: Omit<Clause, "n" | "first">, count = 1) => {
     const hit = clauses.get(key);
-    if (hit) hit.n += 1;
-    else clauses.set(key, { ...c, n: 1, first: at });
+    if (hit) hit.n += count;
+    else clauses.set(key, { ...c, n: count, first: at });
   };
   items.forEach((i, at) => {
     if (i.kind === "assistant") {
@@ -374,7 +374,8 @@ export function bundleLabel(items: HarnessItem[]): { label: string; icon: Bundle
       thoughts += 1;
       return;
     }
-    const kind = parseToolMeta(i).kind ?? "other";
+    const meta = parseToolMeta(i);
+    const kind = meta.kind ?? "other";
     if (kind !== "oculus_cli") {
       const c = TOOL_CLAUSE[kind];
       add(c.key ?? kind, at, { tier: c.tier, text: c.text, icon: { tool: kind } });
@@ -382,10 +383,10 @@ export function bundleLabel(items: HarnessItem[]): { label: string; icon: Bundle
     }
     // Oculus commands tally by what they did; a tally that reads the same
     // ("listed memories" twice) is one clause.
-    const actions = describeOculusCli(i.content ?? "");
+    const actions = describeOculusCli(i.content ?? "", meta, false);
     if (!actions.length) add("cli:other", at, { tier: 2, icon: { tool: "oculus_cli" }, text: (n) => plural(n, "tool call") });
     for (const action of actions) {
-      add(`cli:${action.tally(1)}`, at, { tier: action.writes ? 0 : 1, text: action.tally, icon: { cli: action.icon } });
+      add(`cli:${action.tally(1)}`, at, { tier: action.writes ? 0 : 1, text: action.tally, icon: { cli: action.icon } }, action.count);
     }
   });
   if (replies > 0 && replies === items.length) {

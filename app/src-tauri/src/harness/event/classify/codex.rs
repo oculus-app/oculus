@@ -43,14 +43,10 @@ fn inner(command: &str) -> Option<String> {
 
 // Every command in a CLI summary must be accounted for. A pipeline, redirect,
 // substitution or mixed chain keeps the whole script as its shell label.
-fn cli_chain(line: &str) -> bool {
+pub(super) fn cli_chain(line: &str) -> bool {
     let mut rest = line.trim_matches([' ', '\t', '\n']);
     while let Some(mut raw) = word(&mut rest) {
-        // The wording table recognises an executable within the first three words.
-        for _ in 0..2 {
-            if !(ASSIGNMENT.is_match(raw) || matches!(raw, "env" | "time")) {
-                break;
-            }
+        while ASSIGNMENT.is_match(raw) || matches!(raw, "env" | "time") {
             let Some(next) = word(&mut rest) else {
                 return false;
             };
@@ -59,7 +55,13 @@ fn cli_chain(line: &str) -> bool {
         let Some(executable) = literal(raw).filter(|_| !ASSIGNMENT.is_match(raw)) else {
             return false;
         };
-        let name = executable.rsplit('/').next().unwrap_or_default();
+        // shlex treats unquoted Windows path separators as escapes.
+        let path = if raw.as_bytes().get(1) == Some(&b':') {
+            raw
+        } else {
+            &executable
+        };
+        let name = path.rsplit(['/', '\\']).next().unwrap_or_default();
         let cli = name.eq_ignore_ascii_case("oculus") || name.eq_ignore_ascii_case("oculus.exe");
         let cd = executable == "cd";
         if !cli && !cd {

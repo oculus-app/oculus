@@ -137,6 +137,7 @@ export const Timeline = memo(function Timeline({
               <Item
                 item={r.item}
                 dim={r.dim}
+                running={running && !r.dim}
                 actions={questions}
                 asked={r.asked}
                 onSignIn={setSignIn}

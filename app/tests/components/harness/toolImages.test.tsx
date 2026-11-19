@@ -1,11 +1,12 @@
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from "bun:test";
-import { clearMocks, mockConvertFileSrc, mockIPC } from "@tauri-apps/api/mocks";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
+import { clearMocks, mockConvertFileSrc } from "@tauri-apps/api/mocks";
 import { parseHTML } from "linkedom";
 import { act } from "react";
 import type { Root } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import type { HarnessItem, ToolMeta } from "@/lib/harness/types";
 import { fullCitation } from "@/lib/citations/parse";
+import * as dataDir from "@/hooks/backend/useDataDir";
 import { readPicturePath } from "@/components/harness/timeline/readPicture";
 
 const dir = "/fixture/Application Support/com.tchan.oculus";
@@ -24,13 +25,11 @@ let MD_COMPONENTS: typeof import("@/components/markdown/MdComponents").MD_COMPON
 let createRoot: typeof import("react-dom/client").createRoot;
 let root: Root;
 let host: HTMLDivElement;
+let directory: { mockRestore(): void };
 
 beforeAll(async () => {
   Object.assign(globalThis, globals);
-  mockIPC((cmd) => {
-    if (cmd === "plugin:path|resolve_directory") return dir;
-    throw new Error(`Unexpected IPC during rendering: ${cmd}`);
-  });
+  directory = spyOn(dataDir, "useDataDir").mockReturnValue(dir);
   mockConvertFileSrc("macos");
   ({ createRoot } = await import("react-dom/client"));
   ({ ToolRow } = await import("@/components/harness/timeline/WorkRow"));
@@ -48,6 +47,7 @@ afterEach(async () => {
 });
 
 afterAll(() => {
+  directory.mockRestore();
   clearMocks();
   for (const key of Object.keys(globals)) {
     const descriptor = previous[key as keyof typeof globalThis];
@@ -130,4 +130,19 @@ test("local markdown refuses traversal and preserves citation locations", async 
   }
   expect(fullCitation("../courses/X/notes.pdf?v=2#page=4")).toMatchObject({ path: "courses/X/notes.pdf", page: 4 });
   expect(fullCitation("courses/X/lecture.mp4?v=2#t=0")).toMatchObject({ path: "courses/X/lecture.mp4", at: 0 });
+});
+
+test("a wrapped CLI call keeps its icon while its verb moves from live to failed or stopped", async () => {
+  const title = "oculus quiz add --prompt Test -s CS";
+  const meta: ToolMeta = { kind: "oculus_cli", name: "commandExecution", input: { command: "sh -lc '" + title + "'" } };
+  await act(() => root.render(<ToolRow item={tool(title, meta)} />));
+  const icon = host.querySelector("svg")!.innerHTML;
+  expect(host.querySelector(".text-shimmer")?.textContent).toBe("Drafting a question");
+  expect(host.querySelector(".animate-spin")).toBeNull();
+  for (const [ok, label] of [[true, "Drafted a question"], [false, "Command failed"], [null, "Command stopped"]] as const) {
+    await act(() => root.render(<ToolRow item={tool(title, { ...meta, ok })} running={false} />));
+    expect(host.querySelector("svg")!.innerHTML).toBe(icon);
+    expect(host.textContent).toContain(label);
+    expect(host.querySelector(".text-shimmer, .animate-spin")).toBeNull();
+  }
 });

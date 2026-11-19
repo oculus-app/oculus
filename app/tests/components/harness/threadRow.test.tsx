@@ -149,6 +149,8 @@ describe("activityLine", () => {
     id: 1, thread_id: 1, kind: "tool", ref_id: null, content: null, meta: null, created_at: "", ...patch,
   });
   test("a tool still running names its verb and target", () => {
+    expect(activityLine([row({ content: "oculus widget check plot.tsx", meta: '{"kind":"oculus_cli"}' })]))
+      .toBe("Checking widget plot.tsx");
     expect(activityLine([row({ content: "python bench.py --games 200", meta: '{"kind":"bash"}' })])).toBe("Running python bench.py --games 200");
   });
   test("reasoning is Thinking; a finished tool or a reply says nothing", () => {

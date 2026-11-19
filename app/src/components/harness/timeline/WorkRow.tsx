@@ -24,6 +24,13 @@ import {
   VideoCamera,
   Warning,
   Wrench,
+  Cards,
+  Exam,
+  Shapes,
+  TreeStructure,
+  PuzzlePiece,
+  Database,
+  Waveform,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -80,6 +87,14 @@ export const CLI_ICON: Record<CliIcon, Icon> = {
   lecture: VideoCamera,
   studio: FilmSlate,
   library: BookOpen,
+  cheat: Cards,
+  quiz: Exam,
+  artifact: Shapes,
+  topic: TreeStructure,
+  widget: PuzzlePiece,
+  index: Database,
+  agent: UsersThree,
+  voice: Waveform,
 };
 
 export function RowShell({
@@ -301,11 +316,13 @@ function ToolDetail({ lead, output }: { lead?: string; output: string }) {
 export const ToolRow = memo(function ToolRow({
   item,
   liveOutput,
+  running = true,
   dim,
 }: {
   item: HarnessItem;
   /** Output still streaming, before the row's `meta.output` is written. */
   liveOutput?: string;
+  running?: boolean;
   dim?: boolean;
 }) {
   const meta = parseToolMeta(item);
@@ -320,13 +337,12 @@ export const ToolRow = memo(function ToolRow({
     : undefined;
   const input = meta.input as Record<string, unknown> | null;
   const readPath = kind === "read" && (input?.file_path ?? input?.path ?? input?.Path ?? input?.AbsolutePath);
-  // An `oculus …` call says what it did ("Saved a memory"); its command
-  // stays in the detail below.
   const cliActions = useMemo(
-    () => (kind === "oculus_cli" ? describeOculusCli(item.content ?? "") : []),
-    [kind, item.content],
+    () => kind === "oculus_cli" ? describeOculusCli(item.content ?? "", meta, running) : [],
+    [kind, item.content, meta, running],
   );
-  const cli = summariseOculusCli(cliActions, done);
+  const cli = summariseOculusCli(cliActions);
+  const cliStatus = cliActions[0]?.state;
   // A plain command is its own label; the detail is then its output alone.
   const label = !cli && command ? command : undefined;
   const lead = label ? undefined : command ?? (entries.length > 0 ? entries.map(([k, v]) => `${k}: ${v}`).join("\n") : undefined);
@@ -340,7 +356,8 @@ export const ToolRow = memo(function ToolRow({
       title={cli ? cli.title : toolVerb(kind, done, meta.name)}
       code={label}
       em={label ? undefined : cli ? cli.em : (item.content ?? undefined)}
-      live={!!cli && !done}
+      live={cliStatus === "live"}
+      tone={cliStatus === "failed" || cliStatus === "refused" ? "error" : "default"}
       dim={dim && done}
       expandable={entries.length > 0 || output.length > 0 || !!review}
       trailing={
@@ -350,7 +367,7 @@ export const ToolRow = memo(function ToolRow({
               {review.label}
             </span>
           )}
-          {cli && !done ? null : !done ? (
+          {kind === "oculus_cli" ? null : !done ? (
             <CircleNotch size={12} className="shrink-0 animate-spin" />
           ) : failed && !review ? (
             <span className="shrink-0 text-[11px] text-destructive">failed</span>

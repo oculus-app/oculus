@@ -86,7 +86,7 @@ export const RunWorkGroup = memo(
               r.kind === "bundle" ? (
                 <Bundle key={r.id} items={r.items} dim={false} />
               ) : r.kind === "item" ? (
-                <Item key={r.item.id} item={r.item} dim={false} folded />
+                <Item key={r.item.id} item={r.item} dim={false} running={live} folded />
               ) : null,
             )}
           </div>
