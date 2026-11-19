@@ -1,8 +1,9 @@
 //! Whisper on Groq: one multipart upload per audio file, timed segments back.
 //! The key is `crate::providers::groq`'s; this is the client that spends it. With
 //! `oculus-keyd` installed the upload goes through keyd, which adds the key;
-//! otherwise straight to Groq with the keychain's key (`settings::groq_engine`).
-//! Both routes hand `transcribe` the same `RawResponse`.
+//! otherwise straight to Groq with the keychain's key (`settings::groq_auth`).
+//! Both routes hand `transcribe` the same `RawResponse`. Dictation cleanup
+//! (`transcribe::cleanup`) posts its chat completion through [`Groq::chat`].
 
 use std::path::Path;
 
@@ -15,6 +16,7 @@ const BASE_URL: &str = "https://api.groq.com/openai/v1";
 /// `BASE_URL`'s path, which keyd's `forward` is given in place of a URL.
 const CLOUD_PATH: &str = "/openai/v1";
 const TRANSCRIPTIONS_PATH: &str = "/audio/transcriptions";
+const CHAT_PATH: &str = "/chat/completions";
 const MODEL: &str = "whisper-large-v3-turbo";
 
 /// Groq's free tier refuses uploads over 25 MB. Spans are cut by time, so a
@@ -37,6 +39,16 @@ pub(in crate::transcribe) struct Groq {
 }
 
 impl Groq {
+    /// A client that posts to `base_url` (a fake server) in place of Groq.
+    #[cfg(test)]
+    pub(in crate::transcribe) fn at(auth: Auth, base_url: String) -> Self {
+        Self {
+            auth,
+            base_url,
+            language: None,
+        }
+    }
+
     pub(in crate::transcribe) fn new(auth: Auth, language: Option<String>) -> Self {
         Self {
             auth,
@@ -45,23 +57,34 @@ impl Groq {
         }
     }
 
-    /// One POST of `body` by this client's route. A status is an answer,
-    /// whatever it is; `transcribe` reads it. No timeout on either route: an
-    /// hour of audio is a long upload and a long answer.
-    fn post(&self, content_type: &str, body: &[u8]) -> Result<RawResponse, EngineError> {
+    /// One POST of a JSON chat completion request; the caller reads the status.
+    pub(in crate::transcribe) fn chat(&self, body: &[u8]) -> Result<RawResponse, EngineError> {
+        self.post(CHAT_PATH, "application/json", body)
+    }
+
+    /// One POST of `body` to `path` (under `BASE_URL`) by this client's
+    /// route. A status is an answer, whatever it is; the caller reads it. No
+    /// timeout on either route: an hour of audio is a long upload and a long
+    /// answer.
+    fn post(
+        &self,
+        path: &str,
+        content_type: &str,
+        body: &[u8],
+    ) -> Result<RawResponse, EngineError> {
         match &self.auth {
             Auth::Keyd(broker) => broker
                 .send(
                     crate::providers::groq::SECRET,
                     "POST",
-                    &format!("{CLOUD_PATH}{TRANSCRIPTIONS_PATH}"),
+                    &format!("{CLOUD_PATH}{path}"),
                     &[("Content-Type", content_type)],
                     body,
                     None,
                 )
                 .map_err(keyd_error),
             Auth::Direct(key) => {
-                let sent = ureq::post(&format!("{}{TRANSCRIPTIONS_PATH}", self.base_url))
+                let sent = ureq::post(&format!("{}{path}", self.base_url))
                     .set("Authorization", &format!("Bearer {key}"))
                     .set("Content-Type", content_type)
                     .send_bytes(body);
@@ -154,7 +177,11 @@ impl Engine for Groq {
             &bytes,
         );
 
-        let response = self.post(&multipart::content_type(&boundary), &body)?;
+        let response = self.post(
+            TRANSCRIPTIONS_PATH,
+            &multipart::content_type(&boundary),
+            &body,
+        )?;
         if response.status >= 400 {
             return Err(refusal(
                 response.status,

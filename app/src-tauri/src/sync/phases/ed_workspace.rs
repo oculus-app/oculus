@@ -6,12 +6,8 @@
 use crate::library::layout;
 use crate::library::paths;
 use crate::sources::ed::workspace::{self, Keep, Pruned};
-use crate::sources::ed::{self, LinkedFile, SlideExtras};
-use crate::sync::render::rel_within_course;
+use crate::sources::ed::{self, SlideExtras};
 use crate::sync::{Engine, FileEvent, Subject};
-
-/// A workspace text file up to this size is also shown in the lesson file.
-const INLINE_TEXT_BYTES: usize = 20 * 1024;
 
 /// Data-dir folder of per-challenge records, `<challenge_id>.json`, each
 /// marking a workspace whose folder may hold local edits. The mirror
@@ -106,17 +102,9 @@ impl Engine {
         }
         let mut replaced = pruned.removed.iter().filter(|p| is_edit(p)).count();
 
-        let mut linked = Vec::new();
         for f in files {
             match self.store_workspace_file(c, &dir, &f.path, &f.bytes) {
-                Ok((rel, action)) => {
-                    replaced += usize::from(action == paths::WriteAction::Updated);
-                    linked.push(LinkedFile {
-                        text: inline_text(&f.bytes),
-                        rel: rel_within_course(&rel),
-                        path: f.path,
-                    });
-                }
+                Ok(action) => replaced += usize::from(action == paths::WriteAction::Updated),
                 Err(e) => say("warning", &format!("{}: {e}", f.path)),
             }
         }
@@ -124,10 +112,7 @@ impl Engine {
             self.replaced_edits
                 .set(self.replaced_edits.get() + replaced);
         }
-        SlideExtras {
-            files: linked,
-            ..SlideExtras::default()
-        }
+        SlideExtras::default()
     }
 
     /// `workspace::prune` over the slide's folder `dir` (data-dir-relative),
@@ -157,15 +142,15 @@ impl Engine {
     }
 
     /// Store one workspace file at Ed's own path under the slide's folder
-    /// `dir`, through the workspace guard (`workspace::resolve`). Returns its
-    /// data-dir-relative path and what the write did.
+    /// `dir`, through the workspace guard (`workspace::resolve`). Returns
+    /// what the write did.
     fn store_workspace_file(
         &self,
         c: &Subject,
         dir: &str,
         path: &str,
         bytes: &[u8],
-    ) -> Result<(String, paths::WriteAction), String> {
+    ) -> Result<paths::WriteAction, String> {
         let root = self.data_dir.join(dir);
         std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
         let target = workspace::resolve(&root, path)?;
@@ -198,7 +183,7 @@ impl Engine {
         if self.parse_pdfs && paths::is_pdf(&rel) {
             self.trigger_parse(&rel, c.id);
         }
-        Ok((rel, action))
+        Ok(action)
     }
 
     /// Once a run has mirrored the lessons, say how many local edits it
@@ -227,12 +212,4 @@ impl Engine {
 /// a hidden file and not a conflict copy (`<stem>.ed-server.<ext>`).
 fn is_edit(path: &str) -> bool {
     !path.split('/').any(|p| p.starts_with('.')) && !path.contains(".ed-server")
-}
-
-/// A small UTF-8 text file's contents, for showing inline.
-fn inline_text(bytes: &[u8]) -> Option<String> {
-    if bytes.len() > INLINE_TEXT_BYTES || bytes.contains(&0) {
-        return None;
-    }
-    std::str::from_utf8(bytes).ok().map(str::to_string)
 }

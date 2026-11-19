@@ -977,7 +977,7 @@ free, and the only sample is Kokoro's, made on this Mac.
   percentage, a progress bar and Cancel) or Delete behind a confirmation,
   and the credit line.
 
-All three downloads run the same way (`commands/progress.rs`;
+All three downloads run the same way (`app/src-tauri/src/runtime/download_events.rs`;
 `usePackDownload` and `PackDownloadRow` on the page, `useKokoroVoices` for
 the voices). The status commands read the disk alone:
 `studio_aligner_status` gives `{ status: missing | downloading | present,

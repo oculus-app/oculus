@@ -51,10 +51,6 @@ fn render_config(library: &Path, prompt: &str, one_off: &OneOffPrompts, subagent
         .replace("\"{{NAMING_PROMPT}}\"", &json_string(one_off.naming))
         .replace("\"{{WRITER_PROMPT}}\"", &json_string(one_off.writer))
         .replace(
-            "\"{{DICTATION_PROMPT}}\"",
-            &json_string(crate::harness::app::dictation::INSTRUCTIONS),
-        )
-        .replace(
             "\"{{LECTURE_END_PROMPT}}\"",
             &json_string(one_off.lecture_end),
         )
@@ -79,8 +75,7 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::super::{
-        AGENT, DICTATION_AGENT, LECTURE_END_AGENT, NAMING_AGENT, REVISION_AGENT, WIDGET_AGENT,
-        WRITER_AGENT,
+        AGENT, LECTURE_END_AGENT, NAMING_AGENT, REVISION_AGENT, WIDGET_AGENT, WRITER_AGENT,
     };
     use super::*;
 
@@ -338,10 +333,6 @@ mod tests {
         // The one-off agents are hidden, tool-less (a trailing `*` deny is the
         // last rule for every tool) and carry their own prompt.
         for (agent, prompt) in [
-            (
-                DICTATION_AGENT,
-                crate::harness::app::dictation::INSTRUCTIONS,
-            ),
             (REVISION_AGENT, crate::harness::app::revision::INSTRUCTIONS),
             (NAMING_AGENT, "You name conversations."),
             (WRITER_AGENT, "You complete \"notes\"."),

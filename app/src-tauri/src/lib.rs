@@ -103,6 +103,8 @@ pub fn run() {
             harness::app::reconcile(app.handle());
             // opencode servers left behind by an app that was killed, not quit.
             harness::app::sweep_strays();
+            // S1-mini servers whose watchdog was killed with the app.
+            transcribe::cleanup::commands::sweep_strays();
             // Clear `running` markers left by lecture job runs cut short.
             lectures::chapters::app::reconcile(app.handle());
             lectures::lecture_end::app::reconcile(app.handle());
@@ -245,7 +247,12 @@ pub fn run() {
             transcribe::app::transcribe_video,
             transcribe::dictation::dictation_status,
             transcribe::dictation::dictation_transcribe,
-            harness::app::dictation::dictation_cleanup,
+            transcribe::cleanup::commands::dictation_cleanup,
+            transcribe::cleanup::commands::dictation_warm,
+            transcribe::cleanup::commands::dictation_cleanup_status,
+            transcribe::cleanup::commands::dictation_s1_download,
+            transcribe::cleanup::commands::dictation_s1_cancel,
+            transcribe::cleanup::commands::dictation_s1_remove,
             harness::app::revision::revision_mark_answer,
             revision::revision_record_review,
             revision::revision_save_items,
@@ -424,10 +431,11 @@ pub fn run() {
             ) {
                 tauri::async_runtime::spawn_blocking(runtime::network::refresh);
             }
-            // Don't let a CLI agent or a whiteboard share outlive the app.
+            // Don't let a CLI agent, a whiteboard share or S1-mini's server outlive the app.
             if matches!(event, tauri::RunEvent::Exit) {
                 harness::app::shutdown(app_handle);
                 companion::commands::shutdown(app_handle);
+                transcribe::cleanup::commands::shutdown();
                 library::files::whiteboards::authority::global().close_all();
             }
         });

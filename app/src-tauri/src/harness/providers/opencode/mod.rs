@@ -46,7 +46,6 @@ pub const AGENT: &str = "oculus";
 /// and the turn's brief as the whole prompt.
 pub const NAMING_AGENT: &str = "oculus-namer";
 pub const REVISION_AGENT: &str = "oculus-revision-marker";
-pub const DICTATION_AGENT: &str = "oculus-dictation";
 pub const WRITER_AGENT: &str = "oculus-writer";
 pub const LECTURE_END_AGENT: &str = "oculus-lecture-end";
 pub const WIDGET_AGENT: &str = "oculus-widget";

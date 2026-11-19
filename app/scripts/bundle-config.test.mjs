@@ -29,6 +29,7 @@ const producers = {
   "binaries/oculus": "bun run stage-cli",
   "binaries/apple-speech": "bun run speech",
   "binaries/whisper-cli": "bun run whisper",
+  "binaries/llama-server": "bun run llama",
   [`binaries/${keydHelperApp}`]: "bun run stage-keyd",
 };
 
@@ -37,6 +38,7 @@ test("macOS's externalBin repeats the base list and adds the macOS sidecars", ()
   expect(macosBins.slice(0, baseBins.length)).toEqual(baseBins);
   expect(macosBins.slice(baseBins.length).sort()).toEqual([
     "binaries/apple-speech",
+    "binaries/llama-server",
     "binaries/whisper-cli",
   ]);
 });

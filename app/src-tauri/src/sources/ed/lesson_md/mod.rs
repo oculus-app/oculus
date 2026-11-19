@@ -1,6 +1,6 @@
 //! One Ed lesson → an index file plus one Markdown file per slide. Pure:
-//! whatever the sync fetched for a slide (quiz questions, the PDF and
-//! workspace files it stored) arrives as [`SlideExtras`] on its [`SlideFile`].
+//! whatever the sync fetched for a slide (quiz questions, the PDF it stored,
+//! the challenge) arrives as [`SlideExtras`] on its [`SlideFile`].
 //!
 //! The index sits at `Course/Lessons/<lessonId>-<slug>.md` and links each slide's
 //! file, `Course/Lessons/<lessonId>-<slug>/<NN>-<slide-slug>.md`; a slide's PDF and
@@ -27,21 +27,10 @@ pub struct SlideExtras {
     /// The downloaded PDF, course-relative.
     pub pdf: Option<String>,
     pub questions: Vec<Value>,
-    pub files: Vec<LinkedFile>,
     /// A challenge slide's `GET /challenges/<ch>` answer, when it came.
     pub challenge: Option<Value>,
     /// Says what could not be fetched for this slide.
     pub note: Option<String>,
-}
-
-/// A workspace file stored in the library.
-pub struct LinkedFile {
-    /// Its path inside the workspace, shown as the link text.
-    pub path: String,
-    /// Where it was stored, course-relative.
-    pub rel: String,
-    /// The text to show inline, for small text files.
-    pub text: Option<String>,
 }
 
 /// A lesson's place in the library and in Ed.
@@ -72,11 +61,6 @@ impl LessonPlace<'_> {
     /// The folder the index sits in, with its trailing `/`.
     fn index_dir(&self) -> &str {
         self.stem.rfind('/').map_or("", |i| &self.stem[..=i])
-    }
-
-    /// The folder the slide files sit in, with its trailing `/`.
-    fn slide_dir(&self) -> String {
-        format!("{}/", self.stem)
     }
 }
 
@@ -296,7 +280,7 @@ pub fn slide_md(lesson: &Value, place: &LessonPlace, slide: &SlideFile) -> Optio
             },
         ),
     ]);
-    let body = slide_body(slide.slide, &title, &slide.extras, &place.slide_dir());
+    let body = slide_body(slide.slide, &title, &slide.extras);
     let open = place
         .slide_url(slide.id)
         .map(|url| format!("[Open in Ed]({url})\n\n"))

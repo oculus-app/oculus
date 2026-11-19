@@ -15,6 +15,7 @@
     "ffmpeg": "node scripts/fetch-ffmpeg.mjs",
     "speech": "node scripts/build-speech.mjs",
     "whisper": "node scripts/build-whisper.mjs",
+    "llama": "node scripts/build-llama.mjs",
     "editor-wasm": "node scripts/build-editor-wasm.mjs",
     "keyd": "node scripts/build-keyd.mjs",
     "stage-keyd": "node scripts/stage-keyd.mjs",

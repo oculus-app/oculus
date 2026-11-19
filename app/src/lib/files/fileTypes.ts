@@ -79,7 +79,7 @@ export function isPipelineFile(filename: string): boolean {
   return isPdfBacked(filename) || isSheetFile(filename);
 }
 
-/** A file an Ed lesson's `.md` links to — a PDF slide or a challenge's
+/** A file in an Ed lesson's folder — a PDF slide or a challenge's
  *  workspace file under `lessons/<id>-<slug>/` — rather than a lesson. It is a
  *  download like `files/`, so it opens and titles like one. A workspace's own
  *  `.md` counts as a page. */

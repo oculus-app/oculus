@@ -5,7 +5,6 @@
 
 pub(in crate::harness) mod consumer;
 pub(in crate::harness) mod continuation;
-pub mod dictation;
 mod drafts;
 pub mod lifecycle;
 pub mod models;

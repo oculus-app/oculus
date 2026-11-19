@@ -2,6 +2,7 @@ pub(crate) mod atomic_write;
 pub mod blocking;
 pub(crate) mod bundled;
 pub mod clock;
+pub(crate) mod download_events;
 pub(crate) mod multipart;
 pub mod network;
 pub mod onnx;

@@ -128,28 +128,31 @@ fn groq_engine(
     if !settings.groq {
         return Err("Groq is turned off in Settings → Transcription".into());
     }
-    let broker = crate::providers::credentials::Credentialed::at(data_dir);
-    let auth = match broker.has(crate::providers::groq::SECRET) {
-        Ok(true) => groq::Auth::Keyd(broker),
-        Ok(false) => return Err(NO_GROQ_KEY.into()),
-        Err(crate::providers::credentials::KeydError::Absent) => {
-            let key = key()
-                .map_err(|e| format!("The keychain refused to give out the Groq API key ({e})"))?
-                .ok_or(NO_GROQ_KEY)?;
-            groq::Auth::Direct(key)
-        }
-        Err(crate::providers::credentials::KeydError::Keychain(e)) => {
-            return Err(format!(
-                "The keychain refused to give out the Groq API key ({e})"
-            ))
-        }
-        Err(e) => {
-            return Err(format!(
-                "oculus-keyd, which holds the Groq API key, could not check it: {e}"
-            ))
-        }
-    };
+    let auth = groq_auth(data_dir, key)?.ok_or(NO_GROQ_KEY)?;
     Ok(groq::Groq::new(auth, settings.language.groq()))
+}
+
+/// How a Groq request gets its key: through keyd when it is installed (in
+/// `data_dir`) and holds one, else the keychain's key from `key`, asked only
+/// while keyd is absent. `Ok(None)` is no key anywhere.
+pub(in crate::transcribe) fn groq_auth(
+    data_dir: &Path,
+    key: impl FnOnce() -> Result<Option<String>, String>,
+) -> Result<Option<groq::Auth>, String> {
+    let broker = crate::providers::credentials::Credentialed::at(data_dir);
+    match broker.has(crate::providers::groq::SECRET) {
+        Ok(true) => Ok(Some(groq::Auth::Keyd(broker))),
+        Ok(false) => Ok(None),
+        Err(crate::providers::credentials::KeydError::Absent) => Ok(key()
+            .map_err(|e| format!("The keychain refused to give out the Groq API key ({e})"))?
+            .map(groq::Auth::Direct)),
+        Err(crate::providers::credentials::KeydError::Keychain(e)) => Err(format!(
+            "The keychain refused to give out the Groq API key ({e})"
+        )),
+        Err(e) => Err(format!(
+            "oculus-keyd, which holds the Groq API key, could not check it: {e}"
+        )),
+    }
 }
 
 /// The configured engines in the order set in Settings, or `only` that one.

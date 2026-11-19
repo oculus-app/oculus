@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTabActive } from "@/components/tabs/TabContext";
+import { dictationCleanupStatus } from "@/lib/dictation/cleanup";
 import { recordVoice, type Recording } from "@/lib/dictation/recording";
 
 type Phase = "idle" | "starting" | "recording" | "transcribing" | "cleaning" | "error";
@@ -12,6 +13,8 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  // The last cleanup failed because no cleanup engine is set up.
+  const [unconfigured, setUnconfigured] = useState(false);
   const [raw, setRaw] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
@@ -29,6 +32,7 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setRaw("");
     setError(null);
     setSetup(false);
+    setUnconfigured(false);
     setAnalyser(null);
     return () => {
       generation.current++;
@@ -54,6 +58,7 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setPhase("idle");
     setRaw("");
     setError(null);
+    setUnconfigured(false);
     setAnalyser(null);
   }, []);
 
@@ -63,7 +68,16 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
 
   const clean = async (transcript: string, id: number) => {
     setPhase("cleaning");
-    const cleaned = await invoke<string>("dictation_cleanup", { transcript });
+    setUnconfigured(false);
+    let cleaned: string;
+    try {
+      cleaned = await invoke<string>("dictation_cleanup", { transcript });
+    } catch (cause) {
+      // Read-only: says whether neither Groq nor S1-mini is set up.
+      const status = await dictationCleanupStatus().catch(() => null);
+      if (valid(id)) setUnconfigured(status?.engine === "none");
+      throw cause;
+    }
     if (!valid(id)) return;
     if (!cleaned.trim()) throw new Error("The cleanup model returned no text. Your transcript is still available.");
     insert.current(cleaned);
@@ -124,6 +138,9 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
         return;
       }
       if (!valid(id)) return;
+      // Loads S1-mini while the student speaks; a no-op when Groq cleans.
+      // A failure here resurfaces from the cleanup itself.
+      void invoke("dictation_warm").catch(() => {});
       const capture = await recordVoice();
       if (!valid(id)) { capture.cancel(); return; }
       recording.current = capture; setAnalyser(capture.analyser); setPhase("recording");
@@ -141,11 +158,14 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     } catch (cause) { if (valid(id)) fail(cause); }
   };
 
+  /** The setup dialog over a cleanup that failed for want of an engine. */
+  const openCleanupSetup = () => { setSetupError(null); setSetup(true); };
+
   return {
-    phase, error, setup, setupError, raw, elapsed, analyser,
+    phase, error, setup, setupError, raw, elapsed, analyser, unconfigured,
     busy: phase !== "idle" && phase !== "error",
     canRetry: !!raw || !!audio.current,
-    start, finish, cancel, retry, setSetup,
+    start, finish, cancel, retry, setSetup, openCleanupSetup,
     useTranscript: () => { if (raw) insert.current(raw); cancel(); },
   };
 }

@@ -1,19 +1,22 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileViewer } from "@/components/files/FileViewer";
 import type { DbFile } from "@/lib/db";
-import { defaultSlide, slideFiles, slideKey, type LessonIndex } from "@/lib/ed/lessons";
+import { defaultSlide, isChallengeSlide, slideFiles, slideKey, slideWorkspace, type LessonIndex } from "@/lib/ed/lessons";
 import { useLiveLessonIndex } from "@/lib/ed/slideStatus";
 import { markSlideOpened } from "@/lib/ed/views";
 import { openFileSmart, recordFileAccess } from "@/lib/files/openFile";
 import { LessonSidebar } from "./LessonSidebar";
-import { ChallengeHeader } from "./ChallengeHeader";
+import { ChallengeHeader, type ChallengeView } from "./ChallengeHeader";
+import { QuietNote } from "./QuietNote";
+import { WorkspacePane } from "./WorkspacePane";
 
 /**
  * An Ed lesson as Ed shows it: its slides down the left, the selected one on
- * the right — a PDF slide in the PDF viewer, any other as its markdown, a
- * challenge's under a header that opens it on Ed, where it runs and is
- * marked. The slide rides in the URL (`&slide=<id>`), so a restored tab or
+ * the right — a PDF slide in the PDF viewer, any other as its markdown. A
+ * challenge's header switches between its brief and its workspace's files,
+ * read-only, and opens it on Ed, where it is edited, run and marked. The
+ * slide rides in the URL (`&slide=<id>`), so a restored tab or
  * Back reopens it; without one the lesson opens on its first slide not yet
  * completed.
  */
@@ -52,7 +55,10 @@ export function LessonView({
   // A PDF slide's PDF until it is synced falls back to the slide's own page,
   // which links to it.
   const shown = (slide.pdf ? pdf : undefined) ?? md;
-  const edSlideUrl = slide.challengeId != null ? slide.url : null;
+  const challenge = isChallengeSlide(slide);
+  // Each slide opens on its description: a view picked on another slide is moot.
+  const [picked, setPicked] = useState<{ slide: number; view: ChallengeView } | null>(null);
+  const view: ChallengeView = picked?.slide === selected ? picked.view : "description";
 
   // Each slide opened clears its never-opened mark, as a file page does.
   const mdId = md?.id;
@@ -81,15 +87,16 @@ export function LessonView({
         edUrl={slide.url ?? index.url}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {edSlideUrl && <ChallengeHeader edUrl={edSlideUrl} />}
-        {shown ? (
+        {challenge && (
+          <ChallengeHeader view={view} onView={(v) => setPicked({ slide: selected, view: v })} edUrl={slide.url} />
+        )}
+        {challenge && view === "workspace" ? (
+          <WorkspacePane key={selected} entries={slideWorkspace(file, slide, files)} files={files} />
+        ) : shown ? (
           /* In-slide links open the linked file beside this page. */
           <FileViewer key={shown.id} file={shown} files={files} onOpenFile={openFileSmart} />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
-            <p className="text-sm text-muted-foreground">Not synced yet</p>
-            <p className="text-xs text-muted-foreground/70">The next sync fetches this slide.</p>
-          </div>
+          <QuietNote title="Not synced yet" detail="The next sync fetches this slide." />
         )}
       </div>
     </div>

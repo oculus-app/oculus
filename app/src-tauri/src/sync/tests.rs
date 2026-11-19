@@ -1,7 +1,7 @@
 use super::office::{
     is_csv_type, is_generic_binary, is_sheet_type, is_video, office_ext, office_ext_of,
 };
-use super::render::{content_type_of, file_toc_line, locked_until, rel_within_course, slug};
+use super::render::{content_type_of, file_toc_line, locked_until, slug};
 use super::*;
 use crate::library::paths;
 
@@ -15,18 +15,6 @@ fn slugs_are_lowercase_dashed_and_capped() {
     assert_eq!(slug(""), "untitled");
     assert_eq!(slug("!!!"), "untitled");
     assert_eq!(slug(&"a".repeat(80)).len(), 60);
-}
-
-#[test]
-fn a_library_path_loses_its_subject_folder() {
-    assert_eq!(
-        rel_within_course("courses/ABC_2026/Course/Files/x.pdf"),
-        "Course/Files/x.pdf"
-    );
-    assert_eq!(
-        rel_within_course("Course/Files/x.pdf"),
-        "Course/Files/x.pdf"
-    );
 }
 
 #[test]

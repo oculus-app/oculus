@@ -23,6 +23,7 @@ and stable Rust, plus the MSVC toolchain, Windows SDK and WebView2.
 | Builds the editor core's wasm for dev shadow mode | `app/scripts/build-editor-wasm.mjs` |
 | Compiles the on-device speech helper | `app/scripts/build-speech.mjs`, `app/src-tauri/speech/main.swift` |
 | Builds whisper.cpp's `whisper-cli` from a pinned release | `app/scripts/build-whisper.mjs` |
+| Builds llama.cpp's `llama-server`, which runs S1-mini, from a pinned release | `app/scripts/build-llama.mjs` |
 | Builds, signs and (main checkout only) installs the dev `oculus-keyd` helper app | `app/scripts/build-keyd.mjs`, `app/scripts/keyd-build.mjs`, `app/keyd/.cargo/config.toml` |
 | The helper app's Info.plist | `app/keyd/bundle/Info.plist` |
 | Builds, signs and stages the release helper app the bundle ships | `app/scripts/stage-keyd.mjs`, `app/scripts/keyd-build.mjs` |
@@ -55,6 +56,7 @@ bun run docs:cli      # rebuild the release CLI, regenerate docs/cli-reference.m
 bun run ffmpeg        # fetch ffmpeg into app/src-tauri/binaries/
 bun run speech        # compile the on-device speech helper there (macOS)
 bun run whisper       # build whisper.cpp's whisper-cli there (macOS, needs cmake)
+bun run llama         # build llama.cpp's llama-server there (macOS, needs cmake)
 bun run editor-wasm   # the editor core's wasm for dev shadow mode (docs/editor-core.md)
 bun run keyd          # build and sign the dev oculus-keyd; install it from the main checkout
 bun run stage-keyd    # build and sign the release oculus-keyd the bundle ships, into binaries/
@@ -80,7 +82,7 @@ It is bun's lifecycle hook for `dev`. `beforeDevCommand` calls
 `app/scripts/dev.mjs`, which supplies `OCULUS_CLI_WATCH=1` in the child
 environment before running bun, so every `tauri dev` runs it on either OS. In order it
 runs `bun install`, fetches ffmpeg, compiles the speech helper,
-`whisper-cli`, the maths wasm and the whiteboard wasm, builds the
+`whisper-cli`, `llama-server`, the maths wasm and the whiteboard wasm, builds the
 device-sharing companion page when its inputs changed
 ([device-sharing.md](./device-sharing.md#desktop-ui); never fatal), builds the
 chat widgets' kit when its inputs changed ([widgets.md](./widgets.md); never
@@ -118,7 +120,7 @@ where a SHA-256 is pinned, any other bytes before installing anything.
 
 `cargo test` and `bun run cli` go through neither Tauri nor `predev`, so on a
 fresh checkout run `bun run ffmpeg` and (on macOS)
-`bun run speech` and `bun run whisper` yourself.
+`bun run speech`, `bun run whisper` and `bun run llama` yourself.
 
 ## The app and CLI share one dev profile
 
@@ -230,6 +232,24 @@ to the building CPU, and without OpenMP, so the binary links only system
 libraries and frameworks; the script checks `otool -L` and fails otherwise.
 Its floor is macOS 13.3, upstream's own. Like `apple-speech` it is a macOS-only
 `externalBin` through `tauri.macos.conf.json`.
+
+## llama-server is built from a pinned release
+
+`bun run llama` (`app/scripts/build-llama.mjs`) builds llama.cpp's
+`llama-server`, which runs S1-mini for dictation cleanup
+([viewers.md](./viewers.md#dictation-cleanup-groq-else-s1-mini)), the way
+`bun run whisper` builds `whisper-cli`: the release tarball named by `BUILD`
+(`b12359`), refused unless it matches `SHA256`, only the `llama-server`
+target, into `binaries/llama-server-<host triple>`, cached in
+`app/node_modules/.cache/llama.cpp/`. Static, Metal's shaders embedded,
+generic CPU code, no OpenMP, and no network code — no OpenSSL, no web UI
+fetched from Hugging Face — so it links only system libraries (checked with
+`otool -L`). A tarball has no git history, so the script passes the build
+number and commit to cmake; it skips while `--version` reports both, and
+`--force` rebuilds. To upgrade, change `BUILD`, `COMMIT` and `SHA256`
+together, and check that `--reasoning off` still opens the assistant turn
+with an empty think block (`/apply-template` shows the prompt). macOS only,
+an `externalBin` through `tauri.macos.conf.json`.
 
 ## The maths wasm is built, not committed
 

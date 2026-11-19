@@ -13,7 +13,7 @@ library video in the media player, a video's transcript, and a web page.
 | The maths engine: loading, rendering, `rehypeMaths`, the visual field's edit model (`field.ts`) and the geometry of source-mapped maths (`geometry/`: where each caret stop is drawn, which stop a press lands on, a selection's bands); KaTeX's CSS and fonts | `app/src/lib/maths/`, `app/src/styles/katex/` |
 | Whiteboard and notebook files | `app/src/components/whiteboard/`, `app/src/lib/whiteboard/`; [drawing-whiteboard.md](./drawing-whiteboard.md) |
 | A parsed PDF's faces: PDF, Markdown | `app/src/components/files/FileViewer.tsx`, `app/src/components/files/FileMarkdown.tsx`, `app/src/components/files/pdf/pdfMdLink.ts`, `app/src/lib/pdf/pdfBlocks.ts` |
-| An Ed lesson's view: the slide sidebar and pane, a challenge slide's Open in Ed strip, the index reader, statuses Ed answered this session | `app/src/components/lessons/`, `app/src/hooks/data/useLessonIndex.ts`, `app/src/lib/ed/lessons.ts`, `app/src/lib/ed/slideStatus.ts`, `app/src/lib/ed/views.ts` |
+| An Ed lesson's view: the slide sidebar and pane, a challenge slide's Description \| Workspace strip and read-only workspace, the index reader, statuses Ed answered this session | `app/src/components/lessons/`, `app/src/hooks/data/useLessonIndex.ts`, `app/src/lib/ed/lessons.ts`, `app/src/lib/ed/slideStatus.ts`, `app/src/lib/ed/views.ts` |
 | The code editor and a library source file's read-only view | `app/src/components/code/`, `app/src/components/files/CodeFileViewer.tsx`, `fileLanguage` in `app/src/components/documents/editor/syntax/codeLanguages.ts`, `CODE_EXTS` in `app/src/lib/files/fileTypes.ts` |
 | Media player: clock, controls, keys, fullscreen, captions, dock frame, cue list | `app/src/components/media/`, `app/src/lib/lectures/media/`, `app/src/stores/lectures/playerPrefsStore.ts`, `app/src/hooks/lectures/useTranscriptDock.ts` |
 | Lecture player: two sources, playback owner, chapters, chat | `app/src/components/lectures/`, `app/src/lib/lectures/playback/`, `app/src/lib/lectures/playbackOwner.ts` |
@@ -24,8 +24,9 @@ library video in the media player, a video's transcript, and a web page.
 | Transcribe from a player | `app/src/hooks/lectures/useTranscription.ts`, `app/src/components/media/TranscribeEmpty.tsx` |
 | Transcript search and source-index mapping | `app/src/hooks/lectures/useTranscriptSearch.ts` |
 | Microphone clip transcription | `app/src-tauri/src/transcribe/dictation.rs` |
+| Dictation cleanup: Groq's Qwen, S1-mini, the `llama-server` sidecar, the commands | `app/src-tauri/src/transcribe/cleanup/`, `app/scripts/build-llama.mjs`, `app/src/lib/dictation/cleanup.ts` |
 | Transcription of videos without captions | `app/src-tauri/src/transcribe/`, `app/src-tauri/src/providers/groq.rs`, `app/src/lib/lectures/transcribe/` |
-| Settings → Transcription: the language, the engine list and each engine's dialog | `app/src/components/settings/transcription/TranscriptionSection.tsx`, `app/src/components/settings/transcription/GroqDialog.tsx`, `app/src/components/settings/transcription/OnDeviceSpeech.tsx`, `app/src/components/settings/transcription/LocalWhisper.tsx` |
+| Settings → Transcription: the language, the engine list, each engine's dialog and dictation cleanup | `app/src/components/settings/transcription/TranscriptionSection.tsx`, `app/src/components/settings/transcription/GroqDialog.tsx`, `app/src/components/settings/transcription/OnDeviceSpeech.tsx`, `app/src/components/settings/transcription/LocalWhisper.tsx`, `app/src/components/settings/transcription/DictationCleanup.tsx` |
 | The on-device speech helper | `app/src-tauri/speech/main.swift`, `app/scripts/build-speech.mjs`, `app/src-tauri/src/transcribe/engines/apple.rs` |
 | Local Whisper: the engine, its model files | `app/src-tauri/src/transcribe/engines/whisper.rs`, `app/src-tauri/src/transcribe/engines/whisper_models/`, `app/scripts/build-whisper.mjs` |
 | Native light/dark preference for browser pages | `app/src-tauri/src/shell/native_layer/page_theme.rs`, `app/src/lib/ui/themes/apply.ts` |
@@ -406,14 +407,27 @@ whose list has slides (`useLessonIndex`), its body is `LessonView`
   PDF, any other slide's `.md`, both found by path beside the index
   (`slideFiles`). A slide whose rows a sync has not stored yet says so
   quietly. Links inside a slide open beside the page, as any file's do.
-- **Every challenge slide shows its `.md` read-only** (a slide with a
-  `challenge_id`, `code` or `jupyter`): the brief, the Files list of the
-  student's workspace as Ed holds it and each small text file's copy, all
-  written by the sync ([sync.md](./sync.md)). A file's link opens
-  `CodeFileViewer`, which never edits. Over it, a 40px strip
-  (`ChallengeHeader`) holds an Open in Ed pill that opens the slide's `url`
-  from the index (`openLinkOut`: an in-app tab, ⌘-click the system
-  browser), since Run, Mark and editing happen on Ed.
+- **A challenge slide switches Description | Workspace, as Ed does** (a
+  slide with a `challenge_id`, `code` or `jupyter`: `isChallengeSlide`). A
+  40px strip over it (`ChallengeHeader`) holds the switch (`PillTabs`) and an
+  Open in Ed pill that opens the slide's `url` from the index
+  (`openLinkOut`: an in-app tab, ⌘-click the system browser), since editing,
+  Run and Mark happen on Ed. Each slide opens on Description: its `.md`, the
+  brief, through `FileViewer`.
+- **Workspace shows the challenge's synced files, read-only**
+  (`WorkspacePane`): the rows under the slide's folder `<NN>-<slide-slug>/`
+  beside its `.md` (`slideWorkspace`, [sync.md](./sync.md)), as Ed's tree in
+  a 208px column (`WorkspaceTree`: folders first, then files, each by name,
+  workspace-relative), and the chosen file beside it, the first until one is
+  picked. Each column is its own one scroller; ↑/↓ step through the files.
+  Showing a file stamps it accessed. A slide whose folder holds no rows yet
+  says so quietly. Nothing in the pane edits (`WorkspaceFileView`, by
+  `workspaceView`): an image shows as itself, a PDF in `PDFViewer`, a video
+  in a bare `<video>` (the library's player would write a transcript into
+  the mirror), Office files, spreadsheets, archives and audio as a "No
+  preview" note, and every other file — source, `.ipynb`, `.md`, `.txt`,
+  `.csv`, files without an extension — as its text in `CodeFileViewer`; one
+  that is not UTF-8 text gets the same note.
 - **The slide rides in the URL** (`&slide=<Ed id>`, written with
   `replace`), so a restored tab or Back reopens it; without one the view
   opens on the first slide not completed (by the synced index, so a tick
@@ -624,8 +638,91 @@ audio is removed on success and failure. No speech is an error. The macOS
 `app/src-tauri/Info.plist` supplies the microphone permission description for
 the WebView's capture request; `app/src-tauri/Entitlements.plist` grants
 audio input to the hardened release bundle. The composer owns recording and
-the subsequent
-[cleanup job](./harness.md#dictation-adds-an-editable-message-to-the-draft).
+the subsequent cleanup
+([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
+
+## Dictation cleanup: Groq, else S1-mini
+
+`dictation_cleanup` (`app/src-tauri/src/transcribe/cleanup/`) turns a
+transcript of 1 to 100,000 bytes into the message the speaker meant. Which
+model does it:
+
+1. **Groq** when a Groq API key is saved — the transcription key, read the way
+   transcription reads it (`settings::groq_auth`): through `oculus-keyd` when
+   it is installed, so the key never enters the app, else from the keychain.
+   It is one chat completion to `qwen/qwen3.8-27b` (`groq.rs`): temperature 0,
+   `reasoning_effort: "none"`, `max_tokens` 900 (the free tier's output cap
+   is 1,000), the brief in `brief.rs` as the system message and
+   `<transcript>…</transcript>` as the user message. The brief resolves
+   self-corrections, drops fillers, keeps the speaker's words and tone, writes
+   numbers as digits and spoken maths as `$…$`, and keeps every part in its
+   own language and script. A reply cut off at the cap is a failure.
+2. **S1-mini by Superwhisper** when Groq has no key, or when Groq's call
+   fails for any reason (a 429 included; nothing is retried) and S1-mini is
+   installed. If Groq fails without S1-mini, Groq's error surfaces; if both
+   fail, the error names both.
+3. **Neither**: the error says to add a Groq API key or download S1-mini in
+   Settings → Transcription (on Windows and Linux, a Groq key only). The
+   composer then offers Use original transcript, and Open Transcription
+   settings, which opens that page in its setup dialog
+   ([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
+
+S1-mini is a 0.6B normaliser (Qwen3-0.6B fine-tuned; Apache 2.0 plus a term
+that it is always named "S1-mini" by "Superwhisper", written exactly so).
+`s1/` runs it through llama.cpp's `llama-server`:
+
+- **Input** is the format it was trained on, word for word: its own system
+  prompt, then a user message of the control line
+  `[Styling: semi-formal] [Structure: lists] [Context: general]`, a newline
+  and the transcript (`s1/text.rs`). Temperature 0. Thinking is off through
+  the chat template — `--jinja --reasoning off`, which in the pinned
+  llama.cpp sets the template's `enable_thinking` to false and opens the
+  assistant turn with the empty `<think>\n\n</think>\n\n` the model expects
+  (`--reasoning-budget 0` degrades it).
+- **Output** is capped at 1.3 × the input's tokens + 32, the tokens estimated
+  as characters ÷ 4 (an overestimate: 445 characters of speech are 88
+  tokens); a reply that hits the cap is a loop and fails. An empty reply —
+  filler-only speech — is an answer.
+- **Length**: a transcript over about 1,000 estimated tokens is cut after
+  sentence ends (or line breaks; a run-on sentence between words), each
+  piece cleaned on its own, and the pieces joined with a space, or a blank
+  line beside a piece that holds a list.
+- **English only**: when the transcription language is set to another
+  language, or the transcript has letters outside the Latin script, the
+  transcript comes back unchanged and the model never runs.
+- **Files**: `s1-mini-q4_k_m.gguf` (484,219,808 bytes) with the repo's
+  `LICENSE` and `NOTICE`, which must stay beside it, pinned to commit
+  `34add00a` of `superwhisper/s1-mini-GGUF` with their sizes and SHA-256s
+  (`s1/model.rs`), downloaded on request into `<app data>/models/s1-mini/`
+  through the same model-pack downloader as Studio's
+  (`runtime::onnx::Pack`), licence first. Never bundled.
+- **The server** starts on first use on 127.0.0.1 at a port the OS picks,
+  with `-m <model> -c 4096 -np 1 --temp 0 --jinja --reasoning off --alias
+  oculus-s1-mini`, its output in `llama-server.log` beside the model; it
+  loads in about 0.3 s and holds about 1 GB (RSS) with Metal, and a cleanup
+  takes 0.05–0.3 s. `dictation_warm`, called when a recording starts, loads it
+  early; it does nothing when Groq has a key, S1-mini is not installed or the
+  language is not English. It stops after 5 minutes without a request, when
+  S1-mini is removed and when the app exits (`RunEvent::Exit`). It runs under
+  a `/bin/sh` watchdog that holds a pipe from the app and kills the server
+  when the pipe closes, so a crashed or force-quit app takes its server with
+  it; at launch, `sweep_strays` kills any process of ours carrying the alias
+  that launchd adopted.
+- **Platforms**: the sidecar is built for macOS only
+  ([development.md](./development.md#llama-server-is-built-from-a-pinned-release)).
+  On Windows and Linux S1-mini is unavailable and only Groq cleans.
+
+Settings → Transcription's Dictation cleanup block calls these; none calls
+Groq's chat endpoint:
+
+| Command | Arguments | Returns |
+| --- | --- | --- |
+| `dictation_cleanup_status` | — | `{ engine: "groq" \| "s1Mini" \| "none", groq: { configured, model, error? }, s1Mini: { name: "S1-mini", by: "Superwhisper", label: "S1-mini by Superwhisper", status: "missing" \| "downloading" \| "present", bytes, unavailable?, running, englishOnly } }` — `engine` is what a cleanup tries first; `unavailable` says why S1-mini cannot run here (another OS, or no helper in a dev checkout) |
+| `dictation_s1_download` | — | resolves when the three files are on disk; rejects with `cancelled` on a cancel. Progress arrives as `dictation-s1-progress` events: `{ phase: "downloading" \| "complete" \| "cancelled" \| "error", received, total, error? }` |
+| `dictation_s1_cancel` | — | `boolean`: a download was running |
+| `dictation_s1_remove` | — | bytes freed; stops the server first |
+| `dictation_warm` | — | `void`; the composer calls it at record start |
+| `dictation_cleanup` | `{ transcript }` | the cleaned message, possibly empty |
 
 ## Videos without captions are transcribed
 
@@ -715,6 +812,15 @@ one up in Settings → Transcription.
   availability and downloaded languages. Model downloads are held by the page
   (`useWhisperDownloads`), so a row's status follows one after its dialog
   closes.
+- **Below the engines, Dictation cleanup** (`DictationCleanup`) says which
+  model tidies dictation now — Groq's Qwen 3.8 27B on the page's Groq key,
+  naming S1-mini as its fallback once downloaded; else S1-mini by
+  Superwhisper; else a warning of what to set up — and lists both as one
+  bordered group. Groq's row opens the same key dialog as the engine list.
+  S1-mini's row is Studio's `PackDownloadRow` (size, English only, runs on
+  this Mac; Download with a percentage, a bar and Cancel, then Delete behind
+  a confirmation), with `unavailable` as a warning beneath when its helper
+  is missing; on Windows and Linux the row is not shown.
 
 ### Groq: Whisper over HTTPS
 

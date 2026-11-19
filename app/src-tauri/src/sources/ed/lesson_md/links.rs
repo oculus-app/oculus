@@ -20,12 +20,6 @@ pub(super) fn local_link(rel: &str, dir: &str) -> String {
     out
 }
 
-/// [`local_link`] led by `./`, so a file beside the slide reads as a local
-/// path to the viewer, which resolves `<segment>/…` below the linking file.
-pub(super) fn sibling_link(rel: &str, dir: &str) -> String {
-    format!("./{}", local_link(rel, dir))
-}
-
 pub(super) fn link_text(s: &str) -> String {
     s.chars()
         .flat_map(|c| {

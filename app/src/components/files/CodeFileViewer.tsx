@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { LazyCodeEditor } from "@/components/code/LazyCodeEditor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,7 +8,15 @@ import { readCourseFile } from "@/lib/files/courseFiles";
 
 /** A source file in the library (`isCodeFile`), read-only in `CodeEditor`,
  *  an Ed challenge's files included: those are edited on Ed. */
-export function CodeFileViewer({ file }: { file: DbFile }) {
+export function CodeFileViewer({
+  file,
+  unreadable,
+}: {
+  file: DbFile;
+  /** Shown instead of the error when the file can't be read as text, as a
+   *  binary file can't. */
+  unreadable?: ReactNode;
+}) {
   const [text, setText] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -24,6 +32,7 @@ export function CodeFileViewer({ file }: { file: DbFile }) {
     };
   }, [file.relative_path]);
 
+  if (err && unreadable) return unreadable;
   if (err)
     return (
       <div className="px-6 py-5">

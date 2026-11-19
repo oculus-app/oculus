@@ -65,9 +65,15 @@ Left out of the copy: `CHANGELOG.md`, `Cargo.lock`, `Cargo.toml.orig`,
    downloads receive no download delegate; Windows and Linux register no
    wry download callbacks and retain their engine's default behaviour.
 
+6. **Upstream's own warnings are silenced (upstream: no, local policy).**
+   Cargo hides a crates.io dependency's warnings but prints a path
+   dependency's, so the dev build showed wry's deprecated AppKit constants and
+   redundant `unsafe` blocks. `Cargo.toml` sets `deprecated` and
+   `unused_unsafe` to `allow` in `[lints.rust]`.
+
 ## Updating
 
 The version here must equal the one `tauri-runtime-wry` resolves, or cargo
 drops the patch without an error. After a tauri bump, copy the new wry
-release over this folder, reapply all five changes listed above, and check that
+release over this folder, reapply all six changes listed above, and check that
 `cargo tree -i wry` prints this path.

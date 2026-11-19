@@ -39,7 +39,7 @@ use crate::providers::credentials::Credentialed;
 pub use document::document_md;
 pub use lesson_md::{
     challenge_id, lesson_index_md, lesson_url, slide_md, slide_url, slide_workspace_dir,
-    sorted_slides, LessonPlace, LinkedFile, SlideExtras, SlideFile,
+    sorted_slides, LessonPlace, SlideExtras, SlideFile,
 };
 pub use lessons::LessonList;
 pub use live::open_live_workspace;

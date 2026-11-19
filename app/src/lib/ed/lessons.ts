@@ -16,6 +16,7 @@ import type { DbFile } from "@/lib/db";
 import { humanizeSlug } from "@/lib/format/format";
 import { frontNumber, frontString, splitFrontmatter, type FrontValue } from "@/lib/markdown/frontmatter";
 import { COURSES_DIR, LESSONS_DIR } from "@/lib/files/libraryLayout";
+import { OFFICE_EXTS, SHEET_EXTS, isVideoFile } from "@/lib/files/fileTypes";
 
 /** A lesson's own markdown, `<id>-<slug>.md` in a subject's lessons folder.
  *  Its slides, PDFs and challenge files sit one folder down. */
@@ -192,6 +193,84 @@ export function slideFiles(
     return files.find((f) => f.relative_path === path);
   };
   return { md: find(slide.file), pdf: find(slide.pdf) };
+}
+
+/** A slide with an Ed challenge behind it: a `code` or `jupyter` slide, the
+ *  ones the sync gives a workspace folder. */
+export const isChallengeSlide = (slide: LessonSlide): boolean =>
+  slide.challengeId != null || slide.type === "code" || slide.type === "jupyter";
+
+/** One row of a challenge's workspace as Ed's file tree draws it: a folder,
+ *  whose entries follow one level deeper, or a file. `path` is
+ *  workspace-relative. */
+export type WorkspaceEntry =
+  | { kind: "folder"; path: string; name: string; depth: number }
+  | { kind: "file"; path: string; name: string; depth: number; file: DbFile };
+
+interface TreeNode {
+  folders: Map<string, TreeNode>;
+  files: { name: string; file: DbFile }[];
+}
+
+const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+
+/** A challenge slide's synced workspace: the rows under its folder,
+ *  `<NN>-<slide-slug>/` beside its `.md` (`slideFiles`), as a tree with
+ *  folders before files, each by name. Empty until a sync has stored one. */
+export function slideWorkspace(
+  index: Pick<DbFile, "relative_path">,
+  slide: LessonSlide,
+  files: readonly DbFile[],
+): WorkspaceEntry[] {
+  if (!slide.file?.endsWith(".md")) return [];
+  const dir = `${resolveBeside(index.relative_path, slide.file).slice(0, -".md".length)}/`;
+  const root: TreeNode = { folders: new Map(), files: [] };
+  for (const file of files) {
+    if (!file.relative_path.startsWith(dir)) continue;
+    const parts = file.relative_path.slice(dir.length).split("/");
+    const name = parts.pop()!;
+    let node = root;
+    for (const part of parts) {
+      let next = node.folders.get(part);
+      if (!next) node.folders.set(part, (next = { folders: new Map(), files: [] }));
+      node = next;
+    }
+    node.files.push({ name, file });
+  }
+  const out: WorkspaceEntry[] = [];
+  const walk = (node: TreeNode, prefix: string, depth: number) => {
+    for (const name of [...node.folders.keys()].sort(byName)) {
+      out.push({ kind: "folder", path: `${prefix}${name}`, name, depth });
+      walk(node.folders.get(name)!, `${prefix}${name}/`, depth + 1);
+    }
+    for (const { name, file } of [...node.files].sort((a, b) => byName(a.name, b.name))) {
+      out.push({ kind: "file", path: `${prefix}${name}`, name, depth, file });
+    }
+  };
+  walk(root, "", 0);
+  return out;
+}
+
+const IMAGE_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"];
+/** Formats with no read-only view here: Office files and spreadsheets (the
+ *  sync converts neither in a workspace), archives and audio. */
+const NO_VIEW_EXTS = [
+  ...OFFICE_EXTS, ...SHEET_EXTS.filter((e) => e !== "csv"),
+  "zip", "tar", "gz", "tgz", "7z", "rar", "jar", "mp3", "wav", "m4a",
+];
+
+/** How a workspace file shows, never editable: `text` is the code viewer
+ *  (`CodeFileViewer`, read-only) and takes every format not named here,
+ *  notebooks and markdown included, as their source. */
+export type WorkspaceView = "text" | "image" | "pdf" | "video" | "none";
+
+export function workspaceView(filename: string): WorkspaceView {
+  const ext = filename.includes(".") ? filename.slice(filename.lastIndexOf(".") + 1).toLowerCase() : "";
+  if (IMAGE_EXTS.includes(ext)) return "image";
+  if (ext === "pdf") return "pdf";
+  if (isVideoFile(filename)) return "video";
+  if (NO_VIEW_EXTS.includes(ext)) return "none";
+  return "text";
 }
 
 /** Where a lesson view opens: the first slide not yet completed, else the

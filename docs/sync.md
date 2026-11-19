@@ -457,9 +457,8 @@ leaves the last whole lesson.
   `null`; `ed_challenge_id` comes from the slide itself and the workspace is
   still fetched.
 - A slide's assets share its stem: a PDF slide's `<NN>-<slide-slug>.pdf`, a
-  challenge's files under `<NN>-<slide-slug>/`. Links are relative to the
-  linking file's folder and percent-encoded, a slide file's led by `./`,
-  which is the form the viewer resolves.
+  challenge's files under `<NN>-<slide-slug>/`. The index's links are
+  relative to its folder and percent-encoded.
 - Every request is a read without `?view=1`, which would mark the slide seen,
   except a challenge's workspace (`app/src-tauri/src/sources/ed/live.rs`):
   1. `POST /challenges/<ch>/connect` attaches the student's own workspace
@@ -480,8 +479,9 @@ leaves the last whole lesson.
   Ed's own workspace-relative path (no renaming, unlike other library files),
   through one guard (`workspace::resolve`: no empty, absolute, `.`/`..`,
   hidden, `\`, `:` or NUL component, and nothing a symlink takes outside the
-  folder); a path it refuses is skipped with a log line. Text files up to
-  20 KB are also shown inline as fenced code.
+  folder); a path it refuses is skipped with a log line. The slide's `.md`
+  is the brief alone: the lesson view lists the folder's files itself
+  ([viewers.md](./viewers.md)).
 - The slide's folder is a read-only mirror of the student's workspace on Ed
   (`app/src-tauri/src/sync/phases/ed_workspace.rs`), fetched every sync since
   Ed gives a workspace no version. Once the zip has downloaded and unpacked,

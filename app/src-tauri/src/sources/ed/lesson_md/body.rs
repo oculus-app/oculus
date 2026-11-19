@@ -1,28 +1,19 @@
-//! A slide's own content: Ed's XML, its workspace's files, a quiz's
+//! A slide's own content: Ed's XML (a challenge's brief), a quiz's
 //! questions, or a page through the HTML converter. A PDF slide has none:
-//! the index links its PDF.
+//! the index links its PDF. A challenge's workspace files sit in the
+//! slide's folder, shown by the app's lesson view, not in this file.
 
 use super::super::document::document_md;
-use super::links::{link_text, sibling_link};
+use super::links::link_text;
 use super::quiz::question_md;
-use super::{LinkedFile, SlideExtras};
+use super::SlideExtras;
 
-/// A slide's content as Markdown; `dir` is the slide file's folder,
-/// course-relative, which its local links are relative to.
-pub(super) fn slide_body(
-    slide: &serde_json::Value,
-    title: &str,
-    extra: &SlideExtras,
-    dir: &str,
-) -> String {
+/// A slide's content as Markdown.
+pub(super) fn slide_body(slide: &serde_json::Value, title: &str, extra: &SlideExtras) -> String {
     let text = |key: &str| slide[key].as_str().unwrap_or("");
     let mut parts: Vec<String> = Vec::new();
     match text("type") {
-        "document" => parts.push(ed_md(text("content"))),
-        "code" | "jupyter" => {
-            parts.push(ed_md(text("content")));
-            parts.push(files_md(&extra.files, dir));
-        }
+        "document" | "code" | "jupyter" => parts.push(ed_md(text("content"))),
         "quiz" => {
             parts.push(ed_md(text("passage")));
             for (n, q) in extra.questions.iter().enumerate() {
@@ -103,61 +94,4 @@ fn demote_headings(md: &str) -> String {
         }
     }
     out.join("\n")
-}
-
-/// The stored workspace as links, then each small text file inline.
-fn files_md(files: &[LinkedFile], dir: &str) -> String {
-    if files.is_empty() {
-        return String::new();
-    }
-    let mut out = String::from("**Files**\n\n");
-    for f in files {
-        out.push_str(&format!(
-            "- [{}]({})\n",
-            link_text(&f.path),
-            sibling_link(&f.rel, dir)
-        ));
-    }
-    for f in files {
-        let Some(text) = &f.text else { continue };
-        let fence = fence_for(text);
-        out.push_str(&format!(
-            "\n**{}**\n\n{fence}{}\n{}\n{fence}\n",
-            link_text(&f.path),
-            fence_lang(&f.path),
-            text.trim_end_matches('\n')
-        ));
-    }
-    out
-}
-
-/// A backtick fence longer than any run inside the text.
-fn fence_for(text: &str) -> String {
-    let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
-    "`".repeat(longest.max(2) + 1)
-}
-
-/// The code fence's language, from the file's extension.
-fn fence_lang(path: &str) -> String {
-    let name = path.rsplit('/').next().unwrap_or(path);
-    let Some((_, ext)) = name.rsplit_once('.') else {
-        return String::new();
-    };
-    let ext = ext.to_ascii_lowercase();
-    match ext.as_str() {
-        "py" => "python",
-        "rs" => "rust",
-        "js" | "mjs" | "cjs" => "javascript",
-        "ts" => "typescript",
-        "h" => "c",
-        "hpp" | "cc" | "cxx" => "cpp",
-        "hs" => "haskell",
-        "md" => "markdown",
-        "sh" => "bash",
-        "yml" => "yaml",
-        "ipynb" => "json",
-        "txt" => "text",
-        other => other,
-    }
-    .to_string()
 }

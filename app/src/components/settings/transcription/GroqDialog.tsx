@@ -67,7 +67,7 @@ export function GroqDialog({ open, onOpenChange, connected, onConnected }: {
         <DialogHeader>
           <DialogTitle>Groq</DialogTitle>
           <DialogDescription>
-            Uploads audio to Groq for Whisper transcription.
+            Uploads audio to Groq for Whisper transcription, and dictated text for cleanup.
           </DialogDescription>
         </DialogHeader>
         <div className="min-w-0">

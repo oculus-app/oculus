@@ -77,11 +77,6 @@ pub(super) fn file_toc_line(
     }
 }
 
-/// `courses/CODE/Course/Files/x.pdf` → `Course/Files/x.pdf`.
-pub(super) fn rel_within_course(rel: &str) -> String {
-    layout::within_course(rel).to_string()
-}
-
 /// `<kind's folder>/<slug>.md`, or `<slug>-<id>.md` when two titles slug
 /// identically.
 pub(super) fn task_path(
