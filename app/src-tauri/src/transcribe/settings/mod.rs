@@ -10,7 +10,8 @@ use super::engines::{apple, groq, whisper};
 /// (`parseTranscribeSettings` in `app/src/lib/lectures/transcribe/settings.ts` mirrors it):
 ///
 /// `{"order": [...], "language": string, "groq": {"enabled"},
-///   "whisper": {"enabled", "model"}, "apple": {"enabled"}, "cleanup": string}`
+///   "whisper": {"enabled", "model"}, "apple": {"enabled"}, "cleanup": string,
+///   "cleanupFallback": bool}`
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     /// Each of [`ENGINES`] once, in the order a run tries them.
@@ -21,7 +22,7 @@ pub struct Settings {
     /// A catalogue id; `None` lets `whisper_models::pick` choose.
     pub whisper_model: Option<String>,
     pub apple: bool,
-    /// Which engine tidies dictation (`cleanup`).
+    /// How dictation is tidied (`cleanup` and `cleanupFallback`).
     pub cleanup: Choice,
 }
 
@@ -58,7 +59,7 @@ impl Language {
 
 /// A missing row or key, or a value of the wrong type, reads as its default:
 /// the default order, every engine on, the default language, the model
-/// `pick` chooses, automatic dictation cleanup. Without a top-level
+/// `pick` chooses, Groq cleaning dictation with S1-mini as its fallback. Without a top-level
 /// `language`, the older per-engine `apple.locale`, then `whisper.language`,
 /// stands in for it.
 pub fn settings_from(row: Option<&str>) -> Settings {
@@ -95,7 +96,10 @@ pub fn settings_from(row: Option<&str>) -> Settings {
         whisper: enabled("whisper"),
         whisper_model: text(&["whisper", "model"]),
         apple: enabled("apple"),
-        cleanup: Choice::from_setting(text(&["cleanup"]).as_deref()),
+        cleanup: Choice::from_setting(
+            text(&["cleanup"]).as_deref(),
+            at(&["cleanupFallback"]).and_then(|v| v.as_bool()),
+        ),
     }
 }
 

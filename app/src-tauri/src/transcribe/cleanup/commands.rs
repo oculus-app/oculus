@@ -75,7 +75,7 @@ pub async fn dictation_cleanup(app: AppHandle, transcript: String) -> Result<Dic
 }
 
 /// Load S1-mini now, when a recording starts, so its cleanup finds it ready.
-/// Does nothing unless S1-mini is the choice or Automatic finds no Groq key,
+/// Does nothing unless S1-mini is the model, or Groq's fallback with no key,
 /// nor when S1-mini is not installed or the language is not English.
 #[tauri::command]
 pub async fn dictation_warm(app: AppHandle) -> Result<(), String> {
@@ -101,8 +101,10 @@ pub async fn dictation_warm(app: AppHandle) -> Result<(), String> {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CleanupStatus {
-    /// The engine chosen in Settings: `auto`, `groq`, `s1Mini` or `off`.
+    /// The model chosen in Settings: `groq`, `s1Mini` or `off`.
     pub choice: &'static str,
+    /// The other model answers when the chosen one is not set up or fails.
+    pub fallback: bool,
     /// What a cleanup tries first under that choice: `groq`, `s1Mini`, `off`,
     /// or `none` when the choice has nothing set up (a cleanup then fails
     /// with what to do).
@@ -160,6 +162,7 @@ pub async fn dictation_cleanup_status(app: AppHandle) -> Result<CleanupStatus, S
         let (_, choice) = settings();
         Ok(CleanupStatus {
             choice: choice.name(),
+            fallback: choice.fallback(),
             engine: first_engine(choice, configured, s1_ready),
             groq: GroqStatus {
                 configured,

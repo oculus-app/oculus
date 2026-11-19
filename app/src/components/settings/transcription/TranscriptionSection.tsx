@@ -1,8 +1,12 @@
 import { isWindows } from "@/lib/platform";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { DotsSixVertical, Globe } from "@phosphor-icons/react";
+import { AppleLogo, DotsSixVertical, Globe } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
+import { GroqIcon } from "@/components/icons/GroqIcon";
+import { ProviderMark } from "@/components/icons/ProviderMark";
 import { DictationCleanup } from "./DictationCleanup";
+import { GroqCard } from "./GroqCard";
 import { GroqDialog } from "./GroqDialog";
 import { LocalWhisperDialog, useWhisperDownloads, whisperStatus } from "./LocalWhisper";
 import { OnDeviceSpeechDialog, speechStatus, type SpeechStatus } from "./OnDeviceSpeech";
@@ -37,6 +41,14 @@ const NAMES: Record<TranscribeEngine, string> = {
   apple: "On-device speech",
 };
 
+/** Each engine's mark: Groq's bolt, OpenAI's blossom for its Whisper, and
+ *  Apple's logo for the Mac's own speech recognition. */
+const ICONS: Record<TranscribeEngine, ReactNode> = {
+  groq: <GroqIcon aria-hidden size={16} className="shrink-0 text-foreground" />,
+  whisper: <ProviderMark provider="codex" mono className="size-4 shrink-0 text-foreground" />,
+  apple: <AppleLogo aria-hidden size={16} weight="fill" className="shrink-0 text-foreground" />,
+};
+
 /** The page's own copy of a patch, so a drop or a switch lands in one commit. */
 function apply(settings: TranscribeSettings, patch: TranscribeSettingsPatch): TranscribeSettings {
   return {
@@ -61,7 +73,8 @@ const NO_LOCALES: readonly string[] = [];
  * Settings → Transcription: one language for every engine, and the engines in
  * the order a run tries them — each with its switch and a dialog for its own
  * setup (`GroqDialog`, `LocalWhisperDialog`, `OnDeviceSpeechDialog`); then
- * which engine tidies dictation and its setup (`DictationCleanup`). Rust reads the
+ * how dictation is tidied (`DictationCleanup`). Groq leads the page
+ * (`GroqCard`), since its one key serves transcription and cleanup. Rust reads the
  * `transcribe` row at the start of every run. Nothing here is billed: saving
  * a Groq key lists Groq's models, which is free, the speech status only asks
  * the OS what it has, and the Whisper and S1-mini statuses read the disk;
@@ -153,6 +166,8 @@ export function TranscriptionSection() {
       title="Transcription"
       description={isWindows ? "Transcribe dictation and videos using Groq." : "Transcribe dictation and videos."}
     >
+      <GroqCard connected={connected} onOpen={() => setDialog("groq")} />
+
       <LanguageRow
         language={language}
         speech={speech}
@@ -188,9 +203,8 @@ export function TranscriptionSection() {
 
       <DictationCleanup
         choice={settings?.cleanup ?? null}
-        onChoose={(cleanup) => save({ cleanup })}
+        onChange={(cleanup) => save({ cleanup })}
         connected={connected}
-        onOpenGroq={() => setDialog("groq")}
       />
 
       <GroqDialog
@@ -376,9 +390,12 @@ function EngineList({ order, settings, status, onReorder, onToggle, onOpen }: {
                 <DotsSixVertical size={14} weight="bold" />
               </button>}
               {reorderable && <span className="w-3 shrink-0 text-[11px] text-muted-foreground tabular-nums">{i + 1}</span>}
-              <div className={cn("min-w-0 basis-28 flex-1", !enabled && settings && "opacity-60")}>
-                <p className="text-xs text-foreground">{NAMES[engine]}</p>
-                <p className="text-[11px] text-muted-foreground">{text || "\u00a0"}</p>
+              <div className={cn("flex min-w-0 basis-28 flex-1 items-center gap-2.5", !enabled && settings && "opacity-60")}>
+                {ICONS[engine]}
+                <div className="min-w-0">
+                  <p className="text-xs text-foreground">{NAMES[engine]}</p>
+                  <p className="text-[11px] text-muted-foreground">{text || "\u00a0"}</p>
+                </div>
               </div>
               <Switch
                 aria-label={`Use ${NAMES[engine]}`}

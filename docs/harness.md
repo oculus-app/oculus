@@ -2774,9 +2774,10 @@ Finish stops the microphone, transcribes the clip through the same engine
 order and language as videos
 ([viewers.md](./viewers.md#dictation-transcribes-private-microphone-clips)),
 then `dictation_cleanup` rewrites the transcript as the message the speaker
-meant, by the engine chosen in Settings → Transcription: Automatic is Groq
-when a Groq API key is saved, else S1-mini by Superwhisper on this Mac; Groq
-or S1-mini use only that one; Off leaves the transcript as heard
+meant, by the model chosen in Settings → Transcription (Groq by default, or
+S1-mini by Superwhisper on this Mac), with the other answering when the
+fallback is on and the chosen one is not set up or fails; Off leaves the
+transcript as heard
 ([viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)).
 It is not a chat job and has no row in Settings → Jobs. The cleaned text
 appends to the existing draft; it never sends automatically.

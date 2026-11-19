@@ -56,8 +56,22 @@ fn clean(
     )
 }
 
+const GROQ: Choice = Choice::Clean {
+    first: Engine::Groq,
+    fallback: false,
+};
+const S1: Choice = Choice::Clean {
+    first: Engine::S1Mini,
+    fallback: false,
+};
+const S1_THEN_GROQ: Choice = Choice::Clean {
+    first: Engine::S1Mini,
+    fallback: true,
+};
+
+/// The default: Groq, with S1-mini as its fallback.
 fn auto(groq: GroqRoute<&Fake>, s1: Option<&Fake>) -> Result<String, String> {
-    clean(Choice::Auto, groq, s1, &Cell::new((0, 0)))
+    clean(Choice::DEFAULT, groq, s1, &Cell::new((0, 0)))
 }
 
 #[test]
@@ -65,7 +79,7 @@ fn groq_with_a_key_answers_and_s1_is_never_asked() {
     let (groq, s1) = (Fake::ok("From Groq."), Fake::ok("From S1."));
     let reads = Cell::new((0, 0));
     assert_eq!(
-        clean(Choice::Auto, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
+        clean(Choice::DEFAULT, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
         "From Groq."
     );
     assert_eq!(s1.calls.get(), 0);
@@ -104,11 +118,16 @@ fn a_failed_groq_call_without_s1_surfaces_groqs_error() {
 }
 
 #[test]
-fn both_failing_names_both() {
+fn both_failing_names_both_in_the_order_tried() {
     let (groq, s1) = (Fake::failing("down"), Fake::failing("loop"));
     assert_eq!(
         auto(GroqRoute::Ready(&groq), Some(&s1)).unwrap_err(),
         "Groq: down; S1-mini: loop"
+    );
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        clean(S1_THEN_GROQ, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap_err(),
+        "S1-mini: loop; Groq: down"
     );
 }
 
@@ -120,6 +139,47 @@ fn neither_says_what_to_set_up() {
     assert!(error.contains("Groq API key"));
     #[cfg(target_os = "macos")]
     assert!(error.contains("S1-mini by Superwhisper"));
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        clean(S1_THEN_GROQ, GroqRoute::NoKey, None, &reads).unwrap_err(),
+        NOTHING
+    );
+}
+
+#[test]
+fn s1_first_falls_to_groq_when_it_is_missing_or_fails() {
+    let (groq, failing) = (Fake::ok("From Groq."), Fake::failing("loop"));
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        clean(S1_THEN_GROQ, GroqRoute::Ready(&groq), None, &reads).unwrap(),
+        "From Groq."
+    );
+    assert_eq!(
+        clean(
+            S1_THEN_GROQ,
+            GroqRoute::Ready(&groq),
+            Some(&failing),
+            &reads
+        )
+        .unwrap(),
+        "From Groq."
+    );
+    assert_eq!(
+        clean(S1_THEN_GROQ, GroqRoute::NoKey, Some(&failing), &reads).unwrap_err(),
+        "loop"
+    );
+
+    let (groq, s1) = (Fake::ok("From Groq."), Fake::ok("From S1."));
+    let reads = Cell::new((0, 0));
+    assert_eq!(
+        clean(S1_THEN_GROQ, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
+        "From S1."
+    );
+    assert_eq!(
+        (groq.calls.get(), reads.get()),
+        (0, (0, 1)),
+        "Groq's key is not even read"
+    );
 }
 
 #[test]
@@ -130,22 +190,22 @@ fn groq_alone_never_falls_to_s1() {
     );
     let reads = Cell::new((0, 0));
     assert_eq!(
-        clean(Choice::Groq, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap_err(),
+        clean(GROQ, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap_err(),
         "Groq's free-tier limit was hit"
     );
     assert_eq!((s1.calls.get(), reads.get()), (0, (1, 0)));
 
     let groq = Fake::ok("From Groq.");
     assert_eq!(
-        clean(Choice::Groq, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
+        clean(GROQ, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
         "From Groq."
     );
-    let error = clean(Choice::Groq, GroqRoute::NoKey, Some(&s1), &reads).unwrap_err();
+    let error = clean(GROQ, GroqRoute::NoKey, Some(&s1), &reads).unwrap_err();
     assert_eq!(error, GROQ_NO_KEY);
     assert!(error.contains("no Groq API key"));
     assert_eq!(
         clean(
-            Choice::Groq,
+            GROQ,
             GroqRoute::Unreadable("keychain refused".into()),
             Some(&s1),
             &reads
@@ -161,23 +221,17 @@ fn s1_alone_never_reads_groqs_key() {
     let (groq, s1) = (Fake::ok("From Groq."), Fake::ok("From S1."));
     let reads = Cell::new((0, 0));
     assert_eq!(
-        clean(Choice::S1Mini, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
+        clean(S1, GroqRoute::Ready(&groq), Some(&s1), &reads).unwrap(),
         "From S1."
     );
     assert_eq!((groq.calls.get(), reads.get()), (0, (0, 1)));
 
     let failing = Fake::failing("loop");
     assert_eq!(
-        clean(
-            Choice::S1Mini,
-            GroqRoute::Ready(&groq),
-            Some(&failing),
-            &reads
-        )
-        .unwrap_err(),
+        clean(S1, GroqRoute::Ready(&groq), Some(&failing), &reads).unwrap_err(),
         "loop"
     );
-    let error = clean(Choice::S1Mini, GroqRoute::Ready(&groq), None, &reads).unwrap_err();
+    let error = clean(S1, GroqRoute::Ready(&groq), None, &reads).unwrap_err();
     assert_eq!(error, S1_MISSING);
     assert!(error.contains("S1-mini by Superwhisper"));
     assert_eq!(groq.calls.get(), 0);
@@ -212,19 +266,23 @@ fn off_returns_the_transcript_as_heard_and_reads_nothing() {
 
 #[test]
 fn the_status_names_what_the_choice_tries_first() {
-    for (groq_key, s1_ready, auto) in [
-        (true, true, "groq"),
-        (true, false, "groq"),
-        (false, true, "s1Mini"),
-        (false, false, "none"),
+    for (groq_key, s1_ready, groq_then_s1, s1_then_groq) in [
+        (true, true, "groq", "s1Mini"),
+        (true, false, "groq", "groq"),
+        (false, true, "s1Mini", "s1Mini"),
+        (false, false, "none", "none"),
     ] {
-        assert_eq!(first_engine(Choice::Auto, groq_key, s1_ready), auto);
         assert_eq!(
-            first_engine(Choice::Groq, groq_key, s1_ready),
+            first_engine(Choice::DEFAULT, groq_key, s1_ready),
+            groq_then_s1
+        );
+        assert_eq!(first_engine(S1_THEN_GROQ, groq_key, s1_ready), s1_then_groq);
+        assert_eq!(
+            first_engine(GROQ, groq_key, s1_ready),
             if groq_key { "groq" } else { "none" }
         );
         assert_eq!(
-            first_engine(Choice::S1Mini, groq_key, s1_ready),
+            first_engine(S1, groq_key, s1_ready),
             if s1_ready { "s1Mini" } else { "none" }
         );
         assert_eq!(first_engine(Choice::Off, groq_key, s1_ready), "off");
@@ -241,22 +299,26 @@ fn a_recording_warms_s1_only_when_it_will_answer() {
             has
         }
     };
-    assert!(warms_s1(Choice::S1Mini, key(true)));
-    assert!(!warms_s1(Choice::Groq, key(false)));
+    assert!(warms_s1(S1, key(true)));
+    assert!(warms_s1(S1_THEN_GROQ, key(true)));
+    assert!(!warms_s1(GROQ, key(false)));
     assert!(!warms_s1(Choice::Off, key(false)));
-    assert_eq!(asked.get(), 0, "only Automatic asks for the key");
-    assert!(warms_s1(Choice::Auto, key(false)));
-    assert!(!warms_s1(Choice::Auto, key(true)));
+    assert_eq!(asked.get(), 0, "only Groq with a fallback asks for the key");
+    assert!(warms_s1(Choice::DEFAULT, key(false)));
+    assert!(!warms_s1(Choice::DEFAULT, key(true)));
     assert_eq!(asked.get(), 2);
 }
 
 #[test]
 fn choices_round_trip_through_their_stored_names() {
-    for choice in [Choice::Auto, Choice::Groq, Choice::S1Mini, Choice::Off] {
-        assert_eq!(Choice::from_setting(Some(choice.name())), choice);
+    for choice in [Choice::DEFAULT, GROQ, S1, S1_THEN_GROQ, Choice::Off] {
+        assert_eq!(
+            Choice::from_setting(Some(choice.name()), Some(choice.fallback())),
+            choice
+        );
     }
-    assert_eq!(Choice::from_setting(None), Choice::Auto);
-    assert_eq!(Choice::from_setting(Some("S1-mini")), Choice::Auto);
+    assert_eq!(Choice::from_setting(None, None), Choice::DEFAULT);
+    assert_eq!(Choice::from_setting(Some("S1-mini"), None), Choice::DEFAULT);
 }
 
 #[test]

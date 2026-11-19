@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { CleanupChoice } from "@/lib/lectures/transcribe/settings";
+import type { CleanupModel } from "@/lib/lectures/transcribe/settings";
 import type { AlignerProgress, AlignerState } from "@/lib/studio/aligner";
 
 // Dictation cleanup's engines (`app/src-tauri/src/transcribe/cleanup/`):
@@ -26,9 +26,10 @@ export interface S1MiniStatus {
 }
 
 /** Mirrors `CleanupStatus`: `engine` is what a cleanup tries first under the
- *  chosen engine, `none` when that choice has nothing set up. */
+ *  chosen model and fallback, `none` when that choice has nothing set up. */
 export interface CleanupStatus {
-  choice: CleanupChoice;
+  choice: CleanupModel;
+  fallback: boolean;
   engine: "groq" | "s1Mini" | "off" | "none";
   groq: { configured: boolean; model: string; error?: string };
   s1Mini: S1MiniStatus;

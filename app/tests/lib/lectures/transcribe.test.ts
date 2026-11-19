@@ -38,7 +38,7 @@ test("a missing or mistyped row reads as the default order, every engine on, the
     groq: { enabled: true },
     whisper: { enabled: true, model: null },
     apple: { enabled: true },
-    cleanup: "auto" as const,
+    cleanup: { model: "groq", fallback: true },
   };
   expect(await read_(null)).toEqual(defaults);
   expect(await read_("not json")).toEqual(defaults);
@@ -94,18 +94,28 @@ test("writing keeps keys this side doesn't know, and a language replaces the per
   expect(next.language).toBe("th_TH");
   await writeTranscribeSettings({ groq: { enabled: false } });
   expect(JSON.parse(stored!).groq).toEqual({ enabled: false });
-  expect((await writeTranscribeSettings({ cleanup: "s1Mini" })).cleanup).toBe("s1Mini");
-  expect(JSON.parse(stored!)).toMatchObject({ future: 1, cleanup: "s1Mini", groq: { enabled: false } });
+  const cleanup = { model: "s1Mini", fallback: true } as const;
+  expect((await writeTranscribeSettings({ cleanup })).cleanup).toEqual(cleanup);
+  expect(JSON.parse(stored!)).toMatchObject({
+    future: 1,
+    cleanup: "s1Mini",
+    cleanupFallback: true,
+    groq: { enabled: false },
+  });
 });
 
 // Mirrors `Choice::from_setting` in app/src-tauri/src/transcribe/cleanup/mod.rs.
-test("dictation cleanup is automatic unless a known choice is stored", async () => {
-  expect((await read_(null)).cleanup).toBe("auto");
-  for (const choice of ["groq", "s1Mini", "off", "auto"] as const) {
-    expect((await read_({ cleanup: choice })).cleanup).toBe(choice);
-  }
-  expect((await read_({ cleanup: "vosk" })).cleanup).toBe("auto");
-  expect((await read_({ cleanup: 7 })).cleanup).toBe("auto");
+test("dictation cleanup is Groq with a fallback unless a known model is stored", async () => {
+  const groq = (fallback: boolean) => ({ model: "groq", fallback });
+  expect((await read_(null)).cleanup).toEqual(groq(true));
+  // `auto` was the default's stored name; a model named alone had no fallback.
+  expect((await read_({ cleanup: "auto" })).cleanup).toEqual(groq(true));
+  expect((await read_({ cleanup: "groq" })).cleanup).toEqual(groq(false));
+  expect((await read_({ cleanup: "s1Mini" })).cleanup).toEqual({ model: "s1Mini", fallback: false });
+  expect((await read_({ cleanup: "s1Mini", cleanupFallback: true })).cleanup).toEqual({ model: "s1Mini", fallback: true });
+  expect((await read_({ cleanup: "off", cleanupFallback: true })).cleanup).toEqual({ model: "off", fallback: false });
+  expect((await read_({ cleanup: "vosk" })).cleanup).toEqual(groq(true));
+  expect((await read_({ cleanup: 7, cleanupFallback: "yes" })).cleanup).toEqual(groq(true));
 });
 
 // Mirrors `Language::apple` in app/src-tauri/src/transcribe/settings/mod.rs.

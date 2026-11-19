@@ -20,6 +20,7 @@ export function packState(state: AlignerState | undefined, downloading: boolean)
  */
 export function PackDownloadRow<S extends { status: AlignerState; bytes: number }>({
   name,
+  icon,
   detail,
   pack,
   downloadLabel = "Download",
@@ -27,6 +28,8 @@ export function PackDownloadRow<S extends { status: AlignerState; bytes: number 
   deleteDescription,
 }: {
   name: string;
+  /** A mark before the name, as the settings rows beside it draw theirs. */
+  icon?: ReactNode;
   /** The line under the name; a space until the status is read. */
   detail: ReactNode;
   pack: PackDownload<S>;
@@ -55,9 +58,12 @@ export function PackDownloadRow<S extends { status: AlignerState; bytes: number 
   return (
     <div className="py-2">
       <div className="settings-row flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs text-foreground">{name}</p>
-          <div className="text-[11px] text-muted-foreground tabular-nums">{detail}</div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {icon}
+          <div className="min-w-0">
+            <p className="text-xs text-foreground">{name}</p>
+            <div className="text-[11px] text-muted-foreground tabular-nums">{detail}</div>
+          </div>
         </div>
         <div className="settings-actions flex shrink-0 items-center gap-2">
           {download ? (
