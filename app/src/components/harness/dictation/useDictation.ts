@@ -2,9 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTabActive } from "@/components/tabs/TabContext";
 import { dictationCleanupStatus } from "@/lib/dictation/cleanup";
+import type { DictationUsage, GroqReading } from "@/lib/dictation/groqUsage";
 import { recordVoice, type Recording } from "@/lib/dictation/recording";
 
 type Phase = "idle" | "starting" | "recording" | "transcribing" | "cleaning" | "error";
+
+/** `Dictated`: a step's text and, when Groq answered it, Groq's reading. */
+interface Dictated {
+  text: string;
+  groqUsage?: GroqReading;
+}
 
 /** Results belong to the draft that started them; cancelled work never inserts text. */
 export function useDictation(draftKey: string, onInsert: (text: string) => void) {
@@ -18,6 +25,9 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
   const [raw, setRaw] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  // Groq's allowance as this dictation's Groq answers left it; null when
+  // Groq did no part of it. Cleared by the next dictation, a send or ×.
+  const [usage, setUsage] = useState<DictationUsage | null>(null);
   const generation = useRef(0);
   const recording = useRef<Recording | null>(null);
   const audio = useRef<Blob | null>(null);
@@ -34,6 +44,7 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setSetup(false);
     setUnconfigured(false);
     setAnalyser(null);
+    setUsage(null);
     return () => {
       generation.current++;
       recording.current?.cancel();
@@ -49,7 +60,8 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setPhase("error");
     pending.current = false;
   };
-  const cancel = useCallback(() => {
+  /** Drop the work in hand; `keepUsage` leaves the Groq line up. */
+  const reset = useCallback((keepUsage: boolean) => {
     generation.current++;
     recording.current?.cancel();
     recording.current = null;
@@ -60,7 +72,10 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setError(null);
     setUnconfigured(false);
     setAnalyser(null);
+    if (!keepUsage) setUsage(null);
   }, []);
+  const cancel = useCallback(() => reset(false), [reset]);
+  const clearUsage = useCallback(() => setUsage(null), []);
 
   useEffect(() => {
     if (!active && (phase === "recording" || phase === "starting")) cancel();
@@ -71,7 +86,10 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setUnconfigured(false);
     let cleaned: string;
     try {
-      cleaned = await invoke<string>("dictation_cleanup", { transcript });
+      const result = await invoke<Dictated>("dictation_cleanup", { transcript });
+      cleaned = result.text;
+      const reading = result.groqUsage;
+      if (reading && valid(id)) setUsage((u) => ({ ...u, cleanup: reading }));
     } catch (cause) {
       // Read-only: says whether neither Groq nor S1-mini is set up.
       const status = await dictationCleanupStatus().catch(() => null);
@@ -91,8 +109,9 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     setPhase("transcribing");
     const bytes = Array.from(new Uint8Array(await clip.arrayBuffer()));
     if (!valid(id)) return;
-    const transcript = await invoke<string>("dictation_transcribe", { audio: bytes });
+    const { text: transcript, groqUsage: reading } = await invoke<Dictated>("dictation_transcribe", { audio: bytes });
     if (!valid(id)) return;
+    if (reading) setUsage((u) => ({ ...u, transcription: reading }));
     setRaw(transcript);
     await clean(transcript, id);
   };
@@ -130,7 +149,7 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
     if (pending.current) return;
     pending.current = true;
     const id = ++generation.current;
-    setError(null); setRaw(""); audio.current = null; setElapsed(0); setPhase("starting");
+    setError(null); setRaw(""); setUsage(null); audio.current = null; setElapsed(0); setPhase("starting");
     try {
       try { await invoke("dictation_status"); }
       catch (cause) {
@@ -163,10 +182,12 @@ export function useDictation(draftKey: string, onInsert: (text: string) => void)
 
   return {
     phase, error, setup, setupError, raw, elapsed, analyser, unconfigured,
+    /** Shown once the dictation has settled, never over its strip or error. */
+    usage: phase === "idle" ? usage : null,
     busy: phase !== "idle" && phase !== "error",
     canRetry: !!raw || !!audio.current,
-    start, finish, cancel, retry, setSetup, openCleanupSetup,
-    useTranscript: () => { if (raw) insert.current(raw); cancel(); },
+    start, finish, cancel, retry, setSetup, openCleanupSetup, clearUsage,
+    useTranscript: () => { if (raw) insert.current(raw); reset(true); },
   };
 }
 

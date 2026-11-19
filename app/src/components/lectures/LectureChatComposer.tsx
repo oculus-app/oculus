@@ -239,6 +239,7 @@ export function LectureChatComposer({
 
     notePickedSkills(message, ref.current?.pickedSkills() ?? []);
     ref.current?.clear();
+    dictation.clearUsage();
     mentions.close();
     // Rust re-checks the mode against the turn as it is when the send lands.
     onSend(message, mode.modeFor(flip));

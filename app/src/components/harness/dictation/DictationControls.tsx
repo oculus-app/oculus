@@ -2,6 +2,7 @@ import { Check, Microphone, SpinnerGap, X, ArrowCounterClockwise } from "@phosph
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TranscriptionSection } from "@/components/settings/transcription/TranscriptionSection";
+import { GroqUsageLine } from "./GroqUsageLine";
 import { VoiceWaveform } from "./VoiceWaveform";
 import type { Dictation } from "./useDictation";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function DictationBar({ dictation: d, small = false, className }: { dicta
 
 export function DictationFeedback({ dictation: d }: { dictation: Dictation }) {
   return <>
+    <GroqUsageLine usage={d.usage} onDismiss={d.clearUsage} />
     {d.error && <div className="rounded-lg border border-border-subtle bg-surface-raised p-3 text-xs" role="alert">
       <p className="text-destructive" data-selectable>{d.error}</p>
       {d.raw && <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap text-foreground" data-selectable>{d.raw}</p>}

@@ -1,9 +1,21 @@
 //! Microphone clips use the same engine order and language as library videos.
 //! Audio is kept in the run's scratch directory and removed on every exit.
 
+use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+use super::groq_usage::{self, Reading};
 use super::{audio, pipeline, settings};
+
+/// A dictation step's text, with Groq's reading of its allowance when this
+/// step used Groq and Groq's answer carried one.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Dictated {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groq_usage: Option<Reading>,
+}
 
 const MAX_CLIP_BYTES: usize = 24 * 1024 * 1024;
 
@@ -21,7 +33,7 @@ pub async fn dictation_status(app: AppHandle) -> Result<(), String> {
 
 /// Decode a bounded microphone clip, returning prose rather than a saved VTT.
 #[tauri::command]
-pub async fn dictation_transcribe(app: AppHandle, audio: Vec<u8>) -> Result<String, String> {
+pub async fn dictation_transcribe(app: AppHandle, audio: Vec<u8>) -> Result<Dictated, String> {
     validate_clip(&audio)?;
     let resource_dir = app.path().resource_dir().ok();
     crate::runtime::blocking::run(move || {
@@ -34,6 +46,7 @@ pub async fn dictation_transcribe(app: AppHandle, audio: Vec<u8>) -> Result<Stri
             .map_err(|e| format!("Could not save the microphone clip: {e}"))?;
         let decoded = scratch.file(&format!("audio{}", audio::EXTENSION));
         let extracted = audio::extract(&ffmpeg, &clip, &decoded)?;
+        let mark = groq_usage::mark();
         let heard = pipeline::transcribe_audio(
             &engines,
             &extracted,
@@ -44,7 +57,13 @@ pub async fn dictation_transcribe(app: AppHandle, audio: Vec<u8>) -> Result<Stri
             },
             &|_| {},
         )?;
-        transcript(heard.segments)
+        let groq_usage = (heard.engine == "groq")
+            .then(|| groq_usage::since(super::engines::groq::MODEL, mark))
+            .flatten();
+        Ok(Dictated {
+            text: transcript(heard.segments)?,
+            groq_usage,
+        })
     })
     .await
 }

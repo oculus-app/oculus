@@ -53,7 +53,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Earlier messages on ArrowUp, and the ⌘S stash | `app/src/lib/harness/promptHistory.ts`, `app/src/hooks/agents/usePromptHistory.ts`, `app/src/stores/chat/stashStore.ts`, `app/src/components/harness/composer/useComposerStash.ts`, `app/src/components/harness/composer/StashMenu.tsx`, `app/src/components/harness/composer/StashBadge.tsx` |
 | Studio's thread column and New video box, which use `Composer`'s `leading` (chips after the subject's) and `placeholder` | `app/src/components/studio/thread/ThreadColumn.tsx`, `app/src/components/studio/new/NewVideo.tsx` ([studio-page.md](./studio-page.md)) |
 | The subject Overview's ask bar: `Composer`'s `compact` mode and its settings menu, and the warp into the thread it starts | `app/src/pages/subject/content/overview/AskBar.tsx`, `app/src/components/harness/composer/settings/`, `app/src/lib/ui/warp.ts`, `app/src/hooks/ui/useWarpLanding.ts`, `app/src/styles/warp.css` |
-| Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src/lib/dictation/cleanup.ts` |
+| Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src/lib/dictation/cleanup.ts`, `app/src/lib/dictation/groqUsage.ts` |
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
 | Files pasted or dropped into a composer: writing them, their chips, the shelf, their names | `app/src-tauri/src/harness/attach.rs`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
@@ -2780,6 +2780,19 @@ or S1-mini use only that one; Off leaves the transcript as heard
 ([viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)).
 It is not a chat job and has no row in Settings → Jobs. The cleaned text
 appends to the existing draft; it never sends automatically.
+
+When Groq transcribed or cleaned the dictation, a quiet line just above the
+box, where dictation's errors appear (`GroqUsageLine` in
+`DictationFeedback`), says what Groq's answers left of its allowance: "Groq
+today: 1,986 of 2,000 transcriptions · 1,996 of 2,000 cleanups left", only
+the parts Groq reported, in `tabular-nums`, in `text-warning` when any is
+under a tenth, with each figure's reset and the reading's time in its
+tooltip ([viewers.md](./viewers.md#groqs-answers-say-how-much-allowance-is-left)).
+It shows only once the dictation has settled, and stays until the draft is
+sent, the next dictation starts, the draft is switched, or its × dismisses
+it; Use original transcript keeps it. No timer hides it. It never appears
+after a dictation Groq took no part in (S1-mini, local Whisper, on-device
+speech, or Off).
 
 A read-only readiness check opens transcription setup when no engine is ready.
 The microphone is owned by one composer across split panes. Clips stop after

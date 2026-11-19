@@ -24,6 +24,7 @@ library video in the media player, a video's transcript, and a web page.
 | Transcribe from a player | `app/src/hooks/lectures/useTranscription.ts`, `app/src/components/media/TranscribeEmpty.tsx` |
 | Transcript search and source-index mapping | `app/src/hooks/lectures/useTranscriptSearch.ts` |
 | Microphone clip transcription | `app/src-tauri/src/transcribe/dictation.rs` |
+| Groq's allowance as its answers report it (`groq_usage`) | `app/src-tauri/src/transcribe/groq_usage.rs`, `app/src/lib/dictation/groqUsage.ts`, `app/src/components/harness/dictation/GroqUsageLine.tsx` |
 | Dictation cleanup: Groq's Qwen, S1-mini, the `llama-server` sidecar, the commands | `app/src-tauri/src/transcribe/cleanup/`, `app/scripts/build-llama.mjs`, `app/src/lib/dictation/cleanup.ts` |
 | Transcription of videos without captions | `app/src-tauri/src/transcribe/`, `app/src-tauri/src/providers/groq.rs`, `app/src/lib/lectures/transcribe/` |
 | Settings → Transcription: the language, the engine list, each engine's dialog and dictation cleanup | `app/src/components/settings/transcription/TranscriptionSection.tsx`, `app/src/components/settings/transcription/GroqDialog.tsx`, `app/src/components/settings/transcription/OnDeviceSpeech.tsx`, `app/src/components/settings/transcription/LocalWhisper.tsx`, `app/src/components/settings/transcription/DictationCleanup.tsx` |
@@ -633,7 +634,9 @@ lecture player shows bottom-right in the frame once the lecture is over.
 transcription without running inference. `dictation_transcribe` accepts a
 nonempty clip of at most 24 MiB, writes it into the pipeline's scratch
 directory, decodes it with ffmpeg, and reuses the engine-order and chunking
-logic. It returns joined segment text with no timestamps or VTT file; scratch
+logic. It returns `{ text, groqUsage? }`: the joined segment text with no
+timestamps or VTT file, and, when Groq transcribed it, Groq's reading of its
+allowance from that answer ([below](#groqs-answers-say-how-much-allowance-is-left)); scratch
 audio is removed on success and failure. No speech is an error. The macOS
 `app/src-tauri/Info.plist` supplies the microphone permission description for
 the WebView's capture request; `app/src-tauri/Entitlements.plist` grants
@@ -730,8 +733,8 @@ that it is always named "S1-mini" by "Superwhisper", written exactly so).
   ([development.md](./development.md#llama-server-is-built-from-a-pinned-release)).
   On Windows and Linux S1-mini is unavailable and only Groq cleans.
 
-Settings → Transcription's Dictation cleanup block calls these; none calls
-Groq's chat endpoint:
+Settings → Transcription's Dictation cleanup block calls these; none but
+`dictation_cleanup` calls Groq's chat endpoint:
 
 | Command | Arguments | Returns |
 | --- | --- | --- |
@@ -740,7 +743,8 @@ Groq's chat endpoint:
 | `dictation_s1_cancel` | — | `boolean`: a download was running |
 | `dictation_s1_remove` | — | bytes freed; stops the server first |
 | `dictation_warm` | — | `void`; the composer calls it at record start |
-| `dictation_cleanup` | `{ transcript }` | the cleaned message, possibly empty |
+| `dictation_cleanup` | `{ transcript }` | `{ text, groqUsage? }`: the cleaned message, possibly empty, and Groq's reading of its allowance when Groq answered ([below](#groqs-answers-say-how-much-allowance-is-left)) |
+| `groq_usage` | — | `{ models: [Reading] }`, the latest reading of each Groq model used since launch; memory only |
 
 ## Videos without captions are transcribed
 
@@ -839,7 +843,11 @@ one up in Settings → Transcription.
   steps in; S1-mini alone says dictation never goes to Groq; Off says
   dictation joins the draft as heard; a choice with nothing set up is a
   warning of what to do (`engineLine`). Both engines are listed as one
-  bordered group. Groq's row opens the same key dialog as the engine list.
+  bordered group. Groq's row opens the same key dialog as the engine list;
+  with a key, it adds the latest `groq_usage` reading as a muted line
+  ("Today: 1,986 of 2,000 transcriptions · 1,996 of 2,000 cleanups left",
+  each figure's reset in its tooltip), absent until Groq has answered since
+  launch.
   S1-mini's row is Studio's `PackDownloadRow` (size, English only, runs on
   this Mac; Download with a percentage, a bar and Cancel, then Delete behind
   a confirmation), with `unavailable` as a warning beneath when its helper
@@ -868,6 +876,34 @@ unless it is `auto` (`app/src-tauri/src/transcribe/engines/groq.rs`).
   Both routes hand back the same status, headers and body, so the 429, 401
   and 413 messages read one way; keyd's own refusals say oculus-keyd could
   not send the request.
+
+### Groq's answers say how much allowance is left
+
+Every successful Groq answer — a transcription or a dictation cleanup, on
+either route — carries `x-ratelimit-*` headers, which `Groq::post` hands to
+`groq_usage::record` (`app/src-tauri/src/transcribe/groq_usage.rs`): requests
+per day (`limit-requests`, `remaining-requests`, `reset-requests`) and tokens
+per minute (`limit-tokens`, `remaining-tokens`, `reset-tokens`), per model.
+The latest reading of each model is kept in memory with when it was read;
+nothing is stored and no request is made to read it. A refusal keeps no
+reading.
+
+- **A reading** is `{ model, role: "transcription" | "cleanup",
+  requestsLimit?, requestsRemaining?, requestsReset?, tokensLimit?,
+  tokensRemaining?, tokensReset?, readAt }`: a missing or unreadable header
+  leaves its field absent; a response with none keeps no reading. Resets are
+  seconds after `readAt` (ms since the epoch), read from Groq's `7.66s`,
+  `2m59.56s` form (`duration_secs`).
+- **Audio seconds per day**, Whisper's real cap on the free tier, has no
+  header, so it is never shown.
+- **A dictation step returns its own reading**: `dictation_transcribe` when
+  Groq transcribed the clip, `dictation_cleanup` when Groq cleaned it, each
+  only if the reading was taken during that call (`groq_usage::mark` before,
+  `since` after). The composer's line and Settings' Groq row format them
+  through `summarizeUsage` (`app/src/lib/dictation/groqUsage.ts`):
+  requests per day when any reading has them, else tokens per minute,
+  warning under a tenth of a limit
+  ([harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
 
 ### On-device speech: a Swift helper
 

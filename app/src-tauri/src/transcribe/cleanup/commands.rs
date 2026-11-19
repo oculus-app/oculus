@@ -12,7 +12,9 @@ use super::s1::{self, model, server, S1};
 use super::{first_engine, groq, run, warms_s1, Choice, GroqRoute};
 use crate::runtime::download_events::download_with_events;
 use crate::runtime::onnx::{self, Status};
+use crate::transcribe::dictation::Dictated;
 use crate::transcribe::engines::groq::Groq;
+use crate::transcribe::groq_usage;
 
 /// Display only, never persisted.
 pub const S1_PROGRESS_EVENT: &str = "dictation-s1-progress";
@@ -45,9 +47,10 @@ fn resource_dir(app: &AppHandle) -> Option<PathBuf> {
 
 /// The transcript as the message the speaker meant, by the engine chosen in
 /// Settings (`run`); Off returns it as heard without calling anything. Empty
-/// is a valid answer for filler-only speech.
+/// is a valid answer for filler-only speech. Groq's reading of its allowance
+/// rides along when Groq answered.
 #[tauri::command]
-pub async fn dictation_cleanup(app: AppHandle, transcript: String) -> Result<String, String> {
+pub async fn dictation_cleanup(app: AppHandle, transcript: String) -> Result<Dictated, String> {
     let transcript = transcript.trim().to_string();
     if transcript.is_empty() || transcript.len() > MAX_TRANSCRIPT_BYTES {
         return Err("Dictation must contain between 1 and 100,000 bytes of text.".into());
@@ -55,12 +58,18 @@ pub async fn dictation_cleanup(app: AppHandle, transcript: String) -> Result<Str
     let resource_dir = resource_dir(&app);
     crate::runtime::blocking::run(move || {
         let (language, choice) = settings();
-        run(
+        let mark = groq_usage::mark();
+        let text = run(
             choice,
             groq_route,
             || S1::installed(resource_dir, language),
             &transcript,
-        )
+        )?;
+        // Only a successful Groq answer records a reading of this model.
+        Ok(Dictated {
+            text,
+            groq_usage: groq_usage::since(groq::MODEL, mark),
+        })
     })
     .await
 }

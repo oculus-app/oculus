@@ -254,6 +254,7 @@ pub fn run() {
             transcribe::cleanup::commands::dictation_s1_download,
             transcribe::cleanup::commands::dictation_s1_cancel,
             transcribe::cleanup::commands::dictation_s1_remove,
+            transcribe::groq_usage::groq_usage,
             harness::app::revision::revision_mark_answer,
             revision::revision_record_review,
             revision::revision_save_items,

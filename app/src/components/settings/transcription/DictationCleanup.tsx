@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SegmentToggle, type SegmentOption } from "@/components/settings/appearance/SegmentToggle";
 import { PackDownloadRow, packState } from "@/components/settings/voice/PackDownloadRow";
@@ -11,6 +12,7 @@ import {
   removeS1Mini,
   type S1MiniStatus,
 } from "@/lib/dictation/cleanup";
+import { groqUsage, summarizeUsage, usageByRole, type UsageSummary } from "@/lib/dictation/groqUsage";
 import type { CleanupChoice } from "@/lib/lectures/transcribe";
 import { modelSize } from "./LocalWhisper";
 
@@ -77,6 +79,30 @@ export function engineLine(
   };
 }
 
+/** The Groq row's reading: "Today: 1,986 of 2,000 transcriptions · … left". */
+export function usageText(summary: UsageSummary | null): string | null {
+  if (!summary) return null;
+  const window = summary.window === "today" ? "Today" : "This minute";
+  return `${window}: ${summary.parts.join(" · ")} left`;
+}
+
+/** Groq's last reading of its allowance, from memory; never calls Groq. */
+function useGroqUsage(): UsageSummary | null {
+  const [summary, setSummary] = useState<UsageSummary | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    groqUsage()
+      .then(({ models }) => {
+        if (!cancelled) setSummary(summarizeUsage(usageByRole(models)));
+      })
+      .catch((cause) => console.error("Groq usage read failed", cause));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return summary;
+}
+
 /** S1-mini's row: what its absence means, and what deleting it does. */
 function s1Notes(choice: CleanupChoice | null, connected: boolean | null) {
   if (choice === "s1Mini") {
@@ -114,6 +140,8 @@ export function DictationCleanup({ choice, onChoose, connected, onOpenGroq }: {
   const { status, download } = pack;
   const line = engineLine(choice, connected, status);
   const notes = s1Notes(choice, connected);
+  const usage = useGroqUsage();
+  const usageLine = connected ? usageText(usage) : null;
   // S1-mini runs on macOS only; elsewhere it is offered only while chosen.
   const options = isMac || choice === "s1Mini" ? CHOICES : CHOICES.filter((c) => c.value !== "s1Mini");
 
@@ -138,6 +166,11 @@ export function DictationCleanup({ choice, onChoose, connected, onOpenGroq }: {
             <p className="text-[11px] text-muted-foreground">
               {connected === null ? "\u00a0" : connected ? "Uses your Groq key" : "No key"}
             </p>
+            {usageLine ? (
+              <p className="truncate text-[11px] text-muted-foreground tabular-nums" title={usage?.detail}>
+                {usageLine}
+              </p>
+            ) : null}
           </div>
           <Button variant="outline" size="xs" className="w-16 shrink-0" onClick={onOpenGroq}>
             {connected ? "Manage" : "Set up"}
