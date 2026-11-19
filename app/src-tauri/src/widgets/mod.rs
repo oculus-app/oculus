@@ -3,7 +3,7 @@
 //! media server, and a widget's `ask` is answered by a model.
 
 pub mod ask;
-pub mod check;
+pub use oculus_core::widgets::check;
 pub mod commands;
 pub mod kit;
-pub mod transpile;
+pub use oculus_core::widgets::transpile;

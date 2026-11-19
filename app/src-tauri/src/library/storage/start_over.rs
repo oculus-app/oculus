@@ -94,7 +94,7 @@ pub async fn storage_start_over(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(cancel) = app.try_state::<crate::sync::scrape::ScrapeCancel>() {
         cancel.0.store(true, std::sync::atomic::Ordering::SeqCst);
     }
-    crate::harness::app::shutdown(&app);
+    (crate::runtime::upper::upper().stop_agents)(&app);
     crate::auth::commands::end_session(&app).await?;
     crate::auth::okta::clear_credentials()
         .map_err(|e| format!("Could not forget the Okta sign-in details: {e}"))?;

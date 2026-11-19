@@ -5,7 +5,7 @@
 //! sharing starts and ends on close, delete or app exit; outside one, whiteboards
 //! save through the ordinary `write_whiteboard` path. See docs/drawing-whiteboard.md.
 
-pub(crate) mod commands;
+pub mod commands;
 mod disk;
 pub mod error;
 pub mod events;

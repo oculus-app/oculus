@@ -7,14 +7,7 @@
 use super::transcript::TranscriptCue;
 use super::Candidate;
 
-/// One named span of a recording. It ends where the next begins (the last at
-/// the lecture's duration), so no end is stored.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
-pub struct Chapter {
-    pub start_seconds: u32,
-    pub title: String,
-    pub summary: String,
-}
+pub use crate::db::store::Chapter;
 
 /// What the agent replies with, before validation. The aliases accept the
 /// synonyms models write despite the prompt.

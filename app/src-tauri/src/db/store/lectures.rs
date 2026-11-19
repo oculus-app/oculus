@@ -170,6 +170,15 @@ pub async fn set_chapter_status(
     Ok(())
 }
 
+/// One named span of a recording. It ends where the next begins (the last at
+/// the lecture's duration), so no end is stored.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Chapter {
+    pub start_seconds: u32,
+    pub title: String,
+    pub summary: String,
+}
+
 /// Replace a lecture's chapters, and mark it chaptered.
 ///
 /// One transaction, over a set `chapters::validate` already passed: a missing
@@ -178,7 +187,7 @@ pub async fn set_chapter_status(
 pub async fn save_chapters(
     pool: &SqlitePool,
     lecture_id: &str,
-    chapters: &[crate::lectures::chapters::Chapter],
+    chapters: &[Chapter],
 ) -> Result<(), String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     sqlx::query("DELETE FROM lecture_chapters WHERE lecture_id = ?1")
@@ -214,10 +223,7 @@ pub async fn save_chapters(
 }
 
 /// A lecture's chapters in play order. Empty when it has never been chaptered.
-pub async fn chapters(
-    pool: &SqlitePool,
-    lecture_id: &str,
-) -> Result<Vec<crate::lectures::chapters::Chapter>, String> {
+pub async fn chapters(pool: &SqlitePool, lecture_id: &str) -> Result<Vec<Chapter>, String> {
     let rows = sqlx::query(
         "SELECT start_seconds, title, summary FROM lecture_chapters
           WHERE lecture_id = ?1 ORDER BY idx",
@@ -228,7 +234,7 @@ pub async fn chapters(
     .map_err(|e| e.to_string())?;
     Ok(rows
         .iter()
-        .map(|r| crate::lectures::chapters::Chapter {
+        .map(|r| Chapter {
             start_seconds: r.get::<i64, _>("start_seconds").max(0) as u32,
             title: r.get("title"),
             summary: r.get("summary"),

@@ -18,7 +18,7 @@ static SEEDED: LazyLock<Mutex<SeededCookies>> = LazyLock::new(|| Mutex::new(Hash
 
 /// Track the host copies written by seeding so a server's rotated
 /// parent-domain cookie wins over an unchanged copy of the saved session.
-pub(crate) fn remember_seeded_cookies(cookies: Vec<(String, String, String)>) {
+pub fn remember_seeded_cookies(cookies: Vec<(String, String, String)>) {
     let mut seeded = SEEDED.lock().unwrap_or_else(|e| e.into_inner());
     for (domain, name, value) in cookies {
         seeded.insert((domain.trim_start_matches('.').to_string(), name), value);

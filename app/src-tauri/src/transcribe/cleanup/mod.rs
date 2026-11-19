@@ -32,7 +32,7 @@ pub(super) enum GroqRoute<G> {
 /// Which engine tidies dictation: the `transcribe` row's `cleanup` key,
 /// written from Settings → Transcription.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Choice {
+pub enum Choice {
     /// Groq with a key, else S1-mini; S1-mini also when Groq fails.
     Auto,
     /// Groq alone, with no fallback.

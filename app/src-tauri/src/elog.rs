@@ -5,6 +5,7 @@
 //! app. `elog!` drops the write error instead. Tests keep `eprintln!`, which
 //! the test harness captures and a raw `stderr()` write bypasses.
 
+#[macro_export]
 macro_rules! elog {
     ($($arg:tt)*) => {{
         #[cfg(not(test))]

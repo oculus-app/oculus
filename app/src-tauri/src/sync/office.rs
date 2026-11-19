@@ -129,7 +129,7 @@ fn installed_soffice() -> Option<PathBuf> {
             }
         }
     }
-    crate::harness::cli::discover::tool("soffice")
+    crate::runtime::platform::find::tool("soffice")
 }
 
 #[cfg(not(windows))]

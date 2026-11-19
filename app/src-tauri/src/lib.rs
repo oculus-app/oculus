@@ -1,28 +1,15 @@
-#[macro_use]
-mod elog;
+//! The app: the window, the in-app browser and device sharing, over
+//! `oculus-harness` and `oculus-core`, whose modules are re-exported whole so
+//! `app_lib::db` and the rest resolve for the `oculus` CLI
+//! (docs/development.md#the-rust-crates).
 
-pub mod agents;
-pub mod auth;
+#[macro_use(elog)]
+extern crate oculus_core;
+
+pub use oculus_harness::*;
+
 pub mod companion;
-pub mod db;
-pub mod embed;
-pub mod harness;
-pub mod lectures;
-pub mod library;
-pub mod pages;
-pub mod parse;
-pub mod proposals;
-pub mod providers;
-pub mod revision;
-pub mod runtime;
 pub mod shell;
-pub mod sources;
-pub mod studio;
-pub mod sync;
-#[cfg(test)]
-mod test_support;
-pub mod transcribe;
-pub mod widgets;
 
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -32,8 +19,20 @@ use lectures::Echo360Cache;
 use sync::scrape::ScrapeCancel;
 use sync::subjects::SubjectsState;
 
+/// Hand core the harness and shell functions it calls but cannot name
+/// (`runtime::upper`). First thing in every entry point: the app's [`run`]
+/// and the `oculus` CLI's `main`.
+pub fn bind_layers() {
+    runtime::upper::bind(runtime::upper::Upper {
+        stop_agents: harness::app::shutdown,
+        write_opencode_config: harness::write_opencode_config,
+        clear_browser_sessions: |app, then| shell::browser::clear_sessions(app, then),
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    bind_layers();
     // Before anything opens a file in the data dir (`storage::storage_start_over`).
     library::storage::finish_start_over(&library::paths::data_dir());
     // An old library moves into the Drive tree before any window, job or

@@ -13,7 +13,7 @@
 //! what Groq's answers said of its allowance.
 
 pub mod app;
-pub(crate) mod audio;
+pub mod audio;
 pub mod cleanup;
 pub mod dictation;
 mod engine;
@@ -26,4 +26,4 @@ mod vtt;
 pub use engine::{engine_label, Engine, EngineError, Segment, ENGINES};
 pub use engines::whisper_models;
 pub use pipeline::{resolve, run, vtt_path, Outcome, Step};
-pub(crate) use settings::{settings_from, Settings};
+pub use settings::{settings_from, Settings};

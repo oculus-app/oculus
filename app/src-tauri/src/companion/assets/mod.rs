@@ -6,7 +6,7 @@
 //! root check (disk), never through Tauri's fallback to the app's own
 //! `index.html`.
 
-pub(crate) mod mime;
+pub(crate) use oculus_core::companion::assets::mime;
 mod path;
 
 use bytes::Bytes;

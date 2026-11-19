@@ -20,9 +20,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::providers::credentials::Credentialed;
 
 pub use crate::sources::canvas::SessionProbe as AuthProbe;
-pub(crate) use cookies::remember_seeded_cookies;
+pub use cookies::remember_seeded_cookies;
 pub use cookies::{save_browser_session, save_session_cookie};
-pub(crate) use session::report;
+pub use session::report;
 pub use startup::restore_session;
 pub use watch::{signed_in_since, SignInWatch};
 

@@ -11,6 +11,7 @@ from Rust, behind the seams in `app/src-tauri/src/parse/` and
 | Piece | Location |
 | --- | --- |
 | App entry, startup, command registry | `app/src-tauri/src/lib.rs` |
+| The three Rust crates (core, harness, app) and core's calls up ([development.md](./development.md#the-rust-crates)) | `app/src-tauri/crates/`, `app/src-tauri/src/core_root.rs`, `app/src-tauri/src/harness_root.rs`, `app/src-tauri/src/runtime/upper.rs` |
 | Schema migrations | `app/src-tauri/src/db/migrations.rs` |
 | Data-dir location, file names and types | `app/src-tauri/src/library/paths/` |
 | Every path shape inside the library: folders, zones, guards, categories, parse artifacts ([below](#one-module-owns-every-path-shape-in-the-library)) | `app/src-tauri/src/library/layout/`, `app/src/lib/files/libraryLayout.ts` |

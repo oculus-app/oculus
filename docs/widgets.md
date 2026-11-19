@@ -677,4 +677,4 @@ The frontend builds the URL from `media_server_info`.
 - Never copy a `widgetStore` entry into a saved artifact — its Allow belongs to that fence; save `entryState` or the last reported state.
 - Never give a saved widget a chat key (`thread:row:fence`) — `prune` would drop its grant with that thread's.
 - List every `oculus-widgets` file in `SKILLS` — `write_skill` deletes an unlisted one from the agent's skill folder.
-- After changing a gallery example or the transpiler's output, run `WIDGET_BLESS=1 cargo test widget_gallery` — the bun test builds frames from the fixtures.
+- After changing a gallery example or the transpiler's output, run `WIDGET_BLESS=1 cargo test -p oculus-core widget_gallery` — the bun test builds frames from the fixtures.

@@ -79,7 +79,7 @@ fn picked_name(src: &Path) -> String {
 /// folders from outside (picked files and folders, Finder drops, browser
 /// downloads). Imports share name allocation, so one lock keeps simultaneous
 /// batches from choosing the same unused name while conversion runs.
-pub(crate) fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<ImportOutcome> {
+pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<ImportOutcome> {
     static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _guard = IMPORT_LOCK
         .lock()

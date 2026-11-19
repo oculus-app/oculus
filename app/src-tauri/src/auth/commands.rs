@@ -59,9 +59,12 @@ pub async fn end_session(app: &AppHandle) -> Result<(), String> {
 
     // The jar first, or a Canvas tab saves the session straight back.
     let (cleared, done) = tokio::sync::oneshot::channel();
-    crate::shell::browser::clear_sessions(app, move || {
-        cleared.send(()).ok();
-    });
+    (crate::runtime::upper::upper().clear_browser_sessions)(
+        app,
+        Box::new(move || {
+            cleared.send(()).ok();
+        }),
+    );
     done.await
         .map_err(|_| "Could not clear the browser’s Canvas and Okta cookies".to_string())?;
     tauri::async_runtime::spawn_blocking(|| {

@@ -1,9 +1,5 @@
 use super::*;
-use crate::{
-    db::projects,
-    harness::{store, Provider},
-    test_support::Scratch,
-};
+use crate::{db::projects, test_support::Scratch};
 use serde_json::{json, Value};
 use sqlx::{Row, SqlitePool};
 
@@ -17,11 +13,20 @@ async fn setup() -> (SqlitePool, i64, i64) {
         sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
     }
     sqlx::query("INSERT INTO subjects (id,code,name,is_current) VALUES (1,'COMP10001_2026_SM2','Subject',1)").execute(&pool).await.unwrap();
-    let thread = store::create_thread(&pool, Provider::Codex, None, Some(1), None, "hello")
-        .await
-        .unwrap();
+    let thread = create_thread(&pool, Some(1)).await;
     let item = reply(&pool, thread).await;
     (pool, thread, item)
+}
+/// The row `harness::store::create_thread` writes for a Codex thread.
+async fn create_thread(pool: &SqlitePool, subject_id: Option<i64>) -> i64 {
+    sqlx::query(
+        "INSERT INTO harness_threads (provider, subject_id, title, status) VALUES ('codex', ?1, 'hello', 'idle')",
+    )
+    .bind(subject_id)
+    .execute(pool)
+    .await
+    .unwrap()
+    .last_insert_rowid()
 }
 async fn reply(pool: &SqlitePool, thread: i64) -> i64 {
     sqlx::query(
@@ -450,9 +455,7 @@ async fn concurrent_connections_apply_exactly_once_with_foreign_keys_enabled() {
             .unwrap();
     }
     drop(migrating);
-    let t = store::create_thread(&pool, Provider::Codex, None, None, None, "hello")
-        .await
-        .unwrap();
+    let t = create_thread(&pool, None).await;
     let i = reply(&pool, t).await;
     let v = json!({"project":null,"items":[{"title":"Exactly once"}]});
     let p = card(&pool, t, i, "NewTasks", &v).await;

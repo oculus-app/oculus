@@ -11,8 +11,8 @@ use crate::sync::{
     Engine, FileEvent, FileFailed, FileStart, Progress, Reporter, Subject, SyncOptions,
 };
 
-pub(crate) mod embeds;
-pub(crate) mod videos;
+pub mod embeds;
+pub mod videos;
 pub use videos::VideoCancels;
 
 #[derive(serde::Deserialize)]
@@ -242,7 +242,7 @@ pub fn parse_prioritise(relative_path: String) -> Result<(), String> {
 
 /// Await the same native work for a confirmed job card, so its durable result
 /// reflects completion rather than the point at which a worker was spawned.
-pub(crate) async fn confirmed<F, Fut>(
+pub async fn confirmed<F, Fut>(
     app: AppHandle,
     targets: Vec<Subject>,
     lectures: bool,
@@ -265,8 +265,8 @@ where
         for (done, target) in targets.iter().enumerate() {
             app.emit("scrape-progress", serde_json::json!({"course":target.code,"phase":"lectures","done":done,"total":targets.len(),"runId":run_id})).ok();
             use tauri::Manager;
-            let lectures = crate::lectures::commands::echo360_sync_lectures(
-                app.state::<crate::lectures::Echo360Cache>(),
+            let lectures = crate::sources::echo360::cache::sync_lectures(
+                app.state::<crate::sources::echo360::cache::Echo360Cache>().inner(),
                 target.id,
             )
             .await?;

@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub mod find;
 #[cfg(windows)]
 mod job;
 #[cfg(windows)]
@@ -46,7 +47,7 @@ pub fn cli_command(bin: &Path) -> Result<Command, String> {
             .parent()
             .map(|p| p.join("node.exe"))
             .filter(|p| p.is_file())
-            .or_else(|| crate::harness::cli::discover::tool("node.exe"))
+            .or_else(|| find::tool("node.exe"))
             .ok_or("an npm shim needs node.exe, which was not found")?;
         let mut cmd = command(node);
         cmd.arg(script);
