@@ -21,6 +21,26 @@ agent queries and plans through. Flags are in
 | `keyd` and the app's startup install | `app/src-tauri/src/bin/oculus/commands/keyd.rs`, `app/src-tauri/src/auth/keyd/`; the platform registrations in `app/keyd/core/src/platform/macos/registrar.rs` and `app/keyd/core/src/platform/windows/registrar.rs` |
 | Headless writes to the scrape tables | `app/src-tauri/src/db/store/` |
 | Repo copy of the reference | `app/scripts/gen-cli-docs.mjs` |
+| Chat row coverage check | `app/scripts/check-cli-rows.ts`, `app/tests/repo/oculusCliRows.test.ts` |
+
+## Every command gets a chat row
+
+A new command path gets its own entry in `app/src/lib/harness/oculusCli.ts`,
+which words its row in chat, or a place in that file's `cliExclusions` with the
+reason it never runs from chat. Nested verbs need exact entries too: a
+family's entry (`studio voices`, `memory`) covers only its own path, and must be
+marked `group` so the lookup walks on to its verbs; otherwise an unknown verb
+would borrow the family's wording.
+
+`app/scripts/check-cli-rows.ts` reads the paths from the generated
+[cli-reference.md](./cli-reference.md) and prints one warning block naming
+missing rows, stale keys, stale exclusions and wrong `group` flags. Dev
+preflight runs it after regenerating the reference; `tests/repo/oculusCliRows.test.ts`
+runs it in CI, where the block is a warning annotation on `oculusCli.ts`.
+A gap never fails either. A missing reference, one that doesn't parse as clap
+help, or one with fewer than 110 command paths fails the test; preflight
+reports it and carries on. How chat uses the registry is in
+[harness.md](./harness.md#the-timeline-never-re-renders-per-token).
 
 ## What a command writes decides how careful it is
 

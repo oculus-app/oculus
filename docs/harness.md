@@ -515,7 +515,10 @@ still update the picker.
   `app/src/lib/harness/oculusCli.ts` supplies the icon, verb, emphasised subject
   and bundle tally. The running verb shimmers beside a steady icon. The same
   widget check reads “Checking widget” in the thread list and “Checked widget”
-  on completion. Expanding the row shows the command and its output.
+  on completion. Expanding the row shows the command and its output. A new
+  command gets its own entry or an exclusion with its reason; dev preflight
+  and CI warn about any command without one
+  ([cli.md](./cli.md#every-command-gets-a-chat-row)).
 - A memory write reports creation, metadata update, body replacement, no change
   or refusal when its result identifies one. A missing result at the end of a
   run reads “Command stopped”. Failed calls and refused student-owned writes
