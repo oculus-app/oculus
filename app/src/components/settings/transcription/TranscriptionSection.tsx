@@ -269,13 +269,13 @@ function LanguageRow({ language, speech, defaultLocale, disabled, onChange }: {
 /** A language's flag, or a globe for Auto-detect. Windows draws flag emoji
  *  as two letters, so it shows none. */
 function LanguageMark({ value }: { value: string }) {
-  if (value === "auto") return <Globe aria-hidden size={14} className="shrink-0 text-muted-foreground" />;
-  const flag = isWindows ? null : localeFlag(value);
-  return flag ? (
-    <span aria-hidden className="w-3.5 shrink-0 text-center text-[13px] leading-none">
-      {flag}
+  const flag = value === "auto" || isWindows ? null : localeFlag(value);
+  if (value !== "auto" && !flag) return null;
+  return (
+    <span aria-hidden className="flex w-[18px] shrink-0 justify-center text-[13px] leading-none">
+      {flag ?? <Globe size={14} className="text-muted-foreground" />}
     </span>
-  ) : null;
+  );
 }
 
 /**
