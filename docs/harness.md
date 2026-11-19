@@ -2934,11 +2934,13 @@ Memory lives in `agents/` — `TASTE.md`, `memories/`, `memories/<CODE>/`
 `AGENTS.template.md` owns the read, write and answer guidance;
 `TASTE.template.md` owns which preferences earn a standing instruction.
 
-`oculus memory` (`app/src-tauri/src/agents/memory/`, [cli.md](./cli.md)) writes
-file and index together. A bucket keeps `CAP` (12) memories; a new name past
-the cap is refused with a list of its existing pages. `append` adds or
-`--replace`s a line; `fold` rewrites overlapping pages with a supplied body,
-and `move` honours the cap. `list` shows each bucket's fullness.
+`oculus memory` (`app/src-tauri/src/agents/memory/`) writes file and index
+together. A bucket keeps `CAP` (12) memories. A new name past the cap is
+refused with a list of the existing pages. `append` adds or edits a line,
+`write --replace` authorizes a whole-body rewrite, and `fold` merges
+overlapping pages with a supplied body. `move` honours the cap and `list`
+shows each bucket's fullness. See the
+[write outcomes and refusal format](./cli.md#memory-writes-protect-existing-text).
 
 The shared instructions do not prescribe an order between answering and memory saves or other tool work. Rendered fence
 placement comes from the app brief's Output section; skills refer to that

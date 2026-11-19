@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::bucket::bucket_dir;
-use super::frontmatter::{parse, render, Entry, Front};
+use super::frontmatter::{parse_with_body_suffix, render_front, Entry, Front};
 use super::query::{find, list};
 use super::slug::humanize;
 use super::write::{ensure_room, Written};
@@ -52,6 +52,15 @@ pub fn relocate(data_dir: &Path, entry: &Entry, to: Option<&str>) -> Result<Writ
 /// The index is derived, so an entry cannot go missing or linger. Prose above
 /// the generated block is kept.
 pub fn reindex(data_dir: &Path, code: Option<&str>) -> Result<usize, String> {
+    refresh_index(data_dir, code, true)
+}
+
+/// A retry can repair the derived index without changing any memory files.
+pub(super) fn refresh_index(
+    data_dir: &Path,
+    code: Option<&str>,
+    fill_missing_frontmatter: bool,
+) -> Result<usize, String> {
     let dir = bucket_dir(data_dir, code);
     let path = dir.join(INDEX_NAME);
     let old = std::fs::read_to_string(&path).unwrap_or_default();
@@ -74,7 +83,9 @@ pub fn reindex(data_dir: &Path, code: Option<&str>) -> Result<usize, String> {
             let inherited_title = inherited.get(&file).map(String::as_str);
             // Stamp what the file is missing (a hand-written index title, undated
             // creation) into it once, so the index derives from files alone.
-            backfill(&e.path, inherited_title);
+            if fill_missing_frontmatter {
+                backfill(&e.path, inherited_title);
+            }
             let title = match (&e.front.title, inherited_title) {
                 (Some(title), _) => title.clone(),
                 (None, Some(title)) => title.to_string(),
@@ -86,7 +97,9 @@ pub fn reindex(data_dir: &Path, code: Option<&str>) -> Result<usize, String> {
             ));
         }
     }
-    std::fs::write(&path, out).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    if out != old {
+        std::fs::write(&path, out).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    }
     Ok(entries.len())
 }
 
@@ -135,7 +148,7 @@ fn backfill(path: &str, title: Option<&str>) {
     let Ok(text) = std::fs::read_to_string(path) else {
         return;
     };
-    let Some((mut front, body)) = parse(&text) else {
+    let Some((mut front, body_suffix)) = parse_with_body_suffix(&text) else {
         return;
     };
     let mut touched = false;
@@ -154,7 +167,7 @@ fn backfill(path: &str, title: Option<&str>) {
     }
     if touched {
         order_meta(&mut front);
-        let _ = std::fs::write(path, render(&front, &body));
+        let _ = std::fs::write(path, render_front(&front) + body_suffix);
     }
 }
 

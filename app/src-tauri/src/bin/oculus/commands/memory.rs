@@ -115,24 +115,35 @@ impl Ctx {
             description: args.about.clone(),
             kind: args.r#type.clone(),
             body,
+            replace: args.replace,
             why: args.why.clone(),
             how: args.how.clone(),
             source: args.source.clone(),
             links: args.link.clone(),
             extra,
         };
-        let written = memory::write(&self.data_dir, bucket.as_deref(), spec)?;
+        let result = match memory::write(&self.data_dir, bucket.as_deref(), spec) {
+            Ok(result) => result,
+            Err(error) => fail_write(self.json, error),
+        };
 
         if self.json {
-            return self.emit(&written);
+            return self.emit(&result);
         }
+        let written = result.written;
+        let outcome = match result.outcome {
+            memory::WriteOutcome::Created => "created",
+            memory::WriteOutcome::MetadataUpdated => "metadata updated",
+            memory::WriteOutcome::BodyReplaced => "body replaced",
+            memory::WriteOutcome::Unchanged => "unchanged",
+        };
         let where_ = written
             .subject
             .clone()
             .unwrap_or_else(|| "across subjects".into());
         println!(
             "{} {} in {where_} ({})",
-            paint(if written.created { "wrote" } else { "updated" }, GREEN),
+            paint(outcome, GREEN),
             written.name,
             fullness(written.indexed)
         );
@@ -351,6 +362,35 @@ impl Ctx {
             );
         }
         Ok(())
+    }
+}
+
+fn fail_write(json: bool, error: memory::WriteError) -> ! {
+    let message = error.to_string();
+    match error {
+        memory::WriteError::BodyReplacementRequired { current_body } => {
+            let human = format!(
+                "{message}\n\nCurrent body:\n{}",
+                current_body.trim_end_matches('\n')
+            );
+            crate::fail_with_json(json, &human, || {
+                serde_json::json!({
+                    "error": message,
+                    "code": "body_replacement_required",
+                    "current_body": current_body,
+                })
+            })
+        }
+        memory::WriteError::InvalidExistingMemory { path } => {
+            crate::fail_with_json(json, &message, || {
+                serde_json::json!({
+                    "error": message,
+                    "code": "invalid_existing_memory",
+                    "path": path,
+                })
+            })
+        }
+        memory::WriteError::Other(_) => crate::fail(json, &message),
     }
 }
 

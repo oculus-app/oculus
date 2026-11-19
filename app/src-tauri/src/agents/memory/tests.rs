@@ -8,7 +8,7 @@ use super::frontmatter::{parse, render};
 use super::maintain::{reindex, relocate, remove};
 use super::query::{find, list};
 use super::slug::slug;
-use super::write::{write, WriteSpec};
+use super::write::{write, WriteError, WriteOutcome, WriteSpec};
 use super::{CAP, INDEX_NAME};
 
 fn scratch(name: &str) -> Scratch {
@@ -41,7 +41,8 @@ fn a_memory_and_its_index_are_written_together() {
     )
     .unwrap();
 
-    let file = std::fs::read_to_string(&out.path).unwrap();
+    assert_eq!(out.outcome, WriteOutcome::Created);
+    let file = std::fs::read_to_string(&out.written.path).unwrap();
     assert!(
         file.starts_with("---\n"),
         "front matter is written for the caller"
@@ -62,7 +63,7 @@ fn a_memory_and_its_index_are_written_together() {
         index.contains("Wants the verdict first"),
         "and the hook is the description"
     );
-    assert_eq!(out.indexed, 1);
+    assert_eq!(out.written.indexed, 1);
 }
 
 /// Derived, not appended, so a deletion is complete.
@@ -96,7 +97,7 @@ fn the_index_is_derived_from_the_files_beside_it() {
 fn a_name_already_filed_is_updated_and_keeps_what_was_not_passed() {
     let root = scratch("upsert");
     let first = write(&root, None, spec("A fact", "The body.", "reference")).unwrap();
-    assert!(first.created);
+    assert!(first.written.created);
 
     // Passing the name says "this one"; a derived name from a new line is a new memory.
     let second = write(
@@ -109,10 +110,11 @@ fn a_name_already_filed_is_updated_and_keeps_what_was_not_passed() {
         },
     )
     .unwrap();
-    assert!(!second.created, "the same name is one memory, not two");
-    assert_eq!(second.indexed, 1);
+    assert_eq!(second.outcome, WriteOutcome::MetadataUpdated);
+    assert!(!second.written.created);
+    assert_eq!(second.written.indexed, 1);
 
-    let file = std::fs::read_to_string(&second.path).unwrap();
+    let file = std::fs::read_to_string(&second.written.path).unwrap();
     assert!(file.contains("A better line"), "the new line landed");
     assert!(
         file.contains("The body."),
@@ -121,12 +123,216 @@ fn a_name_already_filed_is_updated_and_keeps_what_was_not_passed() {
     assert!(file.contains("type: reference"), "and so did the type");
 }
 
+#[test]
+fn a_body_replacement_requires_permission_and_refusal_changes_nothing() {
+    let root = scratch("replace");
+    let created = write(
+        &root,
+        None,
+        spec("A fact", "First line.\n- Keep this.", "reference"),
+    )
+    .unwrap();
+    let path = created.written.path;
+    let index_path = bucket_dir(&root, None).join(INDEX_NAME);
+    let original = std::fs::read(&path).unwrap();
+    let original_index = std::fs::read(&index_path).unwrap();
+
+    let update = || WriteSpec {
+        name: Some("a-fact".into()),
+        description: Some("A different description".into()),
+        body: Some("First line.".into()),
+        ..Default::default()
+    };
+    let err = write(&root, None, update()).unwrap_err();
+    assert!(matches!(
+        err,
+        WriteError::BodyReplacementRequired { current_body }
+            if current_body == "First line.\n- Keep this.\n"
+    ));
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+    assert_eq!(std::fs::read(&index_path).unwrap(), original_index);
+
+    let replaced = write(
+        &root,
+        None,
+        WriteSpec {
+            replace: true,
+            ..update()
+        },
+    )
+    .unwrap();
+    assert_eq!(replaced.outcome, WriteOutcome::BodyReplaced);
+    assert_eq!(
+        find(&root, "a-fact", None).unwrap().body.as_deref(),
+        Some("First line.\n")
+    );
+    assert!(index(&root, None).contains("A different description"));
+}
+
+#[test]
+fn comparison_uses_the_final_body_including_why_how_and_links() {
+    let root = scratch("additions");
+    write(&root, None, spec("A fact", "The body.", "reference")).unwrap();
+
+    for extra in [
+        WriteSpec {
+            why: Some("The reason.".into()),
+            ..Default::default()
+        },
+        WriteSpec {
+            how: Some("The application.".into()),
+            ..Default::default()
+        },
+        WriteSpec {
+            links: vec!["related-fact".into()],
+            ..Default::default()
+        },
+    ] {
+        let err = write(
+            &root,
+            None,
+            WriteSpec {
+                name: Some("a-fact".into()),
+                ..extra
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, WriteError::BodyReplacementRequired { .. }));
+    }
+
+    let full = "The body.\n\n**Why:** The reason.\n\n**How to apply:** The application.\n\nSee also [[related-fact]].";
+    write(&root, None, spec("A second fact", full, "feedback")).unwrap();
+    let out = write(
+        &root,
+        None,
+        WriteSpec {
+            name: Some("a-second-fact".into()),
+            body: Some("  The body.\n".into()),
+            why: Some("The reason.".into()),
+            how: Some("The application.".into()),
+            links: vec!["related-fact".into()],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(out.outcome, WriteOutcome::Unchanged);
+}
+
+#[test]
+fn identical_and_metadata_only_writes_preserve_the_existing_body_bytes() {
+    let root = scratch("identical");
+    let created = write(&root, None, spec("A fact", "The body.", "reference")).unwrap();
+    let path = created.written.path;
+    let original = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("\n\nThe body.\n", "\n\n\n  The body.  \n\n");
+    std::fs::write(&path, &original).unwrap();
+    let original_index = index(&root, None);
+
+    let out = write(
+        &root,
+        None,
+        WriteSpec {
+            name: Some("a-fact".into()),
+            body: Some("The body.\n".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(out.outcome, WriteOutcome::Unchanged);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    assert_eq!(index(&root, None), original_index);
+
+    std::fs::remove_file(bucket_dir(&root, None).join(INDEX_NAME)).unwrap();
+    let retry = write(
+        &root,
+        None,
+        WriteSpec {
+            name: Some("a-fact".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(retry.outcome, WriteOutcome::Unchanged);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    assert_eq!(index(&root, None), original_index);
+
+    let out = write(
+        &root,
+        None,
+        WriteSpec {
+            name: Some("a-fact".into()),
+            title: Some("A title".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(out.outcome, WriteOutcome::MetadataUpdated);
+    assert!(std::fs::read_to_string(&path)
+        .unwrap()
+        .ends_with("\n\n\n  The body.  \n\n"));
+}
+
+#[test]
+fn filling_an_empty_body_does_not_require_replace() {
+    let root = scratch("empty");
+    let dir = bucket_dir(&root, None);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("a-fact.md");
+    std::fs::write(
+        &path,
+        "---\nname: a-fact\ndescription: A fact\nmetadata:\n  type: reference\n---\n\n  \n",
+    )
+    .unwrap();
+
+    let out = write(&root, None, spec("A fact", "New text.", "reference")).unwrap();
+    assert_eq!(out.outcome, WriteOutcome::BodyReplaced);
+    assert!(!out.written.created);
+    assert_eq!(
+        find(&root, "a-fact", None).unwrap().body.as_deref(),
+        Some("New text.\n")
+    );
+}
+
+#[test]
+fn an_invalid_existing_file_is_never_overwritten() {
+    let root = scratch("invalid");
+    let dir = bucket_dir(&root, None);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("a-fact.md");
+    let index_path = dir.join(INDEX_NAME);
+    let original_index = b"# Existing index\n";
+    std::fs::write(&index_path, original_index).unwrap();
+
+    for original in [
+        &b"Existing text with no front matter.\n"[..],
+        &b"---\nname: a-fact\n---invalid fence\n"[..],
+        &b"\xff\xfe"[..],
+    ] {
+        std::fs::write(&path, original).unwrap();
+        for replace in [false, true] {
+            let err = write(
+                &root,
+                None,
+                WriteSpec {
+                    replace,
+                    ..spec("A fact", "Would overwrite it.", "reference")
+                },
+            )
+            .unwrap_err();
+            assert!(matches!(err, WriteError::InvalidExistingMemory { .. }));
+            assert_eq!(std::fs::read(&path).unwrap(), original);
+            assert_eq!(std::fs::read(&index_path).unwrap(), original_index);
+        }
+    }
+}
+
 /// Instruction types must carry a reason and an application.
 #[test]
 fn an_instruction_memory_without_its_why_is_refused() {
     let root = scratch("why");
     let err = write(&root, None, spec("Prefers bun", "Uses bun.", "feedback")).unwrap_err();
-    assert!(err.contains("--why"), "{err}");
+    assert!(err.to_string().contains("--why"), "{err}");
 
     let ok = write(
         &root,
@@ -138,7 +344,7 @@ fn an_instruction_memory_without_its_why_is_refused() {
         },
     )
     .unwrap();
-    let file = std::fs::read_to_string(&ok.path).unwrap();
+    let file = std::fs::read_to_string(&ok.written.path).unwrap();
     assert!(file.contains("**Why:** npm writes"));
     assert!(file.contains("**How to apply:** Reach for bun"));
 }
@@ -288,7 +494,7 @@ fn a_write_that_names_nothing_takes_a_name_from_its_line() {
         ),
     )
     .unwrap();
-    assert_eq!(out.name, "ed-answers-are-the-marking-authority");
+    assert_eq!(out.written.name, "ed-answers-are-the-marking-authority");
 
     assert_eq!(
         slug("INFO30006 — Week 3 (slides)"),
@@ -420,14 +626,18 @@ fn a_full_bucket_refuses_a_new_memory_but_not_an_update() {
     fill(&root, None, CAP);
 
     let err = write(&root, None, spec("One more", "Episode.", "reference")).unwrap_err();
-    assert!(err.contains(&format!("keeps {CAP} at most")), "{err}");
     assert!(
-        err.contains("fact-number-0"),
+        err.to_string().contains(&format!("keeps {CAP} at most")),
+        "{err}"
+    );
+    assert!(
+        err.to_string().contains("fact-number-0"),
         "the refusal names what is filed: {err}"
     );
 
     let mut update = spec("Fact number 3", "Rewritten.", "reference");
     update.name = Some("fact-number-3".into());
+    update.replace = true;
     assert!(
         write(&root, None, update).is_ok(),
         "a name already filed is still an update"
@@ -530,10 +740,29 @@ fn fold_writes_one_memory_and_deletes_its_sources() {
     assert!(index.contains("early-facts.md") && !index.contains("fact-number-1.md"));
     assert!(find(&root, "fact-number-0", None).is_err());
 
+    let out = fold(
+        &root,
+        None,
+        &["early-facts".into(), "fact-number-3".into()],
+        WriteSpec {
+            name: Some("early-facts".into()),
+            body: Some("What all four have in common.".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(!out.written.created);
+    assert_eq!(out.removed, ["fact-number-3"]);
+    assert_eq!(out.written.indexed, CAP - 3);
+    assert_eq!(
+        find(&root, "early-facts", None).unwrap().body.as_deref(),
+        Some("What all four have in common.\n")
+    );
+
     let err = fold(
         &root,
         None,
-        &["fact-number-3".into()],
+        &["fact-number-5".into()],
         WriteSpec {
             name: Some("fact-number-4".into()),
             ..Default::default()
