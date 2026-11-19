@@ -159,6 +159,7 @@ libc = "0.2.189"
 # `oculus grep` searches PDF page text, which lives only in the database —
 # ripgrep over the library on disk cannot see it. Already in the lock tree.
 regex = "1"
+shlex = "2"
 ring = "0.17"
 
 # The MinerU cloud client, ported from the Python sidecar (see src/parse/).

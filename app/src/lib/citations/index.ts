@@ -12,6 +12,7 @@ export {
   fullCitation,
   parseCitation,
   parsedSourceOf,
+  splitLibraryHref,
 } from "./parse";
 export type { Citation, CitationShape, CiteLocation, LineRange } from "./parse";
 export * from "./prose";

@@ -18,8 +18,8 @@ import { WidgetFence } from "@/components/markdown/widget/WidgetFence";
 import { OutputEmbed, embedKind } from "@/components/markdown/OutputEmbed";
 import { attachmentPath, attachmentSrc } from "@/lib/harness/attachments";
 import { useDataDir } from "@/hooks/backend/useDataDir";
-import { parseCitation, remarkProsePaths } from "@/lib/citations";
-import { libraryPath, openLibraryPath } from "@/lib/files/openFile";
+import { fullCitation, parseCitation, remarkProsePaths, splitLibraryHref } from "@/lib/citations";
+import { openCitation, openLibraryPath } from "@/lib/files/openFile";
 import { cn } from "@/lib/utils";
 
 // Imported here so every markdown renderer gets it; unlayered, so `.katex`
@@ -125,10 +125,12 @@ function LibraryImage({ path, alt }: { path: string; alt?: string }) {
  */
 function MdImage({ src, alt, ...p }: any) {
   const raw = typeof src === "string" ? src : "";
-  const path = attachmentPath(raw) ?? libraryPath(raw);
-  if (path && embedKind(path)) return <OutputEmbed path={path} alt={alt} />;
-  if (path) return <FileChip path={path} onClick={(newTab) => openLibraryPath(path, newTab)} />;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(raw))
+  const { path: pathname, query, hash } = splitLibraryHref(raw);
+  const cite = fullCitation(raw);
+  const path = attachmentPath(pathname) ?? cite?.path;
+  if (path && embedKind(path)) return <OutputEmbed key={raw} path={path} alt={alt} suffix={query + hash} />;
+  if (path) return <FileChip path={path} onClick={(newTab) => openCitation(cite ?? { path }, newTab)} />;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^file:/i.test(raw))
     return (
       <img className="max-w-full max-h-80 rounded-lg my-3 border border-border" src={raw} alt={alt} {...p} />
     );

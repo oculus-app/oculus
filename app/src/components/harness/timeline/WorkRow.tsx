@@ -29,7 +29,8 @@ import type { Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { CodeText, CompactMd } from "@/components/markdown/MdComponents";
 import { ImageLightbox } from "@/components/ui/lightbox/Lightbox";
-import { isImagePath } from "@/lib/harness/attachments";
+import { useDataDir } from "@/hooks/backend/useDataDir";
+import { readPicturePath } from "./readPicture";
 import {
   describeOculusCli,
   latestThought,
@@ -231,8 +232,11 @@ function args(input: unknown): [string, string][] {
 
 /** A Read of a picture shows the picture. Only paths under the asset scope
  *  (`tauri.conf.json`) load; anything else fails and falls back to the args. */
-function ReadPicture({ path, onFail }: { path: string; onFail: () => void }) {
+function ReadPicture({ raw, fallback }: { raw: string; fallback: React.ReactNode }) {
+  const path = readPicturePath(raw, useDataDir());
+  const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
+  if (!path || failed) return fallback;
   const src = convertFileSrc(path);
   return (
     <>
@@ -246,7 +250,7 @@ function ReadPicture({ path, onFail }: { path: string; onFail: () => void }) {
         <img
           src={src}
           alt={path}
-          onError={onFail}
+          onError={() => setFailed(true)}
           className="block max-h-72 w-auto max-w-full"
         />
       </button>
@@ -312,12 +316,10 @@ export const ToolRow = memo(function ToolRow({
   const entries = args(meta.input);
   const isCommand = kind === "bash" || kind === "oculus_cli";
   const command = isCommand
-    ? entries.find(([k]) => k === "command")?.[1]
+    ? (meta.name === "commandExecution" && item.content) || entries.find(([key]) => key === "command")?.[1]
     : undefined;
-  const [pictureFailed, setPictureFailed] = useState(false);
-  const readPath =
-    kind === "read" ? entries.find(([k]) => k === "file_path" || k === "path")?.[1] : undefined;
-  const picture = readPath && !pictureFailed && isImagePath(readPath) ? readPath : null;
+  const input = meta.input as Record<string, unknown> | null;
+  const readPath = kind === "read" && (input?.file_path ?? input?.path ?? input?.Path ?? input?.AbsolutePath);
   // An `oculus …` call says what it did ("Saved a memory"); its command
   // stays in the detail below.
   const cliActions = useMemo(
@@ -328,6 +330,7 @@ export const ToolRow = memo(function ToolRow({
   // A plain command is its own label; the detail is then its output alone.
   const label = !cli && command ? command : undefined;
   const lead = label ? undefined : command ?? (entries.length > 0 ? entries.map(([k, v]) => `${k}: ${v}`).join("\n") : undefined);
+  const detail = lead || output ? <ToolDetail lead={lead} output={output} /> : null;
   // The CLI decided this call itself (Auto's reviewer, or a deny rule);
   // said quietly, never asked.
   const review = reviewView(meta.review);
@@ -356,11 +359,7 @@ export const ToolRow = memo(function ToolRow({
       }
     >
       {review && <ReviewNote review={review} />}
-      {picture ? (
-        <ReadPicture path={picture} onFail={() => setPictureFailed(true)} />
-      ) : lead || output ? (
-        <ToolDetail lead={lead} output={output} />
-      ) : null}
+      {typeof readPath === "string" ? <ReadPicture key={readPath} raw={readPath} fallback={detail} /> : detail}
     </RowShell>
   );
 });

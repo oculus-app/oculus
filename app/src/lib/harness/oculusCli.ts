@@ -363,9 +363,10 @@ function describeStudio(action: string | undefined): CliAction {
 export function describeOculusCli(line: string): CliAction[] {
   const out: CliAction[] = [];
   for (const words of shellCommands(line)) {
+    if (words[0] === "cd") continue;
     // `oculus` or a path to it, within the first three words like Rust's
     // `is_oculus_cli` (behind `VAR=x` or `time`).
-    const at = words.findIndex((w, i) => i < 3 && isOculus(w));
+    const at = words.findIndex((w, i) => i < 3 && !/^[a-zA-Z_]\w*=/.test(w) && isOculus(w));
     if (at < 0) continue;
     const rest = words.slice(at + 1);
     const sub: string[] = [];

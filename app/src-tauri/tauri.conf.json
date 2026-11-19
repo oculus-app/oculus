@@ -33,6 +33,7 @@
           "allow": [
             "$APPDATA/courses/**",
             "$APPDATA/agents/**",
+            "$APPDATA/whiteboard-pages/**",
             "$APPDATA/studio/videos/**"
           ],
           "requireLiteralLeadingDot": false

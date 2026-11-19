@@ -111,7 +111,7 @@
         "id": "exec-68d68d18-ef70-4234-8310-393a012bf528",
         "kind": "bash",
         "name": "commandExecution",
-        "title": "/bin/zsh -lc ls",
+        "title": "ls",
         "input": {
           "command": "/bin/zsh -lc ls",
           "cwd": "/Users/tanatchanwangsa/Library/Application Support/com.tchan.oculus"
@@ -309,7 +309,7 @@
       "thread_id": 1,
       "kind": "tool",
       "ref_id": "exec-68d68d18-ef70-4234-8310-393a012bf528",
-      "content": "/bin/zsh -lc ls",
+      "content": "ls",
       "meta": "{\"kind\":\"bash\",\"name\":\"commandExecution\",\"input\":{\"command\":\"/bin/zsh -lc ls\",\"cwd\":\"/Users/tanatchanwangsa/Library/Application Support/com.tchan.oculus\"},\"ok\":null,\"output\":null}",
       "created_at": "2026-11-15 04:49:34",
       "anchor": null,

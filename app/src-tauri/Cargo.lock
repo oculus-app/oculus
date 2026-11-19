@@ -3942,6 +3942,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "shlex",
  "sqlx",
  "tauri",
  "tauri-plugin-opener",

@@ -4,9 +4,9 @@ import { useDataDir } from "@/hooks/backend/useDataDir";
 import { attachmentSrc } from "@/lib/harness/attachments";
 import { basename, sourceOf } from "@/components/markdown/embed/shared";
 
-export function EmbedImage({ path, alt }: { path: string; alt?: string }) {
+export function EmbedImage({ path, alt, suffix = "" }: { path: string; alt?: string; suffix?: string }) {
   const dataDir = useDataDir();
-  const src = attachmentSrc(dataDir, path);
+  const src = dataDir ? attachmentSrc(dataDir, path) + suffix : "";
   const [broken, setBroken] = useState(false);
   const [open, setOpen] = useState(false);
   const label = alt || basename(path);
@@ -14,13 +14,13 @@ export function EmbedImage({ path, alt }: { path: string; alt?: string }) {
   // The alt or filename, never WebKit's broken-image glyph.
   if (broken)
     return (
-      <span data-md={sourceOf(path, alt)} title={path} className="text-muted-foreground">
+      <span data-md={sourceOf(path + suffix, alt)} title={path} className="text-muted-foreground">
         {label}
       </span>
     );
 
   return (
-    <span data-md={sourceOf(path, alt)} className="my-3 block">
+    <span data-md={sourceOf(path + suffix, alt)} className="my-3 block">
       <button
         type="button"
         onClick={() => setOpen(true)}
