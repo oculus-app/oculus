@@ -15,6 +15,17 @@ pub fn component_rule(message: &str) -> bool {
         || message.contains("omits required prop")
 }
 
+/// The slide-look and length errors (`small_text`, `sparse`,
+/// `scene_title`, `long_scene`, `long_video`): renderer fixtures are small
+/// frames and toy scenes, not videos, so tests about other rules filter
+/// these out.
+pub fn look_rule(kind: &str) -> bool {
+    matches!(
+        kind,
+        "small_text" | "sparse" | "scene_title" | "long_scene" | "long_video"
+    )
+}
+
 pub fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")

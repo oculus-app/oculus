@@ -64,6 +64,7 @@ pub(super) fn check(look: &SceneLook, shown: &[Vec<Entity>], out: &mut Vec<Warni
     done.sort_by(|a, b| a.from.total_cmp(&b.from).then(a.label.cmp(&b.label)));
     for r in done {
         out.push(Warning {
+            error: false,
             kind: "off_frame",
             noun: "off-frame node",
             short: format!("{} {}", r.label, span(r.from, r.to)),

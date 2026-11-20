@@ -5,7 +5,7 @@
 
 use super::limits::BACKGROUND;
 use super::walk::{Visit, walk};
-use crate::layout::LNode;
+use crate::layout::{LNode, TextLayout};
 use crate::paint::{fit, trim};
 use crate::scene::{Align, Dim, Kind, PathSpec, Position};
 use std::collections::hash_map::DefaultHasher;
@@ -43,6 +43,11 @@ pub(crate) struct Item {
     /// Under a camera: a frame-filling ancestor that zooms, which crops
     /// on purpose.
     pub framed: bool,
+    /// A Text's or a Math's Box's `fontSize` in frame px, its transforms'
+    /// scale included.
+    pub font: Option<f64>,
+    /// A Text's string.
+    pub text: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -84,6 +89,8 @@ pub(crate) fn items(layers: &[LNode]) -> Vec<Item> {
                 pieces: math_box.then(|| n.children.len().saturating_sub(1)),
                 math: ctx.math,
                 framed: ctx.framed,
+                font: (n.text.is_some() || math_box).then(|| font(v)),
+                text: n.text.as_ref().map(|(k, _)| k.text().to_owned()),
             });
         }
         let camera = n.style.scale.is_some_and(|z| z != 1.0) && n.rect.area() >= BACKGROUND * frame;
@@ -97,27 +104,55 @@ pub(crate) fn items(layers: &[LNode]) -> Vec<Item> {
 }
 
 /// What a node inks, in frame px: its border box for a fill, border,
-/// shadow, text or image, and a path's own outline (as trimmed, stroke
-/// included), not the box it is fitted into, since a full-frame path box
-/// is common.
+/// shadow or image; its lines for text, not the box a Stack stretches it
+/// to; and a path's own outline (as trimmed, stroke included), not the box
+/// it is fitted into, since a full-frame path box is common.
 fn inked(v: &Visit<'_>) -> Rect {
     let n = v.node;
     let s = &n.style;
     let boxed = s.fill.is_some()
         || s.shadow.is_some()
         || s.border.as_ref().is_some_and(|b| b.width > 0.0)
-        || n.image.is_some()
-        || n.text.is_some();
+        || n.image.is_some();
     let own = boxed.then(|| v.bounds());
+    let text = n
+        .text
+        .as_ref()
+        .and_then(|(_, layout)| lines(layout, n.content))
+        .map(|r| v.transform.transform_rect_bbox(r));
     let path = n
         .path
         .as_deref()
         .and_then(|p| outline(p, n.content))
         .map(|r| v.transform.transform_rect_bbox(r));
-    match (own, path) {
-        (Some(a), Some(b)) => a.union(b),
-        (a, b) => a.or(b).unwrap_or(Rect::ZERO),
-    }
+    [own, text, path]
+        .into_iter()
+        .flatten()
+        .reduce(|a, b| a.union(b))
+        .unwrap_or(Rect::ZERO)
+}
+
+/// A text layout's lines in layout px, each from its aligned start to its
+/// end less trailing space, and from its top to its bottom; `None` for no
+/// line.
+fn lines(layout: &TextLayout, content: Rect) -> Option<Rect> {
+    layout
+        .lines()
+        .map(|line| {
+            let m = line.metrics();
+            let x0 = f64::from(m.offset);
+            let x1 = x0 + f64::from((m.advance - m.hanging_advance).max(0.0));
+            let (y0, y1) = (f64::from(m.block_min_coord), f64::from(m.block_max_coord));
+            Rect::new(x0, y0, x1, y1)
+        })
+        .reduce(|a, b| a.union(b))
+        .map(|r| r + content.origin().to_vec2())
+}
+
+/// A node's `fontSize` (16 when unset, as layout reads it) in frame px.
+fn font(v: &Visit<'_>) -> f64 {
+    let size = f64::from(v.node.style.font_size.unwrap_or(16.0).max(0.0));
+    size * v.transform.determinant().abs().sqrt()
 }
 
 /// A path's painted outline in layout px: the whole path when filled, its

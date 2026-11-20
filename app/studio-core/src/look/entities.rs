@@ -28,6 +28,8 @@ pub(crate) struct Entity {
     pub boxes: Vec<Rect>,
     /// Every node of it is under a camera (`Item::framed`).
     pub framed: bool,
+    /// Its smallest shown Text or Math, frame px, and the Text's string.
+    pub font: Option<(f64, Option<String>)>,
 }
 
 /// Whether an item is shown content.
@@ -56,6 +58,7 @@ pub(crate) fn entities(sample: &Sample, frame: (f64, f64), component: &str) -> V
                 math: None,
                 boxes: Vec::new(),
                 framed: true,
+                font: None,
             });
             hashes.push((DefaultHasher::new(), DefaultHasher::new()));
             out.len() - 1
@@ -65,6 +68,15 @@ pub(crate) fn entities(sample: &Sample, frame: (f64, f64), component: &str) -> V
         e.boxes.push(item.bbox);
         e.opacity = e.opacity.max(item.opacity);
         e.framed &= item.framed;
+        let font = match item.math {
+            Some(m) => sample.items[m].font.map(|f| (f, None)),
+            None => item.font.map(|f| (f, item.text.clone())),
+        };
+        if let Some((f, text)) = font
+            && e.font.as_ref().is_none_or(|(g, _)| f < *g)
+        {
+            e.font = Some((f, text));
+        }
         hashes[i].0.write_u64(item.ink);
         hashes[i].1.write_u64(item.form);
         if let Some(m) = item.math {
@@ -88,7 +100,7 @@ pub(crate) fn entities(sample: &Sample, frame: (f64, f64), component: &str) -> V
     out
 }
 
-fn label(item: &Item, component: &str) -> String {
+pub(crate) fn label(item: &Item, component: &str) -> String {
     if item.keyed {
         return format!("`{}`", item.entity);
     }

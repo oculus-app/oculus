@@ -22,8 +22,8 @@ export interface VoiceSettings {
   speed: number;
 }
 
-/** Rust's `voice::DEFAULT_SPEED`: a little under the voice's own pace. */
-export const DEFAULT_SPEED = 0.9;
+/** Rust's `voice::DEFAULT_SPEED`: the voice's own pace. */
+export const DEFAULT_SPEED = 1;
 
 /** The slider's range; Rust accepts any positive speed. */
 export const SPEED_MIN = 0.5;

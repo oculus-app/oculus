@@ -57,7 +57,8 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 | `scenes` | The scenes in order (below). At least one. |
 | `motion` | Optional: `transition`, `magicMove`, `morphColor`, `motionBlur` for the whole video (see "Transitions"). |
 | `voice` | Optional: `{ model, voice, speed }` over Settings → Studio → Narration for this video. Leave it out unless the student asks for a voice. |
-| `captions` | `true` burns word-highlight captions into the renders and `frame`: the phrase being said on a plate near the bottom edge, the current word highlighted. `new` writes `true`; leave it unless the student asks. Styled by the theme's `captions` tokens. |
+| `captions` | `true` burns word-highlight captions into the renders and `frame`: the phrase being said on a plate near the bottom edge, the current word highlighted. `new` leaves it out (off; the player's CC reads the `.vtt` every narrated render writes); set it only when the student asks. Styled by the theme's `captions` tokens. |
+| `long` | `true` when the student asked for a long video: lint's `long_video` does not apply. |
 
 A scene:
 
@@ -811,13 +812,23 @@ message, word, phonemes, guessed, review }`, `review` being `null` or the
 word's suggestion, `{ status: "pending" | "wrong", reading, note }`. Read
 `message`: it says what is wrong and what is valid.
 
+These errors are what makes a video read as slides. Each names the time
+span and the words said in it:
+
+| `kind` | What it means | What to do |
+| --- | --- | --- |
+| `small_text` | A Text or Math is set under 1/27 of the frame's shorter side (40 px at 1080p) for over a second, transforms included; the chat player is about 600 px wide, where 40 px reads as 12 px | Set it at 40 px or more (`type.h2` and up), or drop it and say it: a label the narration says need not be written. |
+| `sparse` | For over 3 s, everything shown fits in a box under 60% of the frame's width or 50% of its height (a stroke or label counts by its box, not its ink); a `TitleCard` is exempt | Draw the main element larger and centred, or put what it is about beside it; one big picture, not a small one in an empty frame. |
+| `scene_title` | A Text centred in the top 15% of the frame stays for over 80% of the scene, outside a `TitleCard` | Cut it. Say the idea in the narration, and let the picture's own labels name what it shows. |
+| `long_scene` | The scene's narration runs over 30 s | Split it into scenes of one beat each, or cut what the picture already says. |
+| `long_video` | Over 4 narrated scenes, or over 150 s, and `video.json` has no `"long": true` | One video answers one question in 60-120 s: cut to that, or leave the rest for a later part. Set `"long": true` only when the student asked for a long video. |
+
 Warnings name the time span and the words said in it:
 
 | `kind` | What it means | What to do |
 | --- | --- | --- |
 | `off_frame` | A node sits more than 4 px past the frame's edge (not while sliding in or out, not under a `Camera` zoom) | Move or shrink it inside the frame. |
-| `still` | Narration plays over more than 2.5 s where nothing on screen changes (not counting `[pause]` silences), or nothing is on screen by 0.5 s | Cue something to those words: a highlight, a rewrite, the next element. |
-| `half_frame` | For more than 3 s, everything sits in one half of the frame | Spread the picture, or put the next element in the empty half. |
+| `still` | Narration plays over more than 8 s where nothing on screen changes (not counting `[pause]` silences), or nothing is on screen by 0.5 s | A hold of a few seconds is fine while the words explain what is shown; past 8 s, cue the next change to its words. Never add a pop-in only to break a hold. |
 | `fragment` | At the end, a Math shows only one or two of its pieces (a stray `= .` from a rewrite), or a tiny mark sits alone | Hide the whole Math, or finish the rewrite; remove the mark. |
 
 | `kind` | What it means | What to do |

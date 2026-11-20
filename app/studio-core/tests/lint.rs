@@ -28,12 +28,13 @@ fn clean_projects_lint_clean() {
         let report = Project::load(fixture(name)).unwrap().lint().unwrap();
         // The renderer fixtures paint literal colours on purpose (their
         // goldens pin those pixels); the token rules are checked below.
-        // Warnings are about how a scene looks, which some fixtures
-        // stretch on purpose (a background alone).
+        // How a scene looks is not theirs to get right: some stretch it on
+        // purpose (a background alone), and none is a video.
         let other: Vec<_> = report
             .issues
             .iter()
             .filter(|i| i.level == LintLevel::Error && !common::component_rule(&i.to_string()))
+            .filter(|i| !common::look_rule(i.error.kind()))
             .collect();
         assert!(other.is_empty(), "{name}: {report}");
     }
@@ -293,7 +294,13 @@ fn monospace_outside_a_code_component_is_a_note() {
     )
     .unwrap();
     let report = Project::load(&dir).unwrap().lint().unwrap();
-    assert!(report.is_clean(), "{report}");
+    assert!(
+        report
+            .issues
+            .iter()
+            .all(|i| i.level != LintLevel::Error || common::look_rule(i.error.kind())),
+        "{report}"
+    );
     let notes: Vec<_> = report
         .issues
         .iter()

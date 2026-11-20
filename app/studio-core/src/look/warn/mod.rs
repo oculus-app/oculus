@@ -1,22 +1,29 @@
 //! The mechanical checks a director would otherwise make by eye on a
-//! strip, as warnings: something past the frame's edge (`off_frame`), dead
-//! air (`still`), everything in one half (`half`), and a leftover fragment
-//! at the end (`fragment`). Each names the time span and the words said in
-//! it. Thresholds are in `limits`.
+//! strip. Three are errors, the look of a slide: type too small for the
+//! chat player (`small_text`), content in a small part of the frame
+//! (`sparse`) and a title held at the top (`scene_title`). Three are
+//! warnings: something past the frame's edge (`off_frame`), dead air
+//! (`still`) and a leftover fragment at the end (`fragment`). Each names
+//! the time span and the words said in it. Thresholds are in `limits`.
 
 mod fragment;
-mod half;
 mod off_frame;
+mod scene_title;
+mod small_text;
+mod sparse;
 mod still;
 
 use super::entities::{Entity, entities};
 use super::sample::SceneLook;
 
-/// One warning about a scene.
+/// One finding about how a scene looks.
 #[derive(Clone, Debug)]
 pub struct Warning {
-    /// `off_frame`, `still`, `half_frame` or `fragment`.
+    /// `small_text`, `sparse`, `scene_title`, `off_frame`, `still` or
+    /// `fragment`.
     pub kind: &'static str,
+    /// It fails lint (the first three kinds); the rest are warnings.
+    pub error: bool,
     /// What one is called in a grouped line: `off-frame node`.
     pub noun: &'static str,
     /// It in a few words, for a grouped line.
@@ -25,7 +32,7 @@ pub struct Warning {
 }
 
 impl SceneLook {
-    /// Every warning, in the order of the checks.
+    /// Every finding, errors first, in the order of the checks.
     pub fn warnings(&self) -> Vec<Warning> {
         let shown: Vec<Vec<Entity>> = self
             .samples
@@ -33,9 +40,11 @@ impl SceneLook {
             .map(|s| entities(s, self.size, &self.component))
             .collect();
         let mut out = Vec::new();
+        small_text::check(self, &shown, &mut out);
+        sparse::check(self, &shown, &mut out);
+        scene_title::check(self, &mut out);
         off_frame::check(self, &shown, &mut out);
         still::check(self, &shown, &mut out);
-        half::check(self, &shown, &mut out);
         fragment::check(self, &shown, &mut out);
         out
     }

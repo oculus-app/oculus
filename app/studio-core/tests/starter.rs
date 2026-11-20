@@ -2,10 +2,13 @@
 //! themes: token use, required props, and every scene renders.
 #![allow(clippy::unwrap_used, clippy::panic)] // helpers outside #[test] fns
 
+mod common;
+
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use studio_core::{
-    Engine, Library, Project, RenderOptions, STARTER_COMPONENTS, Size, Theme, seed_library,
+    Engine, Library, LintLevel, Project, RenderOptions, STARTER_COMPONENTS, Size, Theme,
+    seed_library,
 };
 
 /// A video with one scene per starter component (its first example's
@@ -94,6 +97,10 @@ export default (_p, { theme }) => (
     });
     std::fs::write(root.join("video.json"), v.to_string()).unwrap();
     let report = Project::load(&root).unwrap().lint().unwrap();
-    assert!(report.is_clean(), "{report}");
+    let errors = report
+        .issues
+        .iter()
+        .filter(|i| i.level == LintLevel::Error && !common::look_rule(i.error.kind()));
+    assert_eq!(errors.count(), 0, "{report}");
     std::fs::remove_dir_all(&root).ok();
 }

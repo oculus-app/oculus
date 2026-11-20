@@ -2062,11 +2062,15 @@ will: a missing `g2p-en-us` pack, a lexicon entry that is not valid, a word with
 phonemes or a sentence too long for Kokoro is an error.
 
 Each scene that renders is then laid out every 0.2 s and at each cue word (never
-painted) for warnings: a node past the frame's edge (`off_frame`), narration over a
-frame where nothing changes for more than 2.5 s or an empty opening (`still`),
-everything kept small in one half of the frame for more than 3 s (`half_frame`), and a
-Math down to a piece or two, or a tiny mark alone, at the end (`fragment`). Each names
-its time span and the words said in it.
+painted). The slide look is an error: a Text or Math under 1/27 of the frame's shorter
+side (40 px at 1080p) for over a second (`small_text`), everything shown in a box under
+60% of the frame's width or 50% of its height for over 3 s (`sparse`), and a Text in the
+top 15% for over 80% of a scene outside `TitleCard` (`scene_title`). So is a scene whose
+narration runs over 30 s (`long_scene`) and a video of over 4 narrated scenes or 150 s
+without `"long": true` (`long_video`). Warnings: a node past the frame's edge
+(`off_frame`), narration over a frame where nothing changes for more than 8 s or an
+empty opening (`still`), and a Math down to a piece or two, or a tiny mark alone, at the
+end (`fragment`). Each names its time span and the words said in it.
 
 Three levels: `error` (exits 1, so it can gate a render), `warning` and `note` (a word
 the aligner was unsure of, a word Kokoro's guesser read); warnings and notes never

@@ -6,6 +6,7 @@
 //! problem instead of stopping at the first, each tagged with its scene,
 //! scene id and component.
 
+mod long;
 mod look;
 mod narration;
 mod props;
@@ -32,8 +33,8 @@ const LINT_SCALE: f64 = 0.25;
 pub enum Level {
     /// Stops a render, or breaks a rule: `oculus studio lint` exits 1.
     Error,
-    /// How a scene looks over time (`look::warn`): worth a fix, never
-    /// fails a lint.
+    /// How a scene looks over time (`look::warn`, other than the slide
+    /// look): worth a fix, never fails a lint.
     Warning,
     /// Worth a listen or a look, such as a word the aligner was unsure of.
     Note,
@@ -200,6 +201,9 @@ impl Project {
         }
         report.video = report.issues.len();
         script::lint(self, &mut report);
+        if scope.is_none() {
+            long::video(self, &mut report);
+        }
         // Scoped, only the scene and the one before it (for the transition).
         let wanted = |i: usize| scope.is_none_or(|s| i == s || i + 1 == s);
         for (index, scene) in scenes.iter().enumerate() {
@@ -211,6 +215,9 @@ impl Project {
             let issue = |error| LintIssue::scene(self, index, error);
             let stage = self.staged(index);
             narration::lint(self, index, &mut report);
+            if scope.is_none_or(|s| s == index) {
+                long::scene(self, index, &mut report);
+            }
             let length = stage.as_ref().map_or(f64::INFINITY, |s| s.length);
             let stage = stage.map_err(|e| report.issues.push(issue(e))).ok();
             let into = transitions[index]

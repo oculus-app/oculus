@@ -1,6 +1,6 @@
-//! Lint's warnings: how each scene that renders cleanly looks over time
-//! (`crate::look`). A layout that fails mid-scene is an error, since the
-//! two renders at the ends missed it.
+//! How each scene that renders cleanly looks over time (`crate::look`):
+//! the slide look as errors, the rest as warnings. A layout that fails
+//! mid-scene is an error, since the two renders at the ends missed it.
 
 use super::{Level, LintIssue, LintReport};
 use crate::error::StudioError;
@@ -19,7 +19,9 @@ pub(super) fn lint(project: &Project, scenes: &[usize], report: &mut LintReport)
                             message: w.message,
                         },
                     );
-                    issue.level = Level::Warning;
+                    if !w.error {
+                        issue.level = Level::Warning;
+                    }
                     issue.group = Some((w.noun, w.short));
                     report.issues.push(issue);
                 }

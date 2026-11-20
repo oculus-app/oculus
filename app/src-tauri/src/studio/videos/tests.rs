@@ -274,7 +274,7 @@ fn captions_are_switched_in_the_text() {
 }
 
 #[test]
-fn a_new_video_burns_captions_in() {
+fn a_new_video_burns_no_captions_in() {
     let root = Scratch::new("videos-captions");
     let dir = create_in(
         &root,
@@ -284,7 +284,9 @@ fn a_new_video_burns_captions_in() {
         },
     )
     .unwrap();
-    let video: Video =
-        serde_json::from_str(&std::fs::read_to_string(dir.join("video.json")).unwrap()).unwrap();
-    assert!(video.captions);
+    let text = std::fs::read_to_string(dir.join("video.json")).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert!(json.get("captions").is_none(), "{text}");
+    let video: Video = serde_json::from_str(&text).unwrap();
+    assert!(!video.captions);
 }

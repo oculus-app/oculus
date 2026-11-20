@@ -136,8 +136,8 @@ pub enum StudioError {
         source: Box<StudioError>,
     },
 
-    /// A lint warning about how a scene looks over time (`look::warn`);
-    /// `kind` names the check.
+    /// A lint finding about how a scene looks over time (`look::warn`) or
+    /// how long a scene or the video runs; `kind` names the check.
     #[error("{message}")]
     Look { kind: &'static str, message: String },
 

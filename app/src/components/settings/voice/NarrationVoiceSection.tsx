@@ -170,7 +170,7 @@ export function NarrationVoiceSection() {
             />
           )}
 
-          <SettingRow label="Speed" hint="Default: 0.9×." error={errors.speed}>
+          <SettingRow label="Speed" hint={`Default: ${DEFAULT_SPEED.toFixed(1)}×.`} error={errors.speed}>
             <div className="flex w-80 max-w-full items-center gap-3">
               <Slider
                 aria-label="Narration speed"

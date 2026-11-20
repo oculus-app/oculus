@@ -19,6 +19,12 @@ fn over(model: Option<&str>, voice: Option<&str>, speed: Option<f64>) -> VoiceOv
 }
 
 #[test]
+fn a_new_install_narrates_at_the_voices_own_pace_and_a_stored_speed_wins() {
+    assert_eq!(settings_from(None).speed, 1.0);
+    assert_eq!(settings_from(Some(r#"{"speed":0.9}"#)).speed, 0.9);
+}
+
+#[test]
 fn the_row_reads_with_defaults_on_missing_or_bad_values() {
     assert_eq!(settings_from(None), VoiceSettings::default());
     assert_eq!(settings_from(Some("not json")), VoiceSettings::default());

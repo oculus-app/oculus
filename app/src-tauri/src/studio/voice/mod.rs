@@ -19,9 +19,9 @@ pub use studio_core::VoiceEngine as Engine;
 /// The settings row's key.
 pub const SETTINGS_KEY: &str = "voice";
 
-/// A little under the voice's own pace: a lecture is easier to follow
-/// slow, and a player speeds it up.
-pub const DEFAULT_SPEED: f64 = 0.9;
+/// The voice's own pace: a short video reads as talk, not dictation, and
+/// its `[pause]`s give the beats to think.
+pub const DEFAULT_SPEED: f64 = 1.0;
 
 /// What `narrate` says when no engine is chosen anywhere. There is no
 /// default: Kokoro needs a download, a server needs a URL.
