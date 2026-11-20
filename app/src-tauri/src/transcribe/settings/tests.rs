@@ -191,3 +191,36 @@ fn an_unknown_forced_engine_is_refused_before_anything_is_read() {
         format!("no engine called vosk — it is {}", ENGINES.join(", "))
     );
 }
+
+#[test]
+fn dictation_cleanup_is_groq_with_a_fallback_unless_a_known_model_is_stored() {
+    use crate::transcribe::cleanup::{Choice, Engine};
+    let cleanup = |row: &str| settings(row).cleanup;
+    let clean = |first, fallback| Choice::Clean { first, fallback };
+    assert_eq!(settings_from(None).cleanup, Choice::DEFAULT);
+    assert_eq!(Choice::DEFAULT, clean(Engine::Groq, true));
+    // `auto` was the default's stored name; a model named alone had no fallback.
+    assert_eq!(cleanup(r#"{"cleanup":"auto"}"#), clean(Engine::Groq, true));
+    assert_eq!(cleanup(r#"{"cleanup":"groq"}"#), clean(Engine::Groq, false));
+    assert_eq!(
+        cleanup(r#"{"cleanup":"s1Mini"}"#),
+        clean(Engine::S1Mini, false)
+    );
+    assert_eq!(
+        cleanup(r#"{"cleanup":"s1Mini","cleanupFallback":true}"#),
+        clean(Engine::S1Mini, true)
+    );
+    assert_eq!(
+        cleanup(r#"{"cleanup":"groq","cleanupFallback":false}"#),
+        clean(Engine::Groq, false)
+    );
+    assert_eq!(
+        cleanup(r#"{"cleanup":"off","cleanupFallback":true}"#),
+        Choice::Off
+    );
+    assert_eq!(cleanup(r#"{"cleanup":"vosk"}"#), Choice::DEFAULT);
+    assert_eq!(
+        cleanup(r#"{"cleanup":7,"cleanupFallback":"yes"}"#),
+        Choice::DEFAULT
+    );
+}

@@ -11,3 +11,5 @@ mod images;
 mod modules;
 mod output;
 mod videos;
+
+pub use ed_workspace::Mirrored;

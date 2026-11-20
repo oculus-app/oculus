@@ -167,7 +167,7 @@ pub fn run(
 
 pub(super) struct Heard {
     pub(super) segments: Vec<Segment>,
-    engine: &'static str,
+    pub(super) engine: &'static str,
     chunks: usize,
 }
 

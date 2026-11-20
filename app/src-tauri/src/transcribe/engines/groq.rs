@@ -4,12 +4,14 @@
 //! otherwise straight to Groq with the keychain's key (`settings::groq_auth`).
 //! Both routes hand `transcribe` the same `RawResponse`. Dictation cleanup
 //! (`transcribe::cleanup`) posts its chat completion through [`Groq::chat`].
+//! Every successful answer's rate-limit headers are kept (`groq_usage`).
 
 use std::path::Path;
 
 use crate::providers::credentials::{Credentialed, KeydError, RawResponse};
 use crate::runtime::multipart::{self, FilePart};
 
+use crate::transcribe::groq_usage::{self, Role};
 use crate::transcribe::{audio, Engine, EngineError, Segment};
 
 const BASE_URL: &str = "https://api.groq.com/openai/v1";
@@ -17,7 +19,7 @@ const BASE_URL: &str = "https://api.groq.com/openai/v1";
 const CLOUD_PATH: &str = "/openai/v1";
 const TRANSCRIPTIONS_PATH: &str = "/audio/transcriptions";
 const CHAT_PATH: &str = "/chat/completions";
-const MODEL: &str = "whisper-large-v3-turbo";
+pub(in crate::transcribe) const MODEL: &str = "whisper-large-v3-turbo";
 
 /// Groq's free tier refuses uploads over 25 MB. Spans are cut by time, so a
 /// dense stretch of speech can run past its share; the margin absorbs that.
@@ -57,16 +59,36 @@ impl Groq {
         }
     }
 
-    /// One POST of a JSON chat completion request; the caller reads the status.
-    pub(in crate::transcribe) fn chat(&self, body: &[u8]) -> Result<RawResponse, EngineError> {
-        self.post(CHAT_PATH, "application/json", body)
+    /// One POST of a JSON chat completion request for `model`; the caller
+    /// reads the status.
+    pub(in crate::transcribe) fn chat(
+        &self,
+        model: &str,
+        body: &[u8],
+    ) -> Result<RawResponse, EngineError> {
+        self.post((Role::Cleanup, model), CHAT_PATH, "application/json", body)
     }
 
     /// One POST of `body` to `path` (under `BASE_URL`) by this client's
-    /// route. A status is an answer, whatever it is; the caller reads it. No
-    /// timeout on either route: an hour of audio is a long upload and a long
-    /// answer.
+    /// route, for `model` in its role. A status is an answer, whatever it is;
+    /// the caller reads it. A successful one's rate-limit headers are kept as
+    /// the model's latest reading. No timeout on either route: an hour of
+    /// audio is a long upload and a long answer.
     fn post(
+        &self,
+        (role, model): (Role, &str),
+        path: &str,
+        content_type: &str,
+        body: &[u8],
+    ) -> Result<RawResponse, EngineError> {
+        let response = self.send(path, content_type, body)?;
+        if response.status < 400 {
+            groq_usage::record(role, model, &response.headers);
+        }
+        Ok(response)
+    }
+
+    fn send(
         &self,
         path: &str,
         content_type: &str,
@@ -178,6 +200,7 @@ impl Engine for Groq {
         );
 
         let response = self.post(
+            (Role::Transcription, MODEL),
             TRANSCRIPTIONS_PATH,
             &multipart::content_type(&boundary),
             &body,
@@ -508,5 +531,110 @@ mod tests {
                 other => panic!("{wire}: expected a failure, got {other:?}"),
             }
         }
+    }
+
+    /// Groq's rate-limit headers as `forward` or the fake server carry them.
+    const LIMITS: [(&str, &str); 6] = [
+        ("x-ratelimit-limit-requests", "2000"),
+        ("x-ratelimit-remaining-requests", "1986"),
+        ("x-ratelimit-reset-requests", "2m59.56s"),
+        ("x-ratelimit-limit-tokens", "6000"),
+        ("x-ratelimit-remaining-tokens", "5800"),
+        ("x-ratelimit-reset-tokens", "7.66s"),
+    ];
+
+    fn assert_read(reading: &groq_usage::Reading, role: Role, model: &str) {
+        assert_eq!((reading.role, reading.model.as_str()), (role, model));
+        assert_eq!(reading.requests_limit, Some(2000));
+        assert_eq!(reading.requests_remaining, Some(1986));
+        assert!((reading.requests_reset.unwrap() - 179.56).abs() < 1e-9);
+        assert_eq!(reading.tokens_limit, Some(6000));
+        assert_eq!(reading.tokens_remaining, Some(5800));
+        assert_eq!(reading.tokens_reset, Some(7.66));
+    }
+
+    /// Both routes, in one test: they share the transcription model's reading.
+    #[test]
+    fn a_transcriptions_rate_limit_headers_are_kept_on_both_routes() {
+        let server = FakeServer::start(|_| {
+            LIMITS.iter().fold(
+                Reply::json(json!({"segments": [{"start": 0.0, "end": 1.0, "text": " Hi."}]})),
+                |reply, (k, v)| reply.with_header(k, v),
+            )
+        });
+        let dir = Scratch::new("groq-usage-direct");
+        let audio = dir.join("part.ogg");
+        std::fs::write(&audio, b"OggS").unwrap();
+        let groq = Groq::at(Auth::Direct("gsk_test".into()), server.origin());
+        let mark = groq_usage::mark();
+        groq.transcribe(&audio).unwrap();
+        assert_read(
+            &groq_usage::since(MODEL, mark).expect("direct reading"),
+            Role::Transcription,
+            MODEL,
+        );
+
+        let (groq, _keyd, dir) = through_keyd(|| {
+            forwarded(
+                200,
+                json!(LIMITS),
+                &json!({"segments": [{"start": 0.0, "end": 1.0, "text": " Hi."}]}),
+            )
+        });
+        let mark = groq_usage::mark();
+        groq.transcribe(&dir.join("part.ogg")).unwrap();
+        assert_read(
+            &groq_usage::since(MODEL, mark).expect("keyd reading"),
+            Role::Transcription,
+            MODEL,
+        );
+    }
+
+    #[test]
+    fn a_chats_rate_limit_headers_are_kept_on_both_routes() {
+        let body = json!({"choices": [{"message": {"content": "Hi."}, "finish_reason": "stop"}]});
+        let answer = body.clone();
+        let server = FakeServer::start(move |_| {
+            LIMITS
+                .iter()
+                .fold(Reply::json(answer.clone()), |reply, (k, v)| {
+                    reply.with_header(k, v)
+                })
+        });
+        let groq = Groq::at(Auth::Direct("gsk_test".into()), server.origin());
+        let mark = groq_usage::mark();
+        groq.chat("test/chat-direct", b"{}").unwrap();
+        assert_read(
+            &groq_usage::since("test/chat-direct", mark).unwrap(),
+            Role::Cleanup,
+            "test/chat-direct",
+        );
+
+        let (groq, _keyd, _dir) = through_keyd(move || forwarded(200, json!(LIMITS), &body));
+        groq.chat("test/chat-keyd", b"{}").unwrap();
+        assert_read(
+            &groq_usage::since("test/chat-keyd", mark).unwrap(),
+            Role::Cleanup,
+            "test/chat-keyd",
+        );
+    }
+
+    #[test]
+    fn a_refusal_keeps_no_reading() {
+        let server = FakeServer::start(|_| {
+            LIMITS.iter().fold(
+                Reply::status(429, json!({"error": {"message": "Rate limit reached"}})),
+                |reply, (k, v)| reply.with_header(k, v),
+            )
+        });
+        let groq = Groq::at(Auth::Direct("gsk_test".into()), server.origin());
+        let mark = groq_usage::mark();
+        assert_eq!(groq.chat("test/chat-refused", b"{}").unwrap().status, 429);
+        assert!(groq_usage::since("test/chat-refused", mark).is_none());
+
+        let (groq, _keyd, _dir) =
+            through_keyd(|| forwarded(429, json!(LIMITS), &json!({"error": {}})));
+        assert_eq!(groq.chat("test/chat-refused", b"{}").unwrap().status, 429);
+        assert!(groq_usage::since("test/chat-refused", mark).is_none());
     }
 }

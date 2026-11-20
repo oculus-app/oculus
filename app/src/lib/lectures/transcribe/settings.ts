@@ -4,6 +4,31 @@ import { DEFAULT_ENGINE_ORDER, type TranscribeEngine } from "./engines";
 // Rust reads it at the start of every run (`settings_from` in
 // `app/src-tauri/src/transcribe/settings/mod.rs`); the two parsers move together.
 
+/** The model that tidies dictation, or `off` to insert it as heard. */
+export type CleanupModel = "groq" | "s1Mini" | "off";
+
+/** How dictation is tidied (`Choice` in
+ *  `app/src-tauri/src/transcribe/cleanup/mod.rs`): the model, and whether
+ *  the other one answers when it is not set up or fails. Stored as `cleanup`
+ *  and `cleanupFallback`. */
+export interface CleanupChoice {
+  model: CleanupModel;
+  fallback: boolean;
+}
+
+/** Groq with S1-mini behind it. */
+export const DEFAULT_CLEANUP: CleanupChoice = { model: "groq", fallback: true };
+
+/** Mirrors `Choice::from_setting`: a missing or unknown model (and `auto`,
+ *  the default's older name) is Groq; a missing fallback is on for the
+ *  default and off for a model stored by name. */
+function parseCleanup(model: unknown, fallback: unknown): CleanupChoice {
+  const stored = typeof fallback === "boolean" ? fallback : null;
+  if (model === "off") return { model: "off", fallback: false };
+  if (model === "groq" || model === "s1Mini") return { model, fallback: stored ?? false };
+  return stored === null ? DEFAULT_CLEANUP : { model: "groq", fallback: stored };
+}
+
 export interface TranscribeSettings {
   /** Each engine once, in the order a run tries them. */
   order: TranscribeEngine[];
@@ -13,6 +38,7 @@ export interface TranscribeSettings {
   groq: { enabled: boolean };
   whisper: { enabled: boolean; model: string | null };
   apple: { enabled: boolean };
+  cleanup: CleanupChoice;
 }
 
 const TRANSCRIBE_KEY = "transcribe";
@@ -41,7 +67,8 @@ function resolveOrder(stored: unknown): TranscribeEngine[] {
 
 /**
  * The row as Rust reads it: a missing or mistyped value is its default — the
- * default order, every engine on, the default language, the picked model —
+ * default order, every engine on, the default language, the picked model,
+ * Groq tidying dictation with S1-mini as its fallback —
  * and without a top-level `language`, the older `apple.locale`, then
  * `whisper.language`, stands in for it.
  */
@@ -57,6 +84,7 @@ export function parseTranscribeSettings(row: Json): TranscribeSettings {
     groq: { enabled: enabled(groq) },
     whisper: { enabled: enabled(whisper), model: text(whisper.model) },
     apple: { enabled: enabled(apple) },
+    cleanup: parseCleanup(row.cleanup, row.cleanupFallback),
   };
 }
 
@@ -81,6 +109,7 @@ export interface TranscribeSettingsPatch {
   groq?: { enabled: boolean };
   whisper?: { enabled?: boolean; model?: string | null };
   apple?: { enabled: boolean };
+  cleanup?: CleanupChoice;
 }
 
 /**
@@ -100,6 +129,10 @@ export async function writeTranscribeSettings(
     const { language: __, ...whisper } = object(row.whisper);
     if ("apple" in row) next.apple = apple;
     if ("whisper" in row) next.whisper = whisper;
+  }
+  if (patch.cleanup) {
+    next.cleanup = patch.cleanup.model;
+    next.cleanupFallback = patch.cleanup.fallback;
   }
   for (const engine of ["groq", "whisper", "apple"] as const) {
     const part = patch[engine];

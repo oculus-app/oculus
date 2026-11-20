@@ -13,6 +13,7 @@ Read this before any UI work.
 | Platform detection and shortcut labels | `app/src/lib/platform.ts` |
 | Text selection scopes | `app/src/styles/base.css`, `app/src/lib/ui/selectScope.ts` |
 | shadcn primitives (flat) | `app/src/components/ui/` |
+| Toast shell (see below) | `app/src/components/ui/Toast.tsx` |
 | Composites built on them | `app/src/components/ui/layout/`, `app/src/components/ui/table/`, `app/src/components/ui/search/`, `app/src/components/ui/lightbox/` |
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
@@ -219,7 +220,8 @@ themes are opt-in and keep the same structure.
   `@phosphor-icons/react`.
 - **Icons are Phosphor.** One Phosphor lacks is drawn in
   `app/src/components/icons/` on its `IconBase`, so it takes the same `size`
-  and `weight` props. The drawing editor's tool rail is the one exception: its
+  and `weight` props: opencode's mark, Groq's bolt (`GroqIcon`, the logo
+  without its wordmark) and Superwhisper's mark (`SuperwhisperIcon`). The drawing editor's tool rail is the one exception: its
   tools are coloured drawings in `app/src/components/whiteboard/toolArt/`
   ([drawing-whiteboard.md](./drawing-whiteboard.md#the-bars-are-docked-beside-the-drawing)).
 - **A CLI agent's mark is in its vendor's colours** (`ProviderMark`, files in
@@ -426,10 +428,30 @@ themes are opt-in and keep the same structure.
   Drive's browser, whose 48px header holds the toggle, the trail from Files,
   the folder search and New.
 - **View preferences use `useStoredState`**, with readers that own defaults and validation; `useStoredSet` keeps collapsed group keys. Storage failures leave the live view usable.
-- **No toasts, no bottom progress bars** — background jobs surface in the
+- **Toasts are allowed for short notices that need nothing back**: top
+  centre, dismissed by themselves after a few seconds (paused while hovered),
+  with a × ringed by the countdown. A failure or anything that asks for a decision stays inline where
+  it happened. **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
+  News is said in place: in the card, on a line by the control, or in a
+  `BannerLane` card.
+- **Every toast uses `Toast`** (`app/src/components/ui/Toast.tsx`), whose
+  first use is Groq's allowance after a dictation (`GroqUsageToast`,
+  [harness.md](./harness.md#dictation-adds-an-editable-message-to-the-draft)).
+  It is portalled to the body and fixed at
+  the top centre, below the tab strip and the page's 48px header row, so it
+  never moves layout or covers a title: a
+  `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
+  wide at most unless the caller's `className` reshapes it (Groq's is a
+  content-wide pill). It drops in and lifts out (`toast-enter`, `toast-exit` in
+  `utilities.css`; reduced motion fades only, and the entrance leaves no
+  transform behind), is `role="status"` with `aria-live="polite"`, closes
+  after 6 s with the timer paused while hovered or focused, on Escape or
+  its `ToastClose`, and only the newest stays open. `ToastClose` is the ×
+  inside a ring that drains clockwise over those 6 s and holds while the
+  timer does (`toast-countdown`, a stroke animation, so no layer of its own).
   No placeholder UI, section-header icons or filler; stat cards only where
   the figures are the point (Home's Activity).
 - Slugs display through `humanizeSlug`, Canvas codes through `displayCode`

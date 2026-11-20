@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileViewer } from "@/components/files/FileViewer";
 import type { DbFile } from "@/lib/db";
-import { defaultSlide, isChallengeSlide, slideFiles, slideKey, slideWorkspace, type LessonIndex } from "@/lib/ed/lessons";
+import { defaultSlide, isChallengeSlide, slideFiles, slideKey, slideMdPath, slideWorkspace, type LessonIndex } from "@/lib/ed/lessons";
 import { useLiveLessonIndex } from "@/lib/ed/slideStatus";
 import { markSlideOpened } from "@/lib/ed/views";
+import { resyncWorkspace } from "@/lib/ed/workspace";
 import { openFileSmart, recordFileAccess } from "@/lib/files/openFile";
 import { LessonSidebar } from "./LessonSidebar";
 import { ChallengeHeader, type ChallengeView } from "./ChallengeHeader";
@@ -59,6 +60,12 @@ export function LessonView({
   // Each slide opens on its description: a view picked on another slide is moot.
   const [picked, setPicked] = useState<{ slide: number; view: ChallengeView } | null>(null);
   const view: ChallengeView = picked?.slide === selected ? picked.view : "description";
+  const slideMd = slideMdPath(file, slide);
+  const challengeId = slide.challengeId;
+  const resync =
+    challengeId != null && slideMd
+      ? () => resyncWorkspace({ subjectId: file.subject_id, challengeId, title: slide.title, slideMd })
+      : undefined;
 
   // Each slide opened clears its never-opened mark, as a file page does.
   const mdId = md?.id;
@@ -88,7 +95,14 @@ export function LessonView({
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {challenge && (
-          <ChallengeHeader view={view} onView={(v) => setPicked({ slide: selected, view: v })} edUrl={slide.url} />
+          /* Keyed, so a resync's outcome stays with its slide. */
+          <ChallengeHeader
+            key={`strip:${selected}`}
+            view={view}
+            onView={(v) => setPicked({ slide: selected, view: v })}
+            edUrl={slide.url}
+            onResync={resync}
+          />
         )}
         {challenge && view === "workspace" ? (
           <WorkspacePane key={selected} entries={slideWorkspace(file, slide, files)} files={files} />

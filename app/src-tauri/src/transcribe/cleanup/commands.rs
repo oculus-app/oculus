@@ -9,22 +9,25 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use super::s1::{self, model, server, S1};
-use super::{groq, run, GroqRoute};
+use super::{first_engine, groq, run, warms_s1, Choice, GroqRoute};
 use crate::runtime::download_events::download_with_events;
 use crate::runtime::onnx::{self, Status};
+use crate::transcribe::dictation::Dictated;
 use crate::transcribe::engines::groq::Groq;
+use crate::transcribe::groq_usage;
 
 /// Display only, never persisted.
 pub const S1_PROGRESS_EVENT: &str = "dictation-s1-progress";
 
 const MAX_TRANSCRIPT_BYTES: usize = 100_000;
 
-/// Whisper's code for the transcription language in Settings: `en`, `auto`
-/// or another.
-fn language() -> String {
-    crate::transcribe::settings_from(crate::db::store::setting_blocking("transcribe").as_deref())
-        .language
-        .whisper()
+/// The `transcribe` row: Whisper's code for the transcription language
+/// (`en`, `auto` or another) and the cleanup engine chosen in Settings.
+fn settings() -> (String, Choice) {
+    let settings = crate::transcribe::settings_from(
+        crate::db::store::setting_blocking("transcribe").as_deref(),
+    );
+    (settings.language.whisper(), settings.cleanup)
 }
 
 fn groq_route() -> GroqRoute<Groq> {
@@ -42,34 +45,48 @@ fn resource_dir(app: &AppHandle) -> Option<PathBuf> {
     app.path().resource_dir().ok()
 }
 
-/// The transcript as the message the speaker meant: Groq when it has a key,
-/// else S1-mini, S1-mini again when Groq fails. Empty is a valid answer for
-/// filler-only speech.
+/// The transcript as the message the speaker meant, by the engine chosen in
+/// Settings (`run`); Off returns it as heard without calling anything. Empty
+/// is a valid answer for filler-only speech. Groq's reading of its allowance
+/// rides along when Groq answered.
 #[tauri::command]
-pub async fn dictation_cleanup(app: AppHandle, transcript: String) -> Result<String, String> {
+pub async fn dictation_cleanup(app: AppHandle, transcript: String) -> Result<Dictated, String> {
     let transcript = transcript.trim().to_string();
     if transcript.is_empty() || transcript.len() > MAX_TRANSCRIPT_BYTES {
         return Err("Dictation must contain between 1 and 100,000 bytes of text.".into());
     }
     let resource_dir = resource_dir(&app);
     crate::runtime::blocking::run(move || {
-        let s1 = S1::installed(resource_dir, language());
-        run(groq_route(), s1, &transcript)
+        let (language, choice) = settings();
+        let mark = groq_usage::mark();
+        let text = run(
+            choice,
+            groq_route,
+            || S1::installed(resource_dir, language),
+            &transcript,
+        )?;
+        // Only a successful Groq answer records a reading of this model.
+        Ok(Dictated {
+            text,
+            groq_usage: groq_usage::since(groq::MODEL, mark),
+        })
     })
     .await
 }
 
 /// Load S1-mini now, when a recording starts, so its cleanup finds it ready.
-/// Does nothing when Groq has a key, S1-mini is not installed, or the
-/// transcription language is not English.
+/// Does nothing unless S1-mini is the model, or Groq's fallback with no key,
+/// nor when S1-mini is not installed or the language is not English.
 #[tauri::command]
 pub async fn dictation_warm(app: AppHandle) -> Result<(), String> {
     let resource_dir = resource_dir(&app);
     crate::runtime::blocking::run(move || {
-        if matches!(crate::providers::groq::KEY.has(), Ok(true)) {
+        let (language, choice) = settings();
+        if !warms_s1(choice, || {
+            matches!(crate::providers::groq::KEY.has(), Ok(true))
+        }) {
             return Ok(());
         }
-        let language = language();
         if !s1::would_run(&language) {
             return Ok(());
         }
@@ -84,8 +101,13 @@ pub async fn dictation_warm(app: AppHandle) -> Result<(), String> {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CleanupStatus {
-    /// What a cleanup tries first: `groq`, `s1Mini`, or `none` when neither
-    /// is set up (a cleanup then fails with what to do).
+    /// The model chosen in Settings: `groq`, `s1Mini` or `off`.
+    pub choice: &'static str,
+    /// The other model answers when the chosen one is not set up or fails.
+    pub fallback: bool,
+    /// What a cleanup tries first under that choice: `groq`, `s1Mini`, `off`,
+    /// or `none` when the choice has nothing set up (a cleanup then fails
+    /// with what to do).
     pub engine: &'static str,
     pub groq: GroqStatus,
     pub s1_mini: S1Status,
@@ -124,7 +146,7 @@ pub struct S1Status {
     pub english_only: bool,
 }
 
-/// Which engine a cleanup would use and S1-mini's state. Reads keyd or the
+/// The chosen cleanup, which engine it would use, and S1-mini's state. Reads keyd or the
 /// keychain and the disk; never calls Groq's chat endpoint.
 #[tauri::command]
 pub async fn dictation_cleanup_status(app: AppHandle) -> Result<CleanupStatus, String> {
@@ -137,12 +159,11 @@ pub async fn dictation_cleanup_status(app: AppHandle) -> Result<CleanupStatus, S
         let unavailable = s1::unavailable(resource_dir);
         let status = onnx::status(&model::dir(), &model::PACK);
         let s1_ready = unavailable.is_none() && status == Status::Present;
+        let (_, choice) = settings();
         Ok(CleanupStatus {
-            engine: match (configured, s1_ready) {
-                (true, _) => "groq",
-                (false, true) => "s1Mini",
-                (false, false) => "none",
-            },
+            choice: choice.name(),
+            fallback: choice.fallback(),
+            engine: first_engine(choice, configured, s1_ready),
             groq: GroqStatus {
                 configured,
                 model: groq::MODEL,

@@ -239,7 +239,7 @@ Its floor is macOS 13.3, upstream's own. Like `apple-speech` it is a macOS-only
 
 `bun run llama` (`app/scripts/build-llama.mjs`) builds llama.cpp's
 `llama-server`, which runs S1-mini for dictation cleanup
-([viewers.md](./viewers.md#dictation-cleanup-groq-else-s1-mini)), the way
+([viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)), the way
 `bun run whisper` builds `whisper-cli`: the release tarball named by `BUILD`
 (`b12359`), refused unless it matches `SHA256`, only the `llama-server`
 target, into `binaries/llama-server-<host triple>`, cached in

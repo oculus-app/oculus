@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { CleanupModel } from "@/lib/lectures/transcribe/settings";
 import type { AlignerProgress, AlignerState } from "@/lib/studio/aligner";
 
 // Dictation cleanup's engines (`app/src-tauri/src/transcribe/cleanup/`):
-// Groq's Qwen with the transcription key, else S1-mini on this Mac. The
-// status reads keyd or the keychain and the disk; none of these calls Groq.
+// Groq's Qwen with the transcription key and S1-mini on this Mac, as the
+// `transcribe` row's `cleanup` choice says. The status reads keyd or the
+// keychain and the disk; none of these calls Groq.
 
 /** Mirrors `S1Status`. */
 export interface S1MiniStatus {
@@ -23,9 +25,12 @@ export interface S1MiniStatus {
   englishOnly: boolean;
 }
 
-/** Mirrors `CleanupStatus`: `engine` is what a cleanup tries first. */
+/** Mirrors `CleanupStatus`: `engine` is what a cleanup tries first under the
+ *  chosen model and fallback, `none` when that choice has nothing set up. */
 export interface CleanupStatus {
-  engine: "groq" | "s1Mini" | "none";
+  choice: CleanupModel;
+  fallback: boolean;
+  engine: "groq" | "s1Mini" | "off" | "none";
   groq: { configured: boolean; model: string; error?: string };
   s1Mini: S1MiniStatus;
 }

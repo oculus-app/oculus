@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { engineLine } from "@/components/settings/transcription/DictationCleanup";
+import { fallbackLine, modelLine } from "@/components/settings/transcription/DictationCleanup";
 import type { S1MiniStatus } from "@/lib/dictation/cleanup";
+import type { CleanupChoice } from "@/lib/lectures/transcribe";
 
 const s1 = (patch: Partial<S1MiniStatus> = {}): S1MiniStatus => ({
   name: "S1-mini",
@@ -12,30 +13,58 @@ const s1 = (patch: Partial<S1MiniStatus> = {}): S1MiniStatus => ({
   englishOnly: true,
   ...patch,
 });
+const present = s1({ status: "present" });
+const groq = (fallback: boolean): CleanupChoice => ({ model: "groq", fallback });
+const local = (fallback: boolean): CleanupChoice => ({ model: "s1Mini", fallback });
+const off: CleanupChoice = { model: "off", fallback: false };
 
-describe("the dictation cleanup line", () => {
-  test("says nothing until the key and S1-mini's status have answered", () => {
-    expect(engineLine(null, s1()).text.trim()).toBe("");
-    expect(engineLine(true, null).text.trim()).toBe("");
+describe("the model's line", () => {
+  test("blank until the choice and the chosen model's status are read", () => {
+    expect(modelLine(null, true, present).text.trim()).toBe("");
+    expect(modelLine(groq(true), null, present).text.trim()).toBe("");
+    expect(modelLine(local(false), true, null).text.trim()).toBe("");
   });
 
-  test("Groq comes first with a key, S1-mini named as its fallback once downloaded", () => {
-    expect(engineLine(true, s1())).toEqual({ text: "Groq's Qwen 3.8 27B, using your Groq key.", warn: false });
-    expect(engineLine(true, s1({ status: "present" })).text).toBe(
-      "Groq's Qwen 3.8 27B, using your Groq key. S1-mini by Superwhisper steps in if Groq fails.",
-    );
+  test("Off needs nothing", () => {
+    expect(modelLine(off, null, null)).toEqual({ text: "Dictation joins your draft as heard.", warn: false });
   });
 
-  test("S1-mini answers without a key, unless it cannot run here", () => {
-    expect(engineLine(false, s1({ status: "present" }))).toEqual({
-      text: "S1-mini by Superwhisper, on this Mac.",
+  test("Groq says whether its key is there", () => {
+    expect(modelLine(groq(true), true, null)).toEqual({ text: "Runs on Groq with your key.", warn: false });
+    expect(modelLine(groq(true), false, present)).toEqual({ text: "No Groq key: add one above.", warn: true });
+  });
+
+  test("S1-mini says where it runs, and what keeps it from running", () => {
+    expect(modelLine(local(false), null, present)).toEqual({
+      text: "Runs on this Mac; dictation never goes to Groq.",
       warn: false,
     });
-    expect(engineLine(false, s1({ status: "present", unavailable: "the llama-server helper is missing" })).warn).toBe(true);
+    expect(modelLine(local(true), true, present).text).toBe("Runs on this Mac.");
+    expect(modelLine(local(false), true, s1())).toEqual({ text: "Not downloaded: download it below.", warn: true });
+    expect(modelLine(local(false), true, s1({ status: "present", unavailable: "the helper is missing" })).warn).toBe(true);
+  });
+});
+
+describe("the fallback's line", () => {
+  test("none for Off", () => {
+    expect(fallbackLine(off, true, present)).toBeNull();
+    expect(fallbackLine(null, true, present)).toBeNull();
   });
 
-  test("with neither, it warns", () => {
-    expect(engineLine(false, s1()).warn).toBe(true);
-    expect(engineLine(false, s1({ status: "downloading" })).warn).toBe(true);
+  test("names the other model, and warns only when it is on and not set up", () => {
+    expect(fallbackLine(groq(true), true, present)).toEqual({
+      text: "S1-mini by Superwhisper steps in if Groq fails or isn't set up.",
+      warn: false,
+    });
+    expect(fallbackLine(groq(false), true, s1()).warn).toBe(false);
+    expect(fallbackLine(groq(true), true, s1())).toEqual({
+      text: "S1-mini by Superwhisper steps in if Groq fails or isn't set up. Download it below to use it.",
+      warn: true,
+    });
+    expect(fallbackLine(local(true), false, present)).toEqual({
+      text: "Groq steps in if S1-mini fails or isn't set up. Add a Groq key above to use it.",
+      warn: true,
+    });
+    expect(fallbackLine(local(true), null, present)?.warn).toBe(false);
   });
 });

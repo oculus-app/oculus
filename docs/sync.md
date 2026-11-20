@@ -19,7 +19,7 @@ inside the app (on a plain thread, reporting through Tauri events) and in the
 | Echo360 Tauri commands, session cache, downloads | `app/src-tauri/src/lectures/commands.rs`, `app/src-tauri/src/lectures/mod.rs`, `app/src-tauri/src/lectures/downloads.rs` |
 | Canvas HTML → Markdown | `app/src-tauri/src/pages/md/` |
 | Where every phase writes (`synced`, `SyncedKind`), lecture folders, and the category each file gets | `app/src-tauri/src/library/layout/` ([architecture.md](./architecture.md#one-module-owns-every-path-shape-in-the-library)) |
-| App-side entry: thread + `AppReporter`; on-demand module videos and page embeds | `app/src-tauri/src/sync/scrape/` |
+| App-side entry: thread + `AppReporter`; on-demand module videos and page embeds; one challenge workspace's Resync | `app/src-tauri/src/sync/scrape/`, `app/src/lib/ed/workspace.ts` |
 | Headless DB writes, subject list state | `app/src-tauri/src/db/store/`, `app/src-tauri/src/sync/subjects.rs` |
 | Chronological term ordering (`term_sort`) | `app/src-tauri/src/sync/terms.rs` |
 | Agent docs written into the library | `app/src-tauri/src/agents/mod.rs` |
@@ -493,6 +493,23 @@ leaves the last whole lesson.
   A failed connect, socket, download or unpack is a `warning` and leaves the
   folder untouched. An empty zip empties the folder, with an `info` line.
   Local edits are never uploaded: the next sync replaces them.
+- One challenge's mirror is also fetched on its own, from the slide's Resync
+  (`ed_resync_workspace` in `app/src-tauri/src/sync/scrape/workspace.rs`,
+  `Engine::resync_workspace`). It takes the slide's `.md` path, gives back
+  the stem the sync mirrored under (only a slide two levels inside the
+  subject's lessons folder; anything else is refused before a request),
+  resolves the Ed course as the Ed phase does (`Ed::resolve_course`, which
+  renews the token or mints one through Canvas), then runs the same fetch
+  and mirror. It holds the sync's claim, so it is refused with "A sync is
+  already running" while a sync or another Resync runs, and a sync started
+  meanwhile is refused the same way. Each file is the same `scrape-file`
+  event, and only that: log lines go to the app log, and no progress,
+  `scrape-log` or `scrape-complete` is sent. The command answers the counts
+  (`Mirrored`: added, updated, unchanged, removed) or the fetch's error.
+  `resyncWorkspace` (`app/src/lib/ed/workspace.ts`) resolves with them as
+  soon as Rust answers; once the listener has written every row under the
+  folder (`FILE_SCRAPED_EVENT` carries the path, ten seconds at most) it
+  raises `WORKSPACE_RESYNCED_EVENT`, on which `useSubjectFiles` reloads.
 - Each deleted file is also a `scrape-file` event with action `removed`, the
   only phase that sends one, and its `files` row goes with it: the app's
   listener (`app/src/hooks/backend/useScrapeEvents.ts`) looks the row up by

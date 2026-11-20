@@ -117,3 +117,61 @@
     opacity: 0.3;
   }
 }
+
+/* The toast (`ui/Toast.tsx`) drops into place and lifts back out; reduced
+   motion keeps the fade alone. The entrance fills backwards only, so no
+   transform outlives it and the card's text never sits on its own layer. */
+@utility toast-enter {
+  animation: toast-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: toast-fade-enter;
+  }
+}
+
+@utility toast-exit {
+  animation: toast-exit 160ms ease-in forwards;
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: toast-fade-exit;
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@keyframes toast-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@keyframes toast-fade-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes toast-fade-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+/* `ToastClose`'s ring: the stroke runs out over the toast's duration (set
+   inline), draining back towards twelve o'clock on a `-rotate-90` circle. */
+@utility toast-countdown {
+  animation: toast-countdown linear forwards;
+}
+
+@keyframes toast-countdown {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 1;
+  }
+}

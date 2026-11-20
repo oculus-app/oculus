@@ -10,7 +10,7 @@ use super::Clean;
 use crate::transcribe::engines::groq::Groq;
 use crate::transcribe::EngineError;
 
-pub(super) const MODEL: &str = "qwen/qwen3.8-27b";
+pub(in crate::transcribe) const MODEL: &str = "qwen/qwen3.8-27b";
 
 /// Qwen's free-tier output cap is 1,000 tokens.
 const MAX_TOKENS: u32 = 900;
@@ -34,7 +34,7 @@ impl Clean for Groq {
         let body = request(transcript).to_string();
         // keyd's refusals arrive already in words (`engines::groq::keyd_error`).
         let response = self
-            .chat(body.as_bytes())
+            .chat(MODEL, body.as_bytes())
             .map_err(|e: EngineError| e.to_string())?;
         let text = String::from_utf8_lossy(&response.body);
         if response.status >= 400 {
