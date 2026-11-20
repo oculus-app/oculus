@@ -121,6 +121,7 @@ export const cliRegistry: CliEntry[] = [
   group("studio", "studio"),
   row("studio new", "studio", words("Creating", "Created", "Studio video", "{} Studio videos"), title, true),
   row("studio list", "studio", words("Listing", "Listed", "Studio videos"), subject),
+  row("studio title", "studio", words("Renaming", "Renamed", "Studio video", "{} Studio videos"), member, true),
   row("studio frame", "studio", words("Rendering", "Rendered", "a frame", "{} frames"), scene, true),
   row("studio strip", "studio", words("Rendering", "Rendered", "contact sheet", "{} contact sheets"), scene, true),
   row("studio lint", "studio", words("Checking", "Checked", "Studio scenes"), scene),

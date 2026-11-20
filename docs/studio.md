@@ -33,7 +33,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | `<Math>`: KaTeX through math-core, the layout of its HTML tree, keys, the expansion into glyphs, `<Write>`, KaTeX's brace; the KaTeX fonts | `app/studio-core/src/math/` (`walk/` one file per construct, `write.rs`, `brace.rs`), `app/studio-core/fonts/katex/` |
 | Props schemas and their validation | `app/studio-core/src/schema/` |
 | Component and theme libraries: the starter set, seeding, the snapshot write path and removal, `library.json` (a library's default theme), promoting a video's own file | `app/studio-core/src/library/`, `app/studio-core/library/` (the starter files), `app/src-tauri/src/studio/libraries/` (the app's data-dir roots, `promote.rs`, `defaults.rs`) |
-| Videos in the data directory: `new`, `list`, slug resolution, slugs from titles, the app's scope | `app/src-tauri/src/studio/videos/` (`slug.rs`), `app/src-tauri/src/library/paths/studio.rs` (`studio_dir`, `agent_write_dirs`) |
+| Videos in the data directory: `new`, `list`, slug resolution, a video's name and `title`, video.json's text edits, the app's scope | `app/src-tauri/src/studio/videos/` (`title.rs`, `edit.rs`, `captions.rs`), `app/src-tauri/src/library/paths/studio.rs` (`studio_dir`, `agent_write_dirs`) |
 | Galleries: each example of a component as a still, and its contact sheet | `app/studio-core/src/gallery/` |
 | Themes and bundled fonts | `app/studio-core/themes/`, `app/studio-core/fonts/`, `app/studio-core/src/theme/`, `app/studio-core/src/fonts/` |
 | Every error and its message | `app/studio-core/src/error.rs` |
@@ -64,6 +64,7 @@ narration/    manifest.json and the clips it names
 
 ```json
 {
+  "title": "Gradient descent",
   "size": { "width": 1920, "height": 1080 },
   "fps": 30,
   "theme": "default",
@@ -82,6 +83,9 @@ narration/    manifest.json and the clips it names
   scene-relative `t` by summing lengths (`Timeline`, from
   `Project::timeline`); a `t` past the end is an error that states the
   video's length.
+- `title` (optional) is what the video is called; studio-core only stores
+  it and refuses an empty one. No frame shows it (a title card shows its
+  own `title` prop), so it is not in a scene's fingerprint.
 - `fps` (optional, default 30) is 24, 25, 30, 50 or 60; any other value
   fails the load with the rates.
 - `id` (`[a-z0-9-]+`, unique) names the scene's section in `script.md`. It
@@ -193,7 +197,8 @@ one folder besides `agents/` and the database an agent thread may write
 ([harness.md](./harness.md#every-thread-runs-from-agents-it-writes-there-and-in-the-students-own-files)).
 
 - `oculus studio new <slug> [--subject CODE] [--title T] [--theme NAME] [--portrait] [--scratch]`
-  (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` at
+  (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` with
+  `--title` as its `title` (none without it; an empty one is refused), at
   1920x1080 (1080x1920 with `--portrait`), 30 fps, the default theme, the
   subject, `"captions": true`, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
   is `--title` or the slug with spaces; an empty `script.md`; and empty
@@ -208,10 +213,14 @@ one folder besides `agents/` and the database an agent thread may write
   folder (`--json`: `{dir, slug}`).
 - `oculus studio list [--subject CODE]` prints each video's slug, subject,
   scene count, whether `narration/manifest.json` exists (`narrated`; `lint`
-  says whether it is current), the files in `renders/` and the newest change
-  to video.json, script.md or `components/`. A folder whose video.json does
-  not parse is listed with the reason. `--json` gives `[{slug, dir,
-  subject, scenes, narrated, renders, modified, problem}]`.
+  says whether it is current), the files in `renders/`, the newest change
+  to video.json, script.md or `components/`, and its title. A folder whose
+  video.json does not parse is listed with the reason. `--json` gives
+  `[{slug, title, dir, subject, scenes, narrated, renders, modified,
+  problem}]`.
+- `oculus studio title <slug> <title>` (`videos::set_title`) renames a
+  video: it sets video.json's `title`, trimmed, and nothing else. The
+  folder and its slug, which the thread's link names, never change.
 - Every command that takes a video folder (`frame`, `strip`, `lint`,
   `gallery`, `components list|show|promote`, `themes promote`, `render`,
   `narrate`, `g2p --video`, `pronounce suggest`, `pronounce list --video`)
@@ -223,10 +232,16 @@ one folder besides `agents/` and the database an agent thread may write
   of that name, and a path must, once symlinks are followed, be a folder
   directly inside `videos/`. `videos/`, `components/` and any folder
   elsewhere are refused ("is not a video").
-- video.json has no title field. The Videos list and the detail call a video
-  by its slug spelled out (`title_of`: `gradient-descent` -> `Gradient
-  descent`); the scaffold's `TitleCard` carries `--title`, and an agent may
-  rewrite it.
+- A video's name is `videos::video_title`: video.json's `title`, else the
+  first scene's `title` prop when that scene is a `TitleCard`, else the slug
+  spelled out (`title_of`: `gradient-descent` -> `Gradient descent`). It is
+  `VideoRow::title`, which `list`, the Videos grid, the detail and the
+  chat's video card all read. The agent that makes the video names it; no
+  model is asked.
+- `title` and `captions` are written into video.json's text
+  (`videos/edit.rs`): the value replaced where the key is, else the key
+  added (`title` first, `captions` before `scenes`), so the agent's
+  formatting and key order stay as they were.
 
 ## Agent flow: a chat agent makes a video with the `oculus-studio` skill
 
@@ -2362,8 +2377,8 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
 - `oculus studio slide <DIR> <FILE>` crops a region of a library PDF page
   into the video's `assets/slides/`, and `oculus studio blocks <FILE>`
   lists the blocks to pick it by (see "Slides crop a library PDF page").
-- `oculus studio new` and `list` make and list the videos in the data
-  directory, and every command above takes a video's slug in place of its
+- `oculus studio new`, `list` and `title` make, list and rename the videos
+  in the data directory, and every command above takes a video's slug in place of its
   folder (see "Videos live in the data directory").
 
 Flags are in [cli-reference.md](./cli-reference.md#oculus-studio).

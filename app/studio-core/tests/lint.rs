@@ -157,6 +157,17 @@ fn bad_video_json_is_a_project_error() {
     );
     let project = Project::load(&dir).unwrap();
     assert_eq!(project.theme.background.r, 0.0);
+    assert_eq!(project.video.title, None);
+    write(
+        r#"{ "title": "  ", "size": { "width": 100, "height": 100 }, "theme": "default", "scenes": [{ "component": "A", "hold": 1 }] }"#,
+    );
+    let e = Project::load(&dir).err().unwrap().to_string();
+    assert!(e.contains("title is empty"), "{e}");
+    write(
+        r#"{ "title": "How Shor breaks RSA", "size": { "width": 100, "height": 100 }, "theme": "mine.json", "scenes": [{ "component": "A", "hold": 1 }] }"#,
+    );
+    let project = Project::load(&dir).unwrap();
+    assert_eq!(project.video.title.as_deref(), Some("How Shor breaks RSA"));
     std::fs::remove_dir_all(&dir).ok();
 }
 

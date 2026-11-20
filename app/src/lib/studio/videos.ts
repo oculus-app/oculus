@@ -10,6 +10,8 @@ export interface VideoRow {
   slug: string;
   /** Absolute folder. */
   dir: string;
+  /** What the video is called: video.json's `title`, else its title card's,
+   *  else the slug spelled out (`videos::video_title`). */
   title: string;
   subject: string | null;
   /** null when video.json does not load; `problem` says why. */

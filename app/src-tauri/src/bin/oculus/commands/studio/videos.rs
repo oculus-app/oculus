@@ -1,4 +1,4 @@
-//! `oculus studio new` and `oculus studio list`: the videos under
+//! `oculus studio new`, `list` and `title`: the videos under
 //! `<app data>/studio/videos/` (`app_lib::studio::videos`).
 
 use crate::*;
@@ -67,11 +67,25 @@ impl Ctx {
         }
         Ok(())
     }
+
+    pub(crate) fn studio_title(&self, args: &StudioTitleArgs) -> Result<(), String> {
+        videos::set_title(&args.dir, &args.title)?;
+        let title = args.title.trim();
+        if self.json {
+            return self.emit(&serde_json::json!({
+                "dir": args.dir.to_string_lossy(),
+                "title": title,
+            }));
+        }
+        println!("{} {}", paint("renamed", GREEN), title);
+        Ok(())
+    }
 }
 
 fn row_json(row: &VideoRow) -> serde_json::Value {
     serde_json::json!({
         "slug": row.slug,
+        "title": row.title,
         "dir": row.dir.to_string_lossy(),
         "subject": row.subject,
         "scenes": row.scenes,
@@ -82,8 +96,8 @@ fn row_json(row: &VideoRow) -> serde_json::Value {
     })
 }
 
-/// `slug  SUBJECT  3 scenes  narrated  draft.mp4  2026-10-12T03:14:00`, or
-/// the slug and why its video.json does not load.
+/// `slug  SUBJECT  3 scenes  narrated  draft.mp4  2026-10-12T03:14:00  Title`,
+/// or the slug and why its video.json does not load.
 fn print_row(row: &VideoRow) {
     if let Some(problem) = &row.problem {
         println!(
@@ -100,7 +114,7 @@ fn print_row(row: &VideoRow) {
         row.renders.join(", ")
     };
     println!(
-        "{} {:<12} {:>2} scene{} {:<10} {:<22} {}",
+        "{} {:<12} {:>2} scene{} {:<10} {:<22} {}  {}",
         paint(&format!("{:<28}", row.slug), BOLD),
         row.subject.as_deref().unwrap_or("-"),
         scenes,
@@ -112,5 +126,6 @@ fn print_row(row: &VideoRow) {
         },
         renders,
         paint(&row.modified.map(iso8601_utc).unwrap_or_default(), DIM),
+        row.title,
     );
 }

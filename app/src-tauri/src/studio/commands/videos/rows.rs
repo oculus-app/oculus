@@ -26,11 +26,10 @@ pub struct VideoView {
 }
 
 impl VideoView {
-    /// `links` is the whole link table, by slug. video.json has no title
-    /// field, so the title is the slug, spelled out (`videos::title_of`).
+    /// `links` is the whole link table, by slug.
     pub fn of(row: VideoRow, links: &HashMap<String, StudioLink>) -> Self {
         Self {
-            title: videos::title_of(&row.slug),
+            title: row.title,
             thread_id: links.get(&row.slug).and_then(|l| l.thread_id),
             dir: row.dir.to_string_lossy().into_owned(),
             slug: row.slug,

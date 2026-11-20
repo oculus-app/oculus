@@ -69,9 +69,139 @@ fn portrait_and_title_shape_the_scaffold() {
         serde_json::from_str(&std::fs::read_to_string(dir.join("video.json")).unwrap()).unwrap();
     assert_eq!((video.size.width, video.size.height), (1080, 1920));
     assert_eq!(video.subject, None);
+    assert_eq!(video.title.as_deref(), Some("Bayes \"rule\""));
     assert_eq!(
         video.scenes[0].props["title"],
         serde_json::json!("Bayes \"rule\"")
+    );
+    // Without --title, video.json has none and the card shows the slug.
+    let dir = create_in(&root, &new("bayes-rule")).unwrap();
+    let text = std::fs::read_to_string(dir.join("video.json")).unwrap();
+    let video: Video = serde_json::from_str(&text).unwrap();
+    assert_eq!(video.title, None);
+    assert_eq!(row(&dir).title, "Bayes rule");
+    let err = create_in(
+        &root,
+        &NewVideo {
+            slug: "blank".into(),
+            title: Some("  ".into()),
+            ..NewVideo::default()
+        },
+    )
+    .unwrap_err();
+    assert!(err.contains("title"), "{err}");
+    assert!(!root.join("blank").exists());
+}
+
+#[test]
+fn a_video_is_called_its_title_then_its_title_card_then_its_slug() {
+    let video = |json: serde_json::Value| -> Video { serde_json::from_value(json).unwrap() };
+    let card = |title: &str| serde_json::json!({ "component": "TitleCard", "props": { "title": title }, "hold": 1 });
+    let size = serde_json::json!({ "width": 2, "height": 2 });
+    let titled = video(serde_json::json!({
+        "title": "How Shor breaks RSA", "size": size, "theme": "default",
+        "scenes": [card("Shor's algorithm")],
+    }));
+    assert_eq!(
+        video_title(Some(&titled), "rsa-shor"),
+        "How Shor breaks RSA"
+    );
+    let carded = video(serde_json::json!({
+        "size": size, "theme": "default", "scenes": [card(" Shor's algorithm ")],
+    }));
+    assert_eq!(video_title(Some(&carded), "rsa-shor"), "Shor's algorithm");
+    let blank_card = video(serde_json::json!({
+        "size": size, "theme": "default", "scenes": [card("")],
+    }));
+    assert_eq!(video_title(Some(&blank_card), "rsa-shor"), "Rsa shor");
+    let other = video(serde_json::json!({
+        "size": size, "theme": "default",
+        "scenes": [{ "component": "Bars", "props": { "title": "Speeds" }, "hold": 1 }],
+    }));
+    assert_eq!(video_title(Some(&other), "rsa-shor"), "Rsa shor");
+    assert_eq!(video_title(None, "rsa-shor"), "Rsa shor");
+}
+
+/// Every file under `dir`, relative, with its bytes.
+fn snapshot(dir: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    let mut files = std::collections::BTreeMap::new();
+    let mut stack = vec![dir.to_owned()];
+    while let Some(at) = stack.pop() {
+        for entry in std::fs::read_dir(&at).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                let rel = path.strip_prefix(dir).unwrap().to_owned();
+                files.insert(rel, std::fs::read(&path).unwrap());
+            }
+        }
+    }
+    files
+}
+
+#[test]
+fn renaming_changes_only_video_json_s_title() {
+    let root = Scratch::new("videos-title");
+    let dir = root.join("rsa-shor");
+    std::fs::create_dir_all(dir.join("components")).unwrap();
+    std::fs::create_dir_all(dir.join("narration")).unwrap();
+    std::fs::write(
+        dir.join("components/Shor.tsx"),
+        "export default () => null\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("narration/manifest.json"), "{}").unwrap();
+    std::fs::write(dir.join("script.md"), "## title\nShor.\n").unwrap();
+    // Hand-formatted, as an agent writes it: compact one-line scenes.
+    let original = "{\n  \"size\": { \"width\": 640, \"height\": 360 },\n  \"fps\": 30,\n  \"theme\": \"default\",\n  \"captions\": true,\n  \"scenes\": [\n    {\"id\":\"title\",\"component\":\"TitleCard\",\"props\":{\"title\":\"Shor\"},\"hold\":4},\n    { \"id\": \"shor\", \"component\": \"Shor\" }\n  ]\n}\n";
+    std::fs::write(dir.join("video.json"), original).unwrap();
+    let before = snapshot(&dir);
+
+    set_title(&dir, "  How Shor breaks RSA ").unwrap();
+    let after = snapshot(&dir);
+    assert_eq!(
+        before.keys().collect::<Vec<_>>(),
+        after.keys().collect::<Vec<_>>()
+    );
+    for (path, bytes) in &before {
+        if path != Path::new("video.json") {
+            assert_eq!(&after[path], bytes, "{}", path.display());
+        }
+    }
+    let renamed = String::from_utf8(after[Path::new("video.json")].clone()).unwrap();
+    assert_eq!(
+        renamed,
+        original.replacen("{\n", "{\n  \"title\": \"How Shor breaks RSA\",\n", 1)
+    );
+    assert_eq!(row(&dir).title, "How Shor breaks RSA");
+    assert_eq!(row(&dir).slug, "rsa-shor");
+
+    // Renaming again replaces the value in place; the same name is no write.
+    set_title(&dir, "Shor's \"period\" trick").unwrap();
+    let again = std::fs::read_to_string(dir.join("video.json")).unwrap();
+    assert_eq!(
+        again,
+        renamed.replace("How Shor breaks RSA", "Shor's \\\"period\\\" trick")
+    );
+    let video: Video = serde_json::from_str(&again).unwrap();
+    assert_eq!(video.title.as_deref(), Some("Shor's \"period\" trick"));
+    assert_eq!(
+        with_title(&again, "Shor's \"period\" trick").unwrap(),
+        again
+    );
+
+    // One line; refusals.
+    let one = r#"{"size":{"width":2,"height":2},"theme":"default","scenes":[]}"#;
+    assert_eq!(
+        with_title(one, "A").unwrap(),
+        r#"{"title": "A", "size":{"width":2,"height":2},"theme":"default","scenes":[]}"#
+    );
+    assert!(set_title(&dir, " ").unwrap_err().contains("empty"));
+    assert!(with_title("[1]", "A").is_err());
+    assert_eq!(
+        std::fs::read_to_string(dir.join("video.json")).unwrap(),
+        again
     );
 }
 

@@ -35,6 +35,7 @@ impl Ctx {
         match action {
             StudioAction::New(a) => self.studio_new(&a),
             StudioAction::List(a) => self.studio_list(&a),
+            StudioAction::Title(a) => self.studio_title(&a),
             StudioAction::Frame(a) => self.studio_frame(&a),
             StudioAction::Strip(a) => self.studio_strip(&a),
             StudioAction::Lint(a) => self.studio_lint(&a),

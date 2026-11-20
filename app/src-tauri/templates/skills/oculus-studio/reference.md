@@ -33,6 +33,7 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 
 ```json
 {
+  "title": "Gradient descent",
   "size": { "width": 1920, "height": 1080 },
   "fps": 30,
   "theme": "default",
@@ -50,6 +51,7 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 
 | Key | What it is |
 | --- | --- |
+| `title` | Optional: the video's name in the Videos grid, the chat and `oculus studio list`. `new --title` writes it; `oculus studio title` changes it. Without it the video is called by its first scene's `TitleCard` title, else its slug. |
 | `size` | `{ width, height }` in px. `new` writes 1920x1080 (1080x1920 with `--portrait`). |
 | `fps` | 24, 25, 30, 50 or 60. Default 30. |
 | `theme` | A theme name (`default`, `warm`, or one in a library), or a `.json` path in the folder. `new` writes the subject's default theme (see "Libraries"). |

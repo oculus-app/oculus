@@ -6,8 +6,10 @@
 //! name only a video.
 
 mod captions;
+mod edit;
 #[cfg(test)]
 mod tests;
+mod title;
 
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -19,6 +21,7 @@ use studio_core::{valid_subject, valid_theme_name, Video};
 use crate::library::paths::{data_dir, studio_dir};
 
 pub use captions::{set_captions, with_captions};
+pub use title::{set_title, title_of, video_title, with_title};
 
 /// `<data dir>/studio/videos`.
 pub fn videos_dir() -> PathBuf {
@@ -114,6 +117,8 @@ pub fn video_in(videos: &Path, slug: &str) -> Result<PathBuf, String> {
 pub struct NewVideo {
     pub slug: String,
     pub subject: Option<String>,
+    /// video.json's `title` and the title card's text; without it the card
+    /// shows the slug spelled out and video.json has no `title`.
     pub title: Option<String>,
     /// 1080x1920 instead of 1920x1080.
     pub portrait: bool,
@@ -125,11 +130,11 @@ pub struct NewVideo {
     pub voice: Option<studio_core::Voice>,
 }
 
-/// Scaffolds `videos/<slug>/`: a `video.json` (30 fps, the theme, the
-/// subject, an optional voice, captions on, and one silent `TitleCard`
-/// scene), an empty
-/// `script.md`, and empty `components/` and `assets/`. Refuses a slug that
-/// exists. Returns the folder.
+/// Scaffolds `videos/<slug>/`: a `video.json` (the title, 30 fps, the
+/// theme, the subject, an optional voice, captions on, and one silent
+/// `TitleCard` scene), an empty `script.md`, and empty `components/` and
+/// `assets/`. Refuses a slug that exists or an empty title. Returns the
+/// folder.
 pub fn create_in(videos: &Path, new: &NewVideo) -> Result<PathBuf, String> {
     if !valid_slug(&new.slug) {
         return Err(format!(
@@ -141,6 +146,9 @@ pub fn create_in(videos: &Path, new: &NewVideo) -> Result<PathBuf, String> {
         return Err(format!(
             "subject `{s}` must be a course code's folder name: letters, digits, `-` and `_`"
         ));
+    }
+    if new.title.as_deref().is_some_and(|t| t.trim().is_empty()) {
+        return Err("a video's title cannot be empty".to_owned());
     }
     if let Some(t) = new.theme.as_deref().filter(|t| !valid_theme_name(t)) {
         return Err(format!(
@@ -185,21 +193,26 @@ fn video_json(new: &NewVideo) -> String {
     } else {
         (1920, 1080)
     };
-    let title = new.title.clone().unwrap_or_else(|| title_of(&new.slug));
+    let named = new.title.as_deref().map(str::trim);
+    let title = named.map_or_else(|| title_of(&new.slug), str::to_owned);
     let scene = json!({
         "id": "title",
         "component": "TitleCard",
         "props": { "title": title },
         "hold": 4,
     });
-    let mut lines = vec![
+    let mut lines = Vec::new();
+    if let Some(t) = named {
+        lines.push(format!("  \"title\": {},", json!(t)));
+    }
+    lines.extend([
         format!("  \"size\": {{ \"width\": {width}, \"height\": {height} }},"),
         "  \"fps\": 30,".to_owned(),
         format!(
             "  \"theme\": {},",
             json!(new.theme.as_deref().unwrap_or("default"))
         ),
-    ];
+    ]);
     if let Some(s) = &new.subject {
         lines.push(format!("  \"subject\": {},", json!(s)));
     }
@@ -229,22 +242,13 @@ fn voice_json(voice: &studio_core::Voice) -> Option<String> {
     (!fields.is_empty()).then(|| serde_json::Value::Object(fields).to_string())
 }
 
-/// `gradient-descent` -> `Gradient descent`; what a video is called, since
-/// video.json has no title.
-pub fn title_of(slug: &str) -> String {
-    let words = slug.replace('-', " ");
-    let mut chars = words.trim().chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
-}
-
 /// One video, as `oculus studio list` shows it.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct VideoRow {
     pub slug: String,
     pub dir: PathBuf,
+    /// What the video is called ([`video_title`]).
+    pub title: String,
     pub subject: Option<String>,
     /// `None` when video.json does not load; `problem` says why.
     pub scenes: Option<usize>,
@@ -295,6 +299,7 @@ pub fn row(dir: &Path) -> VideoRow {
         .and_then(|text| {
             serde_json::from_str::<Video>(&text).map_err(|e| format!("{}: {e}", path.display()))
         });
+    let title = video_title(video.as_ref().ok(), &slug);
     let (subject, scenes, problem) = match video {
         Ok(v) => (v.subject, Some(v.scenes.len()), None),
         Err(e) => (None, None, Some(e)),
@@ -311,6 +316,7 @@ pub fn row(dir: &Path) -> VideoRow {
     VideoRow {
         slug,
         dir: dir.to_owned(),
+        title,
         subject,
         scenes,
         narrated: dir.join(studio_core::MANIFEST_PATH).is_file(),
