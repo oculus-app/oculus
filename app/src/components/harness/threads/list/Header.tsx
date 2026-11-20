@@ -24,7 +24,6 @@ export function ListHeader({
   query,
   onQuery,
   onSearchEnter,
-  fresh,
   onNew,
   collapsed,
 }: {
@@ -34,8 +33,6 @@ export function ListHeader({
   onQuery: (query: string) => void;
   /** Enter in the field: open the first result. */
   onSearchEnter: () => void;
-  /** No thread is open: bare `/chat` is the new chat. */
-  fresh: boolean;
   onNew: () => void;
   collapsed: boolean;
 }) {
@@ -55,14 +52,8 @@ export function ListHeader({
           data-side-nav-close
           aria-label="New chat"
           title="New chat"
-          aria-current={fresh ? "page" : undefined}
           onClick={onNew}
-          className={cn(
-            "flex size-[30px] shrink-0 items-center justify-center rounded-lg transition-colors",
-            fresh
-              ? "bg-sidebar-item-active text-foreground"
-              : "text-muted-foreground hover:bg-sidebar-item-hover hover:text-foreground",
-          )}
+          className="flex size-[30px] shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-item-hover hover:text-foreground"
         >
           <NotePencil size={17} />
         </button>
@@ -88,7 +79,7 @@ export function ListHeader({
                   on ? "bg-popover text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <IconC size={14} className="shrink-0" />
+                <IconC size={14} className="shrink-0 will-change-transform" />
                 <span className="truncate">{label}</span>
               </button>
             );

@@ -23,9 +23,9 @@ export function embedKind(path: string): "image" | "html" | null {
 }
 
 /** `path` is data-dir-relative (`agents/…`, `courses/…`). */
-export function OutputEmbed({ path, alt }: { path: string; alt?: string }) {
+export function OutputEmbed({ path, alt, suffix }: { path: string; alt?: string; suffix?: string }) {
   const kind = embedKind(path);
-  if (kind === "image") return <EmbedImage path={path} alt={alt} />;
+  if (kind === "image") return <EmbedImage path={path} alt={alt} suffix={suffix} />;
   if (kind === "html") return <EmbedPage path={path} alt={alt} />;
   return null;
 }

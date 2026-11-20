@@ -49,12 +49,12 @@ toasts or bars ([ui.md](./ui.md)).
 ## New video starts a chat
 
 **New video** (the nav column's first row, the Videos header's button and
-the empty grid's offer) opens a new Chat thread whose box already holds the
-`oculus-studio` skill chip (`useNewVideoChat`): it puts `/oculus-studio ` ahead
-of whatever the new thread's draft held (`draftKey(null, "chat")`), which the
-box turns into the chip once the skill catalogue loads, and opens
-`/chat?s=<id>` in the subject the Videos grid shows (that course code's
-current subject, else its newest), or bare `/chat` while the grid shows All.
+the empty grid's offer) opens a new chat of its own whose box already holds the `oculus-studio`
+skill chip (`useNewVideoChat`): it opens a new chat (`openNewChat`), writes
+`/oculus-studio ` into its draft (`newChatKey`), which the box turns into the
+chip once the skill catalogue loads, and opens `/chat?d=<id>&s=<id>` in the
+subject the Videos grid shows (that course code's current subject, else its
+newest), with no `s` while the grid shows All.
 The agent makes the folder with `oculus studio new` and the app links it to
 the thread ([studio.md](./studio.md#a-video-has-a-thread)).
 

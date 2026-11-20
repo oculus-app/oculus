@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Books, VideoCamera } from "@phosphor-icons/react";
+import { Books, NotePencil, VideoCamera } from "@phosphor-icons/react";
 import { ProviderMark } from "@/components/icons/ProviderMark";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
@@ -10,10 +10,12 @@ import { chatHref, PROVIDERS, type HarnessThread, type ThreadStatus } from "@/li
 import { activityLine } from "@/lib/harness/activity";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
-import { ConfirmDelete, VideoGlyph } from "./parts";
+import { VideoGlyph } from "./parts";
 import { RowMenu } from "./RowMenu";
+import { DRAFT_MARK, DRAFT_TINT } from "./list/DraftRows";
 import {
   HIDDEN_UNDER_ACTIONS,
+  ROW_ACTIONS,
   ROW_META,
   ROW_PREVIEW,
   ROW_TITLE,
@@ -42,11 +44,10 @@ export const ThreadRow = memo(function ThreadRow({
   question,
   active,
   running,
-  confirming,
+  drafted,
   onOpen,
   onNewTab,
-  onArm,
-  onDelete,
+  onAskDelete,
 }: {
   thread: HarnessThread;
   /** Undefined for a general thread, or one whose subject is gone. */
@@ -59,12 +60,12 @@ export const ThreadRow = memo(function ThreadRow({
   question: string | undefined;
   active: boolean;
   running: boolean;
-  confirming: boolean;
+  /** Its composer holds unsent words: the row wears a pencil. */
+  drafted: boolean;
   onOpen: (id: number) => void;
   onNewTab: (thread: HarnessThread) => void;
-  /** Arms this row's delete, or disarms with null. */
-  onArm: (id: number | null) => void;
-  onDelete: (id: number) => void;
+  /** Asks to delete it; the list confirms in a dialog. */
+  onAskDelete: (thread: HarnessThread) => void;
 }) {
   const title = t.title?.trim() || "Untitled";
   const status = threadRowStatus(t, running);
@@ -79,7 +80,7 @@ export const ThreadRow = memo(function ThreadRow({
       data-thread-row={t.id}
       className={cn(
         "group/thread relative rounded-lg transition-colors",
-        active ? "bg-sidebar-item-active" : "hover:bg-sidebar-item-hover",
+        active ? "bg-sidebar-item-active" : drafted ? DRAFT_TINT : "hover:bg-sidebar-item-hover",
       )}
     >
       {/* The whole row is the hit target; the actions are siblings, never inside it. */}
@@ -93,6 +94,7 @@ export const ThreadRow = memo(function ThreadRow({
       >
         {showSubject && (
           <span className={cn("flex h-[18px] w-full min-w-0 items-center gap-1.5", ROW_META, UNDER_ACTIONS)}>
+            {drafted && <NotePencil size={13} className={DRAFT_MARK} aria-label="Unsent draft" />}
             <span
               className="relative flex shrink-0"
               title={subject ? displayName(subject.name, subject.code) : "Not scoped to a subject"}
@@ -115,6 +117,7 @@ export const ThreadRow = memo(function ThreadRow({
             !showSubject && UNDER_ACTIONS,
           )}
         >
+          {!showSubject && drafted && <NotePencil size={13} className={DRAFT_MARK} aria-label="Unsent draft" />}
           <span
             className={cn(
               "min-w-0 flex-1 truncate",
@@ -148,29 +151,16 @@ export const ThreadRow = memo(function ThreadRow({
       <div
         className={cn(
           "absolute top-1 right-1.5 flex items-center",
-          !confirming && SIDE_NAV_FOLDS,
+          SIDE_NAV_FOLDS,
           "group-data-[collapsed=true]/nav:pointer-events-none",
         )}
       >
-        {confirming ? (
-          <div className="rounded-md border border-border-subtle bg-popover px-0.5">
-            <ConfirmDelete
-              label="Delete"
-              onConfirm={() => {
-                onArm(null);
-                onDelete(t.id);
-              }}
-              onCancel={() => onArm(null)}
-            />
-          </div>
-        ) : (
-          <div
-            data-row-actions
-            className="flex items-center gap-px opacity-0 transition-opacity will-change-[opacity] group-hover/thread:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
-          >
-            <RowMenu title={title} onNewTab={() => onNewTab(t)} onDelete={() => onArm(t.id)} />
-          </div>
-        )}
+        <div
+          data-row-actions
+          className={cn("flex items-center gap-px", ROW_ACTIONS)}
+        >
+          <RowMenu title={title} onNewTab={() => onNewTab(t)} onDelete={() => onAskDelete(t)} />
+        </div>
       </div>
     </div>
   );

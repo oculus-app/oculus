@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { SkillPills } from "@/components/harness/composer/SkillPills";
 import { Composer, type ComposerHandle } from "@/components/harness/composer/Composer";
@@ -13,7 +13,7 @@ import { ThreadInfoButton } from "@/components/harness/threadInfo/ThreadInfoButt
 import { VideoCard } from "@/components/harness/video/VideoCard";
 import "@/components/harness/video/workKind";
 import { ThreadInfoCard, type ThreadInfoProps } from "@/components/harness/threadInfo/ThreadInfoCard";
-import { GAP, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
+import { GAP, PAD, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
 import { useThreadInfo } from "@/components/harness/threadInfo/useThreadInfo";
 import { useThreadActions } from "@/components/harness/threads/useThreadActions";
 import { useComposerSelection } from "@/components/harness/threads/useComposerSelection";
@@ -28,9 +28,12 @@ import { useRateLimits } from "@/hooks/agents/useRateLimits";
 import { useStickToBottom } from "@/hooks/ui/useStickToBottom";
 import { useWarpLanding } from "@/hooks/ui/useWarpLanding";
 import { useScrollFade } from "@/hooks/ui/useScrollFade";
+import { usePresence } from "@/hooks/ui/usePresence";
 import {
+  harnessDeleteAttachments,
   harnessDeleteThread,
   chatHref,
+  chatDraftId,
   chatScope,
   chatThreadId,
   liveScope,
@@ -41,20 +44,22 @@ import {
   type SendOptions,
 } from "@/lib/harness";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
-import { draftKey, useDraftStore } from "@/stores/chat/draftStore";
+import { draftKey, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
+import { cn } from "@/lib/utils";
 import { useVideosStore } from "@/stores/studio/videosStore";
 import { WARP_NAME } from "@/lib/ui/warp";
 
 /**
  * Chat with a CLI agent running from the library's `agents/` folder
  * (`docs/harness.md`): the conversations column (`ThreadList`) beside a thread.
- * `?t=<id>` is that thread's timeline, its composer docked at the bottom;
- * bare `/chat` is a new thread: its headline names the subject (`DraftHero`),
- * then the composer and the skill pills, then the recent threads
- * (`RecentThreads`), all in one scroller. New thread and the headline's pill
- * ask for the subject in `NewThreadDialog`, and a new thread's composer will
- * not send until a subject or General is chosen.
- * A thread making a Studio video has its card above the timeline (`VideoCard`).
+ * `?t=<id>` is that thread's timeline; `?d=<id>` is a new chat not yet sent
+ * (bare `/chat` opens an empty one), a row above the list until it is: its
+ * headline names the subject (`DraftHero`), the recent threads
+ * (`RecentThreads`) below it. New thread and the headline's pill ask for the
+ * subject in `NewThreadDialog`. The composer is docked at the bottom of both,
+ * with the skill pills under it on a new chat, and a new thread's will not
+ * send until a subject or General is chosen. A thread making a Studio video
+ * has its card above the timeline (`VideoCard`).
  *
  * Subscribes slice by slice: `live` is written many times a second mid-turn,
  * so the streaming parts subscribe where they are drawn, not here.
@@ -72,13 +77,17 @@ export default function ChatPage() {
   // ask "which thread" at the moment they fire.
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
+  // The new chat this tab is writing, while it shows no thread.
+  const draftId = activeId == null ? chatDraftId(here.search) : null;
+  const draftRef = useRef(draftId);
+  draftRef.current = draftId;
   const threads = useHarnessStore((s) => s.threads);
   const items = useHarnessStore((s) => itemsFor(activeId, s.items));
   const subjects = useHarnessStore((s) => s.subjects);
   const subjectsLoaded = useHarnessStore((s) => s.subjectsLoaded);
   // A new thread's scope is its draft's (`draftStore`), shared by every Chat
-  // tab as the draft is; unchosen until the student or an entry point picks.
-  const newKey = draftKey(null, "chat");
+  // tab showing that new chat; unchosen until the student or an entry point picks.
+  const newKey = newChatKey(draftId ?? "");
   const storedScope = useDraftStore((s) => s.scopes[newKey]);
   const scope = subjectsLoaded ? liveScope(storedScope, subjects) : null;
   const running = useHarnessStore((s) => (activeId != null && s.live[activeId]?.running) || false);
@@ -137,6 +146,21 @@ export default function ChatPage() {
     if (missing) navigate(chatHref(null), { replace: true });
   }, [missing, navigate]);
 
+  // The new chat on screen is always listed, even one the list let go.
+  const listed = useDraftStore((s) => draftId == null || draftId in s.newChats);
+  useEffect(() => {
+    if (!listed && draftId != null) useDraftStore.getState().keepNewChat(draftId);
+  }, [listed, draftId]);
+
+  // Bare `/chat` (the rail, a new tab, a fallback) names no new chat: it takes
+  // an empty one, or a fresh one, so every new chat has its own draft.
+  const unnamed = activeId == null && draftId == null;
+  useLayoutEffect(() => {
+    if (!unnamed) return;
+    const id = useDraftStore.getState().emptyNewChat();
+    navigate(chatHref(null, null, { draft: id, subject: chatScope(here.search) ?? undefined }), { replace: true });
+  }, [unnamed, here.search, navigate]);
+
   const paneId = useTabId();
 
   // An entry point's `?s=` (a Subject group's "+") seeds the new thread's scope once;
@@ -153,7 +177,8 @@ export default function ChatPage() {
   const tabName = thread?.title?.trim() || "";
   useEffect(() => {
     if (activeId != null && thread == null) return;
-    const want = chatHref(activeId, tabName);
+    if (activeId == null && draftId == null) return;
+    const want = chatHref(activeId, tabName, { draft: draftId ?? undefined });
     if (`${here.pathname}${here.search}` !== want) navigate(want, { replace: true });
   }, [activeId, thread, tabName, here.pathname, here.search, navigate]);
 
@@ -170,19 +195,27 @@ export default function ChatPage() {
   // Borrowed rows belong to the outgoing thread; wait for this thread's
   // history before choosing its initial bottom position.
   const ownRows = items.length === 0 || items[0].thread_id === activeId;
+  // One scroller for both views, so the column eases between their paddings.
   const scroll = useStickToBottom(activeId, !fresh && ownRows, running, items);
-  useScrollFade(scroll.outer, "y", !fresh);
-  const recentScroll = useRef<HTMLDivElement>(null);
-  useScrollFade(recentScroll, "y", fresh);
+  useScrollFade(scroll.outer, "y", fresh);
 
+  // A sent new chat is forgotten (its row, scope and words), but only once
+  // this tab shows the thread: cleared first, the new-chat page drew
+  // "Choose a subject" for a frame before the route moved.
+  const sentDraft = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (activeId == null || sentDraft.current == null) return;
+    useDraftStore.getState().dropNewChat(sentDraft.current);
+    sentDraft.current = null;
+  }, [activeId]);
   const { send: sendTurn, onStop, onResume, onForceStop, onProvider, onModel, onReasoning, questions, pending } = useThreadActions({
     threadId: () => activeRef.current,
     selection,
     onRestore: handBack,
     // The empty composer became this conversation; replace, it isn't a page
-    // to go back to. The next new chat chooses its subject afresh.
+    // to go back to.
     onCreated: (id) => {
-      useDraftStore.getState().setScope(newKey, null);
+      sentDraft.current = draftRef.current;
       navigate(chatHref(id), { replace: true });
     },
   });
@@ -212,12 +245,27 @@ export default function ChatPage() {
   );
   const [choosing, setChoosing] = useState(false);
   const onChoose = useCallback(() => setChoosing(true), []);
+  // Every New makes a new chat, a row of its own above the list; leaving one
+  // empty drops it (`openNewChat`). A Subject group's `+` names its scope;
+  // plain New asks for one.
   const onNew = useCallback(
     (subject?: ChatScope) => {
-      // A Subject group's `+` names its scope; plain New thread asks for one,
-      // and leaves the open thread only once it is chosen.
-      if (subject !== undefined) navigate(chatHref(null, null, { subject }), { replace: activeRef.current == null });
-      else setChoosing(true);
+      const draft = useDraftStore.getState().openNewChat();
+      navigate(chatHref(null, null, { draft, subject }));
+      if (subject === undefined) setChoosing(true);
+    },
+    [navigate],
+  );
+  const onOpenDraft = useCallback(
+    (draft: string) => {
+      if (draft !== draftRef.current) navigate(chatHref(null, null, { draft }));
+    },
+    [navigate],
+  );
+  const onDiscardDraft = useCallback(
+    (draft: string) => {
+      useDraftStore.getState().dropNewChat(draft);
+      if (draft === draftRef.current) navigate(chatHref(null), { replace: true });
     },
     [navigate],
   );
@@ -225,9 +273,8 @@ export default function ChatPage() {
     (next: ChatScope) => {
       useDraftStore.getState().setScope(newKey, next);
       setChoosing(false);
-      if (activeRef.current != null) navigate(chatHref(null));
     },
-    [newKey, navigate],
+    [newKey],
   );
   const composerHandle = useRef<ComposerHandle>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -243,13 +290,15 @@ export default function ChatPage() {
     sel?.collapseToEnd();
   }, []);
   const onDelete = useCallback(
-    (id: number) => {
+    (id: number, attachments: string[]) => {
       harnessDeleteThread(id)
         .then(() => {
           store.getState().removed(id);
           const drafts = useDraftStore.getState();
           drafts.setDraft(draftKey(id, "chat"), "");
           drafts.setPastes(draftKey(id, "chat"), []);
+          // Only once the chat's rows are gone, so Rust's recheck no longer sees them.
+          if (attachments.length) return harnessDeleteAttachments(attachments).then(() => undefined);
         })
         // Never swallow: a failed delete looks exactly like a lost click.
         .catch((e) => console.error("harness delete failed", e));
@@ -270,8 +319,16 @@ export default function ChatPage() {
     usage,
   };
   const floating = info.floating && infoCard != null;
-  // The column moves left to clear the card, the rail's gutter kept.
-  const shift = floating ? { paddingLeft: RAIL, paddingRight: RESERVE } : undefined;
+  // Mounted through its exit, so hiding it springs out as the column eases back.
+  const card = usePresence(floating);
+  // The column moves left to clear the card, the rail's gutter kept. The
+  // scroller always shows its scrollbar (`overflow-y: scroll`), so the
+  // composer adds its width on the right to centre in the same box.
+  const sides = floating ? { left: RAIL, right: RESERVE } : { left: PAD, right: PAD };
+  const scrollPad = { paddingLeft: sides.left, paddingRight: sides.right };
+  const composerPad = { paddingLeft: sides.left, paddingRight: sides.right + info.scrollbar };
+  // Eased once the pane has settled, so a thread opened cold draws in place.
+  const easeShift = info.settled && "transition-[padding-left,padding-right] duration-200 ease-out motion-reduce:transition-none";
   /** Pictures drop anywhere on the conversation, not only on the box. */
   const columnRef = useRef<HTMLDivElement>(null);
   const [dropping, setDropping] = useState(false);
@@ -280,7 +337,7 @@ export default function ChatPage() {
     <Composer
       ref={composerHandle}
       studioStyle
-      draftKey={draftKey(activeId, "chat")}
+      draftKey={activeId != null ? draftKey(activeId, "chat") : newKey}
       provider={activeProvider}
       model={selection.model}
       reasoning={selection.effort}
@@ -316,8 +373,11 @@ export default function ChatPage() {
         threads={threads}
         subjects={subjects}
         activeId={activeId}
+        activeDraft={draftId}
         runningIds={runningIds}
         onOpen={onOpen}
+        onOpenDraft={onOpenDraft}
+        onDiscardDraft={onDiscardDraft}
         onNew={onNew}
         onDelete={onDelete}
       />
@@ -332,21 +392,23 @@ export default function ChatPage() {
           {infoCard && <ThreadInfoButton info={info} {...infoCard} />}
         </PageHeader>
 
-        {fresh ? (
-          <div ref={recentScroll} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-6">
-            <div className="mx-auto w-full max-w-[760px]">
-              {subjectsLoaded && <DraftHero subjects={subjects} scope={scope} onChoose={onChoose} className="pt-10 pb-8" />}
-              <div ref={composerRef}>{composer}</div>
-              <SkillPills onPick={(name) => composerHandle.current?.insertSkill(name)} />
-              <RecentThreads threads={threads} subjects={subjects} runningIds={runningIds} onOpen={onOpen} />
-            </div>
-          </div>
-        ) : (
-          <div ref={info.areaRef} className="relative min-h-0 flex-1">
-            {/* `overflow-x-hidden` is load-bearing: `overflow-y: auto` makes x
-                `auto` too, so one wide row would scroll the whole thread. */}
-            <div ref={scroll.outer} style={shift} className="h-full overflow-x-hidden overflow-y-auto px-6 pt-6 pb-10">
-              <div ref={scroll.inner} className="mx-auto w-full max-w-[760px]">
+        <div ref={info.areaRef} className="relative min-h-0 flex-1">
+          {/* `overflow-y: scroll` keeps the scrollbar's gutter while nothing
+              overflows, so a fold opening never narrows the column.
+              `overflow-x-hidden` is load-bearing: it makes x `auto` too, and
+              one wide row would scroll the whole thread. */}
+          <div
+            ref={scroll.outer}
+            style={scrollPad}
+            className={cn("h-full overflow-x-hidden overflow-y-scroll pt-6", fresh ? "pb-6" : "pb-10", easeShift)}
+          >
+            {fresh ? (
+              <div key="recent" className="mx-auto w-full max-w-[760px]">
+                {subjectsLoaded && <DraftHero subjects={subjects} scope={scope} onChoose={onChoose} className="pt-10 pb-8" />}
+                <RecentThreads threads={threads} subjects={subjects} runningIds={runningIds} onOpen={onOpen} />
+              </div>
+            ) : (
+              <div key="thread" ref={scroll.inner} className="mx-auto w-full max-w-[760px]">
                 {/* Outside the row window, so scrolling never unmounts it or its player. */}
                 {activeId != null && <VideoCard key={activeId} threadId={activeId} />}
                 <Timeline
@@ -357,24 +419,39 @@ export default function ChatPage() {
                   pending={pending}
                 />
               </div>
-            </div>
-            {/* Centred under the column, wherever the card has moved it. */}
-            <div className="pointer-events-none absolute inset-0" style={floating ? { left: RAIL, right: RESERVE } : undefined}>
-              <JumpToLatest show={scroll.showJump} onClick={scroll.scrollToBottom} />
-            </div>
-            <ThreadMap scrollRef={scroll.outer} contentRef={scroll.inner} markers={markers} />
-            {floating && (
-              <div className="absolute z-20" style={{ top: GAP, right: GAP + info.scrollbar }}>
-                <ThreadInfoCard {...infoCard} onHeight={info.onCardHeight} />
-              </div>
             )}
           </div>
-        )}
-        {!fresh && <div ref={composerRef} style={shift} className="shrink-0 px-6 pb-4">
+          {!fresh && (
+            <>
+              {/* Centred under the column, wherever the card has moved it. */}
+              <div
+                className={cn("pointer-events-none absolute inset-y-0", info.settled && "transition-[left,right] duration-200 ease-out motion-reduce:transition-none")}
+                style={{ left: sides.left - PAD, right: sides.right - PAD + info.scrollbar }}
+              >
+                <JumpToLatest show={scroll.showJump} onClick={scroll.scrollToBottom} />
+              </div>
+              <ThreadMap scrollRef={scroll.outer} contentRef={scroll.inner} markers={markers} />
+            </>
+          )}
+          {card.mounted && infoCard && (
+            <div
+              data-state={card.state}
+              className={cn(
+                "absolute z-20 will-change-[opacity,scale]",
+                info.settled && "popup-motion [--popup-origin:top_right]",
+              )}
+              style={{ top: GAP, right: GAP + info.scrollbar }}
+            >
+              <ThreadInfoCard {...infoCard} onHeight={info.onCardHeight} />
+            </div>
+          )}
+        </div>
+        <div ref={composerRef} style={composerPad} className={cn("shrink-0 pb-4", easeShift)}>
           <div className="mx-auto max-w-[760px]" style={warping ? { viewTransitionName: WARP_NAME } : undefined}>
             {composer}
+            {fresh && <SkillPills onPick={(name) => composerHandle.current?.insertSkill(name)} />}
           </div>
-        </div>}
+        </div>
 
         <DropOverlay show={dropping} label="Drop to attach a picture" />
         <NewThreadDialog

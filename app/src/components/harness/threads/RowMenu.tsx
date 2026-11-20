@@ -34,8 +34,8 @@ function Item({
   );
 }
 
-/** A thread row's ⋯ menu: open it in a new tab, or delete it (which arms the
- *  row's inline confirm rather than deleting at once). */
+/** A thread row's ⋯ menu: open it in a new tab, or delete it (which asks in
+ *  a dialog rather than deleting at once). */
 export function RowMenu({
   title,
   onNewTab,
@@ -48,7 +48,10 @@ export function RowMenu({
   className?: string;
 }) {
   return (
-    <DropdownMenu.Root>
+    // Not modal: a modal menu sets `pointer-events: none` on the body, and
+    // WebKit keeps the row un-hovered after it closes until the mouse moves,
+    // so the age flashed back over the ⋯ on every close.
+    <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
@@ -68,8 +71,8 @@ export function RowMenu({
           align="end"
           sideOffset={4}
           collisionPadding={12}
-          className="z-50 min-w-48 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none"
-          // Delete arms a confirm that takes focus; the trigger must not take it back.
+          className="popup-motion z-50 min-w-48 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none"
+          // Delete opens a dialog that takes focus; the trigger must not take it back.
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <Item icon={<ArrowSquareOut size={14} />} hint={`${shortcut("mod")} click`} onSelect={onNewTab}>

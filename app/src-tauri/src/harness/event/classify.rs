@@ -1,6 +1,8 @@
 //! Naming a tool call: one table that turns each CLI's raw tool name and
 //! input into a [`ToolKind`] and a short title, and the cap on tool output.
 
+mod codex;
+
 use super::ToolKind;
 
 /// Classify a tool by raw name and input: one table for every bridge. Each CLI
@@ -27,7 +29,7 @@ pub fn classify(name: &str, input: &serde_json::Value) -> (ToolKind, String) {
         // Antigravity's names, from its `init` event's `tools`.
         "run_command" => {
             let cmd = any(&["CommandLine", "Command"]);
-            let kind = if is_oculus_cli(&cmd) {
+            let kind = if codex::cli_chain(&cmd) {
                 ToolKind::OculusCli
             } else {
                 ToolKind::Bash
@@ -68,9 +70,10 @@ pub fn classify(name: &str, input: &serde_json::Value) -> (ToolKind, String) {
         "ask_question" | "ask_permission" | "ask_custom_permission" => {
             (ToolKind::Other, any(&["Question", "Prompt"]))
         }
-        "Bash" | "commandExecution" | "bash" => {
+        "commandExecution" => codex::display(s("command")),
+        "Bash" | "bash" => {
             let cmd = s("command");
-            let kind = if is_oculus_cli(&cmd) {
+            let kind = if codex::cli_chain(&cmd) {
                 ToolKind::OculusCli
             } else {
                 ToolKind::Bash
@@ -135,19 +138,6 @@ fn patch_target(patch: &str) -> String {
     String::new()
 }
 
-/// `oculus grep …`, `/path/to/oculus search …`, or the same behind an env
-/// prefix. Word-boundary rather than substring, so `myoculus` is not it.
-fn is_oculus_cli(cmd: &str) -> bool {
-    cmd.split_whitespace().take(3).any(|word| {
-        let name = word
-            .trim_matches(['\'', '"'])
-            .rsplit(['/', '\\'])
-            .next()
-            .unwrap_or(word);
-        name.eq_ignore_ascii_case("oculus") || name.eq_ignore_ascii_case("oculus.exe")
-    })
-}
-
 /// Tool output past this is truncated with a marker: it is a timeline row and a Tauri event.
 pub const MAX_TOOL_OUTPUT: usize = 16 * 1024;
 
@@ -181,9 +171,13 @@ mod tests {
         assert_eq!(k, ToolKind::OculusCli);
         let (k, _) = classify("Bash", &serde_json::json!({"command": "ls myoculus"}));
         assert_eq!(k, ToolKind::Bash);
-        assert!(is_oculus_cli(r"C:\Oculus\oculus.exe search foo"));
-        assert!(is_oculus_cli("oculus.exe task add"));
-        assert!(!is_oculus_cli("myoculus.exe task add"));
+        assert!(codex::cli_chain(r"C:\Oculus\oculus.exe search foo"));
+        assert!(codex::cli_chain("oculus.exe task add"));
+        assert!(codex::cli_chain(
+            "cd library && A=1 B=2 C=3 oculus widget check x"
+        ));
+        assert!(!codex::cli_chain("echo oculus quiz add"));
+        assert!(!codex::cli_chain("myoculus.exe task add"));
     }
 
     #[test]

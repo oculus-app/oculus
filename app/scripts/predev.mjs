@@ -125,14 +125,26 @@ if (keyd) {
 }
 
 // Regenerate the reference from this build, writing only changed help.
+let regenerated = false;
 try {
   execFileSync(process.execPath, [join(app, "scripts", "gen-cli-docs.mjs")], {
     cwd: app,
     stdio: "inherit",
     env: { ...process.env, OCULUS_BIN: cli },
   });
+  regenerated = true;
 } catch {
   log("could not regenerate docs/cli-reference.md — carrying on");
+}
+
+// Commands without a chat row print a warning. A broken reference fails the
+// repo tests in CI; here it is reported and the app still starts.
+if (regenerated) {
+  try {
+    execFileSync("bun", ["scripts/check-cli-rows.ts"], { cwd: app, stdio: "inherit" });
+  } catch {
+    console.error("[predev] THE CLI ROW CHECK FAILED: docs/cli-reference.md is missing or broken (see above) — carrying on");
+  }
 }
 
 // Refresh the library's agent docs. A fresh machine has no data directory,

@@ -45,11 +45,10 @@ const render = (patch: Partial<HarnessThread>, props: Partial<Parameters<typeof 
       question={undefined}
       active={false}
       running={false}
-      confirming={false}
+      drafted={false}
       onOpen={() => {}}
       onNewTab={() => {}}
-      onArm={() => {}}
-      onDelete={() => {}}
+      onAskDelete={() => {}}
       {...props}
     />,
   );
@@ -131,12 +130,6 @@ describe("ThreadRow", () => {
     expect(render({ subject_id: null }, { subject: undefined })).toContain("General");
   });
 
-  test("an armed row shows its delete confirm instead of the menu", () => {
-    const html = render({}, { confirming: true });
-    expect(html).toContain(">Delete<");
-    expect(html).not.toContain("Actions for");
-  });
-
   test("hover offers the menu alone", () => {
     const html = render({});
     expect(html).toContain("Actions for Alpha-beta pruning walkthrough");
@@ -149,6 +142,8 @@ describe("activityLine", () => {
     id: 1, thread_id: 1, kind: "tool", ref_id: null, content: null, meta: null, created_at: "", ...patch,
   });
   test("a tool still running names its verb and target", () => {
+    expect(activityLine([row({ content: "oculus widget check plot.tsx", meta: '{"kind":"oculus_cli"}' })]))
+      .toBe("Checking widget plot.tsx");
     expect(activityLine([row({ content: "python bench.py --games 200", meta: '{"kind":"bash"}' })])).toBe("Running python bench.py --games 200");
   });
   test("reasoning is Thinking; a finished tool or a reply says nothing", () => {
@@ -241,7 +236,6 @@ describe("view switch", () => {
         query=""
         onQuery={() => {}}
         onSearchEnter={() => {}}
-        fresh={false}
         onNew={() => {}}
         collapsed={false}
       />,

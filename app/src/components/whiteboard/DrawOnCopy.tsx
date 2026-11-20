@@ -49,7 +49,7 @@ export function DrawOnCopy({ file }: { file: DbFile }) {
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content align="end" sideOffset={6} className="z-50 w-64 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none">
+        <DropdownMenu.Content align="end" sideOffset={6} className="popup-motion z-50 w-64 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none">
           {CHOICES.map(({ kind, icon: ChoiceIcon, title, body }) => (
             <DropdownMenu.Item key={kind} onSelect={() => void start(kind)} className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 outline-none data-highlighted:bg-accent">
               <ChoiceIcon size={15} className="mt-px shrink-0 text-reference-page" aria-hidden />

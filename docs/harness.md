@@ -34,9 +34,9 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | A thread's selection, what a send does to its session (`decide_transition`), and the context handoff | `app/src-tauri/src/harness/core/decide/select.rs`, `app/src-tauri/src/harness/manager/transition.rs`, `app/src-tauri/src/harness/handoff/`, `app/src-tauri/src/harness/store/bindings.rs`, `app/src-tauri/src/harness/store/switching.sql` |
 | What each bridge can do (Stop, rewind, steering, switching), declared in Rust and read by the webview | `app/src-tauri/src/harness/providers/capabilities.rs`, `app/src/lib/harness/capabilities.ts`, `app/src/hooks/agents/useCapabilities.ts` |
 | Live state and event folding | `app/src/stores/chat/harnessStore.ts`, `app/src/hooks/backend/useBackendEvents.ts` |
-| Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Saved a memory" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
+| Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Checked widget" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
-| Unsent text per thread (and per new-thread box), and a new thread's chosen scope, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts` |
+| Unsent text per thread (and per new chat), each new chat's chosen scope, and the new chats waiting as rows, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts`, `app/src/components/harness/threads/list/DraftRows.tsx` |
 | Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
 | The video a thread makes: its card above the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/activity.ts` |
 | Proposal dispatch context and confirmed jobs | `app/src-tauri/src/harness/app/proposal_context.rs`, `app/src-tauri/src/harness/app/proposal_jobs/` |
@@ -56,7 +56,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src/lib/dictation/cleanup.ts`, `app/src/lib/dictation/groqUsage.ts` |
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
-| Files pasted or dropped into a composer: writing them, their chips, the shelf, their names | `app/src-tauri/src/harness/attach.rs`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
+| Files pasted or dropped into a composer: writing them, their chips, the shelf, their names, deleting them with their chat | `app/src-tauri/src/harness/attach.rs`, `app/src-tauri/src/harness/app/thread_files.rs`, `app/src/components/harness/threads/DeleteThreadDialog.tsx`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
 | Long pastes held as text cards: format, card, editor and viewer | `app/src/lib/harness/attachments.ts`, `app/src/components/harness/attachments/PastedText.tsx`, `app/src/components/harness/attachments/PastedTextEditor.tsx` |
 | Library paths and attachments in rows and prose (`splitLibraryPaths`); copy as markdown | `app/src/lib/files/libraryPaths.ts`, `app/src/lib/files/openFile.ts`, `app/src/lib/markdown/selection.ts` |
 | Timeline window, off-screen layout, scroll anchoring, the expand protocol | `app/src/components/harness/timeline/useRowWindow.ts`, `app/src/components/harness/timeline/rowWindow.ts`, `app/src/components/harness/timeline/useRowVisibility.ts`, `app/src/components/harness/timeline/RetainedRow.tsx`, `app/src/hooks/ui/useStickToBottom.ts`, `app/src/lib/ui/followTimeline.ts`, `app/src/lib/ui/scrollAnchor.ts`, `app/src/lib/ui/expandable.ts` |
@@ -499,7 +499,15 @@ still update the picker.
   divider, sized to content and folded behind Show more past 288px, never a
   scroller of its own.
 - **A shell command is its own label**, in mono, wrapping in full while
-  open; its detail is the output alone.
+  open, with the output in its detail. For a Codex command, the classifier
+  reads one literal `-lc` or `-c` script passed to zsh, bash or sh. A simple
+  `oculus` call or chain gets CLI wording, including one that folds or drops
+  stderr (`2>&1`, `2>/dev/null`) or reads stdin from a file or heredoc, since
+  its exit status and stdout stay its own. Pipes, other redirects and
+  substitutions keep the full script visible. Unknown or ambiguous wrappers keep the wire
+  command. Approvals use the recorded command and working directory. A stored
+  row whose title is the wrapper is unwrapped the same way when it renders
+  (`unwrapShell` in `app/src/lib/harness/cliArgs.ts`).
 - **A reasoning row has the Brain glyph.** Finished, it reads "Thought for 12s"
   and opens to the thought as muted markdown; while it streams, `LiveTail`
   shows a shimmering "Thinking" (`text-shimmer`) and the thought's latest
@@ -507,14 +515,24 @@ still update the picker.
   opencode's part clock, else the consumer loop's `ThoughtClock` from the
   block's first delta. A block with no deltas, or a row from before, reads
   "Thought". A bundle of thoughts alone sums them.
-- **An `oculus …` row says what it did** — "Saved a memory", "Searched the
-  library for", "Moved 7 tasks to" — from `describeOculusCli`, which reads
-  the shell line (chains counted, pipes and redirects dropped) and gives each
-  command a glyph and a bundle clause ("saved 2 memories"). The command
-  leads the opened row's detail, muted above the output; a running one shimmers its verb. An
-  unrecognised command reads "Ran oculus" with its subcommand. A command
-  that changes the library (a memory, a task, a project, a sync, a render)
-  is marked `writes`.
+- **An `oculus …` row labels the command and its result.** The exact path in
+  `app/src/lib/harness/oculusCli.ts` supplies the icon, verb, emphasised subject
+  and bundle tally. The running verb shimmers beside a steady icon. The same
+  widget check reads “Checking widget” in the thread list and “Checked widget”
+  on completion. Expanding the row shows the command and its output. A new
+  command gets its own entry or an exclusion with its reason; dev preflight
+  and CI warn about any command without one
+  ([cli.md](./cli.md#every-command-gets-a-chat-row)).
+- A memory write reports creation, metadata update, body replacement, no change
+  or refusal when its result identifies one. A missing result at the end of a
+  run reads “Command stopped”. Failed calls and refused student-owned writes
+  keep their glyph in both the row and its bundle. Confirmation belongs to the
+  proposal card. Authentication and credential broker commands belong to the
+  student's terminal and share the unknown-command fallback.
+- An `&&` chain can count its successful calls. Other command separators can
+  mask an earlier failure, so the row names the chain. A failed chain has one
+  result. A question batch with returned IDs counts each question in the bundle;
+  without IDs the row counts the batch.
 - **A bundle names two things** (`bundleLabel` in `rows.ts`): one count per
   category, the two that rank highest in the order first seen, then
   "performed N other actions", joined with "and" — "Ran 3 commands, edited 2
@@ -526,8 +544,10 @@ still update the picker.
   of replies alone keeps its own label.
 - **A Read of a picture expands to the picture** (`ReadPicture` in
   `WorkRow.tsx`), click for the lightbox. It loads over the asset protocol, so
-  only `courses/` and `agents/` under the data dir show; any other path fails
-  to load and the row falls back to its args.
+  the scope includes notebook snapshots in `whiteboard-pages/` alongside
+  `courses/`, `agents/` and `studio/videos/`. A Read naming the data dir’s
+  `canvas-pages/` subtree loads the corresponding `whiteboard-pages/` image.
+  A missing image leaves the recorded arguments and tool output visible.
 - **A citation opens the file at the cited spot.** One grammar
   (`app/src/lib/citations/`) reads an inline code span, a link's href or a
   bare path in prose: `courses/…`, `../courses/…`, `agents/…`, absolute,
@@ -906,7 +926,10 @@ shows it.
   gutter, a column of at least 640px and the card's 304px reserve), the
   scroller and the composer take that reserve as right padding, so the column
   moves left and narrows rather than sitting under the card. The card keeps
-  clear of the scroller's scrollbar. With less room (a narrow window, the side
+  clear of the scroller's scrollbar. A new thread and an open one share one
+  scroller, so when the first send brings the card in, the column and
+  composer ease over (200 ms) as the card fades in; a thread opened cold is
+  measured before paint and draws in place. With less room (a narrow window, the side
   panel open), or when the card is taller than the pane, the button opens the
   same card as its popover, aligned to the pane's right edge. Nothing floats
   over another pane ([shell.md](./shell.md)).
@@ -955,9 +978,10 @@ full path is not listed, since naming it takes a lookup.
 back walks the threads that tab has shown (opening pushes; a rename or the
 composer becoming a thread replaces). `n` is there because `tabInfo` titles a
 tab from its path alone; it is written once the thread is known and again when
-the name lands. Bare `/chat` may carry `s=<id|general>`, an entry point's
-scope for the new thread ([Subject scope](#subject-scope-and-)); the page
-writes it into the draft once and drops it from the route.
+the name lands. A new chat not yet sent is `/chat?d=<id>` (below); bare
+`/chat` takes the newest empty one or makes one. A new chat may carry
+`s=<id|general>`, an entry point's scope ([Subject scope](#subject-scope-and-));
+the page writes it into the draft once and drops it from the route.
 
 - The store keeps only a count per thread (`holds`, via `hold` / `unhold`), so
   the dock's `release` cannot empty rows a Chat tab is reading. `hold` borrows
@@ -1025,13 +1049,33 @@ writes it into the draft once and drops it from the route.
   title is bright and medium while the thread is Done, Approval, Question
   or Failed, dimmed otherwise, and always a step brighter and larger than
   the preview (`threads/rowType.ts`, [ui.md](./ui.md)). Hover shows a ⋯
-  menu (open in a new tab, and delete, which arms the row's inline
-  confirm). It has no surface of its own: the line under it (the subject's,
-  or the title's in the Subject view) fades out at its end and hides its
-  status or age while it shows (`UNDER_ACTIONS`). While the column folds,
+  menu (open in a new tab, and delete, which asks first and offers to delete
+  the files only that chat attached, [below](#attachments-are-files-in-agentsattachments)); the menu is not modal, so the row stays hovered when it closes. It has no surface of its own: the line under it (the subject's,
+  or the title's in the Subject view) fades out at its end (`UNDER_ACTIONS`),
+  and its status or age hands off to the ⋯: the one leaving fades at once,
+  the other 80 ms later, so both never show together (`HIDDEN_UNDER_ACTIONS`,
+  `ROW_ACTIONS`). While the column folds,
   the subject glyph stays longest with the status dot on its corner; in the
   Subject view the dot sits by the title.
-- Bare `/chat` is a new thread: the composer docked at the bottom as in a
+- **Every New is a new chat with a row of its own** (`draftStore.newChats`,
+  `oculus.chatNewChats`: id → when it was opened; its composer's key is
+  `newChatKey(id)`). New makes one and opens the subject dialog over it; a
+  Subject group's "+" makes one in that subject. Above the list, in both
+  views and over a divider, `DraftRows` draws each new chat holding words, a
+  pasted card or a picture (`hasDraft`; blank text is nothing, since an
+  emptied box keeps a lone line break), newest first. The one this tab is on
+  gets no row until a tab has left it holding something (`left` in
+  `DraftRows`), so starting a chat adds nothing to the list. A row is a pencil
+  (`DRAFT_MARK`), its scope ("No subject yet" until chosen) and its first
+  line, on a faint warning tint while it is not open (`DRAFT_TINT`); hover
+  offers × Discard. One emptied loses its row, and the next New forgets it
+  (`openNewChat`). Rows and the divider grow in and fold away
+  (`row-presence`, docs/ui.md), a leaving row still showing what it held;
+  Discard folds the row first and forgets the draft once it has gone. Sending forgets the new chat once the tab shows
+  the thread it became. A thread whose composer holds unsent words wears the
+  same pencil before its subject (by its title in the Subject view) and the
+  same tint.
+- A new chat's page: the composer docked at the bottom as in a
   thread, and above it the headline that names the subject (`DraftHero`) over
   the three latest threads (`RecentThreads`) — provider mark, title, a chip
   naming its subject or General, the lecture or film glyph, age, and the newest message flattened to one
@@ -1771,6 +1815,11 @@ carries its run's question (`asked`), which Retry sends again.
 | Failed | "Failed after 23s", open | "Partial response", then the error or sign-in card |
 | Ended with no stored interval | "Work details" | as its status says |
 
+An answer's row of time, model, Copy and Retry is always shown; a
+question's actions appear on hover. Clicking a fold's header eases its rows
+open or shut (`useFoldMotion.ts`: height, a fade and a 4px drop, about
+200 ms); a find opens a fold at once.
+
 A run the student steered splits its work at each steer
 ([Steering from the composer](#steering-from-the-composer)): native steers
 keep one fold per stretch; restart steers keep one per superseded attempt,
@@ -1790,9 +1839,8 @@ started at the question's envelope), never a sum of tool or thought times.
 The working clock is its own component, so the second hand re-renders one
 line. A student's open or close of a fold is kept per thread and run in
 `stores/chat/runFolds.ts`, so it survives the row leaving the window and the
-run settling, and a rewind forgets the thread's choices. The header carries a
-full-width hairline under it, open or closed; the fold's rows sit flush
-beneath it as one list. Inside an open fold, two or more tool or reasoning
+run settling, and a rewind forgets the thread's choices. The header has no
+rule under it; the fold's rows sit flush beneath it as one list. Inside an open fold, two or more tool or reasoning
 rows in a row fold into one bundle, drawn at full strength (a bundle outside
 a fold fades until hovered).
 
@@ -2954,11 +3002,13 @@ Memory lives in `agents/` — `TASTE.md`, `memories/`, `memories/<CODE>/`
 `AGENTS.template.md` owns the read, write and answer guidance;
 `TASTE.template.md` owns which preferences earn a standing instruction.
 
-`oculus memory` (`app/src-tauri/src/agents/memory/`, [cli.md](./cli.md)) writes
-file and index together. A bucket keeps `CAP` (12) memories; a new name past
-the cap is refused with a list of its existing pages. `append` adds or
-`--replace`s a line; `fold` rewrites overlapping pages with a supplied body,
-and `move` honours the cap. `list` shows each bucket's fullness.
+`oculus memory` (`app/src-tauri/src/agents/memory/`) writes file and index
+together. A bucket keeps `CAP` (12) memories. A new name past the cap is
+refused with a list of the existing pages. `append` adds or edits a line,
+`write --replace` authorizes a whole-body rewrite, and `fold` merges
+overlapping pages with a supplied body. `move` honours the cap and `list`
+shows each bucket's fullness. See the
+[write outcomes and refusal format](./cli.md#memory-writes-protect-existing-text).
 
 The shared instructions do not prescribe an order between answering and memory saves or other tool work. Rendered fence
 placement comes from the app brief's Output section; skills refer to that
@@ -2993,12 +3043,14 @@ collect, but Enter and the send button do nothing and the placeholder reads
 subject id, never null, so no entry is unchosen and General is a choice of
 its own). It outlives a thread switch and a relaunch, a deleted subject's id
 reads as unchosen, and creating the thread forgets it, so the next new chat
-asks again. Every Chat tab's new thread shares one draft key, and so one
-choice. An entry point names the scope in the route instead, with no dialog:
-a group's "+" opens `/chat?s=<id|general>`, and a revision artifact's Ask about this
-`/chat?s=<id>` when the artifact has a subject, and Studio's New video
-`/chat?s=<id>` in the subject its grid shows. The lecture dock is always its
-lecture's subject and does not show the headline.
+asks again. Each new chat has its own draft key, and so its own choice; tabs
+showing the same new chat share it. An entry point names the scope in the
+route instead, with no dialog: a group's "+" opens a new chat with
+`s=<id|general>`, a revision artifact's Ask about this a new chat holding
+its question, with `s=<id>` when the artifact has a subject, and Studio's
+New video a new chat holding the `oculus-studio` chip, with `s=<id>` in the
+subject its grid shows. The lecture dock is always its lecture's subject and
+does not show the headline.
 
 **Rust holds the same line.** A send that creates a plain Chat thread must
 name its scope (`chatScope`: `"general"` or a subject id; `ChatScope` in
@@ -3166,6 +3218,12 @@ and survives a relaunch, a stash and a thread switch. `harness_attach_image`
 (clipboard bytes, with the name the clipboard gave) and `harness_attach_file`
 (a dropped path) answer `./attachments/<name>`; a task body writes its
 pictures the same way. Nothing deletes a file whose draft was never sent.
+Deleting a chat can take its attachments with it (`DeleteThreadDialog`, a
+ticked box): `harness_thread_attachments` lists the stamped names the chat's
+messages and queue mention that no other chat does, and
+`harness_delete_attachments`, run after the chat's rows are gone, checks again
+and removes only what is still unnamed (`thread_files.rs`). What the agent
+made in `outputs/` stays.
 The claimed filename never reaches disk: `write_file` sniffs the bytes — a
 picture, `%PDF-` as `.pdf`, or UTF-8 with no control byte but tabs, line
 breaks, form feed and escape as text, which keeps
@@ -3613,8 +3671,7 @@ Live Task/TaskList, Deadline/Upcoming, Lecture, StudioVideo, CheatNote and Revie
 
 ## A fresh thread offers skill pills
 
-The fresh Chat screen places its composer between the subject headline and
-Recent threads. `SkillPills` under the box inserts `oculus-studio` through
+On a new chat, `SkillPills` sits under the docked composer and inserts `oculus-studio` through
 `Composer.insertSkill`, the same skill chunk as the slash menu. It waits for
 the installed catalogue and never inserts a duplicate; Studio's New video
 arrives with the chip already in the box ([studio-page.md](./studio-page.md#new-video-starts-a-chat)).

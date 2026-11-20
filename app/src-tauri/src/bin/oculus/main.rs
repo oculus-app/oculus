@@ -160,8 +160,12 @@ fn main() {
 
 /// The error on stderr, as JSON when asked, and exit 1.
 fn fail(json: bool, e: &str) -> ! {
+    fail_with_json(json, e, || serde_json::json!({ "error": e }))
+}
+
+fn fail_with_json(json: bool, e: &str, details: impl FnOnce() -> serde_json::Value) -> ! {
     if json {
-        eprintln!("{}", serde_json::json!({ "error": e }));
+        eprintln!("{}", details());
     } else {
         eprintln!("{} {e}", paint("error:", RED));
     }

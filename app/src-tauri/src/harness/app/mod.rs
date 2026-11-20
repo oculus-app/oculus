@@ -23,6 +23,7 @@ pub(in crate::harness) mod startup;
 pub(in crate::harness) mod steer;
 pub mod suggest;
 mod thought_clock;
+pub mod thread_files;
 pub mod turns;
 mod wake;
 

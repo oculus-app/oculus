@@ -4,7 +4,7 @@ use super::maintain::born;
 use super::slug::humanize;
 
 /// The front matter of one memory.
-#[derive(Debug, Default, Clone, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Front {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -79,13 +79,20 @@ impl Entry {
 /// and hand-written files must still load. Unparseable is `None`; nothing here
 /// rewrites a file it did not understand.
 pub fn parse(text: &str) -> Option<(Front, String)> {
+    let (front, suffix) = parse_with_body_suffix(text)?;
+    Some((front, suffix.trim_start_matches('\n').to_string()))
+}
+
+/// Keep the bytes after the closing fence for metadata-only edits.
+pub(super) fn parse_with_body_suffix(text: &str) -> Option<(Front, &str)> {
     let rest = text.strip_prefix("---\n")?;
     let end = rest.find("\n---")?;
     let (head, tail) = rest.split_at(end);
-    let body = tail
-        .trim_start_matches("\n---")
-        .trim_start_matches('\n')
-        .to_string();
+    // A closing fence may carry trailing spaces, as hand-written files do.
+    let suffix = tail.strip_prefix("\n---")?.trim_start_matches([' ', '\t']);
+    if !suffix.is_empty() && !suffix.starts_with('\n') {
+        return None;
+    }
 
     let mut front = Front::default();
     let mut in_meta = false;
@@ -112,7 +119,7 @@ pub fn parse(text: &str) -> Option<(Front, String)> {
             _ => {}
         }
     }
-    Some((front, body))
+    Some((front, suffix))
 }
 
 fn unquote(value: &str) -> String {
@@ -145,6 +152,14 @@ fn scalar(value: &str) -> String {
 
 /// The file, front matter and all.
 pub fn render(front: &Front, body: &str) -> String {
+    let mut s = render_front(front);
+    s.push_str("\n\n");
+    s.push_str(body.trim_end());
+    s.push('\n');
+    s
+}
+
+pub(super) fn render_front(front: &Front) -> String {
     let mut s = String::from("---\n");
     s.push_str(&format!("name: {}\n", scalar(&front.name)));
     if let Some(title) = &front.title {
@@ -157,8 +172,6 @@ pub fn render(front: &Front, body: &str) -> String {
             s.push_str(&format!("  {k}: {}\n", scalar(v)));
         }
     }
-    s.push_str("---\n\n");
-    s.push_str(body.trim_end());
-    s.push('\n');
+    s.push_str("---");
     s
 }

@@ -26,7 +26,7 @@ export interface PageMenuActions {
 }
 
 const ITEM = 'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] outline-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-[state=open]:bg-accent';
-export const CONTENT = 'z-50 min-w-48 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none';
+export const CONTENT = 'popup-motion z-50 min-w-48 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none';
 const SEPARATOR = <DropdownMenu.Separator className="mx-1 my-1 h-px bg-border-subtle" />;
 
 export function Item({ icon, children, onSelect, disabled, destructive }: { icon: ReactNode; children: ReactNode; onSelect: () => void; disabled?: boolean; destructive?: boolean }) {

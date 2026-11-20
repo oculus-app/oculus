@@ -41,10 +41,10 @@ const ABSOLUTE_COURSES = /^\/.*?\/(courses\/.+)$/;
 const COMMAND = /\s[-/]|[|&;<>$`*]/;
 
 /** Data-dir-relative, or `../` from `agents/`, where every thread runs. */
-const RELATIVE = new RegExp(`^(?:\\.\\.\\/)?(${ROOTS}\\/\\S+)$`);
+const RELATIVE = new RegExp(`^(?:\\.\\.\\/)?(${ROOTS}\\/.+)$`);
 
 /** Relative to the agent's cwd (`agents/`). */
-const AGENT_CWD = /^(?:\.\/(\S+)|((?:attachments|outputs)\/\S+))$/;
+const AGENT_CWD = /^(?:\.\/(.+)|((?:attachments|outputs)\/.+))$/;
 
 /** A course-relative path into one of the synced folders
  *  (`Course/Files/…`), ending in an extension. */
@@ -72,6 +72,20 @@ function decodePath(raw: string): string {
   }
 }
 
+/** A location fragment, and a query after a file extension (a cache-buster).
+ *  Any other `#` or `?` is part of the file name. */
+const HREF_HASH = /#(?:L\d+(?:-L?\d+)?|page=\d+|t=\d+(?:\.\d+)?)$/;
+const HREF_QUERY = /\.[A-Za-z0-9]+(\?[^#?/]*)$/;
+
+/** Split a markdown destination before decoding its filesystem path. */
+export function splitLibraryHref(raw: string) {
+  const h = HREF_HASH.exec(raw);
+  const hash = h ? h[0] : "";
+  const beforeHash = h ? raw.slice(0, h.index) : raw;
+  const query = HREF_QUERY.exec(beforeHash)?.[1] ?? "";
+  return { path: beforeHash.slice(0, beforeHash.length - query.length), query, hash };
+}
+
 function location(m: RegExpExecArray | null): CiteLocation {
   if (!m) return {};
   if (m[6]) return { at: Number(m[6]) };
@@ -91,22 +105,26 @@ export function parseCitation(
   { linkText, tails = true }: { linkText?: string; tails?: boolean } = {},
 ): CitationShape | null {
   if (!raw) return null;
-  let s = decodePath(raw.trim());
-  if (s.startsWith("file://")) s = s.slice("file://".length);
-  const suffix = SUFFIX.exec(s);
-  const loc = location(suffix);
-  if (suffix) s = s.slice(0, suffix.index);
-  if (!s || SCHEME.test(s)) return null;
+  const { path, hash } = splitLibraryHref(raw.trim());
+  let s = decodePath(path);
+  if (s.startsWith("file:///")) s = s.slice("file://".length);
+  const suffix = SUFFIX.exec(hash || s);
+  const loc = location(hash && suffix?.index !== 0 ? null : suffix);
+  if (!hash && suffix) s = s.slice(0, suffix.index);
+  if (!s || s.startsWith("//") || SCHEME.test(s)) return null;
   if (!loc.page && !loc.line && linkText) {
     const p = TEXT_PAGE.exec(linkText);
     if (p) loc.page = Number(p[1]);
   }
 
+  // Only the leading ../ from agents/ may leave its directory. Check after
+  // decoding so a markdown-encoded parent or Windows separator cannot bypass it.
+  if (/[\\\x00-\x1f]/.test(s) || s.replace(/^\.\.\//, "").split("/").includes("..")) return null;
   if (s.startsWith("/")) {
     const m = ABSOLUTE.exec(s) ?? ABSOLUTE_COURSES.exec(s);
     return m && !COMMAND.test(s) ? { kind: "path", path: m[1], ...loc } : null;
   }
-  if (/\s/.test(s)) return null;
+  if (/\s/.test(path)) return null;
   const rel = RELATIVE.exec(s);
   if (rel) return { kind: "path", path: rel[1], ...loc };
   const cwd = AGENT_CWD.exec(s);

@@ -9,6 +9,9 @@ import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
 import { useStoredState } from "@/hooks/ui/useStoredState";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
+import { draftKey, hasDraft, useDraftStore } from "@/stores/chat/draftStore";
+import { DeleteThreadDialog } from "./DeleteThreadDialog";
+import { DraftRows } from "./list/DraftRows";
 import { ThreadRow } from "./ThreadRow";
 import { useThreadPreviews } from "./useThreadPreviews";
 import { COLLAPSED_KEY, VIEW_KEY } from "./order";
@@ -37,8 +40,11 @@ export const ThreadList = memo(function ThreadList({
   threads,
   subjects,
   activeId,
+  activeDraft,
   runningIds,
   onOpen,
+  onOpenDraft,
+  onDiscardDraft,
   onNew,
   onDelete,
 }: {
@@ -46,16 +52,21 @@ export const ThreadList = memo(function ThreadList({
   threads: HarnessThread[];
   subjects: Subject[];
   activeId: number | null;
+  /** The new chat this tab is writing (`chatHref`'s `d`). */
+  activeDraft: string | null;
+  onOpenDraft: (id: string) => void;
+  onDiscardDraft: (id: string) => void;
   /** Ids, not the store's live map, which changes on every streamed token. */
   runningIds: Set<number>;
   onOpen: (id: number) => void;
   /** No argument: the new chat asks for its scope; otherwise that group's. */
   onNew: (scope?: ChatScope) => void;
-  onDelete: (id: number) => void;
+  /** `attachments`: the chat's own files to delete after it (`DeleteThreadDialog`). */
+  onDelete: (id: number, attachments: string[]) => void;
 }) {
   const { collapsed } = panel;
   const [view, setView] = useStoredState(VIEW_KEY, readThreadView);
-  const [confirming, setConfirming] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<HarnessThread | null>(null);
   const [query, setQuery] = useState("");
   const found = useThreadSearch(query);
   const more = useHarnessStore((s) => s.moreThreads);
@@ -64,6 +75,14 @@ export const ThreadList = memo(function ThreadList({
   const newChat = useCallback(() => onNew(), [onNew]);
   const lines = useThreadPreviews(threads);
   const bySubject = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+  // Threads with unsent words, as a string so typing re-renders nothing here.
+  const draftedKey = useDraftStore((s) =>
+    threads
+      .filter((t) => hasDraft(s, draftKey(t.id, "chat")))
+      .map((t) => t.id)
+      .join(","),
+  );
+  const drafted = useMemo(() => new Set(draftedKey ? draftedKey.split(",").map(Number) : []), [draftedKey]);
 
   // A search hit may be older than the threads read: list it first, so the
   // page finds it at once.
@@ -85,11 +104,10 @@ export const ThreadList = memo(function ThreadList({
       question={lines.questions.get(t.id)}
       active={t.id === activeId}
       running={runningIds.has(t.id)}
-      confirming={confirming === t.id}
+      drafted={drafted.has(t.id)}
       onOpen={onOpen}
       onNewTab={openInNewTab}
-      onArm={setConfirming}
-      onDelete={onDelete}
+      onAskDelete={setDeleting}
     />
   );
 
@@ -107,12 +125,14 @@ export const ThreadList = memo(function ThreadList({
             query={query}
             onQuery={setQuery}
             onSearchEnter={() => found?.results[0] && openThread(found.results[0])}
-            fresh={activeId == null}
             onNew={newChat}
             collapsed={collapsed}
           />
         }
       >
+        {!found && (
+          <DraftRows subjects={subjects} activeDraft={activeDraft} onOpen={onOpenDraft} onDiscard={onDiscardDraft} />
+        )}
         {found ? (
           <SearchResults found={found} activeId={activeId} onOpen={openThread} />
         ) : view === "recents" ? (
@@ -143,6 +163,14 @@ export const ThreadList = memo(function ThreadList({
           className="-mx-0.5"
         />
       )}
+      <DeleteThreadDialog
+        thread={deleting}
+        onCancel={() => setDeleting(null)}
+        onConfirm={(t, attachments) => {
+          onDelete(t.id, attachments);
+          setDeleting(null);
+        }}
+      />
     </>
   );
 });

@@ -49,7 +49,10 @@ classes work even when there are no dollar delimiters.
   `\(…\)` / `\[…\]` to `$…$` / `$$…$$` because CommonMark eats the backslash
   first. An inline `<code>` holding only a citation (`app/src/lib/citations/`)
   renders as `FileChip`. `![alt](path)` naming a library picture or HTML
-  page renders it in place (`OutputEmbed.tsx`).
+  page renders it in place (`OutputEmbed.tsx`). In replies, `outputs/x.svg`
+  and `./outputs/x.svg` both name a file under the agent’s `outputs/` folder.
+  A query such as `?v=2` stays on the image URL, outside the encoded disk
+  path. PDF page and lecture time fragments locate the cited passage; any other `#` or `?` is part of the file name.
 - **A fenced code block is syntax-coloured** by `HighlightedCode`
   (`app/src/components/markdown/HighlightedCode.tsx`) with the note editor's
   grammars and palette (`codeLanguage`, `codeStyle`). The fence's tag picks the

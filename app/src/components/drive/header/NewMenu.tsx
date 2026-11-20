@@ -26,7 +26,7 @@ export function NewMenu({ busy, onPick }: { busy: boolean; onPick: (kind: NewKin
           align="end"
           sideOffset={6}
           collisionPadding={12}
-          className="z-50 min-w-52 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none"
+          className="popup-motion z-50 min-w-52 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none"
         >
           <Item icon={<FolderSimplePlus size={14} />} hint={shortcut("shift+mod+n")} onSelect={() => onPick("folder")}>New folder</Item>
           {SEPARATOR}

@@ -21,6 +21,26 @@ agent queries and plans through. Flags are in
 | `keyd` and the app's startup install | `app/src-tauri/src/bin/oculus/commands/keyd.rs`, `app/src-tauri/src/auth/keyd/`; the platform registrations in `app/keyd/core/src/platform/macos/registrar.rs` and `app/keyd/core/src/platform/windows/registrar.rs` |
 | Headless writes to the scrape tables | `app/src-tauri/src/db/store/` |
 | Repo copy of the reference | `app/scripts/gen-cli-docs.mjs` |
+| Chat row coverage check | `app/scripts/check-cli-rows.ts`, `app/tests/repo/oculusCliRows.test.ts` |
+
+## Every command gets a chat row
+
+A new command path gets its own entry in `app/src/lib/harness/oculusCli.ts`,
+which words its row in chat, or a place in that file's `cliExclusions` with the
+reason it never runs from chat. Nested verbs need exact entries too: a
+family's entry (`studio voices`, `memory`) covers only its own path, and must be
+marked `group` so the lookup walks on to its verbs; otherwise an unknown verb
+would borrow the family's wording.
+
+`app/scripts/check-cli-rows.ts` reads the paths from the generated
+[cli-reference.md](./cli-reference.md) and prints one warning block naming
+missing rows, stale keys, stale exclusions and wrong `group` flags. Dev
+preflight runs it after regenerating the reference; `tests/repo/oculusCliRows.test.ts`
+runs it in CI, where the block is a warning annotation on `oculusCli.ts`.
+A gap never fails either. A missing reference, one that doesn't parse as clap
+help, or one with fewer than 110 command paths fails the test; preflight
+reports it and carries on. How chat uses the registry is in
+[harness.md](./harness.md#the-timeline-never-re-renders-per-token).
 
 ## What a command writes decides how careful it is
 
@@ -29,7 +49,7 @@ agent queries and plans through. Flags are in
 | `run`, `index`, `auth` | Copies of what the university has | A bad run is repaired by running it again |
 | `search`, `grep`, `read`, `files`, `calendar`, `list`, `status` | Nothing | Safe for any caller |
 | `project`, `task`, `tag` | The student's own plans | No upstream copy: unknown columns are refused, batches are one transaction, `task rm` and `tag rm` say in `--help` there is no undo |
-| `memory` | Agents' notes in `agents/memories/` | Files, not rows, because the thread writing them cannot open the database. A bucket keeps 12; `append` and `fold` keep it to pages ([harness.md](./harness.md)) |
+| `memory` | Agents' notes in `agents/memories/` | A bucket keeps 12 pages. `write` protects existing text, and `append` and `fold` let agents work within the cap ([harness.md](./harness.md#memory)) |
 | `lecture chapters`, `lecture end` | Derived rows, regenerable from the recording | They spend model quota, so an existing result is kept unless `--force` |
 | `transcribe` | `<video>.vtt` beside a library video, nothing in the database | Tries the engines in the order set in Settings → Transcription (Groq, local Whisper, on-device speech by default); Groq spends the free-tier audio allowance, the other two run on this Mac. An existing `.vtt` is kept unless `--force` ([viewers.md](./viewers.md#videos-without-captions-are-transcribed)) |
 | `studio new` | A video folder, `<app data>/studio/videos/<slug>/` | Takes `--theme NAME`, otherwise the subject default; refuses an existing slug, or unconfigured narration unless `--scratch` (a scratch video, never linked to a chat) ([studio.md](./studio.md#videos-live-in-the-data-directory)) |
@@ -254,6 +274,48 @@ keyd commands must be run by the student. Reads, memory, tooling and Studio
 video work remain available. This gate is a confirmation rule, not a sandbox
 security boundary: [harness.md](./harness.md) describes the containment and
 how shared provider servers propagate it.
+
+## Memory writes protect existing text
+
+`oculus memory append` adds a line, or changes the line identified by
+`--replace <fragment>`. A whole-page rewrite uses
+`oculus memory write NAME --replace --body FILE` with the complete body. Use
+`-s CODE` on either command to work in a subject's bucket.
+
+`write` compares the final body after adding `--why`, `--how`, and
+`--link`. It trims leading and trailing whitespace on both sides for
+comparison. Interior whitespace, including line endings, is significant.
+Creating a memory, filling an empty body, and editing front matter alone
+work without `--replace`. Metadata-only edits preserve the body bytes.
+
+Successful `write --json` emits one object on stdout.
+
+```json
+{"name":"gaps","path":"/path/to/gaps.md","subject":"CODE","created":false,"indexed":3,"outcome":"metadata_updated"}
+```
+
+`subject` is omitted for the cross-subject bucket. `indexed` counts the
+memories in the bucket. `created` is true only for the `created` outcome.
+
+| `outcome` | Meaning |
+| --- | --- |
+| `created` | A new memory file was written |
+| `metadata_updated` | The front matter changed and the body stayed the same |
+| `body_replaced` | An existing file's body changed, including a fill of an empty body |
+| `unchanged` | The front matter and body match the existing file. The derived index is refreshed if needed |
+
+A refusal exits 1, leaves stdout empty, and preserves the file and
+`MEMORY.md` byte for byte. In human output it prints the current body and
+the commands for adding a line or replacing the whole body. With `--json`
+it writes one object to stderr.
+
+```json
+{"error":"This memory already has text. Use `oculus memory append` to add a line or `oculus memory write --replace` to rewrite the whole body.","code":"body_replacement_required","current_body":"- Existing line.\n"}
+```
+
+A malformed or invalid UTF-8 file is refused even with `--replace`.
+The JSON error contains `error`, `code: "invalid_existing_memory"`, and
+`path`. Other errors use the CLI's `{"error":"..."}` shape.
 
 ## `oculus docs` writes the agents folder
 

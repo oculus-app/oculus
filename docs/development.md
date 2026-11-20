@@ -95,8 +95,10 @@ pinned `wasm-bindgen` CLI, and never fatal), builds and signs the dev
 keyd only as
 [below](#oculus-keyd-is-built-apart-so-its-signature-only-changes-with-its-source),
 regenerates [cli-reference.md](./cli-reference.md) (written only when the help
-changed), and runs `oculus docs` to refresh the library's agent docs. The last
-two are non-fatal: a machine whose app has never run has no library to fill.
+changed), checks it against the chat row registry when it regenerated
+([cli.md](./cli.md#every-command-gets-a-chat-row)), and runs `oculus docs` to
+refresh the library's agent docs. The last three are non-fatal: a machine whose
+app has never run has no library to fill.
 `OCULUS_SKIP_PREDEV=1` skips it all for a vite-only session.
 
 There is one preflight per checkout. A stopped `tauri dev` leaves its

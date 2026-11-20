@@ -105,7 +105,7 @@ export const Reply = memo(function Reply({
         </WidgetStream.Provider>
       </WidgetRow.Provider>
       {!stream && (
-        <MessageActions when={fmtClock(sqliteUtcToMs(item.created_at))} side="left">
+        <MessageActions when={fmtClock(sqliteUtcToMs(item.created_at))} side="left" shown>
           {item.run_id != null && <AnswerModel thread={item.thread_id} run={item.run_id} />}
           {settled && <CopyAction text={text} />}
           {settled && retry && asked && !busy && (

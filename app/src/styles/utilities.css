@@ -118,44 +118,81 @@
   }
 }
 
-/* The toast (`ui/Toast.tsx`) drops into place and lifts back out; reduced
-   motion keeps the fade alone. The entrance fills backwards only, so no
-   transform outlives it and the card's text never sits on its own layer. */
-@utility toast-enter {
-  animation: toast-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+/* A thread row's line under its ⋯ (`threads/rowType.ts`): its end fades out
+   while the ⋯ shows. The mask is always on and hover only slides its stops
+   in from past the edge: toggling the mask itself promoted and dropped the
+   line's layer, and the subject icon on it stepped half a pixel (docs/ui.md). */
+@property --under-actions-shift {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 96px;
+}
+
+@utility under-actions {
+  will-change: transform;
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 64px + var(--under-actions-shift)),
+    transparent calc(100% - 32px + var(--under-actions-shift))
+  );
+  transition: --under-actions-shift 100ms ease-out;
   @media (prefers-reduced-motion: reduce) {
-    animation-name: toast-fade-enter;
+    transition: none;
   }
 }
 
-@utility toast-exit {
-  animation: toast-exit 160ms ease-in forwards;
+/* Every popup — menus, popovers, tooltips, hover cards, selects, dialogs,
+   the toast — opens on a spring with a ~3% overshoot and closes on a
+   critically damped one, back towards its trigger. The spring moves `scale`
+   only; opacity takes a short fade of its own so the tail never lingers half
+   seen, and Radix unmounts on that fade's `animationend`. The entrance fills
+   backwards, so no scale outlives it (icon jitter, docs/ui.md). A popup
+   that isn't Radix's sets `data-state` itself and `--popup-origin`. */
+@utility popup-motion {
+  transform-origin: var(--popup-origin, var(--radix-popper-transform-origin, center));
+  &:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"]) {
+    animation:
+      popup-scale-in 345ms
+        linear(0, 0.027, 0.094, 0.187, 0.292, 0.4, 0.505, 0.603, 0.691, 0.768, 0.832, 0.886, 0.928, 0.961, 0.986, 1.004, 1.017, 1.024, 1.028, 1.03, 1.029, 1.027, 1.025, 1.022, 1.018, 1.015, 1.012, 1.01, 1.007, 1.005, 1.004, 1.002, 1)
+        backwards,
+      popup-fade-in 90ms ease-out backwards;
+  }
+  &[data-state="closed"] {
+    animation:
+      popup-scale-out 345ms
+        linear(0, 0.034, 0.112, 0.211, 0.316, 0.417, 0.51, 0.593, 0.665, 0.726, 0.778, 0.82, 0.856, 0.885, 0.908, 0.927, 0.942, 0.954, 0.964, 0.972, 0.978, 0.983, 0.986, 0.989, 0.992, 0.993, 0.995, 0.996, 0.997, 0.998, 0.998, 0.999, 1)
+        forwards,
+      popup-fade-out 110ms ease-in forwards;
+  }
   @media (prefers-reduced-motion: reduce) {
-    animation-name: toast-fade-exit;
+    &:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"]) {
+      animation: popup-fade-in 120ms ease-out backwards;
+    }
+    &[data-state="closed"] {
+      animation: popup-fade-out 110ms ease-in forwards;
+    }
   }
 }
 
-@keyframes toast-enter {
+@keyframes popup-scale-in {
   from {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.98);
+    scale: 0.9;
   }
 }
 
-@keyframes toast-exit {
+@keyframes popup-scale-out {
   to {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.98);
+    scale: 0.88;
   }
 }
 
-@keyframes toast-fade-enter {
+@keyframes popup-fade-in {
   from {
     opacity: 0;
   }
 }
 
-@keyframes toast-fade-exit {
+@keyframes popup-fade-out {
   to {
     opacity: 0;
   }
@@ -173,5 +210,43 @@
   }
   to {
     stroke-dashoffset: 1;
+  }
+}
+
+/* A list row joining or leaving (`threads/list/useRowPresence.ts`): its
+   height grows from nothing while it fades in, and folds back while it fades
+   out, so the rows below glide rather than jump. Height and opacity only: a
+   transform would put the row's icons on a layer (icon jitter, docs/ui.md).
+   Its one child is the clip. */
+@utility row-presence {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 200ms ease-out 40ms;
+  & > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+  &[data-enter] {
+    @starting-style {
+      grid-template-rows: 0fr;
+      opacity: 0;
+    }
+  }
+  &[data-state="closed"] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      grid-template-rows 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 120ms ease-in;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: opacity 120ms ease-out;
+    &[data-state="closed"] {
+      transition: opacity 120ms ease-in;
+    }
   }
 }

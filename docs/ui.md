@@ -328,6 +328,9 @@ themes are opt-in and keep the same structure.
   bubble. The ⌘S stash is a "Stash"
   pill above the box opening a popover; its eviction notice is a line inside
   that popover, not a toast ([harness.md](./harness.md#the-empty-box-earlier-messages-and-the-stash)).
+- **An expanded picture Read opens in the image lightbox.** Its thumbnail
+  and the zoomed view load the same asset. For notebook page paths and the
+  missing-image fallback, see [the harness timeline](./harness.md).
 - **A compact composer is one bar** (the subject Overview's ask bar): the
   hint on one line, a sliders button, the mic and send. It never reshapes on
   focus; it only grows taller as text wraps, controls pinned bottom-right.
@@ -401,8 +404,12 @@ themes are opt-in and keep the same structure.
   ⌘⌥B, from `SideNavCollapseToggle` at the start of the
   page's 48px header row, beside its title, or by dragging it narrow. The
   toggle takes the panel itself; `useSideNavPanel` binds ⌘⌥B and names it in
-  the panel's `shortcut`, so every toggle's tooltip shows it. Labels
-  fade as the width eases shut (`SIDE_NAV_FOLDS`). Drag samples are coalesced
+  the panel's `shortcut`, so every toggle's tooltip shows it. While it
+  folds or unfolds, and while folded, the column's content keeps its open
+  width and the easing edge only clips it, so no row reflows or repaints per
+  frame; labels fade with the fold (`SIDE_NAV_FOLDS`). Its seam is a line
+  drawn over the right edge, not a border, whose width snaps to device pixels
+  at a fractional zoom and left the held content a pixel off where it settles. Drag samples are coalesced
   into one width update per animation frame; release applies the last sample
   even before that frame arrives. The width and fold are saved to storage
   only after dragging ends, so synchronous storage stays out of the resize
@@ -442,9 +449,8 @@ themes are opt-in and keep the same structure.
   never moves layout or covers a title: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
   wide at most unless the caller's `className` reshapes it (Groq's is a
-  content-wide pill). It drops in and lifts out (`toast-enter`, `toast-exit` in
-  `utilities.css`; reduced motion fades only, and the entrance leaves no
-  transform behind), is `role="status"` with `aria-live="polite"`, closes
+  content-wide pill). It springs in and out from its top edge
+  (`popup-motion`, below), is `role="status"` with `aria-live="polite"`, closes
   after 6 s with the timer paused while hovered or focused, on Escape or
   its `ToastClose`, and only the newest stays open. `ToastClose` is the ×
   inside a ring that drains clockwise over those 6 s and holds while the
@@ -509,7 +515,12 @@ glyph; subject and project crumbs retain their custom identity icons.
   years, and a half-typed value reads empty. Use
   `app/src/components/projects/fields/DateTimeField.tsx`; bare `type="time"` is fine.
 - **`scrollbar-gutter` is a no-op in WebKit** — reserve the gutter with
-  `overflow-y: scroll` (`page-scroll`, `GridTable`, the lightbox).
+  `overflow-y: scroll` (`page-scroll`, `GridTable`, the lightbox, every chat
+  timeline's scroller), or a fold that starts the overflow narrows the column.
+- **A hover-revealed trigger opens a non-modal menu** (`modal={false}`, as
+  `RowMenu` does). A modal Radix menu sets `pointer-events: none` on the body,
+  and after it closes WebKit leaves the row un-hovered until the mouse moves,
+  so whatever the hover hid flashes back.
 - **Icons jitter half a pixel when a layer is promoted or dropped** — recurring.
   At a fractional page zoom (1.1, 1.3) WebKit re-snaps content by half a device
   pixel whenever an element gains or loses its own compositing layer, so icons
@@ -518,7 +529,8 @@ glyph; subject and project crumbs retain their custom identity icons.
   expands (`SwitcherList` in `app/src/components/subjects/nav/SubjectSwitcher.tsx`), and anything that transitions
   `opacity` or `transform` — a hover-reveal button (`MessageActions` in
   `app/src/components/harness/timeline/`, `ThreadRow`'s delete), a caret that fades and rotates, the
-  label fade `SIDE_NAV_FOLDS`. All carry `will-change`, which keeps the layer on
+  label fade `SIDE_NAV_FOLDS`, and a side nav's fold settling (Chat's
+  Recents/Subject icons, `threads/list/Header.tsx`). All carry `will-change`, which keeps the layer on
   from the start. Whole-pixel row heights do not help. **Every new
   `transition-opacity` / `transition-transform` on an icon, or on a row holding
   one, gets `will-change-[opacity]` (or `[opacity,transform]`)** — grep for
@@ -527,6 +539,27 @@ glyph; subject and project crumbs retain their custom identity icons.
   when its children composite: the share-link field keeps its clip promoted
   through hover and the native share button's disabled fade. Promoting only
   the buttons or their SVGs leaves the ancestor's clip free to re-snap.
+  A `mask-image` switched on by hover is a trigger too: keep the mask on and
+  move its stops instead (`under-actions`, under a thread row's ⋯).
+- **Every popup moves with `popup-motion`** (`app/src/styles/utilities.css`):
+  menus, context menus, popovers, tooltips, hover cards, selects, dialogs, the
+  toast and Chat's floating thread info card. It opens on a spring with a
+  slight overshoot and closes on a critically damped one, scaling towards its
+  trigger (Radix's `--radix-popper-transform-origin`) while a short fade
+  hides it; reduced motion keeps only the fade. The class keys off
+  `data-state`, so a Radix content just takes the class; anything else sets
+  `data-state` and `--popup-origin` itself and stays mounted for the 110 ms
+  exit (`usePresence`). Don't add `animate-in`/`zoom-in` classes to a popup.
+- **A list row joining or leaving moves with `row-presence`**: its height
+  grows from nothing as it fades in (`@starting-style`, only on
+  `data-enter`, so the first draw doesn't animate) and folds back as it fades
+  out (`data-state="closed"`), with no transform. Its one child is the clip
+  and takes no padding, or a closed row keeps the padding's height and snaps
+  it away on unmount; pad a grandchild. `useRowPresence` in
+  `harness/threads/list/` keeps a leaving row in place through its 200 ms
+  exit; Chat's draft rows and their divider use it. The height is laid out on
+  the main thread each frame (the fade is not), so start the store change a
+  leave sets off after the fold, not with it, as the draft rows' Discard does.
 - **Never `transition-all`** — inactive tabs hide with `visibility: hidden`
   (`app/src/components/tabs/TabPane.tsx`), and `all` transitions the inherited
   `visibility` too: going hidden it stays `visible` for the whole duration, so

@@ -1,392 +1,264 @@
 import { displayCode, humanizeSlug } from "@/lib/format/format";
+import { base, code, column, flag, isOculus, join, parseArgs, pathCourse, parseShell, shellCommands, unwrapShell } from "./cliArgs";
+import { group, row, words, type CliEntry, type CliIcon, type Emphasis } from "./cliRow";
+import { cliState, draftedCount, memoryWording, refusedWrite, type CliState } from "./cliResult";
+import type { ToolMeta } from "./types";
 
-/** What a timeline row says about an `oculus …` tool call: "Saved a memory",
- *  "Searched the library for "word limit"", "Moved 7 tasks to To do". The
- *  command stays in the row's detail; this is only its title. */
+export { shellCommands };
+export type { CliIcon };
 
-export type CliIcon =
-  | "memory"
-  | "search"
-  | "file"
-  | "folder"
-  | "calendar"
-  | "task"
-  | "project"
-  | "tag"
-  | "lecture"
-  | "studio"
-  | "library";
+const first: Emphasis = a => a.pos[0];
+const file: Emphasis = a => a.pos[0] && base(a.pos[0]);
+const subject: Emphasis = a => code(flag(a, "-s", "--subject"));
+const subjects: Emphasis = a => a.pos.map(displayCode).join(", ") || undefined;
+const title: Emphasis = a => flag(a, "--title", "--name") ?? first(a);
+const id: Emphasis = a => first(a) && `#${first(a)}`;
+const memory: Emphasis = a => flag(a, "--about", "--description", "--title") ?? (a.pos[0] && humanizeSlug(a.pos[0]));
+const bucket: Emphasis = a => a.flags.has("--all") ? "all subjects" : subject(a);
+const scene: Emphasis = a => join(file(a), flag(a, "--scene"));
+const member: Emphasis = a => a.pos[1];
+const voices: Emphasis = a => a.flags.has("--all") ? "all voices" : a.pos.join(", ") || undefined;
+const query: Emphasis = a => join(a.pos[0] && `"${a.pos[0]}"`, subject(a));
+const libraryFile: Emphasis = a => {
+  const pages = flag(a, "-p", "--pages");
+  return join(file(a), pages && `p. ${pages}`, code(pathCourse(first(a) ?? "")) ?? subject(a));
+};
+const search = words("Searching", "Searched", "the library for", "the library {} times");
+const memoryWriteResult = { ...words("Finishing", "Finished", "a memory write", "{} memory writes"),
+  live: words("Writing", "Wrote", "a memory", "{} memories").live };
+const question = words("Drafting", "Drafted", "a question", "{} questions");
+const voiceList = words("Listing", "Listed", "Studio voices");
 
-/** One `oculus` command out of a shell line. */
+const fallback: CliEntry = {
+  ...row("*", "library", words("Running", "Ran", "oculus", "{} oculus commands")),
+  fallback: true,
+};
+
+export const cliRegistry: CliEntry[] = [
+  row("status", "library", words("Checking", "Checked", "library status")),
+  row("list", "library", a => words("Listing", "Listed", a.flags.has("-l") || a.flags.has("--lectures") ? "lectures" : "subjects"), subjects),
+  row("run", "library", a => words("Syncing", "Synced", a.flags.has("--ed") ? "Ed" : a.flags.has("-l") || a.flags.has("--lectures") ? "lectures" : "Canvas"), subjects, true),
+  row("index", "index", words("Indexing", "Indexed", "library files"), subjects, true),
+  group("library", "library"),
+  row("library migrate", "folder", a => a.flags.has("--dry-run") ? words("Previewing", "Previewed", "library migration") : words("Running", "Ran", "library migration"), undefined, true),
+  row("search", "search", search, query),
+  row("grep", "search", search, query),
+  row("read", "file", words("Reading", "Read", "", "{} files"), libraryFile),
+  row("files", "folder", words("Listing", "Listed", "files"), subjects),
+  row("calendar", "calendar", words("Checking", "Checked", "the calendar"), subjects),
+  group("project", "project"),
+  row("project list", "project", words("Listing", "Listed", "projects"), subject),
+  row("project show", "project", words("Opening", "Opened", "project", "{} projects"), id),
+  row("project events", "calendar", words("Listing", "Listed", "linkable events"), subject),
+  row("project create", "project", words("Creating", "Created", "project", "{} projects"), title, true),
+  row("project update", "project", words("Updating", "Updated", "project", "{} projects"), title, true),
+  group("task", "task"),
+  row("task list", "task", words("Listing", "Listed", "tasks"), a => flag(a, "-p", "--project", "--tag")),
+  row("task show", "task", words("Opening", "Opened", "task", "{} tasks"), id),
+  row("task add", "task", a => a.flags.has("--batch") ? words("Adding", "Added", "a task batch", "{} task batches") : words("Adding", "Added", "a task", "{} tasks"), title, true),
+  row("task update", "task", words("Updating", "Updated", "task", "{} tasks"), a => flag(a, "--title") ?? id(a), true),
+  row("task move", "task", words("Moving", "Moved", "task to", "{} tasks to"), a => column(flag(a, "-c", "--column") ?? ""), true),
+  row("task refile", "task", words("Refiling", "Refiled", "task", "{} tasks"), id, true),
+  row("task rm", "task", words("Deleting", "Deleted", "task", "{} tasks"), id, true),
+  group("tag", "tag"),
+  row("tag list", "tag", words("Listing", "Listed", "tags")),
+  row("tag add", "tag", words("Adding", "Added", "tag", "{} tags"), first, true),
+  row("tag rename", "tag", words("Renaming", "Renamed", "tag", "{} tags"), a => a.pos.join(" → "), true),
+  row("tag color", "tag", words("Recolouring", "Recoloured", "tag", "{} tags"), first, true),
+  row("tag rm", "tag", words("Deleting", "Deleted", "tag", "{} tags"), first, true),
+  group("memory", "memory"),
+  row("memory list", "memory", words("Listing", "Listed", "memories"), bucket),
+  row("memory read", "memory", words("Reading", "Read", "memory", "{} memories"), first),
+  row("memory write", "memory", memoryWriteResult, memory, true),
+  row("memory append", "memory", a => {
+    if (!a.flags.has("--replace")) return words("Appending", "Appended", "a line to", "{} lines to");
+    return a.pos[1]?.trim() ? words("Replacing", "Replaced", "a line in", "{} lines in")
+      : words("Removing", "Removed", "a line from", "{} lines from");
+  }, a => a.pos[0] && humanizeSlug(a.pos[0]), true),
+  row("memory fold", "memory", words("Folding", "Folded", "memories into"), a => humanizeSlug(flag(a, "--into") ?? ""), true),
+  row("memory rm", "memory", words("Deleting", "Deleted", "memory", "{} memories"), first, true),
+  row("memory move", "memory", words("Moving", "Moved", "memory", "{} memories"), first, true),
+  row("memory promote", "memory", words("Promoting", "Promoted", "memory to preferences"), first, true),
+  row("memory reindex", "memory", words("Reindexing", "Reindexed", "memories"), bucket, true),
+  group("lecture", "lecture"),
+  row("lecture list", "lecture", words("Listing", "Listed", "recordings"), subject),
+  row("lecture candidates", "lecture", words("Checking", "Checked", "chapter boundaries"), first),
+  row("lecture chapters", "lecture", words("Checking", "Checked", "lecture chapters"), first, true),
+  row("lecture end", "lecture", a => a.flags.has("--print-prompt") ? words("Reading", "Read", "lecture end prompt") : words("Checking", "Checked", "lecture endings"), a => a.flags.has("--all") ? "all lectures" : a.pos.join(", "), true),
+  row("transcribe", "lecture", words("Transcribing", "Transcribed", "recording", "{} recordings"), file, true),
+  group("cheat", "cheat"),
+  row("cheat add", "cheat", words("Adding", "Added", "cheat sheet entry", "{} cheat sheet entries"), title, true),
+  row("cheat list", "cheat", words("Listing", "Listed", "cheat sheet entries"), subject),
+  row("cheat show", "cheat", words("Opening", "Opened", "cheat sheet entry", "{} cheat sheet entries"), first),
+  row("cheat update", "cheat", words("Updating", "Updated", "cheat sheet entry", "{} cheat sheet entries"), title, true),
+  row("cheat rm", "cheat", words("Deleting", "Deleted", "cheat sheet entry", "{} cheat sheet entries"), first, true),
+  row("cheat tags", "tag", words("Listing", "Listed", "cheat sheet tags")),
+  group("quiz", "quiz"),
+  row("quiz add", "quiz", question, a => flag(a, "--prompt") ?? subject(a), true),
+  row("quiz list", "quiz", a => words("Listing", "Listed", a.flags.has("--due") ? "due questions" : "questions"), subject),
+  row("quiz show", "quiz", words("Opening", "Opened", "question", "{} questions"), first),
+  row("quiz update", "quiz", words("Updating", "Updated", "question", "{} questions"), first, true),
+  row("quiz rm", "quiz", words("Deleting", "Deleted", "question", "{} questions"), first, true),
+  group("quiz set", "quiz"),
+  row("quiz set add", "quiz", words("Creating", "Created", "quiz set", "{} quiz sets"), title, true),
+  row("quiz set list", "quiz", words("Listing", "Listed", "quiz sets"), subject),
+  row("quiz set show", "quiz", words("Opening", "Opened", "quiz set", "{} quiz sets"), first),
+  row("quiz set update", "quiz", words("Updating", "Updated", "quiz set", "{} quiz sets"), first, true),
+  group("artifact", "artifact"),
+  row("artifact save", "artifact", words("Saving", "Saved", "revision artifact", "{} revision artifacts"), title, true),
+  row("artifact update", "artifact", words("Updating", "Updated", "revision artifact", "{} revision artifacts"), first, true),
+  row("artifact list", "artifact", words("Listing", "Listed", "revision artifacts"), subject),
+  row("artifact show", "artifact", words("Opening", "Opened", "revision artifact", "{} revision artifacts"), first),
+  row("artifact rm", "artifact", words("Deleting", "Deleted", "revision artifact", "{} revision artifacts"), first, true),
+  group("topic", "topic"),
+  row("topic add", "topic", words("Filing", "Filed", "revision topic", "{} revision topics"), title, true),
+  row("topic list", "topic", words("Listing", "Listed", "revision topics"), subject),
+  row("topic show", "topic", words("Opening", "Opened", "revision topic", "{} revision topics"), first),
+  row("topic update", "topic", words("Updating", "Updated", "revision topic", "{} revision topics"), first, true),
+  row("topic rm", "topic", words("Deleting", "Deleted", "revision topic", "{} revision topics"), first, true),
+  group("widget", "widget"),
+  row("widget check", "widget", words("Checking", "Checked", "widget", "{} widgets"), a => first(a) === "-" ? "stdin" : file(a)),
+  group("studio", "studio"),
+  row("studio new", "studio", words("Creating", "Created", "Studio video", "{} Studio videos"), title, true),
+  row("studio list", "studio", words("Listing", "Listed", "Studio videos"), subject),
+  row("studio frame", "studio", words("Rendering", "Rendered", "a frame", "{} frames"), scene, true),
+  row("studio strip", "studio", words("Rendering", "Rendered", "contact sheet", "{} contact sheets"), scene, true),
+  row("studio lint", "studio", words("Checking", "Checked", "Studio scenes"), scene),
+  row("studio brief", "studio", words("Reading", "Read", "scene brief", "{} scene briefs"), scene),
+  row("studio beats", "studio", words("Reading", "Read", "scene timeline", "{} scene timelines"), scene),
+  row("studio gallery", "studio", words("Rendering", "Rendered", "component gallery", "{} galleries"), member, true),
+  row("studio slide", "studio", words("Preparing", "Prepared", "slide", "{} slides"), member, true),
+  row("studio blocks", "file", words("Inspecting", "Inspected", "page blocks"), file),
+  group("studio components", "studio"),
+  row("studio components list", "studio", words("Listing", "Listed", "Studio components"), file),
+  row("studio components show", "studio", words("Opening", "Opened", "Studio component", "{} Studio components"), member),
+  row("studio components promote", "studio", words("Promoting", "Promoted", "Studio component", "{} Studio components"), member, true),
+  row("studio components seed", "studio", words("Installing", "Installed", "Studio starters"), undefined, true),
+  group("studio themes", "studio"),
+  row("studio themes promote", "studio", words("Promoting", "Promoted", "Studio theme", "{} Studio themes"), member, true),
+  row("studio render", "studio", words("Rendering", "Rendered", "video", "{} videos"), file, true),
+  row("studio narrate", "voice", words("Preparing", "Prepared", "narration"), file, true),
+  row("studio tts", "voice", words("Generating", "Generated", "speech clip", "{} speech clips"), first, true),
+  row("studio g2p", "voice", words("Checking", "Checked", "pronunciation"), first),
+  group("studio pronounce", "voice"),
+  row("studio pronounce suggest", "voice", words("Suggesting", "Suggested", "pronunciation for"), member, true),
+  row("studio pronounce list", "voice", words("Listing", "Listed", "pronunciation suggestions"), a => flag(a, "--video")),
+  { ...row("studio voices", "voice", voiceList), group: true },
+  row("studio voices list", "voice", voiceList),
+  row("studio voices download", "voice", words("Downloading", "Downloaded", "voice assets"), voices, true),
+  row("studio voices delete", "voice", words("Removing", "Removed", "voice assets"), voices, true),
+  row("studio agents", "agent", words("Checking", "Checked", "Studio agent assignments"), a => flag(a, "--agent")),
+  group("studio aligner", "voice"),
+  row("studio aligner status", "voice", words("Checking", "Checked", "narration aligner")),
+  row("studio aligner download", "voice", words("Downloading", "Downloaded", "narration aligner"), undefined, true),
+  row("studio aligner delete", "voice", words("Removing", "Removed", "narration aligner"), undefined, true),
+  row("docs", "library", a => a.flags.has("--stdout") ? words("Reading", "Read", "CLI reference") : words("Refreshing", "Refreshed", "agent docs"), undefined, true),
+  row("agent", "agent", words("Running", "Ran", "agent prompt", "{} agent prompts"), a => flag(a, "-p", "--provider") ?? first(a)),
+  fallback,
+];
+
+const byKey = new Map(cliRegistry.map(entry => [entry.key, entry]));
+
+// agent_guard reserves these commands for the student's terminal.
+export const cliExclusions = {
+  auth: ["auth", "auth canvas", "auth login", "auth logout", "auth status", "auth setup",
+    "auth auto", "auth forget", "auth diagnose", "auth ed"],
+  keyd: ["keyd", "keyd install", "keyd status", "keyd uninstall"],
+};
+
+function lookup(words: string[]) {
+  let at = 0;
+  while (words[at] === "--json") at++;
+  let key = words[at]?.startsWith("-") ? "" : words[at++] ?? "";
+  let entry = byKey.get(key);
+  while (entry?.group || key === "auth" || key === "keyd") {
+    while (words[at] === "--json") at++;
+    if (!words[at] || words[at].startsWith("-")) break;
+    key += " " + words[at++];
+    entry = byKey.get(key);
+  }
+  return { entry: entry ?? fallback, key, args: parseArgs(words.slice(at), key) };
+}
+
 export interface CliAction {
-  /** Same key, same command: chains of it are counted. */
   key: string;
   icon: CliIcon;
+  state: CliState;
   em?: string;
-  verb: (done: boolean, n: number) => string;
-  /** The bundle's clause for `n` of these: "saved 2 memories". */
+  title: (n: number) => string;
   tally: (n: number) => string;
-  /** It changes the library (a memory, a task, a sync): a bundle's summary
-   *  ranks it with commands and edits, above reads. */
-  writes?: boolean;
+  writes: boolean;
+  count: number;
 }
 
-export interface CliSummary {
-  title: string;
-  em?: string;
-  icon: CliIcon;
-}
+type Call = ReturnType<typeof lookup>;
 
-interface Args {
-  pos: string[];
-  flags: Map<string, string | true>;
-}
-
-/** Flags that take no value, so the word after them is positional. */
-const BOOL_FLAGS = new Set([
-  "--all", "--full", "--fixed", "--case-sensitive", "-l", "--files-with-matches",
-  "--indexed", "--due", "--past", "--reparse", "--refresh", "--ed", "--no-parse",
-  "--no-embed", "--videos", "--transcripts", "--force", "--stdout", "--global",
-  "--keep", "--personal", "--archived", "--unfiled", "--frames", "--dry-run",
-  "--print-prompt", "--json", "--help", "-h", "-i", "--subjects", "--lectures",
-]);
-
-const SEPARATORS = ["&&", "||", ";", "\n"];
-
-/** The commands of a shell line as words, quotes removed. A pipe or redirect
- *  ends what is kept of a command (`| head -30`, `2>&1`). */
-export function shellCommands(line: string): string[][] {
-  const out: string[][] = [];
-  let words: string[] = [];
-  let word = "";
-  let inWord = false;
-  let quote: string | null = null;
-  let dropping = false;
-  const endWord = () => {
-    if (inWord && !dropping) words.push(word);
-    word = "";
-    inWord = false;
-  };
-  const endCommand = () => {
-    endWord();
-    if (words.length) out.push(words);
-    words = [];
-    dropping = false;
-  };
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (quote) {
-      if (c === quote) quote = null;
-      else if (c === "\\" && quote === '"' && i + 1 < line.length) word += line[++i];
-      else word += c;
-      continue;
-    }
-    const sep = SEPARATORS.find((s) => line.startsWith(s, i));
-    if (sep) {
-      endCommand();
-      i += sep.length - 1;
-    } else if (c === "'" || c === '"') {
-      quote = c;
-      inWord = true;
-    } else if (c === "\\" && i + 1 < line.length) {
-      word += line[++i];
-      inWord = true;
-    } else if (c === "|" || c === ">" || c === "<") {
-      // `2>&1`: the fd number is part of the redirect, not an argument.
-      if (/^\d+$/.test(word)) {
-        word = "";
-        inWord = false;
-      }
-      endWord();
-      dropping = true;
-    } else if (/\s/.test(c)) {
-      endWord();
-    } else {
-      word += c;
-      inWord = true;
-    }
-  }
-  endCommand();
-  return out;
-}
-
-const isOculus = (w: string) => /^oculus(\.exe)?$/i.test(w.split(/[/\\]/).pop() ?? "");
-
-function parseArgs(words: string[]): Args {
-  const pos: string[] = [];
-  const flags = new Map<string, string | true>();
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i];
-    if (!w.startsWith("-") || w === "-") {
-      pos.push(w);
-      continue;
-    }
-    const eq = w.indexOf("=");
-    if (w.startsWith("--") && eq > 0) {
-      flags.set(w.slice(0, eq), w.slice(eq + 1));
-    } else if (!BOOL_FLAGS.has(w) && i + 1 < words.length && !words[i + 1].startsWith("-")) {
-      flags.set(w, words[++i]);
-    } else {
-      flags.set(w, true);
-    }
-  }
-  return { pos, flags };
-}
-
-function flag(a: Args, ...names: string[]): string | undefined {
-  for (const n of names) {
-    const v = a.flags.get(n);
-    if (typeof v === "string" && v) return v;
-  }
-  return undefined;
-}
-
-const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
-const base = (p: string) => p.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? p;
-const code = (c: string | undefined) => (c ? displayCode(c) : undefined);
-const join = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(" · ") || undefined;
-
-/** `todo` → "To do", `in-review` → "In review". */
-function column(c: string): string {
-  if (c.toLowerCase() === "todo") return "To do";
-  const s = c.replace(/[-_]+/g, " ");
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/** The course a library path sits under, `courses/COMP30026_2026_SM2/…`. */
-function pathCourse(p: string): string | undefined {
-  return /(?:^|[/\\])courses[/\\]([^/\\]+)/.exec(p)?.[1];
-}
-
-/** A verb with its live form, and how a chain of `n` reads. */
-function verbs(live: string, done: string, many?: (n: number) => [string, string]) {
-  return (isDone: boolean, n: number) => {
-    if (n > 1 && many) return many(n)[isDone ? 1 : 0];
-    return isDone ? done : live;
-  };
-}
-
-const once = (clause: string) => () => clause;
-const counted = (one: string, many: (n: number) => string) => (n: number) => (n === 1 ? one : many(n));
-
-const SEARCH_TALLY = counted("searched the library", (n) => `searched the library ${n} times`);
-
-function describeOne(sub: string[], a: Args): CliAction {
-  const [cmd, action] = sub;
-  const name = a.pos[0];
-  switch (cmd) {
-    case "memory":
-      switch (action) {
-        case "write":
-          return {
-            key: "memory-write", writes: true, icon: "memory",
-            em: flag(a, "--about") ?? (name ? humanizeSlug(name) : undefined),
-            verb: verbs("Saving a memory", "Saved a memory", (n) => [`Saving ${n} memories`, `Saved ${n} memories`]),
-            tally: counted("saved a memory", (n) => `saved ${n} memories`),
-          };
-        case "append":
-          return {
-            key: "memory-write", writes: true, icon: "memory", em: name ? humanizeSlug(name) : undefined,
-            verb: verbs("Saving a memory", "Saved a memory", (n) => [`Saving ${n} memories`, `Saved ${n} memories`]),
-            tally: counted("saved a memory", (n) => `saved ${n} memories`),
-          };
-        case "fold": {
-          const into = flag(a, "--into");
-          return {
-            key: "memory-fold", writes: true, icon: "memory", em: into ? humanizeSlug(into) : undefined,
-            verb: verbs("Folding memories into", "Folded memories into"),
-            tally: once("folded memories"),
-          };
-        }
-        case "read":
-          return {
-            key: "memory-read", icon: "memory", em: name,
-            verb: verbs("Reading memory", "Read memory", (n) => [`Reading ${n} memories`, `Read ${n} memories`]),
-            tally: counted("read a memory", (n) => `read ${n} memories`),
-          };
-        case "list":
-          return {
-            key: "memory-list", icon: "memory",
-            em: a.flags.has("--all") ? "all subjects" : code(flag(a, "-s", "--subject")),
-            verb: verbs("Listing memories", "Listed memories"),
-            tally: once("listed memories"),
-          };
-        case "rm":
-          return {
-            key: "memory-rm", writes: true, icon: "memory", em: name,
-            verb: verbs("Deleting memory", "Deleted memory", (n) => [`Deleting ${n} memories`, `Deleted ${n} memories`]),
-            tally: counted("deleted a memory", (n) => `deleted ${n} memories`),
-          };
-        case "move":
-        case "promote":
-          return {
-            key: "memory-move", writes: true, icon: "memory", em: name,
-            verb: verbs("Moving memory", "Moved memory", (n) => [`Moving ${n} memories`, `Moved ${n} memories`]),
-            tally: counted("moved a memory", (n) => `moved ${n} memories`),
-          };
-        case "reindex":
-          return { key: "memory-reindex", writes: true, icon: "memory", verb: verbs("Reindexing memories", "Reindexed memories"), tally: once("reindexed memories") };
-      }
-      break;
-    case "grep":
-    case "search":
-      return {
-        key: "search", icon: "search",
-        em: join(name ? `"${name}"` : undefined, code(flag(a, "-s", "--subject"))),
-        verb: verbs("Searching the library for", "Searched the library for", (n) => [
-          `Searching the library ${n} times`, `Searched the library ${n} times`,
-        ]),
-        tally: SEARCH_TALLY,
-      };
-    case "read": {
-      const pages = flag(a, "-p", "--pages");
-      return {
-        key: "read", icon: "file",
-        em: name ? join(base(name), pages && `p. ${pages}`, code(pathCourse(name) ?? flag(a, "-s", "--subject"))) : undefined,
-        verb: verbs("Reading", "Read", (n) => [`Reading ${n} files`, `Read ${n} files`]),
-        tally: counted("read a library file", (n) => `read ${n} library files`),
-      };
-    }
-    case "files":
-      return {
-        key: "files", icon: "folder", em: a.pos.map(displayCode).join(", ") || undefined,
-        verb: verbs("Listing files", "Listed files"), tally: once("listed files"),
-      };
-    case "calendar":
-      return { key: "calendar", icon: "calendar", verb: verbs("Checking the calendar", "Checked the calendar"), tally: once("checked the calendar") };
-    case "list": {
-      const what = a.flags.has("-l") || a.flags.has("--lectures") ? "lectures" : "subjects";
-      return { key: `list-${what}`, icon: "library", verb: verbs(`Listing ${what}`, `Listed ${what}`), tally: once(`listed ${what}`) };
-    }
-    case "status":
-      return { key: "status", icon: "library", verb: verbs("Checking status", "Checked status"), tally: once("checked status") };
-    case "task":
-      return describeTask(action, a);
-    case "project":
-      return describeProject(action, a);
-    case "tag":
-      return action === "list"
-        ? { key: "tag-list", icon: "tag", verb: verbs("Listing tags", "Listed tags"), tally: once("listed tags") }
-        : { key: "tag", writes: true, icon: "tag", em: name, verb: verbs("Updating tags", "Updated tags"), tally: once("updated tags") };
-    case "lecture":
-      return { key: "lecture", icon: "lecture", em: action, verb: verbs("Looking inside a lecture", "Looked inside a lecture"), tally: once("looked inside a lecture") };
-    case "transcribe":
-      return { key: "transcribe", writes: true, icon: "lecture", em: name && base(name), verb: verbs("Transcribing", "Transcribed"), tally: once("transcribed a recording") };
-    case "studio":
-      return describeStudio(action);
-    case "docs":
-      return { key: "docs", icon: "library", em: name, verb: verbs("Reading the Oculus docs", "Read the Oculus docs"), tally: once("read the Oculus docs") };
-    case "run":
-      return { key: "run", writes: true, icon: "library", verb: verbs("Syncing Canvas", "Synced Canvas"), tally: once("synced Canvas") };
-  }
+function unfinished(call: Call, state: "failed" | "refused" | "stopped", chain: boolean): CliAction {
+  const { entry, key, args } = call;
+  const memory = key === "memory write" && state === "refused" && !chain;
+  const name = chain ? "Command chain" : memory ? "Memory write" : "Command";
+  const label = `${name} ${state}`;
   return {
-    key: `other-${sub.join(" ")}`, icon: "library",
-    em: sub.filter(Boolean).join(" ") || undefined,
-    verb: verbs("Running oculus", "Ran oculus"),
-    tally: counted("ran an oculus command", (n) => `ran ${n} oculus commands`),
+    key, icon: entry.icon, state, count: 1, writes: entry.writes,
+    em: chain ? undefined : join(memory ? undefined : key, entry.fallback ? undefined : entry.emphasis(args)),
+    title: () => label,
+    tally: n => n === 1 ? label.toLowerCase() : `${n} ${name.toLowerCase()}s ${state}`,
   };
 }
 
-function describeTask(action: string | undefined, a: Args): CliAction {
-  const id = a.pos[0] ? `#${a.pos[0]}` : undefined;
-  const tasks = (n: number) => `${n} ${plural(n, "task")}`;
-  switch (action) {
-    case "add":
-      return {
-        key: "task-add", writes: true, icon: "task", em: flag(a, "--title") ?? a.pos[0],
-        verb: verbs("Adding a task", "Added a task", (n) => [`Adding ${tasks(n)}`, `Added ${tasks(n)}`]),
-        tally: counted("added a task", (n) => `added ${tasks(n)}`),
-      };
-    case "move": {
-      const col = flag(a, "-c", "--column");
-      return {
-        key: "task-move", writes: true, icon: "task", em: col ? column(col) : id,
-        verb: verbs(col ? "Moving task to" : "Moving task", col ? "Moved task to" : "Moved task", (n) => [
-          `Moving ${tasks(n)}${col ? " to" : ""}`, `Moved ${tasks(n)}${col ? " to" : ""}`,
-        ]),
-        tally: counted("moved a task", (n) => `moved ${tasks(n)}`),
-      };
-    }
-    case "update":
-      return {
-        key: "task-update", writes: true, icon: "task", em: flag(a, "--title") ?? id,
-        verb: verbs("Updating task", "Updated task", (n) => [`Updating ${tasks(n)}`, `Updated ${tasks(n)}`]),
-        tally: counted("updated a task", (n) => `updated ${tasks(n)}`),
-      };
-    case "rm":
-      return {
-        key: "task-rm", writes: true, icon: "task", em: id,
-        verb: verbs("Deleting task", "Deleted task", (n) => [`Deleting ${tasks(n)}`, `Deleted ${tasks(n)}`]),
-        tally: counted("deleted a task", (n) => `deleted ${tasks(n)}`),
-      };
-    case "refile":
-      return { key: "task-refile", writes: true, icon: "task", em: id, verb: verbs("Refiling task", "Refiled task"), tally: counted("refiled a task", (n) => `refiled ${tasks(n)}`) };
-    case "show":
-      return { key: "task-show", icon: "task", em: id, verb: verbs("Opening task", "Opened task"), tally: counted("opened a task", (n) => `opened ${tasks(n)}`) };
-    default:
-      return { key: "task-list", icon: "task", verb: verbs("Listing tasks", "Listed tasks"), tally: once("listed tasks") };
+function describeCall({ entry, key, args }: Call, state: "done" | "live", output: string): CliAction {
+  let wording = entry.wording(args);
+  let em = entry.fallback ? key || undefined : entry.emphasis(args);
+  let count = 1;
+  let writes = entry.writes && !args.flags.has("--dry-run") && !args.flags.has("--print-prompt");
+  if (args.flags.has("--help") || args.flags.has("-h") || key === "help") {
+    wording = words("Reading", "Read", "command help");
+    em = key === "help" ? args.pos.join(" ") : key || "oculus";
+    writes = false;
+  } else if (key === "memory write" && state === "done") {
+    wording = memoryWording(output) ?? wording;
+  } else if (key === "quiz add" && args.flags.has("--batch")) {
+    const drafted = state === "done" ? draftedCount(output) : undefined;
+    if (drafted) count = drafted;
+    else wording = words("Drafting", "Drafted", "a batch of questions", "{} batches of questions");
+  } else if (key === "docs" && args.flags.has("--stdout")) {
+    writes = false;
   }
+  const title = state === "live" ? wording.live : wording.done;
+  return { key, state, icon: entry.icon, em, count, writes, title,
+    tally: state === "live" ? n => title(n).toLowerCase() : wording.tally };
 }
 
-function describeProject(action: string | undefined, a: Args): CliAction {
-  const name = flag(a, "--title", "--name") ?? a.pos[0];
-  switch (action) {
-    case "create":
-      return { key: "project-create", writes: true, icon: "project", em: name, verb: verbs("Creating project", "Created project"), tally: counted("created a project", (n) => `created ${n} projects`) };
-    case "update":
-      return { key: "project-update", writes: true, icon: "project", em: name, verb: verbs("Updating project", "Updated project"), tally: counted("updated a project", (n) => `updated ${n} projects`) };
-    case "show":
-      return { key: "project-show", icon: "project", em: name, verb: verbs("Opening project", "Opened project"), tally: counted("opened a project", (n) => `opened ${n} projects`) };
-    case "events":
-      return { key: "project-events", icon: "project", em: name, verb: verbs("Reading project history", "Read project history"), tally: once("read project history") };
-    default:
-      return { key: "project-list", icon: "project", verb: verbs("Listing projects", "Listed projects"), tally: once("listed projects") };
-  }
-}
-
-function describeStudio(action: string | undefined): CliAction {
-  const studio = (live: string, done: string, writes = false): CliAction => ({
-    key: `studio-${action}`, icon: "studio", verb: verbs(live, done), writes,
-    tally: counted("ran a Studio step", (n) => `ran ${n} Studio steps`),
+export function describeOculusCli(line: string, meta: ToolMeta = {}, running = true): CliAction[] {
+  const { commands, combinedStatus } = parseShell(unwrapShell(line));
+  const calls = commands.flatMap(words => {
+    let at = 0;
+    while (/^[a-zA-Z_]\w*=/.test(words[at]) || ["env", "time"].includes(words[at])) at++;
+    return words[at] && isOculus(words[at]) ? [lookup(words.slice(at + 1))] : [];
   });
-  switch (action) {
-    case "render": return studio("Rendering the video", "Rendered the video", true);
-    case "frame": return studio("Rendering a frame", "Rendered a frame", true);
-    case "narrate": return studio("Narrating", "Narrated", true);
-    case "lint": return studio("Checking the scenes", "Checked the scenes");
-    default: return { ...studio("Running Studio", "Ran Studio"), em: action };
+  const first = calls[0];
+  if (!first) return [];
+  const output = meta.output ?? "";
+  const state = cliState(meta, running);
+  if (state !== "done" && state !== "live") {
+    const refused = state === "failed" && calls.length === 1 && refusedWrite(first.key, output);
+    return [unfinished(first, refused ? "refused" : state, calls.length > 1)];
   }
+  // Only && makes a successful shell exit evidence for every command in the chain.
+  if (combinedStatus) {
+    const wording = words("Running", "Ran", calls.length > 1 ? "command chain" : "shell command");
+    return [{ key: "shell", state, icon: first.entry.icon, em: line, count: 1, writes: false,
+      title: state === "live" ? wording.live : wording.done, tally: wording.tally }];
+  }
+  return calls.map(call => describeCall(call, state, calls.length === 1 ? output : ""));
 }
 
-/** Every `oculus` command in a shell line, in order; other commands in the
- *  line (`cd`, a trailing `head`) are skipped. */
-export function describeOculusCli(line: string): CliAction[] {
-  const out: CliAction[] = [];
-  for (const words of shellCommands(line)) {
-    // `oculus` or a path to it, within the first three words like Rust's
-    // `is_oculus_cli` (behind `VAR=x` or `time`).
-    const at = words.findIndex((w, i) => i < 3 && isOculus(w));
-    if (at < 0) continue;
-    const rest = words.slice(at + 1);
-    const sub: string[] = [];
-    // Command, then an action word for the families that have them.
-    if (rest[0] && !rest[0].startsWith("-")) sub.push(rest.shift()!);
-    if (["memory", "task", "project", "tag", "lecture", "studio"].includes(sub[0]) && rest[0] && !rest[0].startsWith("-")) {
-      sub.push(rest.shift()!);
-    }
-    out.push(describeOne(sub, parseArgs(rest)));
-  }
-  return out;
-}
-
-/** The row's title for a line: a chain of one command is counted ("Moved 7
- *  tasks to"); a mixed chain is titled by its first. */
-export function summariseOculusCli(actions: CliAction[], done: boolean): CliSummary | null {
+export function summariseOculusCli(actions: CliAction[]) {
   const first = actions[0];
   if (!first) return null;
-  const same = actions.every((x) => x.key === first.key);
-  const n = same ? actions.length : 1;
-  const ems = [...new Set((same ? actions : [first]).map((x) => x.em).filter((e): e is string => !!e))];
-  const em = ems.join(", ") || undefined;
-  return { title: first.verb(done, n), em: same ? em : join(em, `+${actions.length - 1} more`), icon: first.icon };
+  const same = actions.every(a => a.key === first.key && a.title(1) === first.title(1));
+  const shown = same ? actions : [first];
+  const em = [...new Set(shown.map(a => a.em).filter(Boolean))].join(", ") || undefined;
+  const count = shown.reduce((sum, a) => sum + a.count, 0);
+  return { title: first.title(count), em: same ? em : join(em, `+${actions.length - 1} more`), icon: first.icon };
 }

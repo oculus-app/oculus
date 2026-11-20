@@ -39,7 +39,7 @@ export function ReferencePreview({ children, icon, title, kind, detail, load, me
         <HoverCard.Content
           side="top" align="start" sideOffset={8} collisionPadding={12}
           onClick={(e) => e.stopPropagation()}
-          className="z-50 w-80 max-w-[calc(100vw-24px)] rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-lg outline-none"
+          className="popup-motion z-50 w-80 max-w-[calc(100vw-24px)] rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-lg outline-none"
         >
           {media && <span className="mb-3 block">{media}</span>}
           <PreviewBody icon={icon} title={title} kind={kind} detail={detail} load={load} />
