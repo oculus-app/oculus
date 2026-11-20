@@ -3386,6 +3386,7 @@ detail that will not read says "Can't read the video" and names no step.
 turn ends or the folder's modified time moves. Every view of a video shares
 one read per slug (`useVideoDetail`): the card, its Work row and the page
 beside it asking in the same task make one `studio_video_detail` call.
+A slug no view shows any more is forgotten, so the next view reads afresh.
 
 **A render is a tile.** The thread's latest successful `oculus studio render`
 of each video and preset is lifted out of its run's fold as a `render` row
@@ -3395,7 +3396,8 @@ tile on that preset. Earlier renders of the same preset wrote the same file,
 so they stay plain tool rows in the fold. A row holding media is never
 detached by `useRowVisibility` (only skipped, `content-visibility: hidden`),
 so it pauses the row's `<video>` and `<audio>` as it scrolls out of sight
-(a row holding the focus stays drawn); a row the window drops unmounts its
+(a row a text selection crosses, or one a find or rail jump asked for,
+stays drawn); a row the window drops unmounts its
 player, which pauses it. One inline player is open at a time
 (`useOneInlinePlayer`): Play on another card or tile closes the open one, so
 a single player answers the media keys.

@@ -227,7 +227,7 @@ impl Harness {
                     mode,
                     generation,
                     sinks: sinks.clone(),
-                    studio: opts.studio_brief.as_ref().map(|b| b.slug.clone()),
+                    studio: briefed(resume, opts),
                 },
             );
             return Ok(());
@@ -354,7 +354,7 @@ impl Harness {
                 mode,
                 generation,
                 sinks: sinks.clone(),
-                studio: opts.studio_brief.as_ref().map(|b| b.slug.clone()),
+                studio: briefed(resume, opts),
             },
         );
         Ok(())
@@ -412,5 +412,15 @@ impl Harness {
         if let Some(s) = self.opencode.lock().unwrap().take() {
             s.kill();
         }
+    }
+}
+
+/// The video a newly spawned session's instructions named. A resumed session
+/// counts as told about none: not every CLI re-applies instructions on
+/// resume, so the first send carries the section again.
+fn briefed(resume: Option<&str>, opts: &SendOptions) -> Option<String> {
+    match resume {
+        Some(_) => None,
+        None => opts.studio_brief.as_ref().map(|b| b.slug.clone()),
     }
 }

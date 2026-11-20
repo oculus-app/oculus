@@ -75,7 +75,12 @@ export function useVideoDetail(slug: string) {
       if (!slug) return () => {};
       const e = entry(slug);
       e.listeners.add(listener);
-      return () => e.listeners.delete(listener);
+      return () => {
+        e.listeners.delete(listener);
+        // Unwatched, it is forgotten: the next view reads afresh rather than
+        // drawing a detail whose folder may have gone since.
+        if (e.listeners.size === 0 && entries.get(slug) === e) entries.delete(slug);
+      };
     },
     [slug],
   );
