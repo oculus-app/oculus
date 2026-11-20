@@ -37,6 +37,10 @@ pub struct Video {
     /// `captions` tokens (`crate::captions`). Off when absent.
     #[serde(default)]
     pub captions: bool,
+    /// The student asked for a long video: lint's `long_video` (over 4
+    /// narrated scenes or 150 s) does not apply.
+    #[serde(default)]
+    pub long: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

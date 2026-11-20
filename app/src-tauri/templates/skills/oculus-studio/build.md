@@ -129,7 +129,7 @@ Props: {"narrated": true} (as in video.json)
 Strip: /…/out/prime-strip.png
 Sheet: none (no shared component)
 Keys in: d0-d11 (as planned). Keys out: row7, seven
-Lint: no errors; warning still 12.4-15.1 kept: the pause before "prime" is the point
+Lint: no errors; warning still 3.0-11.6 kept: the pause before "prime" is the point
 Narration changes: none
 ```
 

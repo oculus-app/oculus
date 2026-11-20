@@ -60,9 +60,10 @@ pub fn node(
     let em = f64::from(math.style.font_size.unwrap_or(DEFAULT_FONT_SIZE).max(0.0)) * KATEX_SCALE;
     let ink = math.style.color.unwrap_or(env.text);
     let px = |v: f64| Dim::Px((v * em) as f32);
+    // `fontSize` stays on the Box, which ignores it, for lint's `small_text`.
     let mut style = Style {
         font_family: None,
-        font_size: None,
+        font_size: Some(math.style.font_size.unwrap_or(DEFAULT_FONT_SIZE)),
         font_weight: None,
         color: None,
         line_height: None,

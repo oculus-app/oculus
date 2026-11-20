@@ -378,6 +378,7 @@ fn morph_color_oklab_changes_the_magic_move_and_lint_names_a_bad_one() {
     let issues: Vec<String> = report
         .issues
         .iter()
+        .filter(|i| !common::look_rule(i.error.kind()))
         .map(ToString::to_string)
         .filter(|l| !common::component_rule(l))
         .collect();

@@ -17,19 +17,45 @@ pub(crate) const OFF_FRAME_PX: f64 = 4.0;
 pub(crate) const SETTLED_PX: f64 = 1.0;
 
 /// Narration over a frame that does not change for longer than this is
-/// dead air (the M5 director flagged 3 s gaps).
-pub(crate) const STILL: f64 = 2.5;
+/// dead air. 3Blue1Brown holds a frame over 3 s for 18-29% of a video and
+/// its longest hold is 5-8 s (measured 2026-11-20); at 2.5 s builders added
+/// pop-ins to keep it quiet, and the Canvas-scraping video drew 26 holds of
+/// 2.6-4.5 s, none of which this flags.
+pub(crate) const STILL: f64 = 8.0;
 /// The first thing should be on screen by now.
 pub(crate) const OPENING: f64 = 0.5;
 
-/// Content kept to one half of the frame for longer than this.
-pub(crate) const HALF_SPAN: f64 = 3.0;
-/// ...while narrower (or, for top and bottom, shorter) than this share of
-/// the frame: a clock that fills its half's height measured 45.4%.
-pub(crate) const HALF_SIZE: f64 = 0.5;
-/// How far past the centre line content may reach and still count as in
-/// one half: a clock's labels poke a few px over.
-pub(crate) const HALF_SLACK: f64 = 0.03;
+/// Text or a Math set under this share of the frame's shorter side is too
+/// small: 40 px at 1080p, which the ~600 px chat player shows at 12 px.
+/// The three calibration videos (2026-11-20) still write 15-39 px labels
+/// into 3, 5 and 2 scenes with the themes' scale at this floor (every
+/// scene before it); 48 px labels pass.
+pub(crate) const SMALL_TEXT: f64 = 1.0 / 27.0;
+/// ...when shown for longer than this, so a label in flight passes.
+pub(crate) const SMALL_FOR: f64 = 1.0;
+/// The inline chat player's width, to say how small it reads there.
+pub(crate) const PLAYER_PX: f64 = 600.0;
+
+/// Content whose bounding box is narrower than this share of the frame...
+pub(crate) const SPARSE_WIDTH: f64 = 0.6;
+/// ...or shorter than this share of it...
+pub(crate) const SPARSE_HEIGHT: f64 = 0.5;
+/// ...for longer than this leaves the frame empty. The two automata videos
+/// (2026-10-17) fall under it in 8 and 11 scenes (one at a median 39% by
+/// 57%); Canvas scraping's outline boxes keep 83% by 71% in every sample,
+/// so its thinness is ink, which this does not measure. A large centred
+/// picture at 73% by 70% passes.
+pub(crate) const SPARSE_FOR: f64 = 3.0;
+
+/// A Text centred in this top share of the frame...
+pub(crate) const TITLE_BAND: f64 = 0.15;
+/// ...shown for more than this share of the scene is a slide title: every
+/// Canvas-scraping scene's heading and 13 of 16 in one automata video sit
+/// at the top for the whole scene.
+pub(crate) const TITLE_SHARE: f64 = 0.8;
+/// The component whose whole job is a title: `sparse` and `scene_title`
+/// skip its scenes.
+pub(crate) const TITLE_CARD: &str = "TitleCard";
 
 /// The end of a scene, where a leftover fragment shows.
 pub(crate) const TAIL: f64 = 1.5;

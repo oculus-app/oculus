@@ -21,6 +21,7 @@ pub const SHIPPED: &[(&str, &[&str])] = &[
             "efeb61f7cdade5c209dcc800c187cab4dd8f93fc513b67fbf4b61660256ff149",
             "e5d1881629d89404648cf9466a3d80a31952d2fee825bd4d2a94ffbcc178f938",
             "d245faccb0b099002617e25e51c7a6119136707d45fe4b9a272cea7ceb389007",
+            "a03da5523263050d26abcabc8af173aba819b4256deeac876fed763150cbd084",
         ],
     ),
     (
@@ -30,6 +31,7 @@ pub const SHIPPED: &[(&str, &[&str])] = &[
             "d28928671c095c418cbe4b076a29d9cefe212e57a73b4e779c3c60272f705468",
             "8a62ae163ce7e0b82dee2d54a20e040ad44115c3a35c2e3dd06dea7f489ff385",
             "e710976150aaac0e69cff4c1127802676dfc074abbae502530f4814e32b05a61",
+            "f567920556d715fe9ae9906bf08c22e219f4228ae85b13de1fe09754a34dcb28",
         ],
     ),
     (
@@ -38,6 +40,7 @@ pub const SHIPPED: &[(&str, &[&str])] = &[
             "dafebb3cb9502bc82b9f1e5faea9a49ee0c78ae6058da6d97061f3cdf3375a5f",
             "8dcae2638b0c894221017ec2d8576801fd0f325bc519ae0e8726af996f29692c",
             "8b0516f9fdeaa42b37e525712a98a710bad2a470178a7998669891c4e7edb541",
+            "26d463334cf95fde3fb32f4cda85422b7a8f8831f6f95b6a8640d75f7bd1c629",
         ],
     ),
     (
@@ -46,6 +49,7 @@ pub const SHIPPED: &[(&str, &[&str])] = &[
             "f0c970eba08910c10cdc3549e705245e17b403475d3a3734a901fecc5b3ff197",
             "ea33e2898eaa1cc65ee9fe543157b586bab8b1702e012b02ceaa6b68d24374bf",
             "fe0d1c6ec3b3296d3d32b7b6b3c3781c277e296851b732a0a8eb04d1c9ad122c",
+            "89b2ae2d0a1485664c99196fde9e10b1134fad0cba4c9569e4e83ab7b95c708d",
         ],
     ),
     (
@@ -73,7 +77,9 @@ pub const SHIPPED: &[(&str, &[&str])] = &[
             "0df41dd381aa9fa9998b6e0cf635fbf487836e31db2f0a2def58f54ac10f99a1",
             "a166f9489a21fe7cf0883b704b388eaee1ae9014fcf018faa2aeb6ca13179aff",
             "c1bc1ebcb5b2275b94b8a0d6491c23f679d75bdcca83c01d9008fd5cfe45c717",
+            "abe23bac671376c33cbdadbeabab46b1c843e333278d1de40004d72f5a2fb29a",
             "4a3a357f93c5ac226e6c5dcdd88655a1118bcbca811945a081664243461ede8a",
+            "3b11bafc14fd95165fb947b062a6bfd0f4cd75a734e440ec1b991120df9af5f5",
         ],
     ),
 ];

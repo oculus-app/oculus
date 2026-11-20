@@ -24,6 +24,7 @@ pub(super) fn check(look: &SceneLook, shown: &[Vec<Entity>], out: &mut Vec<Warni
             None => "nothing is ever on screen".to_owned(),
         };
         out.push(Warning {
+            error: false,
             kind: "still",
             noun: "still span",
             short: format!("empty until {}", secs(until)),
@@ -49,6 +50,7 @@ pub(super) fn check(look: &SceneLook, shown: &[Vec<Entity>], out: &mut Vec<Warni
             .sum();
         if b - a - paused > STILL && !empty_opening {
             out.push(Warning {
+            error: false,
                 kind: "still",
                 noun: "still span",
                 short: span(a, b),

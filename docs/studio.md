@@ -101,7 +101,11 @@ narration/    manifest.json and the clips it names
   one.
 - `captions` (optional, default `false`) burns word-highlight captions into
   every frame of a render (see "Captions are burned in from the word
-  timings"). `oculus studio new` and the app write `true`.
+  timings"). `oculus studio new` writes no `captions` key, so a new video
+  burns none in; the player's CC reads the `.vtt` every narrated render
+  writes.
+- `long` (optional, default `false`) says the student asked for a long
+  video: lint's `long_video` does not apply.
 - `motion` (optional) overrides the theme's transition and motion-blur
   defaults for this video; a scene's `transition` (optional) overrides
   both. See "Transitions" and "Motion blur".
@@ -200,7 +204,7 @@ one folder besides `agents/` and the database an agent thread may write
   (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` with
   `--title` as its `title` (none without it; an empty one is refused), at
   1920x1080 (1080x1920 with `--portrait`), 30 fps, the default theme, the
-  subject, `"captions": true`, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
+  subject, no `captions` key, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
   is `--title` or the slug with spaces; an empty `script.md`; and empty
   `components/` and `assets/`. The default theme is the subject library's
   `library.json` `defaultTheme`, else the global library's, else `default`
@@ -618,8 +622,8 @@ manifest. Scenes run one at a time, in video order.
   row reads as unset, and so does an engine other than `server` or
   `kokoro` (in video.json it fails the load); a row with a `baseUrl` and
   no `engine` key reads as `server`. Only speed has a default
-  (`voice::DEFAULT_SPEED`, 0.9: a little under the voice's own pace, since
-  a player can always speed a lecture up); a stored speed is kept.
+  (`voice::DEFAULT_SPEED`, 1.0: the voice's own pace, with the `[pause]`s
+  giving the beats to think); a stored speed is kept.
   There is no default engine, since Kokoro needs a download and a server
   a URL: narrate fails with ``choose Kokoro or a TTS server in Settings ->
   Voice, or pass --engine``. The server engine needs a server, model and
@@ -1609,8 +1613,11 @@ centroid smoothly.
   the mono face.
 - A theme is tokens only: `color`, `font` (`heading`, `body` and `mono`
   families), `type` (style fragments to spread into `style`; the bundled
-  themes have `display`, `h1`, `h2`, `h3`, `body`, `label`, `caption` and
-  `code`, the monospace fragment, 28 px), `space`, `radius`,
+  themes have `display` 104, `h1` 72, `h2` 60, `h3` 52, `body` 44, `label`
+  40, `caption` 40 and `code` 40, the monospace fragment, in px on the
+  1920x1080 frame: none is under lint's `small_text` floor of 1/27 of the
+  frame's shorter side, and a theme that lacks `code` gets it at 40 px),
+  `space`, `radius`,
   `motion` (`duration`, `easing` as cubic-bezier points, `spring` presets,
   and optionally `transition`, `magicMove`, `morphColor` and `motionBlur`,
   the bottom of the motion cascade; the bundled theme sets `morphColor:
@@ -1691,8 +1698,9 @@ with its scene, scene id and component instead of stopping at the first;
 an error is reported once even if several renders hit it.
 
 Each `LintIssue` has a level: `Error` (everything below unless it says
-otherwise; any error makes `oculus studio lint` exit 1), `Warning` (how a
-scene looks over time, below) or `Note`. Notes carry a noun and a short
+otherwise, the slide look and the length checks included; any error makes
+`oculus studio lint` exit 1), `Warning` (the rest of how a scene looks over
+time, below) or `Note`. Notes carry a noun and a short
 form (`group`) so the CLI prints a scene's repeats as one line; warnings
 print one per line in full, since their quoted words say where to fix
 them. `LintReport::is_clean` counts errors only. `Project::lint_scene(i)`
@@ -1794,7 +1802,7 @@ report. Each word Kokoro's guesser reads is a note: ``note: scene N `id`:
 script.md:<line>: check pronunciation: ...``, with the state of the word's
 suggestion when one is stored. Notes never change the exit code.
 
-### Look warnings: what a director would catch on a strip
+### The look: the slide look as errors, the rest as warnings
 
 `crate::look` reads a scene's laid-out trees without painting them. Each
 scene that rendered cleanly is laid out alone (no transition) every 0.2 s
@@ -1805,37 +1813,82 @@ effective opacity, and ancestors' `clip` and `clipInset`. A node counts as
 shown when it paints something (fill, border, shadow, text, path, image),
 is above 5% effective opacity, and covers under 90% of the frame (a
 background). A path's box is its own outline as trimmed, stroke included,
-not the box it is fitted into. Shown nodes gather into entities: a key
-with its unkeyed descendants, a Math with all its pieces (the Box
-`math::build` makes, found by its zero-width strut), or a TSX line for
-nodes with no key near them. Every threshold is in `look/limits.rs`. A
+not the box it is fitted into; a Text's is its lines (each from its
+aligned start to its end, trailing space left out), not the box a Stack
+stretches it to. A Text and a Math carry their `fontSize` times their
+transforms' scale (the Box `math::build` makes keeps the Math's
+`fontSize`, which a Box ignores). Shown nodes gather into entities: a key
+with its unkeyed descendants, a Math with all its pieces (that Box, found
+by its zero-width strut), or a TSX line for nodes with no key near them.
+Every threshold is in `look/limits.rs`, with what it was measured on. A
 layout that throws mid-scene, which the renders at both ends miss, is an
 error naming its time.
 
-Each warning names the scene, the time span, the entity (its key, or
-`Box at Comp.tsx:line:col`) and the words said in that span:
+Three checks are errors: together they are what makes a video read as
+slides. They read only the samples from the end of the transition in,
+since a magic move's first frames carry the last scene's layout.
+
+- **`small_text`**: a Text or Math set under 1/27 of the frame's shorter
+  side (40 px at 1080p) for over 1 s. One error per entity, naming its
+  smallest size, its string, how long it is small and what that size reads
+  as in the ~600 px chat player. The bundled themes' type scale starts at
+  this floor (see "Fonts and themes are bundled, never the system's"), so
+  only a size a component writes or shrinks can fail it. The starters that
+  size their own labels keep to it as well: `Bars` hides value labels
+  rather than shrink them under it and thins crowded category labels,
+  `Graph` moves a plain node label that will not fit inside its node at the
+  floor to its side, `Grid` widens its label gutters, and `Code` sets its
+  notes and trace at least that large (a panel too wide to fit still
+  shrinks, and fails). `tests/starter.rs` lints every starter example at
+  1920x1080 on both bundled themes for `small_text`.
+- **`sparse`**: for over 3 s, the box every shown entity fits in (cut to
+  the frame) is under 60% of the frame's width or under 50% of its height,
+  or nothing is shown. It measures boxes, not ink, so a thin stroke or a
+  label counts by its box. A `TitleCard` scene is skipped.
+- **`scene_title`**: a Text centred in the top 15% of the frame and shown
+  for over 80% of the scene after its transition in, outside a `TitleCard`
+  scene. A Math there (a `\text{…}` heading) is not counted.
+
+Two more are errors about length (`project/lint/long.rs`): **`long_scene`**,
+a scene whose narration clip runs over 30 s, and **`long_video`**, a video
+of over 4 narrated scenes (scenes with a script section) or over 150 s,
+unless video.json has `"long": true`. `long_video` is reported once, for
+the whole video, and not by `lint_scene`.
+
+Lint does not gate anything else: `render` and the player never run it,
+so a video that fails these still renders and plays.
+
+The rest are warnings. Each names the scene, the time span, the entity
+(its key, or `Box at Comp.tsx:line:col`) and the words said in that span:
 
 - **`off_frame`**: an entity more than 4 px past an edge, settled (moved
   under 1 px) for two samples or more, after the transition in. Nodes
   under a camera (a frame-filling ancestor with `scale`) are cropped on
   purpose and skipped.
 - **`still`**: while the narration plays (`lead` to `lead + clip`), more
-  than 2.5 s where no entity's place (to the pixel), opacity (to 2%),
+  than 8 s where no entity's place (to the pixel), opacity (to 2%),
   colours or shape changes, not counting the time inside `[pause]`
   silences, which hold the picture on purpose; and nothing on screen by
   0.5 s (``nothing is on screen until 3.2 s``, or ``nothing is ever on
-  screen``).
-- **`half_frame`**: for more than 3 s, everything shown sits in one half
-  of the frame (reaching at most 3% past the centre line) and is narrower
-  than half the frame; top and bottom too for a portrait video.
+  screen``). 3Blue1Brown holds a frame over 3 s for 18-29% of a video and
+  at most 5-8 s; a lower bar made builders add pop-ins to break holds.
 - **`fragment`**: at the scene's last sample, once the last word is said
   (and within its last 1.5 s), a Math showing at most 2 of its pieces and
   under 25% of them (a stray `= .` left from a rewrite), or a node under 6
   px both ways with nothing shown within 40 px.
 
-Calibration: on a 22-scene lecture video, a scene a reviewer judged good
-drew warnings only for its opening (a lone clock for 4 s, in the left half
-for 6.5 s); lint and its warnings take about 0.2 s a scene.
+Calibration (2026-11-20), on three narrated videos of 7 to 16 scenes and
+375 to 605 s: every one fails `small_text` (in 3 of 16, 5 of 16 and 2 of 7
+scenes, at 15 to 39 px, all sizes written into their own components; on
+the type scale before it started at the floor, 15, 16 and 7 scenes),
+`scene_title` (2, 13 and 7 scenes), `long_scene` (13 of 15, 14 of 16 and 7 of 7 narrated
+scenes, at 31 to 65 s) and `long_video`. Two fail `sparse` in 8 and 11
+scenes; the third's outline boxes and title span at least 83% by 71% of the
+frame in every sample, so its thinness is ink, which `sparse` does not
+measure. One large centred picture with 48 px labels passes all of them
+(`tests/look.rs`). At 2.5 s `still` warned 26 times on the third video
+(spans of 2.6 to 4.5 s); at 8 s it warns on none of the three. Lint and the
+look take about 0.2 s a scene.
 
 ### `beats` is the same samples as a timeline
 
@@ -2348,10 +2401,12 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
   16.0-19.0 s, 27.8-32.8 s, …``. With no errors it ends `no errors` and the
   counts, or `no problems`. With `--json` it prints one array: each issue
   as `{level: "error"|"warning"|"note", scene, id, component, example,
-  kind, message, loc}` (`kind` is `off_frame`, `still`, `half_frame` or
-  `fragment` for a warning; `scene` and `component` null for a script
-  section no scene matches, or for a problem of the whole video, such as a
-  slide no scene shows whose PDF changed), then each
+  kind, message, loc}` (`kind` is `off_frame`, `still` or `fragment` for a
+  warning, and `small_text`, `sparse`, `scene_title`, `long_scene` or
+  `long_video` for the look and length errors; `scene` and `component`
+  null for a script section no scene matches, or for a problem of the
+  whole video, such as `long_video` or a slide no scene shows whose PDF
+  changed), then each
   guessed word as `{level: "note", scene, id, line, kind: "guessed",
   message, word, phonemes, guessed, review}`.
 - `oculus studio beats <DIR> --scene <ID|N>` prints the scene's timeline

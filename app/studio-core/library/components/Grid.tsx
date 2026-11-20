@@ -306,13 +306,17 @@ const Grid = (
   const tall = used.filter(texTall).length > 0.2 * used.length;
   const fs = Math.min(tall ? 0.27 * c : 0.4 * c, (0.78 * c) / Math.max(typical, 0.6));
   const fontOf = (tex) => Math.min(fs, texTall(tex) ? 0.27 * c : fs, (0.78 * c) / Math.max(texEm(tex), 0.6));
+  // Labels and pointer names never go under lint's small_text floor (1/27
+  // of the frame's shorter side); their gutters grow to hold them.
+  const floor = Math.min(size.width, size.height) / 27;
+  const labelFs = Math.max(0.3 * c, floor);
   const gap = gapK * c;
   const pitch = c + gap;
   const gw = cols * pitch - gap;
   const gh = rows * pitch - gap;
   const bw = brackets ? 0.4 * c : 0;
-  const lw = labelUnits * c;
-  const lh = colLabels.length ? 0.65 * c : 0;
+  const lw = rowLabels.length ? Math.max(labelUnits * c, 0.25 * c + labelFs * Math.max(...rowLabels.map(texEm))) : 0;
+  const lh = colLabels.length ? Math.max(0.65 * c, 1.5 * labelFs) : 0;
   const gx = bw + lw + (sides.has("left") ? c : 0);
   const gy = lh + (sides.has("above") ? c : 0);
   const W = gx + gw + bw + (sides.has("right") ? c : 0);
@@ -388,7 +392,7 @@ const Grid = (
 
   const label = (key, tex, box, tint) => (
     <Box key={key} style={{ position: "absolute", ...box, alignItems: "center", justifyContent: "center", opacity: fade(at, motion.duration.base) }}>
-      <Math key={`${key}/v`} tex={tex} display={false} style={{ fontSize: 0.3 * c, color: tint }} />
+      <Math key={`${key}/v`} tex={tex} display={false} style={{ fontSize: labelFs, color: tint }} />
     </Box>
   );
   const rowTags = rowLabels.map((tex, r) =>
@@ -448,7 +452,7 @@ const Grid = (
     );
     const name = (w) => (
       <Box style={{ width: w, height: tag, alignItems: "center", justifyContent: "center", ...shift(0.55) }}>
-        <Math key={`${id}/ptr${i}/v`} tex={p.label} display={false} style={{ fontSize: 0.34 * c, color: ink }} />
+        <Math key={`${id}/ptr${i}/v`} tex={p.label} display={false} style={{ fontSize: Math.max(0.34 * c, floor), color: ink }} />
       </Box>
     );
     const key = `${id}/ptr${i}`;

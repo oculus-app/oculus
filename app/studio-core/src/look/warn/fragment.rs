@@ -26,6 +26,7 @@ pub(super) fn check(look: &SceneLook, shown: &[Vec<Entity>], out: &mut Vec<Warni
         {
             let names: Vec<String> = pieces.iter().map(|p| format!("`{p}`")).collect();
             out.push(Warning {
+            error: false,
                 kind: "fragment",
                 noun: "fragment",
                 short: format!("{} {} of {total} pieces", e.label, pieces.len()),
@@ -48,6 +49,7 @@ pub(super) fn check(look: &SceneLook, shown: &[Vec<Entity>], out: &mut Vec<Warni
         });
         if let Some(b) = stray {
             out.push(Warning {
+            error: false,
                 kind: "fragment",
                 noun: "fragment",
                 short: format!("{} {:.0}x{:.0} px", e.label, b.width(), b.height()),

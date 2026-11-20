@@ -2,10 +2,13 @@
 //! themes: token use, required props, and every scene renders.
 #![allow(clippy::unwrap_used, clippy::panic)] // helpers outside #[test] fns
 
+mod common;
+
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use studio_core::{
-    Engine, Library, Project, RenderOptions, STARTER_COMPONENTS, Size, Theme, seed_library,
+    Engine, Library, LintLevel, Project, RenderOptions, STARTER_COMPONENTS, Size, Theme,
+    seed_library,
 };
 
 /// A video with one scene per starter component (its first example's
@@ -60,6 +63,53 @@ fn the_starter_set_lints_clean_with_each_bundled_theme() {
     }
 }
 
+/// Every example of every starter, at 1920x1080 on each bundled theme, held
+/// long enough for `small_text` (over 1 s after the theme's transition in):
+/// the theme's type scale starts at the floor, so nothing a starter sets
+/// from it is too small for the chat player.
+#[test]
+fn no_starter_example_sets_text_under_the_small_text_floor() {
+    let root = std::env::temp_dir().join(format!("studio-starter-floor-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let (video, global) = (root.join("video"), root.join("library"));
+    std::fs::create_dir_all(&video).unwrap();
+    seed_library(&global, false).unwrap();
+    let theme = Theme::bundled("default").unwrap();
+    let size = Size {
+        width: 1920,
+        height: 1080,
+    };
+    let mut engine = Engine::new(theme, size, None, RenderOptions::default()).unwrap();
+    let mut scenes = Vec::new();
+    for (name, tsx) in STARTER_COMPONENTS {
+        let info = engine.load_component(name, tsx).unwrap();
+        for props in info.examples.values() {
+            scenes.push(json!({ "component": name, "props": props, "hold": 6.0 }));
+        }
+    }
+    let library = Library {
+        global: Some(global),
+        ..Library::default()
+    };
+    for theme in ["default", "warm"] {
+        let v =
+            json!({ "size": { "width": 1920, "height": 1080 }, "theme": theme, "scenes": scenes });
+        std::fs::write(video.join("video.json"), v.to_string()).unwrap();
+        let report = Project::load_with(&video, &library)
+            .unwrap()
+            .lint()
+            .unwrap();
+        let small: Vec<String> = report
+            .issues
+            .iter()
+            .filter(|i| i.error.kind() == "small_text")
+            .map(ToString::to_string)
+            .collect();
+        assert!(small.is_empty(), "{theme}: {small:#?}");
+    }
+    std::fs::remove_dir_all(&root).ok();
+}
+
 /// A library component named like a prelude element (`Steps`, the slide
 /// starter some libraries still hold) is only a scene name: each component
 /// is its own module, so inside every other component `<Steps>` is still
@@ -94,6 +144,10 @@ export default (_p, { theme }) => (
     });
     std::fs::write(root.join("video.json"), v.to_string()).unwrap();
     let report = Project::load(&root).unwrap().lint().unwrap();
-    assert!(report.is_clean(), "{report}");
+    let errors = report
+        .issues
+        .iter()
+        .filter(|i| i.level == LintLevel::Error && !common::look_rule(i.error.kind()));
+    assert_eq!(errors.count(), 0, "{report}");
     std::fs::remove_dir_all(&root).ok();
 }

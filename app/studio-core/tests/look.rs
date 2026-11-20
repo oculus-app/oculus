@@ -1,5 +1,6 @@
-//! What a scene shows over time: lint's warnings (off-frame, still,
-//! half-frame, fragment), their level, `lint_scene`, and `beats`.
+//! What a scene shows over time: lint's slide-look errors (small text,
+//! sparse, scene title), its warnings (off-frame, still, fragment), their
+//! levels, the length errors, `lint_scene`, and `beats`.
 #![allow(clippy::unwrap_used, clippy::panic)] // helpers outside #[test] fns
 
 mod common;
@@ -27,7 +28,11 @@ impl Temp {
     }
 
     fn video(&self, scenes: Value) -> &Temp {
-        let video = json!({ "size": { "width": 800, "height": 400 }, "theme": "default", "scenes": scenes });
+        self.sized(800, 400, scenes)
+    }
+
+    fn sized(&self, width: u32, height: u32, scenes: Value) -> &Temp {
+        let video = json!({ "size": { "width": width, "height": height }, "theme": "default", "scenes": scenes });
         self.file("video.json", &video.to_string())
     }
 
@@ -43,21 +48,33 @@ impl Temp {
 
     /// Scene `a` narrated with `text`, one word a second from 0.
     fn narrate(&self, text: &str) -> &Temp {
-        let words: Vec<Value> = text
-            .split(' ')
-            .enumerate()
-            .map(|(i, w)| {
-                let s = i as f64;
-                json!({ "text": w, "start": s, "end": s + 0.8, "confidence": -0.5 })
-            })
-            .collect();
-        let n = words.len() as f64;
-        self.file("script.md", &format!("## a\n{text}\n"));
+        self.narrate_all(&[("a", text)])
+    }
+
+    /// Each scene id narrated with its text, one word a second from 0.
+    fn narrate_all(&self, scenes: &[(&str, &str)]) -> &Temp {
+        let mut script = String::new();
+        let mut manifest = serde_json::Map::new();
+        for (id, text) in scenes {
+            let words: Vec<Value> = text
+                .split(' ')
+                .enumerate()
+                .map(|(i, w)| {
+                    let s = i as f64;
+                    json!({ "text": w, "start": s, "end": s + 0.8, "confidence": -0.5 })
+                })
+                .collect();
+            let n = words.len() as f64;
+            script.push_str(&format!("## {id}\n{text}\n\n"));
+            manifest.insert(
+                (*id).to_owned(),
+                json!({ "key": format!("k-{id}"), "text": text, "audio": "k.wav", "duration": n, "words": words }),
+            );
+        }
+        self.file("script.md", &script);
         self.file(
             "narration/manifest.json",
-            &json!({ "version": 1, "scenes": { "a": {
-                "key": "k", "text": text, "audio": "k.wav", "duration": n, "words": words } } })
-            .to_string(),
+            &json!({ "version": 1, "scenes": manifest }).to_string(),
         )
     }
 }
@@ -87,13 +104,43 @@ fn boxed(key: &str, left: &str, top: &str, size: u32) -> String {
     )
 }
 
-/// Boxes spread across the frame, so only the check under test fires.
+/// Boxes spread corner to corner, so only the check under test fires.
 fn spread(extra: &str) -> String {
     format!(
         "<Box style={{{{ flexGrow: 1 }}}}>{}{}{extra}</Box>",
-        boxed("l", "40", "150", 100),
-        boxed("r", "660", "150", 100)
+        boxed("l", "40", "40", 100),
+        boxed("r", "660", "260", 100)
     )
+}
+
+/// `n` words of letters, `wa wb …`, since script.md takes no digits.
+fn words(n: usize) -> String {
+    let letter = |i: usize| char::from(b'a' + (i % 26) as u8);
+    (0..n)
+        .map(|i| match i / 26 {
+            0 => format!("w{}", letter(i)),
+            k => format!("w{}{}", letter(i), letter(k)),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// A Text placed at `left`, `top` in `size` px.
+fn text(key: &str, left: u32, top: u32, size: u32, body: &str) -> String {
+    format!(
+        "<Text key=\"{key}\" style={{{{ position: \"absolute\", left: {left}, top: {top}, fontSize: {size} }}}}>{body}</Text>"
+    )
+}
+
+/// The errors of a lint other than the component-source rules.
+fn errors(p: &Project) -> Vec<(&'static str, String)> {
+    let report = p.lint().unwrap();
+    report
+        .issues
+        .iter()
+        .filter(|i| i.level == LintLevel::Error && !common::component_rule(&i.to_string()))
+        .map(|i| (i.error.kind(), i.to_string()))
+        .collect()
 }
 
 #[test]
@@ -123,15 +170,18 @@ fn a_camera_zoom_crops_on_purpose() {
 }
 
 #[test]
-fn narration_over_a_frame_that_does_not_change_is_still() {
+fn a_six_second_hold_under_narration_is_fine_and_nine_is_still() {
     let t = Temp::new("still");
-    t.narrate("one two three four five six");
+    t.narrate(&words(6));
+    let p = t.scene(&spread(""), json!({ "id": "a", "component": "A" }));
+    assert_eq!(kinds(&p), Vec::<&str>::new());
+    t.narrate(&words(9));
     let p = t.scene(&spread(""), json!({ "id": "a", "component": "A" }));
     let w = warnings(&p);
     assert_eq!(w.len(), 1, "{w:?}");
     assert_eq!(w[0].0, "still");
     assert!(
-        w[0].1.starts_with("nothing on screen changes from 0.2 s to 6.2 s while the narration says \"one two three four five six\""),
+        w[0].1.starts_with("nothing on screen changes from 0.2 s to 9.2 s while the narration says \"wa wb wc wd we wf wg wh wi\""),
         "{}",
         w[0].1
     );
@@ -161,8 +211,8 @@ fn an_empty_opening_is_still() {
 }
 
 #[test]
-fn content_kept_to_one_half_is_half_frame() {
-    let t = Temp::new("half");
+fn content_in_a_small_part_of_the_frame_is_sparse() {
+    let t = Temp::new("sparse");
     let left = format!(
         "<Box style={{{{ flexGrow: 1 }}}}>{}{}</Box>",
         boxed("a", "40", "50", 100),
@@ -171,14 +221,75 @@ fn content_kept_to_one_half_is_half_frame() {
     let p = t.scene(&left, json!({ "component": "A", "hold": 4 }));
     let w = warnings(&p);
     assert_eq!(w.len(), 1, "{w:?}");
-    assert_eq!(w[0].0, "half_frame");
+    assert_eq!(w[0].0, "sparse");
     assert!(
-        w[0].1.starts_with("everything on screen sits in the left half (x 40-300 of 800 px) from 0.0 s to 4.0 s; the right half is empty"),
+        w[0].1.starts_with("everything on screen fits in at most 32% of the frame's width and 62% of its height from 0.0 s to 4.0 s; fill at least 60% of the width and 50% of the height"),
         "{}",
         w[0].1
     );
     // The same for under 3 s is fine.
     let p = t.scene(&left, json!({ "component": "A", "hold": 2.5 }));
+    assert_eq!(kinds(&p), Vec::<&str>::new());
+    // A thin stroke across the frame is content: the box, not the ink.
+    let rule = "<Box style={{ position: \"absolute\", left: 40, top: 20, width: 720, height: 360, border: { width: 1, color: \"#5e6ad2\" } }} />";
+    let framed = format!("<Box style={{{{ flexGrow: 1 }}}}>{left}{rule}</Box>");
+    let p = t.scene(&framed, json!({ "component": "A", "hold": 4 }));
+    assert_eq!(kinds(&p), Vec::<&str>::new());
+}
+
+#[test]
+fn text_too_small_for_the_chat_player_is_small_text() {
+    // 800x400: the floor is 400 / 27 = 14.8 px.
+    let t = Temp::new("small");
+    let small = text("note", 300, 180, 12, "a small note");
+    let p = t.scene(&spread(&small), json!({ "component": "A", "hold": 2 }));
+    let w = warnings(&p);
+    assert_eq!(w.len(), 1, "{w:?}");
+    assert_eq!(w[0].0, "small_text");
+    assert!(
+        w[0].1.starts_with("`note` (\"a small note\") is set at 12 px, under 14.8 px (1/27 of the frame's 400 px side), for 2.0 s from 0.0 s to 2.0 s; the chat player is about 600 px wide, where it reads as 9 px"),
+        "{}",
+        w[0].1
+    );
+    // Shown for under a second, or scaled up past the floor, it passes.
+    let brief = format!("{{t < 0.8 ? {small} : null}}");
+    let p = t.scene(&spread(&brief), json!({ "component": "A", "hold": 2 }));
+    assert_eq!(kinds(&p), Vec::<&str>::new());
+    let scaled = r#"<Box style={{ position: "absolute", left: 300, top: 180, scale: 1.5 }}><Text key="note" style={{ fontSize: 12 }}>a small note</Text></Box>"#;
+    let p = t.scene(&spread(scaled), json!({ "component": "A", "hold": 2 }));
+    assert_eq!(kinds(&p), Vec::<&str>::new());
+    // A Math is read by its fontSize too.
+    let math = r#"<Box style={{ position: "absolute", left: 300, top: 180 }}><Math key="eq" tex="x + 1" style={{ fontSize: 10 }} /></Box>"#;
+    let p = t.scene(&spread(math), json!({ "component": "A", "hold": 2 }));
+    let w = warnings(&p);
+    assert_eq!(w.len(), 1, "{w:?}");
+    assert!(w[0].1.starts_with("`eq` is set at 10 px"), "{}", w[0].1);
+}
+
+#[test]
+fn a_text_held_at_the_top_is_a_scene_title_outside_a_title_card() {
+    let t = Temp::new("title");
+    let title = text("heading", 40, 10, 30, "The heading");
+    let p = t.scene(&spread(&title), json!({ "component": "A", "hold": 4 }));
+    let w = warnings(&p);
+    assert_eq!(w.len(), 1, "{w:?}");
+    assert_eq!(w[0].0, "scene_title");
+    assert!(
+        w[0].1.starts_with("`heading` (\"The heading\") sits in the top 15% of the frame for 4.0 s of the scene's 4.0 s"),
+        "{}",
+        w[0].1
+    );
+    // Gone after the first second, it is a heading that hands over.
+    let brief = format!("{{t < 1 ? {title} : null}}");
+    let p = t.scene(&spread(&brief), json!({ "component": "A", "hold": 4 }));
+    assert_eq!(kinds(&p), Vec::<&str>::new());
+    // A TitleCard is a title on purpose, and so is its whole frame.
+    t.file(
+        "components/TitleCard.tsx",
+        &format!("export const props = {{}};\nexport default () => <Box style={{{{ flexGrow: 1 }}}}>{title}</Box>;\n"),
+    )
+    .video(json!([{ "component": "TitleCard", "hold": 4 }]));
+    let p = Project::load(&t.0).unwrap();
     assert_eq!(kinds(&p), Vec::<&str>::new());
 }
 
@@ -211,7 +322,7 @@ fn a_math_left_with_a_piece_of_a_rewrite_is_a_fragment() {
 #[test]
 fn warnings_do_not_fail_lint_and_print_with_their_level() {
     let t = Temp::new("levels");
-    t.narrate("one two three four five six");
+    t.narrate(&words(9));
     let p = t.scene(&spread(""), json!({ "id": "a", "component": "A" }));
     let report = p.lint().unwrap();
     let errors = report
@@ -225,13 +336,93 @@ fn warnings_do_not_fail_lint_and_print_with_their_level() {
         .find(|i| i.level == LintLevel::Warning)
         .unwrap();
     assert_eq!(warning.error.kind(), "still");
-    assert_eq!(warning.group, Some(("still span", "0.2-6.2 s".to_owned())));
+    assert_eq!(warning.group, Some(("still span", "0.2-9.2 s".to_owned())));
     assert!(
         warning
             .to_string()
             .starts_with("warning: scene 0 `a` (A): nothing on screen changes"),
         "{warning}"
     );
+}
+
+#[test]
+fn the_slide_look_fails_lint() {
+    let t = Temp::new("look-levels");
+    let small = text("note", 300, 180, 12, "a small note");
+    let p = t.scene(&spread(&small), json!({ "component": "A", "hold": 2 }));
+    let e = errors(&p);
+    assert_eq!(e.len(), 1, "{e:?}");
+    assert_eq!(e[0].0, "small_text");
+    assert!(e[0].1.starts_with("scene 0 (A): `note`"), "{}", e[0].1);
+}
+
+#[test]
+fn a_long_scene_and_a_long_video_fail_lint_unless_marked_long() {
+    let t = Temp::new("long");
+    t.narrate(&words(31));
+    let p = t.scene(&spread(""), json!({ "id": "a", "component": "A" }));
+    let e = errors(&p);
+    assert_eq!(e.len(), 1, "{e:?}");
+    assert_eq!(e[0].0, "long_scene");
+    assert!(
+        e[0].1
+            .starts_with("scene 0 `a` (A): the narration runs 31.0 s, over 30 s"),
+        "{}",
+        e[0].1
+    );
+    // Five short narrated scenes are a long video; `"long": true` allows it.
+    let ids = ["a", "b", "c", "d", "e"];
+    let short = words(5);
+    let narrated: Vec<(&str, &str)> = ids.iter().map(|id| (*id, short.as_str())).collect();
+    t.narrate_all(&narrated);
+    let scenes: Vec<Value> = ids
+        .iter()
+        .map(|id| json!({ "id": id, "component": "A" }))
+        .collect();
+    t.video(json!(scenes));
+    let p = Project::load(&t.0).unwrap();
+    let e = errors(&p);
+    assert_eq!(e.len(), 1, "{e:?}");
+    assert_eq!(e[0].0, "long_video");
+    assert!(
+        e[0].1
+            .starts_with("the video has 5 narrated scenes and runs 31.3 s, over 4 scenes or 150 s"),
+        "{}",
+        e[0].1
+    );
+    let video = json!({ "size": { "width": 800, "height": 400 }, "theme": "default", "long": true, "scenes": scenes });
+    t.file("video.json", &video.to_string());
+    let p = Project::load(&t.0).unwrap();
+    assert_eq!(errors(&p), Vec::<(&str, String)>::new());
+    // Over 150 s is long too, narrated or not.
+    std::fs::remove_file(t.0.join("script.md")).unwrap();
+    let p = t.scene(&spread(""), json!({ "component": "A", "hold": 151 }));
+    assert_eq!(
+        errors(&p).into_iter().map(|(k, _)| k).collect::<Vec<_>>(),
+        ["long_video"]
+    );
+}
+
+#[test]
+fn one_large_centred_picture_with_48_px_labels_passes_the_slide_look() {
+    let t = Temp::new("picture");
+    t.narrate(&words(20));
+    let picture = "<Box key=\"picture\" style={{ position: \"absolute\", left: 260, top: 140, width: 1400, height: 760, radius: 24, border: { width: 4, color: \"#5e6ad2\" } }} />";
+    let labels = [
+        text("in", 320, 470, 48, "input"),
+        text("out", 1440, 470, 48, "output"),
+        text("caption", 800, 920, 48, "one step at a time"),
+    ]
+    .concat();
+    let moving = boxed("dot", "400 + t * 50", "500", 60);
+    t.file(
+        "components/A.tsx",
+        &format!("export const props = {{}};\nexport default ({{}}, {{ t }}) =>\n  <Box style={{{{ flexGrow: 1 }}}}>{picture}{labels}{moving}</Box>;\n"),
+    )
+    .sized(1920, 1080, json!([{ "id": "a", "component": "A" }]));
+    let p = Project::load(&t.0).unwrap();
+    assert_eq!(errors(&p), Vec::<(&str, String)>::new());
+    assert_eq!(kinds(&p), Vec::<&str>::new());
 }
 
 #[test]
@@ -298,19 +489,27 @@ fn a_pause_is_not_still_and_is_a_beat() {
     let manifest = |text: &str, pauses: Value| {
         let words = json!([
             { "text": "One.", "start": 0.0, "end": 0.8, "confidence": -0.5 },
-            { "text": "Two.", "start": 3.0, "end": 3.8, "confidence": -0.5 }
+            { "text": "Two.", "start": 5.0, "end": 5.8, "confidence": -0.5 },
+            { "text": "Three.", "start": 10.0, "end": 10.8, "confidence": -0.5 }
         ]);
         json!({ "version": 1, "scenes": { "a": {
-            "key": "k", "text": text, "audio": "k.wav", "duration": 4.0, "words": words,
+            "key": "k", "text": text, "audio": "k.wav", "duration": 11.0, "words": words,
             "pauses": pauses } } })
         .to_string()
     };
-    // Four seconds of narration over one frame, two of them a pause.
-    t.file("script.md", "## a\nOne. [pause 2]\nTwo.\n").file(
+    // Eleven seconds of narration over one frame, eight of them pauses.
+    t.file(
+        "script.md",
+        "## a\nOne. [pause 4]\nTwo. [pause 4]\nThree.\n",
+    )
+    .file(
         "narration/manifest.json",
         &manifest(
-            "One. [pause 2] Two.",
-            json!([{ "after": 0, "start": 1.0, "end": 3.0 }]),
+            "One. [pause 4] Two. [pause 4] Three.",
+            json!([
+                { "after": 0, "start": 1.0, "end": 5.0 },
+                { "after": 1, "start": 6.0, "end": 10.0 }
+            ]),
         ),
     );
     let p = t.scene(&spread(""), json!({ "id": "a", "component": "A" }));
@@ -321,9 +520,11 @@ fn a_pause_is_not_still_and_is_a_beat() {
         .into_iter()
         .find(|b| b.event == "pause")
         .unwrap();
-    assert_eq!(pause.line(), "  1.25  pause    2.0 s  \"One.\"");
-    t.file("script.md", "## a\nOne. Two.\n")
-        .file("narration/manifest.json", &manifest("One. Two.", json!([])));
+    assert_eq!(pause.line(), "  1.25  pause    4.0 s  \"One.\"");
+    t.file("script.md", "## a\nOne. Two. Three.\n").file(
+        "narration/manifest.json",
+        &manifest("One. Two. Three.", json!([])),
+    );
     let p = t.scene(&spread(""), json!({ "id": "a", "component": "A" }));
     assert_eq!(kinds(&p), ["still"], "without the pause it is still");
 }
