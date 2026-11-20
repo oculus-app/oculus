@@ -43,7 +43,9 @@ fn lint_prints_errors_first_and_under_2_kb() {
     let errors = report.errors();
     assert!(errors > 0);
     assert!(
-        lines[..errors].iter().all(|l| !l.starts_with("warning:")),
+        lines[..errors.min(lint::MAX_LINES)]
+            .iter()
+            .all(|l| !l.starts_with("warning:")),
         "errors print first: {text}"
     );
     let all = lint::text(&report.issues, &[], true);
