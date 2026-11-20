@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Composer } from "@/components/harness/composer/Composer";
 import { DraftHero } from "@/components/harness/composer/DraftHero";
@@ -28,6 +28,7 @@ import { useScrollFade } from "@/hooks/ui/useScrollFade";
 import {
   harnessDeleteThread,
   chatHref,
+  chatDraftId,
   chatScope,
   chatThreadId,
   liveScope,
@@ -37,13 +38,14 @@ import {
   type DeliveryMode,
 } from "@/lib/harness";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
-import { draftKey, useDraftStore } from "@/stores/chat/draftStore";
+import { draftKey, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { WARP_NAME } from "@/lib/ui/warp";
 
 /**
  * Chat with a CLI agent running from the library's `agents/` folder
  * (`docs/harness.md`): the conversations column (`ThreadList`) beside a thread.
- * `?t=<id>` is that thread's timeline; bare `/chat` is a new thread: its
+ * `?t=<id>` is that thread's timeline; `?d=<id>` is a new chat not yet sent
+ * (bare `/chat` opens an empty one), a row above the list until it is: its
  * headline names the subject (`DraftHero`), the recent threads
  * (`RecentThreads`) below it. New thread and the headline's pill ask for the
  * subject in `NewThreadDialog`. The composer is docked at the bottom of both,
@@ -65,13 +67,17 @@ export default function ChatPage() {
   // ask "which thread" at the moment they fire.
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
+  // The new chat this tab is writing, while it shows no thread.
+  const draftId = activeId == null ? chatDraftId(here.search) : null;
+  const draftRef = useRef(draftId);
+  draftRef.current = draftId;
   const threads = useHarnessStore((s) => s.threads);
   const items = useHarnessStore((s) => itemsFor(activeId, s.items));
   const subjects = useHarnessStore((s) => s.subjects);
   const subjectsLoaded = useHarnessStore((s) => s.subjectsLoaded);
   // A new thread's scope is its draft's (`draftStore`), shared by every Chat
-  // tab as the draft is; unchosen until the student or an entry point picks.
-  const newKey = draftKey(null, "chat");
+  // tab showing that new chat; unchosen until the student or an entry point picks.
+  const newKey = newChatKey(draftId ?? "");
   const storedScope = useDraftStore((s) => s.scopes[newKey]);
   const scope = subjectsLoaded ? liveScope(storedScope, subjects) : null;
   const running = useHarnessStore((s) => (activeId != null && s.live[activeId]?.running) || false);
@@ -129,6 +135,21 @@ export default function ChatPage() {
     if (missing) navigate(chatHref(null), { replace: true });
   }, [missing, navigate]);
 
+  // The new chat on screen is always listed, even one the list let go.
+  const listed = useDraftStore((s) => draftId == null || draftId in s.newChats);
+  useEffect(() => {
+    if (!listed && draftId != null) useDraftStore.getState().keepNewChat(draftId);
+  }, [listed, draftId]);
+
+  // Bare `/chat` (the rail, a new tab, a fallback) names no new chat: it takes
+  // an empty one, or a fresh one, so every new chat has its own draft.
+  const unnamed = activeId == null && draftId == null;
+  useLayoutEffect(() => {
+    if (!unnamed) return;
+    const id = useDraftStore.getState().emptyNewChat();
+    navigate(chatHref(null, null, { draft: id, subject: chatScope(here.search) ?? undefined }), { replace: true });
+  }, [unnamed, here.search, navigate]);
+
   const paneId = useTabId();
 
   // An entry point's `?s=` (a Subject group's "+") seeds the new thread's scope once;
@@ -145,7 +166,8 @@ export default function ChatPage() {
   const tabName = thread?.title?.trim() || "";
   useEffect(() => {
     if (activeId != null && thread == null) return;
-    const want = chatHref(activeId, tabName);
+    if (activeId == null && draftId == null) return;
+    const want = chatHref(activeId, tabName, { draft: draftId ?? undefined });
     if (`${here.pathname}${here.search}` !== want) navigate(want, { replace: true });
   }, [activeId, thread, tabName, here.pathname, here.search, navigate]);
 
@@ -167,14 +189,23 @@ export default function ChatPage() {
   const recentScroll = useRef<HTMLDivElement>(null);
   useScrollFade(recentScroll, "y", fresh);
 
+  // A sent new chat is forgotten (its row, scope and words), but only once
+  // this tab shows the thread: cleared first, the new-chat page drew
+  // "Choose a subject" for a frame before the route moved.
+  const sentDraft = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (activeId == null || sentDraft.current == null) return;
+    useDraftStore.getState().dropNewChat(sentDraft.current);
+    sentDraft.current = null;
+  }, [activeId]);
   const { send: sendTurn, onStop, onResume, onForceStop, onProvider, onModel, onReasoning, questions, pending } = useThreadActions({
     threadId: () => activeRef.current,
     selection,
     onRestore: handBack,
     // The empty composer became this conversation; replace, it isn't a page
-    // to go back to. The next new chat chooses its subject afresh.
+    // to go back to.
     onCreated: (id) => {
-      useDraftStore.getState().setScope(newKey, null);
+      sentDraft.current = draftRef.current;
       navigate(chatHref(id), { replace: true });
     },
   });
@@ -204,12 +235,27 @@ export default function ChatPage() {
   );
   const [choosing, setChoosing] = useState(false);
   const onChoose = useCallback(() => setChoosing(true), []);
+  // Every New makes a new chat, a row of its own above the list; leaving one
+  // empty drops it (`openNewChat`). A Subject group's `+` names its scope;
+  // plain New asks for one.
   const onNew = useCallback(
     (subject?: ChatScope) => {
-      // A Subject group's `+` names its scope; plain New thread asks for one,
-      // and leaves the open thread only once it is chosen.
-      if (subject !== undefined) navigate(chatHref(null, null, { subject }), { replace: activeRef.current == null });
-      else setChoosing(true);
+      const draft = useDraftStore.getState().openNewChat();
+      navigate(chatHref(null, null, { draft, subject }));
+      if (subject === undefined) setChoosing(true);
+    },
+    [navigate],
+  );
+  const onOpenDraft = useCallback(
+    (draft: string) => {
+      if (draft !== draftRef.current) navigate(chatHref(null, null, { draft }));
+    },
+    [navigate],
+  );
+  const onDiscardDraft = useCallback(
+    (draft: string) => {
+      useDraftStore.getState().dropNewChat(draft);
+      if (draft === draftRef.current) navigate(chatHref(null), { replace: true });
     },
     [navigate],
   );
@@ -217,9 +263,8 @@ export default function ChatPage() {
     (next: ChatScope) => {
       useDraftStore.getState().setScope(newKey, next);
       setChoosing(false);
-      if (activeRef.current != null) navigate(chatHref(null));
     },
-    [newKey, navigate],
+    [newKey],
   );
   const composerRef = useRef<HTMLDivElement>(null);
   // The Overview's ask bar, sent from this pane, morphs into this composer.
@@ -269,7 +314,7 @@ export default function ChatPage() {
 
   const composer = (
     <Composer
-      draftKey={draftKey(activeId, "chat")}
+      draftKey={activeId != null ? draftKey(activeId, "chat") : newKey}
       provider={activeProvider}
       model={selection.model}
       reasoning={selection.effort}
@@ -306,8 +351,11 @@ export default function ChatPage() {
         threads={threads}
         subjects={subjects}
         activeId={activeId}
+        activeDraft={draftId}
         runningIds={runningIds}
         onOpen={onOpen}
+        onOpenDraft={onOpenDraft}
+        onDiscardDraft={onDiscardDraft}
         onNew={onNew}
         onDelete={onDelete}
       />

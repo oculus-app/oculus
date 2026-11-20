@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { draftKey, useDraftStore } from "@/stores/chat/draftStore";
+import { newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { useNavigate } from "react-router-dom";
 import { chatHref } from "@/lib/harness/route";
 import { RevisionPage } from "@/components/revision/RevisionPage";
@@ -82,21 +82,12 @@ function Artifact({
           size="xs"
           variant="ghost"
           onClick={() => {
-            const key = draftKey(null, "chat");
-            const old = useDraftStore.getState().drafts[key] ?? "";
-            useDraftStore
-              .getState()
-              .setDraft(
-                key,
-                [
-                  old,
-                  `Explain this interactive artifact: ${artifact.title}\n\n${artifactFence(artifact)}`,
-                ]
-                  .filter(Boolean)
-                  .join("\n\n"),
-              );
-            // Its subject pre-fills the new chat's choice; with none, the student picks.
-            navigate(chatHref(null, null, artifact.subject_id != null ? { subject: artifact.subject_id } : undefined));
+            // A new chat of its own, holding the question; its subject
+            // pre-fills the chat's choice, and with none the student picks.
+            const drafts = useDraftStore.getState();
+            const draft = drafts.openNewChat();
+            drafts.setDraft(newChatKey(draft), `Explain this interactive artifact: ${artifact.title}\n\n${artifactFence(artifact)}`);
+            navigate(chatHref(null, null, { draft, subject: artifact.subject_id ?? undefined }));
           }}
         >
           Ask about this

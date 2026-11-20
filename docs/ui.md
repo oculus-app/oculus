@@ -535,6 +535,18 @@ glyph; subject and project crumbs retain their custom identity icons.
   when its children composite: the share-link field keeps its clip promoted
   through hover and the native share button's disabled fade. Promoting only
   the buttons or their SVGs leaves the ancestor's clip free to re-snap.
+  A `mask-image` switched on by hover is a trigger too: keep the mask on and
+  move its stops instead (`under-actions`, under a thread row's ⋯).
+- **A list row joining or leaving moves with `row-presence`**: its height
+  grows from nothing as it fades in (`@starting-style`, only on
+  `data-enter`, so the first draw doesn't animate) and folds back as it fades
+  out (`data-state="closed"`), with no transform. Its one child is the clip
+  and takes no padding, or a closed row keeps the padding's height and snaps
+  it away on unmount; pad a grandchild. `useRowPresence` in
+  `harness/threads/list/` keeps a leaving row in place through its 200 ms
+  exit; Chat's draft rows and their divider use it. The height is laid out on
+  the main thread each frame (the fade is not), so start the store change a
+  leave sets off after the fold, not with it, as the draft rows' Discard does.
 - **Never `transition-all`** — inactive tabs hide with `visibility: hidden`
   (`app/src/components/tabs/TabPane.tsx`), and `all` transitions the inherited
   `visibility` too: going hidden it stays `visible` for the whole duration, so

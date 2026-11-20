@@ -22,7 +22,13 @@ export const SECTION_HEAD = "pt-4 pb-1";
 /** The line the action sits on: its end fades out under it, as a tab's
  *  title does under its ×, so the action needs no surface of its own. */
 export const UNDER_ACTIONS =
-  "group-hover/thread:[mask-image:linear-gradient(to_right,#000_calc(100%_-_64px),transparent_calc(100%_-_32px))] group-has-[[data-row-actions]:focus-within]/thread:[mask-image:linear-gradient(to_right,#000_calc(100%_-_64px),transparent_calc(100%_-_32px))] group-has-[[data-state=open]]/thread:[mask-image:linear-gradient(to_right,#000_calc(100%_-_64px),transparent_calc(100%_-_32px))]";
-/** The status or age under the action, hidden while it shows. */
+  "under-actions group-hover/thread:[--under-actions-shift:0px] group-has-[[data-row-actions]:focus-within]/thread:[--under-actions-shift:0px] group-has-[[data-state=open]]/thread:[--under-actions-shift:0px]";
+/** The status or age under the action, handed off to it: whichever leaves
+ *  fades at once and the other follows 80 ms later, so the two are never seen
+ *  together (an instant hide beside the ⋯'s fade drew "3 ···"). Opacity, not
+ *  `invisible`: WebKit could paint a visibility flip a frame apart from the fade. */
 export const HIDDEN_UNDER_ACTIONS =
-  "group-hover/thread:invisible group-has-[[data-row-actions]:focus-within]/thread:invisible group-has-[[data-state=open]]/thread:invisible";
+  "transition-opacity will-change-[opacity] duration-100 ease-out delay-[80ms] group-hover/thread:opacity-0 group-hover/thread:delay-0 group-has-[[data-row-actions]:focus-within]/thread:opacity-0 group-has-[[data-row-actions]:focus-within]/thread:delay-0 group-has-[[data-state=open]]/thread:opacity-0 group-has-[[data-state=open]]/thread:delay-0";
+/** The ⋯ itself: arrives 80 ms after the age leaves, and leaves at once. */
+export const ROW_ACTIONS =
+  "opacity-0 transition-opacity will-change-[opacity] duration-100 ease-out group-hover/thread:opacity-100 group-hover/thread:delay-[80ms] focus-within:opacity-100 has-[[data-state=open]]:opacity-100";

@@ -36,7 +36,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Live state and event folding | `app/src/stores/chat/harnessStore.ts`, `app/src/hooks/backend/useBackendEvents.ts` |
 | Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Checked widget" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
-| Unsent text per thread (and per new-thread box), and a new thread's chosen scope, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts` |
+| Unsent text per thread (and per new chat), each new chat's chosen scope, and the new chats waiting as rows, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts`, `app/src/components/harness/threads/list/DraftRows.tsx` |
 | Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
 | Proposal dispatch context and confirmed jobs | `app/src-tauri/src/harness/app/proposal_context.rs`, `app/src-tauri/src/harness/app/proposal_jobs/` |
 | Local OpenUI Query tools and event refresh | `app/src/components/markdown/openui/query/` |
@@ -973,9 +973,10 @@ full path is not listed, since naming it takes a lookup.
 back walks the threads that tab has shown (opening pushes; a rename or the
 composer becoming a thread replaces). `n` is there because `tabInfo` titles a
 tab from its path alone; it is written once the thread is known and again when
-the name lands. Bare `/chat` may carry `s=<id|general>`, an entry point's
-scope for the new thread ([Subject scope](#subject-scope-and-)); the page
-writes it into the draft once and drops it from the route.
+the name lands. A new chat not yet sent is `/chat?d=<id>` (below); bare
+`/chat` takes the newest empty one or makes one. A new chat may carry
+`s=<id|general>`, an entry point's scope ([Subject scope](#subject-scope-and-));
+the page writes it into the draft once and drops it from the route.
 
 - The store keeps only a count per thread (`holds`, via `hold` / `unhold`), so
   the dock's `release` cannot empty rows a Chat tab is reading. `hold` borrows
@@ -1044,11 +1045,31 @@ writes it into the draft once and drops it from the route.
   the preview (`threads/rowType.ts`, [ui.md](./ui.md)). Hover shows a ⋯
   menu (open in a new tab, and delete, which arms the row's inline
   confirm). It has no surface of its own: the line under it (the subject's,
-  or the title's in the Subject view) fades out at its end and hides its
-  status or age while it shows (`UNDER_ACTIONS`). While the column folds,
+  or the title's in the Subject view) fades out at its end (`UNDER_ACTIONS`),
+  and its status or age hands off to the ⋯: the one leaving fades at once,
+  the other 80 ms later, so both never show together (`HIDDEN_UNDER_ACTIONS`,
+  `ROW_ACTIONS`). While the column folds,
   the subject glyph stays longest with the status dot on its corner; in the
   Subject view the dot sits by the title.
-- Bare `/chat` is a new thread: the composer docked at the bottom as in a
+- **Every New is a new chat with a row of its own** (`draftStore.newChats`,
+  `oculus.chatNewChats`: id → when it was opened; its composer's key is
+  `newChatKey(id)`). New makes one and opens the subject dialog over it; a
+  Subject group's "+" makes one in that subject. Above the list, in both
+  views and over a divider, `DraftRows` draws each new chat holding words, a
+  pasted card or a picture (`hasDraft`; blank text is nothing, since an
+  emptied box keeps a lone line break), newest first. The one this tab is on
+  gets no row until a tab has left it holding something (`left` in
+  `DraftRows`), so starting a chat adds nothing to the list. A row is a pencil
+  (`DRAFT_MARK`), its scope ("No subject yet" until chosen) and its first
+  line, on a faint warning tint while it is not open (`DRAFT_TINT`); hover
+  offers × Discard. One emptied loses its row, and the next New forgets it
+  (`openNewChat`). Rows and the divider grow in and fold away
+  (`row-presence`, docs/ui.md), a leaving row still showing what it held;
+  Discard folds the row first and forgets the draft once it has gone. Sending forgets the new chat once the tab shows
+  the thread it became. A thread whose composer holds unsent words wears the
+  same pencil before its subject (by its title in the Subject view) and the
+  same tint.
+- A new chat's page: the composer docked at the bottom as in a
   thread, and above it the headline that names the subject (`DraftHero`) over
   the three latest threads (`RecentThreads`) — provider mark, title, a chip
   naming its subject or General, age, and the newest message flattened to one
@@ -3016,10 +3037,11 @@ collect, but Enter and the send button do nothing and the placeholder reads
 subject id, never null, so no entry is unchosen and General is a choice of
 its own). It outlives a thread switch and a relaunch, a deleted subject's id
 reads as unchosen, and creating the thread forgets it, so the next new chat
-asks again. Every Chat tab's new thread shares one draft key, and so one
-choice. An entry point names the scope in the route instead, with no dialog:
-a group's "+" opens `/chat?s=<id|general>`, and a revision artifact's Ask about this
-`/chat?s=<id>` when the artifact has a subject. The lecture dock is always
+asks again. Each new chat has its own draft key, and so its own choice; tabs
+showing the same new chat share it. An entry point names the scope in the
+route instead, with no dialog: a group's "+" opens a new chat with
+`s=<id|general>`, and a revision artifact's Ask about this a new chat holding
+its question, with `s=<id>` when the artifact has a subject. The lecture dock is always
 its lecture's subject and Studio's threads their video's; neither shows the
 headline.
 

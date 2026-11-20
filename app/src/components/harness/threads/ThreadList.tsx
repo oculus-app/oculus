@@ -9,6 +9,8 @@ import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
 import { useStoredState } from "@/hooks/ui/useStoredState";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
+import { draftKey, hasDraft, useDraftStore } from "@/stores/chat/draftStore";
+import { DraftRows } from "./list/DraftRows";
 import { ThreadRow } from "./ThreadRow";
 import { useThreadPreviews } from "./useThreadPreviews";
 import { COLLAPSED_KEY, VIEW_KEY } from "./order";
@@ -37,8 +39,11 @@ export const ThreadList = memo(function ThreadList({
   threads,
   subjects,
   activeId,
+  activeDraft,
   runningIds,
   onOpen,
+  onOpenDraft,
+  onDiscardDraft,
   onNew,
   onDelete,
 }: {
@@ -46,6 +51,10 @@ export const ThreadList = memo(function ThreadList({
   threads: HarnessThread[];
   subjects: Subject[];
   activeId: number | null;
+  /** The new chat this tab is writing (`chatHref`'s `d`). */
+  activeDraft: string | null;
+  onOpenDraft: (id: string) => void;
+  onDiscardDraft: (id: string) => void;
   /** Ids, not the store's live map, which changes on every streamed token. */
   runningIds: Set<number>;
   onOpen: (id: number) => void;
@@ -64,6 +73,14 @@ export const ThreadList = memo(function ThreadList({
   const newChat = useCallback(() => onNew(), [onNew]);
   const lines = useThreadPreviews(threads);
   const bySubject = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+  // Threads with unsent words, as a string so typing re-renders nothing here.
+  const draftedKey = useDraftStore((s) =>
+    threads
+      .filter((t) => hasDraft(s, draftKey(t.id, "chat")))
+      .map((t) => t.id)
+      .join(","),
+  );
+  const drafted = useMemo(() => new Set(draftedKey ? draftedKey.split(",").map(Number) : []), [draftedKey]);
 
   // A search hit may be older than the threads read: list it first, so the
   // page finds it at once.
@@ -86,6 +103,7 @@ export const ThreadList = memo(function ThreadList({
       active={t.id === activeId}
       running={runningIds.has(t.id)}
       confirming={confirming === t.id}
+      drafted={drafted.has(t.id)}
       onOpen={onOpen}
       onNewTab={openInNewTab}
       onArm={setConfirming}
@@ -107,12 +125,14 @@ export const ThreadList = memo(function ThreadList({
             query={query}
             onQuery={setQuery}
             onSearchEnter={() => found?.results[0] && openThread(found.results[0])}
-            fresh={activeId == null}
             onNew={newChat}
             collapsed={collapsed}
           />
         }
       >
+        {!found && (
+          <DraftRows subjects={subjects} activeDraft={activeDraft} onOpen={onOpenDraft} onDiscard={onDiscardDraft} />
+        )}
         {found ? (
           <SearchResults found={found} activeId={activeId} onOpen={openThread} />
         ) : view === "recents" ? (

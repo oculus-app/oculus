@@ -18,15 +18,33 @@ type Scopes = Record<string, ChatScope>;
  *  thumbnails. A PDF or text file is only its chip, so it is never here. */
 type Shelves = Record<string, string[]>;
 
+/** The Chat page's new chats not yet sent: id → when it was opened (ms). */
+type NewChats = Record<string, number>;
+
 const KEY = "oculus.chatDrafts";
 const PASTES_KEY = "oculus.chatPastes";
 const SCOPES_KEY = "oculus.chatScopes";
 const SHELVES_KEY = "oculus.chatShelves";
+const NEW_CHATS_KEY = "oculus.chatNewChats";
+/** The single new-chat draft key from before each new chat had an id. */
+const LEGACY_NEW = "new:chat";
 
 /** A composer's key: its thread, or the not-yet-thread it would start
  *  (`scope` tells the Chat page's new thread from each lecture's). */
 export function draftKey(threadId: number | null, scope: string): string {
   return threadId == null ? `new:${scope}` : `thread:${threadId}`;
+}
+
+/** A Chat page new chat's composer key (`chatHref`'s `d`). */
+export function newChatKey(id: string): string {
+  return draftKey(null, `chat:${id}`);
+}
+
+/** Whether a composer holds anything of the student's: words, a pasted
+ *  card or a picture. Blank text is nothing (an emptied box keeps a lone
+ *  line break), and neither is a chosen scope alone. */
+export function hasDraft(s: Pick<DraftState, "drafts" | "pastes" | "shelves">, key: string): boolean {
+  return !!s.drafts[key]?.trim() || !!s.pastes[key]?.length || !!s.shelves[key]?.length;
 }
 
 /** A stored map, keeping only the entries `valid` accepts. */
@@ -65,12 +83,60 @@ const isPastes = (v: unknown): v is PastedText[] =>
   );
 
 const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every(isString);
+const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/** A new chat's id: short, sortable enough, and safe in a query string. */
+function newId(): string {
+  return Date.now().toString(36) + Math.floor(Math.random() * 36 ** 4).toString(36).padStart(4, "0");
+}
+
+/** The maps as storage holds them, with the old single new-chat draft moved
+ *  under a new chat of its own so its words survive. */
+function initial() {
+  const drafts: Drafts = Object.fromEntries(
+    Object.entries(read(KEY, isString))
+      .map(([key, text]) => [key, stripControlChars(text)])
+      .filter(([, text]) => text),
+  );
+  const pastes = read(PASTES_KEY, isPastes);
+  const scopes = storedScopes();
+  const shelves = read(SHELVES_KEY, isStrings);
+  const newChats = read(NEW_CHATS_KEY, isNumber);
+  const maps: Record<string, unknown>[] = [drafts, pastes, scopes, shelves];
+  if (maps.some((m) => LEGACY_NEW in m)) {
+    const id = newId();
+    const key = newChatKey(id);
+    for (const m of maps) {
+      if (!(LEGACY_NEW in m)) continue;
+      m[key] = m[LEGACY_NEW];
+      delete m[LEGACY_NEW];
+    }
+    newChats[id] = Date.now();
+    write(KEY, drafts);
+    write(PASTES_KEY, pastes);
+    write(SCOPES_KEY, scopes);
+    write(SHELVES_KEY, shelves);
+    write(NEW_CHATS_KEY, newChats);
+  }
+  return { drafts, pastes, scopes, shelves, newChats };
+}
 
 interface DraftState {
   drafts: Drafts;
   pastes: Pastes;
   scopes: Scopes;
   shelves: Shelves;
+  newChats: NewChats;
+  /** A fresh new chat, returning its id. New chats holding nothing are
+   *  dropped first, so leaving an empty one behind leaves no row. */
+  openNewChat: () => string;
+  /** The newest new chat holding nothing, else a fresh one (bare `/chat`). */
+  emptyNewChat: () => string;
+  /** Forgets a new chat and everything its composer held (sent or discarded). */
+  dropNewChat: (id: string) => void;
+  /** Lists a new chat a tab shows that the list dropped (back to an empty
+   *  one, or another tab's New pruned it). */
+  keepNewChat: (id: string) => void;
   setDraft: (key: string, text: string) => void;
   setPastes: (key: string, list: PastedText[]) => void;
   setShelf: (key: string, paths: string[]) => void;
@@ -87,16 +153,48 @@ interface DraftState {
  * (`PastedText`) are kept the same way, under the same key, and so are the
  * pictures on its shelf (written to `agents/attachments/` when attached) and
  * the scope a new Chat thread will start in (`ChatScope`), until it is sent.
+ * Each new chat on the Chat page has an id (`newChats`), so several can wait
+ * as rows above the thread list.
  */
 export const useDraftStore = create<DraftState>((set, get) => ({
-  drafts: Object.fromEntries(
-    Object.entries(read(KEY, isString))
-      .map(([key, text]) => [key, stripControlChars(text)])
-      .filter(([, text]) => text),
-  ),
-  pastes: read(PASTES_KEY, isPastes),
-  scopes: storedScopes(),
-  shelves: read(SHELVES_KEY, isStrings),
+  ...initial(),
+  openNewChat: () => {
+    const s = get();
+    const next: NewChats = {};
+    for (const [id, at] of Object.entries(s.newChats)) if (hasDraft(s, newChatKey(id))) next[id] = at;
+    const id = newId();
+    next[id] = Date.now();
+    write(NEW_CHATS_KEY, next);
+    set({ newChats: next });
+    return id;
+  },
+  emptyNewChat: () => {
+    const s = get();
+    const empty = Object.entries(s.newChats)
+      .filter(([id]) => !hasDraft(s, newChatKey(id)))
+      .sort((a, b) => b[1] - a[1])[0];
+    return empty ? empty[0] : get().openNewChat();
+  },
+  keepNewChat: (id) => {
+    const s = get();
+    if (id in s.newChats) return;
+    const next = { ...s.newChats, [id]: Date.now() };
+    write(NEW_CHATS_KEY, next);
+    set({ newChats: next });
+  },
+  dropNewChat: (id) => {
+    const s = get();
+    if (!(id in s.newChats)) return;
+    const key = newChatKey(id);
+    const next = { ...s.newChats };
+    delete next[id];
+    write(NEW_CHATS_KEY, next);
+    set({ newChats: next });
+    s.setDraft(key, "");
+    s.setPastes(key, []);
+    s.setShelf(key, []);
+    s.setScope(key, null);
+  },
   setDraft: (key, text) => {
     const prev = get().drafts;
     if ((prev[key] ?? "") === text) return;
