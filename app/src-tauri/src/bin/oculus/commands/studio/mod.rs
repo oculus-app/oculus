@@ -15,9 +15,9 @@ mod lint;
 mod narrate;
 mod pronounce;
 mod render;
+mod series;
 #[cfg(test)]
 mod sizes;
-mod series;
 mod slide;
 mod themes;
 mod videos;
