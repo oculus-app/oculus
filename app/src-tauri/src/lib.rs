@@ -295,7 +295,6 @@ pub fn run() {
             studio::commands::videos::studio_set_captions,
             studio::commands::videos::studio_render_captions,
             studio::commands::videos::studio_videos,
-            studio::commands::videos::studio_new_video,
             studio::commands::videos::studio_video_detail,
             studio::commands::videos::studio_frame,
             studio::commands::videos::studio_thumbnail,

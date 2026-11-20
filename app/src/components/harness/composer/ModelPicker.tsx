@@ -8,9 +8,6 @@ import { cn } from "@/lib/utils";
 import { ModelMenuContent } from "./model/ModelMenu";
 import { modelSummary } from "./model/modelSummary";
 
-/** `locked` for a picker whose chat keeps its agent whatever the bridges can do. */
-export const LOCK_OTHERS = () => true;
-
 export type { PickerProvider } from "@/lib/harness";
 
 /**

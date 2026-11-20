@@ -75,7 +75,6 @@ export function OverviewAskBar({ subject }: { subject: Subject }) {
         reasoning={selection.effort}
         subjects={subjects}
         subjectId={subject.id}
-        subjectLocked
         running={false}
         usage={null}
         rateLimits={rateLimits}

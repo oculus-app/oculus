@@ -13,8 +13,7 @@ type Panel = ReturnType<typeof useSideNavPanel>;
 /**
  * Everything under /studio: the nav column beside the page. The column's width
  * and fold live here so each page's header row can hold its toggle
- * (`useStudioPanel`). The video list is read once here, for the Recent rows
- * and the grid. Beside another page (a video opened from Chat) the page is
+ * (`useStudioPanel`). The video list is read once here, for the grid. Beside another page (a video opened from Chat) the page is
  * one thing, so it has no nav column and its header no toggle.
  */
 export default function StudioLayout() {

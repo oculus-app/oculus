@@ -27,7 +27,6 @@ function render(compact: boolean) {
       reasoning="high"
       subjects={[]}
       subjectId={1}
-      subjectLocked
       running={false}
       usage={null}
       rateLimits={[{ label: "5h", used_percent: 40, resets_at: null }]}

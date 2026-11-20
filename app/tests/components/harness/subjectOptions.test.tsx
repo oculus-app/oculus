@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SubjectPicker } from "@/components/harness/composer/SubjectPicker";
 import { subjectOption, subjectOptions } from "@/components/harness/composer/subjectOptions";
 import type { Subject } from "@/lib/db";
 
@@ -41,16 +40,6 @@ test("a search matches the code or the name, every word, any case, past terms in
   expect(pick("gen")).toEqual(["general"]);
   expect(pick("2026")).toEqual([1, 2]);
   expect(pick("zzz")).toEqual([]);
-});
-
-test("the chip shows the short code, or General", () => {
-  const html = (value: "general" | number) =>
-    renderToStaticMarkup(<SubjectPicker subjects={subjects} value={value} onChange={() => {}} />);
-  expect(html("general")).toContain(">General<");
-  const chosen = html(1);
-  expect(chosen).toContain(">MAST20004<");
-  expect(chosen).not.toContain("MAST20004_2026_SM2");
-  expect(chosen).toContain('aria-label="Subject: Probability"');
 });
 
 test("a scope names its row; an unchosen or deleted one names none", () => {

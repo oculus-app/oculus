@@ -30,20 +30,6 @@ export function listVideos(subject?: string | null): Promise<VideoRow[]> {
   return invoke<VideoRow[]>("studio_videos", { subject: subject ?? null });
 }
 
-export interface NewVideoOptions {
-  title?: string;
-  subject?: string | null;
-  /** Defaults to the subject's default theme, else `default`. */
-  theme?: string;
-  /** 1080x1920 instead of 1920x1080. */
-  portrait?: boolean;
-}
-
-/** Scaffolds a video; the slug comes from the title and is unique. */
-export function newVideo(options: NewVideoOptions): Promise<{ slug: string; dir: string }> {
-  return invoke("studio_new_video", { options });
-}
-
 /** One scene of a video, in order. Times are seconds and null until the
  *  video is narrated. */
 export interface SceneInfo {
@@ -128,13 +114,4 @@ export async function studioFrame(slug: string, at: FrameAt, width: number): Pro
 export async function studioThumbnail(slug: string): Promise<Blob> {
   const bytes = await invoke<ArrayBuffer>("studio_thumbnail", { slug });
   return new Blob([bytes], { type: "image/png" });
-}
-
-/** What a studio thread carries with its first message; mirrors
- *  `SendOptions.studio` in `lib/harness/commands.ts`. */
-export interface StudioSend {
-  slug: string;
-  /** Target length in seconds. */
-  lengthSecs?: number;
-  format?: "video" | "reels";
 }

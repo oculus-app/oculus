@@ -378,8 +378,7 @@ pub(in crate::harness) async fn run(
     })
 }
 
-/// The chat a send starts, under the mode it starts with, and the Studio
-/// video it makes, linked.
+/// The chat a send starts, under the mode it starts with.
 async fn create(
     tx: &mut SqliteConnection,
     provider: Provider,
@@ -402,10 +401,6 @@ async fn create(
     // A mode picked before the chat existed, so its first run asks that way.
     if let Some(mode) = options.start_mode {
         requests::store::set_mode(&mut *tx, id, mode).await?;
-    }
-    if let Some(video) = &options.studio {
-        let length = video.length_secs.map(i64::from);
-        crate::db::store::link_studio_video(&mut *tx, &video.slug, id, length).await?;
     }
     Ok(id)
 }

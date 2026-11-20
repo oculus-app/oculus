@@ -28,7 +28,6 @@ function render(unscoped: boolean, placeholder?: string) {
       reasoning="high"
       subjects={[]}
       subjectId={null}
-      subjectLocked={false}
       unscoped={unscoped}
       running={false}
       usage={null}

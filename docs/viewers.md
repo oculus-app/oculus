@@ -502,7 +502,8 @@ bar. Every video streams from Rust's media server via `mediaSrc()`
   [studio-page.md](./studio-page.md)): on a video's detail page with a dock
   (Script and Scenes in a `MediaDock`, sharing the dock size and open state
   with lectures but keeping its own side, passed as `dockSide`; `dockKeepWidth` asks the picture to keep more than
-  300px beside a side dock), and on its thread page without one. `dock` and
+  300px beside a side dock), and inside a chat thread without one
+  ([harness.md](./harness.md#a-studio-thread-carries-its-video)). `dock` and
   `dockLabel` are optional, and with no dock there is no dock button, no
   resize handle and T does nothing; `captions={false}` leaves out the captions
   button. `useLibraryPlayback` is what `VideoFileViewer` and Studio's element

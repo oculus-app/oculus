@@ -26,7 +26,7 @@ pub use one_off::run_once;
 pub(in crate::harness) use one_off::OneOff;
 pub use opencode_config::write_opencode_config;
 pub(in crate::harness) use options::validate_effort;
-pub use options::{LectureBrief, SendOptions, StudioSend};
+pub use options::{LectureBrief, SendOptions};
 pub use queue::OwnTurns;
 pub use raw_log::RawLog;
 pub use release::Release;

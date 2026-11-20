@@ -4,7 +4,6 @@
 
 mod detail;
 mod frame;
-mod new;
 mod rows;
 pub(super) mod slot;
 #[cfg(test)]
@@ -19,7 +18,6 @@ use crate::studio::videos::videos_dir;
 use crate::studio::voice;
 use detail::VideoDetail;
 use frame::FrameAt;
-use new::{Made, NewVideoOptions};
 use rows::VideoView;
 use slot::on_render_slot;
 
@@ -29,16 +27,6 @@ pub async fn studio_videos(subject: Option<String>) -> Result<Vec<VideoView>, St
     let links = studio_links(&open_pool().await?).await?;
     crate::runtime::blocking::run(move || rows::list_in(&videos_dir(), subject.as_deref(), &links))
         .await
-}
-
-/// Scaffold a video; its slug comes from the title.
-#[tauri::command]
-pub async fn studio_new_video(options: NewVideoOptions) -> Result<Made, String> {
-    crate::runtime::blocking::run(move || {
-        let library = libraries(false).map_err(|e| e.to_string())?;
-        new::create_in(&videos_dir(), &library, options)
-    })
-    .await
 }
 
 #[tauri::command]

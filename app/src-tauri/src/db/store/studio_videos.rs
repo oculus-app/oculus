@@ -1,6 +1,7 @@
 //! `studio_videos`: which harness thread makes each Studio video, and the
 //! length it was asked for. The folder under `<data>/studio/videos/` is the
-//! video; a row here only links it to its thread.
+//! video; a row here only links it to its thread. Rows are written where a
+//! thread's `oculus studio new` completes (`harness::store::studio`).
 
 use std::collections::HashMap;
 
@@ -13,29 +14,6 @@ pub struct StudioLink {
     pub thread_id: Option<i64>,
     /// The narration length the student asked for, in seconds.
     pub length_secs: Option<i64>,
-}
-
-/// Link `slug` to `thread_id`, replacing a row a deleted video left behind.
-pub async fn link_studio_video(
-    db: impl sqlx::SqliteExecutor<'_>,
-    slug: &str,
-    thread_id: i64,
-    length_secs: Option<i64>,
-) -> Result<(), String> {
-    sqlx::query(
-        "INSERT INTO studio_videos (slug, thread_id, length_secs) VALUES (?1, ?2, ?3)
-         ON CONFLICT(slug) DO UPDATE SET
-           thread_id   = excluded.thread_id,
-           length_secs = excluded.length_secs,
-           created_at  = datetime('now')",
-    )
-    .bind(slug)
-    .bind(thread_id)
-    .bind(length_secs)
-    .execute(db)
-    .await
-    .map(|_| ())
-    .map_err(|e| e.to_string())
 }
 
 /// The video a thread makes, if it makes one.

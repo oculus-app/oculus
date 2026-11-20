@@ -12,9 +12,10 @@ use super::studio::StudioBrief;
 pub struct SendOptions {
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
-    /// Read only when the send creates a Studio thread; afterwards the row is
-    /// the authority, since the brief is bound at session start. A plain Chat
-    /// thread names its subject in `chat_scope` instead.
+    /// The subject a new thread files under, settled from `chat_scope` by
+    /// [`SendOptions::scope_new_thread`]; afterwards the row is the
+    /// authority, since the brief is bound at session start.
+    #[serde(skip)]
     pub subject_id: Option<i64>,
     /// The scope the student chose for a new plain Chat thread. Creating one
     /// without it is refused ([`SendOptions::scope_new_thread`]).
@@ -33,10 +34,7 @@ pub struct SendOptions {
     pub context: Option<String>,
     /// The playhead's second at send; see [`crate::harness::HarnessEvent::UserMessage`].
     pub at: Option<i64>,
-    /// The Studio video this send creates a thread for. Read only on
-    /// creation, where it links the video to the thread (`studio_videos`).
-    pub studio: Option<StudioSend>,
-    /// That video, resolved from the thread's link.
+    /// The thread's Studio video, resolved from its link (`studio_videos`).
     #[serde(skip)]
     pub studio_brief: Option<StudioBrief>,
     /// How the chat asks (`harness_threads.permission_mode`), read from its
@@ -104,15 +102,15 @@ impl<'de> Deserialize<'de> for ChatScope {
 
 impl SendOptions {
     /// Settle the subject a thread-creating send files under, before any row
-    /// is written. A lecture's thread takes its lecture's subject and a Studio
-    /// video's its own, so only a plain Chat thread must name a scope: without
-    /// one a missed entry point would file into General silently. A send to
-    /// an existing thread is never checked.
+    /// is written. A lecture's thread takes its lecture's subject, so only a
+    /// plain Chat thread must name a scope: without one a missed entry point
+    /// would file into General silently. A send to an existing thread is
+    /// never checked.
     pub(in crate::harness) fn scope_new_thread(
         &mut self,
         thread_id: Option<i64>,
     ) -> Result<(), String> {
-        if thread_id.is_some() || self.lecture_id.is_some() || self.studio.is_some() {
+        if thread_id.is_some() || self.lecture_id.is_some() {
             return Ok(());
         }
         self.subject_id = match self.chat_scope {
@@ -122,19 +120,6 @@ impl SendOptions {
         };
         Ok(())
     }
-}
-
-/// The video a thread is created for, as `StudioSend` in
-/// `app/src/lib/studio/videos.ts` sends it. The brief reads the format from
-/// video.json's size, which is what renders use, so the TS `format` is not
-/// read here.
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StudioSend {
-    /// A folder under `<data>/studio/videos/`, made before the send.
-    pub slug: String,
-    /// The narration length asked for, in seconds.
-    pub length_secs: Option<u32>,
 }
 
 /// What a lecture thread's brief says about the recording, assembled from
@@ -205,13 +190,10 @@ mod tests {
     }
 
     #[test]
-    fn lecture_and_studio_creations_carry_their_own_subject() {
-        let mut lecture = opts(r#"{"lectureId":"abc"}"#);
+    fn a_lecture_creation_carries_its_own_subject() {
+        let mut lecture = opts(r#"{"lectureId":"abc","subjectId":4}"#);
         lecture.scope_new_thread(None).unwrap();
-        assert_eq!(lecture.subject_id, None);
-        let mut studio = opts(r#"{"subjectId":4,"studio":{"slug":"limits"}}"#);
-        studio.scope_new_thread(None).unwrap();
-        assert_eq!(studio.subject_id, Some(4));
+        assert_eq!(lecture.subject_id, None, "the webview never names it");
     }
 
     #[test]
@@ -226,7 +208,7 @@ mod tests {
     /// webview sent comes back, and nothing the app resolves is stored.
     #[test]
     fn the_sendable_fields_survive_a_round_trip_and_the_resolved_ones_are_left_out() {
-        let sent = r#"{"model":"opus","reasoningEffort":"high","chatScope":"general","context":"the moment","at":42,"studio":{"slug":"limits","lengthSecs":90},"skills":["revise"],"startMode":"quiet"}"#;
+        let sent = r#"{"model":"opus","reasoningEffort":"high","chatScope":"general","context":"the moment","at":42,"skills":["revise"],"startMode":"quiet"}"#;
         let mut o = opts(sent);
         o.scope = Some("COMP1".into());
         o.continuation = Some("12.0".into());
@@ -254,7 +236,6 @@ mod tests {
             Some(crate::harness::requests::PermissionMode::Quiet)
         );
         assert_eq!(opts("{}").start_mode, None);
-        assert_eq!(back.studio.unwrap().length_secs, Some(90));
         assert_eq!(serde_json::to_value(ChatScope::Subject(3)).unwrap(), 3);
     }
 

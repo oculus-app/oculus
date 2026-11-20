@@ -1,22 +1,22 @@
 # The Studio page
 
-The rail's Studio section: describe a video, watch an agent make it in a
-thread beside its player, render the final, browse every video, try the
-components a video is built from, and edit the themes it is drawn in. The
-renderer, the commands and the thread link are [studio.md](./studio.md); this
-page is the frontend over them.
+The rail's Studio section: browse every video, watch and export one, try the
+components a video is built from, and edit the themes it is drawn in. Videos
+are made in Chat, where the thread shows the video's card and plays it
+([harness.md](./harness.md#a-studio-thread-carries-its-video)); Studio's New
+video starts that chat. The renderer, the commands and the thread link are
+[studio.md](./studio.md); this page is the frontend over them.
 
 ## Where
 
 | Piece | Location |
 | --- | --- |
 | Routes, the nav column's width and fold, the page header row | `app/src/routes.tsx`, `app/src/layouts/StudioLayout.tsx`, `app/src/components/studio/StudioHeader.tsx` |
-| The nav column: New video, Videos, Components, Themes, the Recent list and its search | `app/src/components/studio/nav/` |
-| Pages | `app/src/pages/studio/` (`NewVideoPage`, `VideosPage`, `VideoPage`, `VideoThreadPage`, `ComponentsPage`, `ThemesPage`) |
-| New video: the box and its start-up | `app/src/components/studio/new/NewVideo.tsx`, `app/src/hooks/studio/useNewVideo.ts`, `app/src/lib/studio/title.ts` |
-| The style chip: theme, format, length, voice | `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
-| The thread column | `app/src/components/studio/thread/ThreadColumn.tsx` |
-| Player, render bar, scene strip, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts` |
+| The nav column: New video, Videos, Components, Themes | `app/src/components/studio/nav/` |
+| Pages | `app/src/pages/studio/` (`VideosPage`, `VideoPage`, `VideoRedirect`, `ComponentsPage`, `ThemesPage`) |
+| New video: a new Chat thread with the skill chip in its box | `app/src/hooks/studio/useNewVideoChat.ts` |
+| The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
+| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts` |
 | The Videos grid, its cards and subject pills | `app/src/components/studio/videos/`, `app/src/components/ui/layout/MediaGrid.tsx` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
 | Render state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
@@ -28,12 +28,13 @@ page is the frontend over them.
 | The colour control | `app/src/components/ui/color/`, `app/src/lib/ui/color.ts` |
 | Paths | `app/src/lib/studio/routes.ts` |
 
-## Eight routes under one nav column
+## Six routes under one nav column
 
-`/studio` is New video, `/studio/videos` the grid, `/studio/videos/:slug` a
-video's detail, `/studio/videos/:slug/thread` the conversation that made it,
-`/studio/components` and `/studio/components/:name` the playground, and
-`/studio/themes` and `/studio/themes/:name` the Themes page. `StudioLayout` owns the nav column's panel (`useResizablePanel`, ⌘⌥B and
+`/studio` opens the grid at `/studio/videos`, `/studio/videos/:slug` is a
+video's detail, `/studio/components` and `/studio/components/:name` the
+playground, and `/studio/themes` and `/studio/themes/:name` the Themes page.
+A saved tab on a path below a video's opens the video (`VideoRedirect`), and
+any other Studio path the grid. `StudioLayout` owns the nav column's panel (`useResizablePanel`, ⌘⌥B and
 each page header's toggle, as Chat's column) and reads the video list once;
 a page puts its own `StudioHeader` row over its body. A video's title rides
 in `?n=` (`videoHref`) because `tabInfo` titles a tab from its path alone,
@@ -42,49 +43,24 @@ video opened beside its chat) a Studio page has no nav column and its header
 no toggle: the panel's switcher, expand and × claim the row as on any page
 built on `PageHeader` ([shell.md](./shell.md#the-side-panel-is-a-stack-of-items-beside-the-page)).
 
-The Recent list is the newest eight videos, or every title the column's
-search matches. A row opens the thread when the video has one, else the
-detail. It shows a spinner while the video is rendering or its thread is
-mid-turn, and the rail's Studio item shows a brand dot while any render runs;
-there are no toasts or bars ([ui.md](./ui.md)).
+The rail's Studio item shows a brand dot while any render runs; there are no
+toasts or bars ([ui.md](./ui.md)).
 
-## New video makes the folder, then the thread
+## New video starts a chat
 
-`NewVideo` is Chat's `Composer` with two additions every caller shares: a
-`leading` slot, chips after the subject's above the box, and a
-`placeholder`. Its chips are the subject (`SubjectPicker`'s compact chip, this
-page's own choice, not a new Chat thread's) and the style chip. Sending runs
-`useNewVideo`:
+**New video** (the nav column's first row, the Videos header's button and
+the empty grid's offer) opens a new Chat thread whose box already holds the
+`oculus-studio` skill chip (`useNewVideoChat`): it puts `/oculus-studio ` ahead
+of whatever the new thread's draft held (`draftKey(null, "chat")`), which the
+box turns into the chip once the skill catalogue loads, and opens
+`/chat?s=<id>` in the subject the Videos grid shows (that course code's
+current subject, else its newest), or bare `/chat` while the grid shows All.
+The agent makes the folder with `oculus studio new` and the app links it to
+the thread ([studio.md](./studio.md#a-video-has-a-thread)).
 
-1. Read what narration needs (`readSetupProblems`: the saved voice settings,
-   Kokoro's pack and voice status and the aligner's status, all local and
-   free: nothing synthesises or downloads) and check it with `setupProblems`. A
-   video needs a configured voice (an engine and a voice; for the server
-   engine also a URL and model), and when Kokoro is the engine its model and
-   pronunciation pack and the chosen voice downloaded, and the word-timing
-   model installed (a download still running counts as missing). With any
-   missing it stops here: no folder is made, and each missing piece shows
-   under the box with an "Open settings" link to the page that fixes it
-   (Settings → Studio → Narration, or Word timing). `voiceProblem` and
-   `setupProblems` mirror Rust's `voice::resolve` and the narrate checks,
-   which stay the source of truth and refuse the same cases at narrate time.
-2. `newVideo({title, subject, theme?, portrait})`. The title is the prompt's
-   first line without its `@` paths, cut at 60 characters; the thread names
-   itself later and the slug comes from the title. The subject is the course
-   code without its term (`displayCode`), the name of its folder under
-   `studio/subjects/`.
-3. `harnessSend(null, provider, text, {model, reasoningEffort, subjectId,
-   studio: {slug, lengthSecs?, format}})`, which links the new thread to the
-   video ([studio.md](./studio.md#a-video-has-a-thread)).
-4. Reload the thread and video lists, and open `/studio/videos/:slug/thread`.
-
-`lengthSecs` is left out when the length is Auto, and the brief then has no
-length line. A failure at any step shows its sentence under the box and gives
-the text back (`Composer`'s `restore`). One after step 1 leaves the
-scaffold behind, a video with no thread in the grid.
-
-**The style chip** holds the theme, the format (Video or Reels, which is
-`portrait`) and the length. The length is Auto (the default: no target, the
+**The style chip** sits beside the skill chip in Chat's composer while the
+box holds it and the thread has no video (`useStudioStyle`), and holds the
+theme, the format (Video or Reels, which is `portrait`) and the length. The length is Auto (the default: no target, the
 agent decides), 30 s, 60 s, 2 min, 5 min, or Custom, a field that takes `45`,
 `90s`, `3m` or `1:30` (`parseLength`; whole seconds, at least 5, else a
 sentence under the field). The chip reads "Video · Auto", "Video · 90 s" or
@@ -103,44 +79,20 @@ Settings → Studio → Narration; while `setupProblems` finds anything missing 
 is instead one warning line per missing piece, each with its Settings link. There is no sample button: a sample
 would be a billed TTS call, and nothing in Settings makes one.
 
-## The thread page: the conversation beside the video
-
-`ThreadColumn` is the thread's timeline and composer as Chat draws them
-(`Timeline`, `useThreadActions`, `useStickToBottom`), holding its rows like
-the lecture dock does and releasing them on leaving. When a turn ends it
-re-reads the video's detail and the list, since the agent may have changed
-files. A video with no thread redirects to its detail.
-
-The right column loads `studio_video_detail` and then renders `VideoStage`
-(the player, the render bar and the scene strip; the detail page composes the
-player and render bar itself):
-
-- **The player** is the app's `MediaPlayer` with no dock (the detail page
-  gives it one) over the newest video render (`draft`, `final` or `small`;
-  `playableRenders`), `mediaSrc(path)` plus `&v=<mtime>` so a re-render of
-  the same path is a new file to the element. With several, pills choose.
-  When the render has its `.vtt` beside it, `studio_render_captions` reads it, `parseVtt` makes the cues
-  and the bar gets its captions button; otherwise there is none (and none
-  when the video's captions are drawn into the picture, `detail.captions`).
-  No render shows "Not rendered yet", and the header offers Render draft. The scrub bar's notches
-  are the scene starts. The element shares the app's one sound with lectures
-  and library videos (`useLibraryPlayback`). The same player, without a
-  dock, plays a video inside a chat thread
-  ([harness.md](./harness.md#a-studio-thread-carries-its-video)).
-- **The scene strip** has a tile per scene, a still from `studio_frame` at
-  80% of the scene's length (a second in if there is no narration). A press
-  seeks to the scene's start; a scene with no start is only a picture, and
-  the scene under the playhead is lit. A still that cannot be made, a stale
-  narration, says so once under the strip with the command's own sentence.
-  The detail page has no strip: its Scenes tab draws the same stills
-  (`useSceneStill`) as a grid.
-- **The render bar** is under the player and has no buttons: the render
-  pills when there are several, and when the shown one was made. A render in
-  flight, of any preset (the header starts them through `renderStore`), takes
-  its place with a bar naming the preset, the percentage and Cancel; a failure
-  stays until the next render starts. Rendering is local (ffmpeg), so unlike
-  Settings it may start from the page. The thread page has no render button
-  either: its video is rendered from the detail page.
+**The setup check.** A send that carries the skill chip first reads what
+narration needs (`readSetupProblems`: the saved voice settings, Kokoro's pack
+and voice status and the aligner's status, all local and free: nothing
+synthesises or downloads) and checks it with `setupProblems`. A video needs a
+configured voice (an engine and a voice; for the server engine also a URL and
+model), and when Kokoro is the engine its model and pronunciation pack and
+the chosen voice downloaded, and the word-timing model installed (a download
+still running counts as missing). With any missing nothing is sent, the text
+stays in the box, and each missing piece shows under it with an "Open
+settings" link to the page that fixes it (Settings → Studio → Narration, or
+Word timing). `voiceProblem` and `setupProblems` mirror Rust's
+`voice::resolve` and the narrate checks, which stay the source of truth:
+`oculus studio new` refuses when no voice resolves, which covers a video
+asked for without the chip, and `narrate` refuses the rest.
 
 ## Renders live in a store, not in the page
 
@@ -151,8 +103,8 @@ bridges) and by `start`, which awaits `renderVideo`. The fraction is the
 segments done plus the part of the current one, over all of them. An end,
 however it ends, removes the entry, keeps a failure's sentence in `errors`,
 bumps `settled[dir]` (a page showing the folder re-reads on it) and reloads
-the video list. The store outlives navigation, so the Recent row, the rail
-dot, a card's badge and the page's bar all follow one render.
+the video list. The store outlives navigation, so the rail dot, a grid
+card's badge, a chat's video card and the page's bar all follow one render.
 
 ## Videos and the detail
 
@@ -162,7 +114,8 @@ title and subject, scene count and age. A video that is rendering carries a
 badge with its percentage and a bar. One whose video.json will not load shows
 the problem in place of its facts. Pills over the grid narrow by subject
 (shown when two or more subjects have videos; the choice is remembered in
-`oculus-studio-subject`). With no video the page offers New video.
+`oculus-studio-subject`, which New video also reads). With no video the
+page offers New video.
 
 The detail (`VideoDetailStage`) is the player with a dock, and under it a row
 of the facts (subject, theme, voice, length, shape) beside the render bar.
@@ -171,12 +124,28 @@ button, [harness.md](./harness.md#a-studio-thread-carries-its-video)), it
 reads the video again when that thread's turn ends or the folder's modified
 time moves, so it follows the agent's edits; at side-panel widths the dock
 goes under the picture (below). Playing it pauses the chat's inline player
-and the other way round, as for any two library videos.
-**Continue in chat** opens the thread page. The header's last button is
-**Render draft** while the video has no playable render (it starts
+and the other way round, as for any two library videos. The header's last
+button is **Render draft** while the video has no playable render (it starts
 `studio_render` for `draft` through `renderStore`, and spins, disabled, while
 any render of the folder runs), and **Export** once it has one.
 
+- **The player** is the app's `MediaPlayer` over the newest video render
+  (`draft`, `final` or `small`; `playableRenders`), `mediaSrc(path)` plus `&v=<mtime>` so a re-render of
+  the same path is a new file to the element. With several, pills choose.
+  When the render has its `.vtt` beside it, `studio_render_captions` reads it, `parseVtt` makes the cues
+  and the bar gets its captions button; otherwise there is none (and none
+  when the video's captions are drawn into the picture, `detail.captions`).
+  No render shows "Not rendered yet", and the header offers Render draft. The scrub bar's notches
+  are the scene starts. The element shares the app's one sound with lectures
+  and library videos (`useLibraryPlayback`). The same player, without a
+  dock, plays a video inside a chat thread
+  ([harness.md](./harness.md#a-studio-thread-carries-its-video)).
+- **The render bar** is under the player and has no buttons: the render
+  pills when there are several, and when the shown one was made. A render in
+  flight, of any preset (the header starts them through `renderStore`), takes
+  its place with a bar naming the preset, the percentage and Cancel; a failure
+  stays until the next render starts. Rendering is local (ffmpeg), so unlike
+  Settings it may start from the page.
 - **The dock** is the lecture player's (`MediaDock`, `useTranscriptDock`):
   the player's dock button, T and the dock's × fold it, its header drags it to
   an edge, its divider resizes it, and the side, size and open state are

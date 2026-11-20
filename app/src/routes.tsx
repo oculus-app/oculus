@@ -12,6 +12,7 @@ import HomePage from "@/pages/start/HomePage";
 import NewTabPage from "@/pages/start/NewTabPage";
 import SubjectTasksRedirect from "@/pages/work/SubjectTasksRedirect";
 import SubjectsRedirect from "@/pages/start/SubjectsRedirect";
+import VideoRedirect from "@/pages/studio/VideoRedirect";
 import { LegacyFilesRedirect } from "@/pages/subject/files/LegacyFilesRedirect";
 
 /** Paths stay synchronous for matching and ⌘-click; page modules load only
@@ -99,20 +100,21 @@ export const routes: RouteObject[] = [
         ],
       },
       {
-        // Videos: the nav column (`StudioLayout`) beside New video, the
-        // grid, one video's detail and its thread, the Components playground
-        // and the Themes page.
+        // Videos: the nav column (`StudioLayout`) beside the grid, one
+        // video's detail, the Components playground and the Themes page. A
+        // saved tab on a page Studio no longer has opens its video, or the grid.
         path: "studio",
         element: <StudioLayout />,
         children: [
-          { index: true, lazy: page(() => import("@/pages/studio/NewVideoPage")) },
+          { index: true, element: <Navigate to="videos" replace /> },
           { path: "videos", lazy: page(() => import("@/pages/studio/VideosPage")) },
           { path: "videos/:slug", lazy: page(() => import("@/pages/studio/VideoPage")) },
-          { path: "videos/:slug/thread", lazy: page(() => import("@/pages/studio/VideoThreadPage")) },
+          { path: "videos/:slug/*", element: <VideoRedirect /> },
           { path: "components", lazy: page(() => import("@/pages/studio/ComponentsPage")) },
           { path: "components/:name", lazy: page(() => import("@/pages/studio/ComponentsPage")) },
           { path: "themes", lazy: page(() => import("@/pages/studio/ThemesPage")) },
           { path: "themes/:name", lazy: page(() => import("@/pages/studio/ThemesPage")) },
+          { path: "*", element: <Navigate to="/studio/videos" replace /> },
         ],
       },
       { path: "sync", lazy: page(() => import("@/pages/tools/SyncPage")) },

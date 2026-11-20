@@ -48,9 +48,6 @@ pub async fn harness_send(
     let mut options = options.unwrap_or_default();
     options.reasoning_effort = validate_effort(options.reasoning_effort)?;
     options.scope_new_thread(thread_id)?;
-    if let (None, Some(video)) = (thread_id, &options.studio) {
-        crate::studio::videos::video_in(&crate::studio::videos::videos_dir(), &video.slug)?;
-    }
     let kind = Kind::Send {
         provider,
         text,

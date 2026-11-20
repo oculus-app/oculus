@@ -46,7 +46,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | Settings -> Studio (Narration, Pronunciation, Word timing): the `voice` row and its engine, the server's model list, Kokoro's packs, voices and sample, the pronunciation review, the aligner download; its Tauri commands | `app/src/pages/settings/studio/`, `app/src/components/settings/voice/` (`pronunciations/`, `voices/`), `app/src/lib/studio/` (`voice.ts`, `voicePacks.ts`, `kokoroVoices.ts`, `aligner.ts`), `app/src-tauri/src/studio/commands/` (`voice.rs`, `kokoro.rs`, `voice_files.rs`, `aligner.rs`, `progress.rs`), `app/src-tauri/src/studio/tts/models.rs` |
 | Rendering a video: the export presets, ffmpeg's toolkit and the encoder choice, plan, workers and the reorder buffer, ffmpeg, the segment cache, the narration track, mux, the `.vtt` beside each narrated render, each preset's status, one render per folder | `app/src-tauri/src/studio/render/` (`preset.rs`, `toolkit.rs`, `settings.rs`, `export.rs`, `status.rs`), `app/src-tauri/crates/oculus-core/build.rs` (`STUDIO_RENDER_BUILD`) |
 | Rendering from the app: `studio_render`, `studio_render_cancel`, `studio_exports`, the `studio-render-progress` event and their wrappers; the page over them is [studio-page.md](./studio-page.md) | `app/src-tauri/src/studio/commands/render.rs`, `app/src/lib/studio/render.ts` |
-| The Studio page's commands: the video list, `studio_new_video`, a video's detail, stills and thumbnails; the `studio_videos` link table; a video thread's brief | `app/src-tauri/src/studio/commands/videos/`, `app/src-tauri/src/db/store/studio_videos.rs`, `app/src-tauri/src/harness/manager/studio.rs`, `app/src/lib/studio/videos.ts` |
+| The Studio page's commands: the video list, a video's detail, stills and thumbnails; the `studio_videos` link table; a video thread's brief | `app/src-tauri/src/studio/commands/videos/`, `app/src-tauri/src/db/store/studio_videos.rs`, `app/src-tauri/src/harness/manager/studio.rs`, `app/src/lib/studio/videos.ts` |
 | The playground's and Themes page's commands: the theme and component lists, source, frame, validated write, history, restore and removal, each library's default theme; the shared snapshot listing; a new video's default theme | `app/src-tauri/src/studio/commands/components/`, `commands/themes/`, `commands/levels.rs`, `commands/history.rs`, `app/src-tauri/src/studio/libraries/defaults.rs`, `app/src/lib/studio/components.ts`, `app/src/lib/studio/themes.ts` |
 | The agent flow: the `oculus-studio` skill and the prelude's globals, typed | `app/src-tauri/templates/skills/oculus-studio/` (`SKILL.md`, `reference.md`), `app/studio-core/studio.d.ts` (its test: `src/host/tests/globals.rs`) |
 | Slides: a region of a library PDF page as a video asset, the blocks to pick it by, edges moved off ink, the sidecar and its lint; the bundled sample crop | `app/src-tauri/src/studio/slides/` (`blocks.rs`, `geometry.rs`, `snap.rs`, `raster.rs`, `sidecar.rs`, `preview.rs`), `app/studio-core/library/components/Slide.tsx`, `app/studio-core/src/images/`, `app/studio-core/library/assets/` |
@@ -232,8 +232,10 @@ one folder besides `agents/` and the database an agent thread may write
 ## Agent flow: a chat agent makes a video with the `oculus-studio` skill
 
 A video is made in a Chat thread by the student's own CLI agent, through
-the `oculus` CLI and its file tools; the Studio page's New video starts that
-thread beside the video's player ([studio-page.md](./studio-page.md)).
+the `oculus` CLI and its file tools. The thread shows the video's card and
+plays it ([harness.md](./harness.md#a-studio-thread-carries-its-video)); the
+Studio page's New video opens a new thread with the skill chip in its box
+([studio-page.md](./studio-page.md#new-video-starts-a-chat)).
 The `oculus-studio` skill ([harness.md](./harness.md#the-brief-is-appended-except-on-opencode))
 is the whole brief, and `AGENTS.md` only points at it. The target is a
 3Blue1Brown-style explainer: maths written term by term as it is said and
@@ -409,8 +411,8 @@ components list <DIR>` prints each name with the level it resolves from, and
 (`<app data>/studio/library/library.json`, `<app data>/studio/subjects/<CODE>/library.json`),
 `{"defaultTheme": "<name>"}` and nothing else (`studio_core::LibrarySettings`,
 `deny_unknown_fields`); a library without the file has no default. A new
-video that names no theme (`oculus studio new`, the app's New video with no
-theme picked) takes its subject library's default, else the global
+video that names no theme (`oculus studio new` without `--theme`, as when
+the style chip's theme is left on its default) takes its subject library's default, else the global
 library's, else the bundled `default`
 (`studio::libraries::default_theme`), and video.json gets that name. A
 default naming a theme missing from its cascade is passed over. A
@@ -1432,7 +1434,7 @@ With video.json's `captions` on, `Renderer` ends every frame of a narrated
 scene with a caption: the phrase being said on a rounded plate, the word
 being said highlighted, the words still to come faded (`src/captions/`).
 `renderer.without_captions()` leaves them out; `strip` and the app's stills
-(thumbnails, the scene strip) use it, and `gallery`, lint and the
+(thumbnails, a scene's still) use it, and `gallery`, lint and the
 playground draw through `Engine` and never have them. `oculus studio frame`
 shows them, so a builder can check what a frame will look like.
 
@@ -1983,8 +1985,7 @@ on disk now; nothing is cached but thumbnails.
 | Command | Does |
 | --- | --- |
 | `studio_videos(subject?)` | `videos::list_in` plus `title` and `threadId`, newest change first (a video whose video.json does not load sorts last and carries `problem`) |
-| `studio_new_video(options)` | `{title?, subject?, theme?, portrait?, voice?}` -> `{slug, dir}`. The slug is `unique_slug(title)`; `theme` defaults to the subject's default theme (see "Libraries cascade"); `voice` is video.json's `voice` block (`{engine?, model?, voice?, speed?}`, `engine` being `kokoro` or `server`). The scaffold has `"captions": true`. It is loaded over the libraries before it is returned, and removed again if it does not load (a theme nothing defines, say) |
-| `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` and `renders` |
+| `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
 | `studio_render_captions(slug, preset)` | the WebVTT text beside that preset's render (`renders/<preset>.vtt`), for the player's CC |
 | `studio_set_captions(slug, on)` | sets video.json's `captions`: the `true`/`false` literal is replaced in the text, or the key is added before `scenes` on a line of its own, so the rest of the file keeps its formatting (`videos::set_captions`) |
 | `studio_exports(dir)` | each preset's status (`render::exports`, see "Rendering a video") as `{preset, path, modified, current, problem}`; it asks ffmpeg for its toolkit, renders nothing and makes no network call |
@@ -2035,9 +2036,13 @@ one made mid-thread. `studio_videos(slug PK, thread_id, length_secs,
 created_at)` keeps one video per thread. Deleting the thread keeps the video.
 
 The link is committed with the tool completion, using the tool's originating
-run to read `meta.studio.lengthSecs` from the user row. A second creation
-stays unlinked. The folder must pass `video_in`; an existing link to another
-thread is never taken. No migration is needed for these links.
+run to read `meta.studio.lengthSecs` from the user row. A second creation in
+the same thread stays unlinked. The folder must pass `video_in`. Since
+`studio new` refuses a folder that exists, a row already naming the slug was
+left by a deleted video, and the new folder's thread takes it over. Threads
+come only from Chat: Studio's New video opens one with the skill chip in its
+box. Ask for a change on Components and Themes starts a plain thread, and the
+scratch video its agent makes is linked to it like any other.
 
 Every send reads the link (`StudioBrief::read`) into "The video being made":
 the absolute folder, format, theme, subject library and optional length

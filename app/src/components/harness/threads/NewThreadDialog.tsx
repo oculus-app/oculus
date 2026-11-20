@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { Check, MagnifyingGlass } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { KeyHint } from "@/components/search/KeyHint";
-import { SubjectOptionGlyph } from "@/components/harness/composer/SubjectPicker";
+import { SubjectOptionGlyph } from "@/components/harness/composer/SubjectOptionGlyph";
 import { subjectOptions, type SubjectOption } from "@/components/harness/composer/subjectOptions";
 import type { Subject } from "@/lib/db";
 import type { ChatScope } from "@/lib/harness/scope";

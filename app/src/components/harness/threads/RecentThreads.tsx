@@ -6,6 +6,7 @@ import type { Subject } from "@/lib/db";
 import { displayCode, displayName, sqliteUtcToMs } from "@/lib/format/format";
 import { chatHref, getThreadPreviews, PROVIDERS, type HarnessThread } from "@/lib/harness";
 import { relativeTime } from "@/lib/activity/recents";
+import { VideoGlyph } from "./parts";
 import { ROW_PREVIEW, ROW_TITLE, TITLE_ATTENTION, TITLE_READ } from "./rowType";
 import { ATTENTION, runStartedMs, StatusPill, threadRowStatus } from "./StatusPill";
 import { cn } from "@/lib/utils";
@@ -115,6 +116,7 @@ function Row({
                   aria-label="Lecture thread"
                 />
               )}
+              <VideoGlyph threadId={t.id} size={11} className="opacity-60" />
             </span>
             {status ? (
               <StatusPill status={status} since={status === "working" ? runStartedMs(t) : null} />

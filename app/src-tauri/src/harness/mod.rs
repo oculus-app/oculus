@@ -36,7 +36,7 @@ pub use manager::write_opencode_config;
 pub use manager::{
     instructions, run_once, thread_cwd, thread_sections, Generation, Harness, LectureBrief,
     OneSink, OwnTurns, RawLog, Release, RewindTo, SendError, SendOptions, Sinks, Steered,
-    StudioBrief, StudioSend,
+    StudioBrief,
 };
 pub use providers::{antigravity, claude, codex, opencode};
 

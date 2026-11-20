@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, useState, type Ref, type ReactNode, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from "react";
 import { useStudioStyle } from "./useStudioStyle";
 import type { SendOptions } from "@/lib/harness";
 import { SendControls } from "@/components/harness/composer/SendControls";
@@ -11,7 +11,6 @@ import { usePromptHistory } from "@/hooks/agents/usePromptHistory";
 import { notePickedSkills } from "@/lib/harness/skills";
 import { ModelPicker } from "@/components/harness/composer/ModelPicker";
 import { UsageMeter } from "@/components/harness/composer/UsageMeter";
-import { SubjectPicker } from "@/components/harness/composer/SubjectPicker";
 import { ThreadBanners } from "@/components/harness/composer/ThreadBanners";
 import { RequestBar } from "@/components/harness/composer/RequestBar";
 import { QuestionPanel } from "@/components/harness/composer/QuestionPanel";
@@ -31,7 +30,6 @@ import {
   modClick,
   type DeliveryMode,
   providerLabel,
-  scopeSubject,
   type Provider,
   type RateWindow,
   type ThreadUsage,
@@ -85,8 +83,6 @@ export function Composer({
   switchFrom,
   subjects,
   subjectId,
-  onSubject,
-  subjectLocked,
   unscoped = false,
   running,
   usage,
@@ -103,7 +99,6 @@ export function Composer({
   autoFocus,
   dropRef,
   onDropping,
-  leading,
   placeholder,
   threadId = null,
   compact = false,
@@ -125,10 +120,6 @@ export function Composer({
   subjects: Subject[];
   /** null is the general thread — the whole library. */
   subjectId: number | null;
-  /** Given where the box picks its own scope (a chip above it, Studio's New
-   *  video); Chat's new thread picks it in the headline instead. */
-  onSubject?: (id: number | null) => void;
-  subjectLocked: boolean;
   /** A new Chat thread with no subject or General chosen yet: Enter and the
    *  send button do nothing, and the placeholder says why. */
   unscoped?: boolean;
@@ -155,8 +146,6 @@ export function Composer({
    *  its own overlay from `onDropping`. */
   dropRef?: RefObject<HTMLElement | null>;
   onDropping?: (over: boolean) => void;
-  /** Chips after the subject's, above the box (Studio's style chip). */
-  leading?: ReactNode;
   /** The empty box's hint; a running turn's own wins. */
   placeholder?: string;
   /** The open thread, whose notices (`ThreadBanners`) sit above the box. */
@@ -334,16 +323,8 @@ export function Composer({
 
   return (
     <div ref={wrapRef} className="flex flex-col gap-1.5">
-      {((!subjectLocked && onSubject) || leading || studio.leading || stash.menu.entries.length > 0) && (
+      {(studio.leading || stash.menu.entries.length > 0) && (
         <div className="flex items-center gap-1.5 px-0.5">
-          {!subjectLocked && onSubject && (
-            <SubjectPicker
-              subjects={subjects}
-              value={subjectId ?? "general"}
-              onChange={(scope) => onSubject(scopeSubject(scope))}
-            />
-          )}
-          {leading}
           {studio.leading}
           <div className="ml-auto">
             <StashMenu {...stash.menu} />

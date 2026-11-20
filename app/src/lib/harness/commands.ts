@@ -3,7 +3,6 @@ import type { Provider } from "./providers";
 import type { ChatScope } from "./scope";
 import type { RunRow } from "./runs";
 import type { BridgeHealth, HarnessItem, HarnessRequest, QuestionAnswer, PermissionMode, QueuedMessage } from "./types";
-import type { StudioSend } from "@/lib/studio/videos";
 import { openNotebookContext } from "@/lib/whiteboard/openNotebooks";
 import { takePickedSkills } from "./skills";
 import { useProposalStore } from "@/stores/chat/proposalStore";
@@ -11,19 +10,15 @@ import { useProposalStore } from "@/stores/chat/proposalStore";
 export interface SendOptions {
   model?: string | null;
   reasoningEffort?: string | null;
-  /** Only read when the send creates a Studio thread (`studio`). */
-  subjectId?: number | null;
   /** Only read when the send creates a plain Chat thread, which Rust refuses
    *  to create without one (`docs/harness.md`, "Subject scope and `@`"). */
   chatScope?: ChatScope;
-  /** Only read on creation; overrides `subjectId`. */
+  /** Only read on creation; the lecture decides the subject. */
   lectureId?: string | null;
   /** What the student has open (a lecture's moment, a notebook), appended to the prompt but never to the message. */
   context?: string | null;
   /** Playhead second; stored on the user row's `meta` as `{ at }`. */
   at?: number | null;
-  /** Only read on creation: links the new thread to a Studio video. */
-  studio?: StudioSend;
   /** The skills the student picked as chips in this message, by name. Rust
    *  names each to the agent in the prompt, never in the stored row. */
   skills?: string[];

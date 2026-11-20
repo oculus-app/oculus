@@ -89,7 +89,7 @@ export function useVideoPlayback(detail: VideoDetail, docked: boolean, preset: R
     dockKeepWidth: DOCK_KEEP_WIDTH,
     dockSide: docked ? dockSide : undefined,
     hasCaptions: cues.length > 0,
-    // Without a dock (the thread page) T has nothing to show.
+    // Without a dock (a chat's inline player) T has nothing to show.
     onToggleDock: docked ? undefined : noop,
   });
 

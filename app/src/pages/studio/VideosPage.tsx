@@ -1,29 +1,28 @@
 import { useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { FilmSlate, Plus } from "@phosphor-icons/react";
 
 import { StudioHeader } from "@/components/studio/StudioHeader";
-import { ALL, SubjectPills } from "@/components/studio/videos/SubjectPills";
+import { ALL, readSubject, SUBJECT_KEY, SubjectPills } from "@/components/studio/videos/SubjectPills";
 import { VideoCard } from "@/components/studio/videos/VideoCard";
 import { Button } from "@/components/ui/button";
 import { MediaGrid } from "@/components/ui/layout/MediaGrid";
 import { EmptyState } from "@/components/ui/layout/PageParts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStoredState } from "@/hooks/ui/useStoredState";
-import { NEW_VIDEO_HREF } from "@/lib/studio/routes";
+import { useNewVideoChat } from "@/hooks/studio/useNewVideoChat";
 import { useVideosStore } from "@/stores/studio/videosStore";
 
-/** /studio/videos: every video as a thumbnail, narrowed by subject. */
+/** /studio/videos (and `/studio`): every video as a thumbnail, narrowed by
+ *  subject. New video starts a Chat thread that makes one. */
 export default function VideosPage() {
-  const navigate = useNavigate();
   const { videos, loaded, error } = useVideosStore();
-  const [chosen, setChosen] = useStoredState("oculus-studio-subject", (raw) => raw ?? ALL);
+  const [chosen, setChosen] = useStoredState(SUBJECT_KEY, readSubject);
 
   const subjects = useMemo(() => [...new Set(videos.flatMap((v) => (v.subject ? [v.subject] : [])))], [videos]);
   // A remembered subject that no longer has a video shows everything.
   const filter = subjects.includes(chosen) ? chosen : ALL;
   const shown = filter === ALL ? videos : videos.filter((v) => v.subject === filter);
-  const newVideo = () => navigate(NEW_VIDEO_HREF);
+  const newVideo = useNewVideoChat(filter === ALL ? null : filter);
   // An agent or the CLI may have changed the folders since the layout read them.
   useEffect(() => {
     void useVideosStore.getState().reload();
@@ -34,7 +33,7 @@ export default function VideosPage() {
       <StudioHeader
         title="Videos"
         actions={
-          <Button size="sm" data-tab-href={NEW_VIDEO_HREF} onClick={newVideo}>
+          <Button size="sm" onClick={() => void newVideo()}>
             <Plus size={14} weight="bold" />
             New video
           </Button>
@@ -55,9 +54,9 @@ export default function VideosPage() {
             <EmptyState
               icon={<FilmSlate size={28} weight="light" className="text-muted-foreground" />}
               title="No videos yet"
-              body="Describe one and an agent scripts, narrates and renders it."
+              body="Describe one in a chat and the agent scripts, narrates and renders it."
             >
-              <Button size="sm" onClick={newVideo}>
+              <Button size="sm" onClick={() => void newVideo()}>
                 New video
               </Button>
             </EmptyState>

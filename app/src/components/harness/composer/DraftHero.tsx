@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CaretDown } from "@phosphor-icons/react";
-import { SubjectOptionGlyph } from "@/components/harness/composer/SubjectPicker";
+import { SubjectOptionGlyph } from "@/components/harness/composer/SubjectOptionGlyph";
 import { subjectOption, type SubjectOption } from "@/components/harness/composer/subjectOptions";
 import type { Subject } from "@/lib/db";
 import type { ChatScope } from "@/lib/harness/scope";

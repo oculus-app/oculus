@@ -145,10 +145,7 @@ export function tabInfo(
     const theme = /^\/studio\/themes\/([^/]+)/.exec(pathname);
     if (theme) return { title: decodeURIComponent(theme[1]), icon: <Palette size={size} /> };
     if (pathname.startsWith("/studio/themes")) return { title: "Themes", icon: <Palette size={size} /> };
-    return {
-      title: pathname.startsWith("/studio/videos") ? "Videos" : "New video",
-      icon: <FilmSlate size={size} />,
-    };
+    return { title: "Videos", icon: <FilmSlate size={size} /> };
   }
   if (pathname === "/drive/recent") return { title: "Recent", icon: <ClockCounterClockwise size={size} /> };
   const driveFolder = parseDriveRoute(pathname);

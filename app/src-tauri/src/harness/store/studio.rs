@@ -38,12 +38,17 @@ pub(super) async fn link_created(
         .and_then(|s| serde_json::from_str::<Value>(&s).ok())
         .and_then(|v| v.get("studio")?.get("lengthSecs")?.as_i64())
         .filter(|n| *n > 0);
-    // Never take a folder from another thread, including a duplicate event.
+    // A thread keeps its first video, a duplicate event included. `studio
+    // new` refuses a folder that exists, so a row already naming this slug
+    // was left by a deleted video, and the new folder takes it over.
     sqlx::query(
         "INSERT INTO studio_videos (slug, thread_id, length_secs)
          SELECT ?1, ?2, ?3 WHERE NOT EXISTS (SELECT 1 FROM studio_videos WHERE thread_id = ?2)
          AND EXISTS (SELECT 1 FROM harness_threads WHERE id = ?2)
-         ON CONFLICT(slug) DO NOTHING",
+         ON CONFLICT(slug) DO UPDATE SET
+           thread_id = excluded.thread_id,
+           length_secs = excluded.length_secs,
+           created_at = datetime('now')",
     )
     .bind(slug)
     .bind(thread)
@@ -91,6 +96,9 @@ mod tests {
             sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
         }
         let thread = store::create_thread(&pool, Provider::Claude, None, None, None, "video")
+            .await
+            .unwrap();
+        let other = store::create_thread(&pool, Provider::Claude, None, None, None, "again")
             .await
             .unwrap();
         let temp =
@@ -162,6 +170,37 @@ mod tests {
             .unwrap();
         assert_eq!(row.get::<String, _>("slug"), "first");
         assert_eq!(row.get::<i64, _>("length_secs"), 90);
+
+        // A deleted video's row gives its slug to the folder made again.
+        sqlx::query("INSERT INTO studio_videos (slug, thread_id) VALUES ('gone', NULL)")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+        videos::create_in(
+            &temp,
+            &videos::NewVideo {
+                slug: "gone".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        link_created(
+            &mut conn,
+            other,
+            item,
+            "Bash",
+            &json!({"command":"oculus studio new gone"}),
+            &format!("made {}", temp.join("gone").display()),
+            &temp,
+        )
+        .await
+        .unwrap();
+        let linked: i64 =
+            sqlx::query_scalar("SELECT thread_id FROM studio_videos WHERE slug = 'gone'")
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap();
+        assert_eq!(linked, other);
         assert!(printed_slug("made /tmp/elsewhere", &temp).is_none());
         assert!(printed_slug(&format!("made {}/../first", temp.display()), &temp).is_none());
         assert_eq!(

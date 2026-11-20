@@ -3,6 +3,10 @@ import { displayCode } from "@/lib/format/format";
 
 export const ALL = "all";
 
+/** The grid's chosen subject, which New video also starts its thread in. */
+export const SUBJECT_KEY = "oculus-studio-subject";
+export const readSubject = (raw: string | null) => raw ?? ALL;
+
 /** Pills over the grid: All, then each subject that has a video. Hidden when
  *  there is only one thing to choose. */
 export function SubjectPills({

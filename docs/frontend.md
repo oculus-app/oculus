@@ -9,7 +9,7 @@ library files; the rest of the frontend has its own pages:
 | --- | --- |
 | [shell.md](./shell.md) | Per-pane routers, tabs, the side panel, window shortcuts, ⌘F, search |
 | [ui.md](./ui.md) | The design rules, and the WebKit and CSS traps |
-| [studio-page.md](./studio-page.md) | The Studio page: New video, a video's thread and player, the Videos grid |
+| [studio-page.md](./studio-page.md) | The Studio page: New video, the Videos grid, a video's player and detail |
 | [viewers.md](./viewers.md) | Markdown, PDFs, an Ed lesson's slides, the media player (lectures and library videos) and the in-app browser with downloads |
 | [editor.md](./editor.md) | The note editor: sessions, find, versions, code, tables, pictures, mentions, `NoteField` |
 | [editor-maths.md](./editor-maths.md) | Maths in the note editor: the visual field, the toolbox, shorthands |

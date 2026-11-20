@@ -289,7 +289,7 @@ themes are opt-in and keep the same structure.
   retain the detail needed to act. Dense tables scroll sideways with readable
   column widths; `GridTable`'s optional `minWidth` keeps header and rows together.
 - **A new chat's headline** (`DraftHero`) takes Studio's hero type
-  (`font-display`, 26px, semibold, as New video's question) with the subject
+  (`font-display`, 26px, semibold) with the subject
   as a pill inside the sentence. Whether the sentence fits on one line
   is measured from a hidden copy against the column's own box with a
   `ResizeObserver`, never against `window` or a viewport breakpoint, which page

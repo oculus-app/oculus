@@ -1,6 +1,6 @@
 //! The Studio page's commands over scratch folders: the list with its
-//! links, `new`, the detail of a narrated and an unnarrated video, stills,
-//! and the thumbnail cache. Narrated videos copy studio-core's `narrated`
+//! links, the detail of a narrated and an unnarrated video, stills, and the
+//! thumbnail cache. Narrated videos copy studio-core's `narrated`
 //! fixture.
 
 use std::collections::HashMap;
@@ -10,7 +10,6 @@ use studio_core::Library;
 
 use super::detail::detail_in;
 use super::frame::{frame_png, FrameAt, MAX_WIDTH};
-use super::new::{create_in, NewVideoOptions, VoiceBlock};
 use super::rows::list_in;
 use super::thumbnail::thumbnail_in;
 use crate::db::store::StudioLink;
@@ -39,146 +38,36 @@ fn narrated(videos: &Path) -> PathBuf {
     dir
 }
 
+/// A scaffold as `oculus studio new` makes it.
+fn scaffold(videos: &Path, slug: &str, title: &str) -> PathBuf {
+    crate::studio::videos::create_in(
+        videos,
+        &crate::studio::videos::NewVideo {
+            slug: slug.into(),
+            title: Some(title.into()),
+            theme: Some("default".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+}
+
 fn png_size(bytes: &[u8]) -> (u32, u32) {
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "not a PNG");
     let be = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
     (be(16), be(20))
 }
 
-fn options(title: &str) -> NewVideoOptions {
-    NewVideoOptions {
-        title: Some(title.into()),
-        ..NewVideoOptions::default()
-    }
-}
-
-#[test]
-fn new_makes_a_unique_slug_that_loads_with_the_options_given() {
-    let root = Scratch::new("cmd-new");
-    let videos = root.join("videos");
-    let library = libraries_at(&root.join("library"), &root.join("subjects"), false).unwrap();
-
-    let first = create_in(&videos, &library, options("Bayes rule")).unwrap();
-    let second = create_in(&videos, &library, options("Bayes rule")).unwrap();
-    assert_eq!(
-        (first.slug.as_str(), second.slug.as_str()),
-        ("bayes-rule", "bayes-rule-2")
-    );
-    assert_eq!(second.dir, videos.join("bayes-rule-2"));
-
-    let reel = create_in(
-        &videos,
-        &library,
-        NewVideoOptions {
-            title: None,
-            subject: Some("MAST20004".into()),
-            theme: Some("warm".into()),
-            portrait: true,
-            voice: Some(VoiceBlock {
-                voice: Some("af_heart".into()),
-                ..VoiceBlock::default()
-            }),
-        },
-    )
-    .unwrap();
-    assert_eq!(reel.slug, "untitled");
-    let project = studio_core::Project::load_with(&reel.dir, &library).unwrap();
-    assert_eq!(project.video.theme, "warm");
-    assert_eq!(project.video.subject.as_deref(), Some("MAST20004"));
-    assert_eq!(project.video.size.height, 1920);
-
-    // A theme nothing defines would not load; the folder is not left behind.
-    let err = create_in(
-        &videos,
-        &library,
-        NewVideoOptions {
-            theme: Some("no-such-theme".into()),
-            ..options("Ghost")
-        },
-    )
-    .unwrap_err();
-    assert!(err.contains("no-such-theme"), "{err}");
-    assert!(!videos.join("ghost").exists());
-}
-
-#[test]
-fn a_video_with_no_theme_takes_its_subjects_default_by_name() {
-    let root = Scratch::new("cmd-new-default");
-    let videos = root.join("videos");
-    let library = libraries_at(&root.join("library"), &root.join("subjects"), false).unwrap();
-    let theme_of = |made: &super::new::Made| {
-        studio_core::Project::load_with(&made.dir, &library)
-            .unwrap()
-            .video
-            .theme
-    };
-    let made = create_in(&videos, &library, options("Plain")).unwrap();
-    assert_eq!(theme_of(&made), "default");
-
-    std::fs::write(
-        root.join("library/library.json"),
-        r#"{"defaultTheme": "warm"}"#,
-    )
-    .unwrap();
-    let global = create_in(&videos, &library, options("Global default")).unwrap();
-    assert_eq!(theme_of(&global), "warm");
-
-    let code = root.join("subjects/MAST1");
-    std::fs::create_dir_all(code.join("themes")).unwrap();
-    let mut tokens = studio_core::Theme::bundled("default").unwrap().tokens;
-    tokens["color"]["bg"] = serde_json::json!("#101010");
-    std::fs::write(code.join("themes/chalk.json"), tokens.to_string()).unwrap();
-    std::fs::write(code.join("library.json"), r#"{"defaultTheme": "chalk"}"#).unwrap();
-    let own = create_in(
-        &videos,
-        &library,
-        NewVideoOptions {
-            subject: Some("MAST1".into()),
-            ..options("Subject default")
-        },
-    )
-    .unwrap();
-    assert_eq!(theme_of(&own), "chalk");
-    let text = std::fs::read_to_string(own.dir.join("video.json")).unwrap();
-    assert!(text.contains("\"theme\": \"chalk\""), "{text}");
-
-    // A theme asked for wins over the default.
-    let asked = create_in(
-        &videos,
-        &library,
-        NewVideoOptions {
-            subject: Some("MAST1".into()),
-            theme: Some("default".into()),
-            ..options("Asked")
-        },
-    )
-    .unwrap();
-    assert_eq!(theme_of(&asked), "default");
-
-    std::fs::write(code.join("library.json"), "{ nope").unwrap();
-    let err = create_in(
-        &videos,
-        &library,
-        NewVideoOptions {
-            subject: Some("MAST1".into()),
-            ..options("Broken settings")
-        },
-    )
-    .unwrap_err();
-    assert!(err.contains("library.json"), "{err}");
-}
-
 #[test]
 fn the_list_has_titles_threads_and_the_newest_first() {
     let root = Scratch::new("cmd-list");
     let videos = root.join("videos");
-    let library = Library::default();
-    let old = create_in(&videos, &library, options("Old one")).unwrap();
-    let new = create_in(&videos, &library, options("New one")).unwrap();
+    let old = scaffold(&videos, "old-one", "Old one");
+    let new = scaffold(&videos, "new-one", "New one");
     let past = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
     std::fs::File::options()
         .write(true)
-        .open(old.dir.join("video.json"))
+        .open(old.join("video.json"))
         .unwrap()
         .set_modified(past)
         .unwrap();
@@ -197,7 +86,7 @@ fn the_list_has_titles_threads_and_the_newest_first() {
     assert_eq!(rows[0].title, "New one");
     assert_eq!(rows[0].thread_id, None);
     assert_eq!(rows[1].thread_id, Some(7));
-    assert_eq!(rows[0].dir, new.dir.to_string_lossy());
+    assert_eq!(rows[0].dir, new.to_string_lossy());
 
     let json = serde_json::to_value(&rows[1]).unwrap();
     assert_eq!(json["threadId"], 7);
@@ -410,10 +299,10 @@ fn an_unnarrated_video_gets_a_silent_thumbnail_and_a_failure_says_so() {
     let library = libraries_at(&root.join("library"), &root.join("subjects"), false).unwrap();
 
     // The scaffold has a hold and no narration at all.
-    let made = create_in(&videos, &library, options("Fresh")).unwrap();
+    let made = scaffold(&videos, "fresh", "Fresh");
     let bytes = thumbnail_in(&videos, &library, "fresh").unwrap();
     assert_eq!(png_size(&bytes), (640, 360));
-    assert_eq!(thumbs(&made.dir).len(), 1);
+    assert_eq!(thumbs(&made).len(), 1);
 
     // Stale narration, and a first scene that cues a word: silent, it has
     // no words to cue, and the thumbnail says why.

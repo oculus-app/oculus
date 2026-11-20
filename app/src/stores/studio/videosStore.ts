@@ -14,8 +14,8 @@ interface VideosState {
 /** Latest read wins, so a slow answer never overwrites a newer one. */
 let run = 0;
 
-/** Every video, for the Recent list and the Videos grid. The grid filters
- *  by subject itself. */
+/** Every video, for the Videos grid (which filters by subject itself) and
+ *  for finding the video a chat thread makes (`VideoRow.threadId`). */
 export const useVideosStore = create<VideosState>((set) => ({
   videos: [],
   loaded: false,

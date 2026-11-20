@@ -52,7 +52,6 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | `@` and `/` menu, mention input, skill chips | `app/src/components/harness/mentions/useComposerMenu.ts`, `app/src/components/harness/mentions/ComposerMenu.tsx`, `app/src/components/harness/mentions/trigger.ts`, `app/src/components/harness/mentions/MentionInput.tsx`, `app/src/components/harness/mentions/SkillChip.tsx`, `app/src/components/markdown/FileChip.tsx`, `app/src/components/harness/composer/useComposerTools.ts` |
 | Commands and skills: the catalogue, its search, the ranking, how a picked skill reaches each bridge | `app/src/lib/harness/skills.ts`, `app/src/lib/harness/composerCommands.ts`, `app/src/stores/chat/skillStore.ts`, `app/src/lib/search/ranking.ts`, `app/src-tauri/src/harness/app/skills.rs`, `app/src-tauri/src/harness/providers/*/skill.rs` |
 | Earlier messages on ArrowUp, and the ⌘S stash | `app/src/lib/harness/promptHistory.ts`, `app/src/hooks/agents/usePromptHistory.ts`, `app/src/stores/chat/stashStore.ts`, `app/src/components/harness/composer/useComposerStash.ts`, `app/src/components/harness/composer/StashMenu.tsx`, `app/src/components/harness/composer/StashBadge.tsx` |
-| Studio's thread column and New video box, which use `Composer`'s `leading` (chips after the subject's) and `placeholder` | `app/src/components/studio/thread/ThreadColumn.tsx`, `app/src/components/studio/new/NewVideo.tsx` ([studio-page.md](./studio-page.md)) |
 | The subject Overview's ask bar: `Composer`'s `compact` mode and its settings menu, and the warp into the thread it starts | `app/src/pages/subject/content/overview/AskBar.tsx`, `app/src/components/harness/composer/settings/`, `app/src/lib/ui/warp.ts`, `app/src/hooks/ui/useWarpLanding.ts`, `app/src/styles/warp.css` |
 | Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src/lib/dictation/cleanup.ts`, `app/src/lib/dictation/groqUsage.ts` |
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
@@ -1014,7 +1013,8 @@ writes it into the draft once and drops it from the route.
   line.
 - **A thread row is three lines** (`ThreadRow`): the subject's glyph and
   `displayCode` (General for none) with the status or the age at the right
-  ("25m", `shortAge`); the title, with the lecture glyph; and the newest
+  ("25m", `shortAge`); the title, with the lecture glyph or, for a thread
+  making a Studio video, the film glyph (`VideoGlyph`); and the newest
   message from either side, flattened, with the provider mark at the
   right. The Subject view moves the right slot onto the title's line. Line
   three is the thread's question while it asks one (`getPendingQuestions`),
@@ -1034,7 +1034,7 @@ writes it into the draft once and drops it from the route.
 - Bare `/chat` is a new thread: the composer docked at the bottom as in a
   thread, and above it the headline that names the subject (`DraftHero`) over
   the three latest threads (`RecentThreads`) — provider mark, title, a chip
-  naming its subject or General, age, and the newest message flattened to one
+  naming its subject or General, the lecture or film glyph, age, and the newest message flattened to one
   dimmer line, in the column rows' text levels (`getThreadPreviews`, one read for the list). The list stays
   because it is the empty chat's only way back to a recent thread. The page
   has its own scroller, since a thread's follows its bottom.
@@ -2006,7 +2006,7 @@ that respawns the session, and it is part of
 the session's reuse key ([`decide_transition`](#changing-provider-mid-chat)).
 A new chat starts under the mode its composer showed before it existed
 (`useNewChatMode` in `app/src/stores/chat/`, the session's, like its model
-pick): `useThreadActions`' and Studio's New video's creating sends carry it
+pick): `useThreadActions`' creating sends carry it
 as `SendOptions::start_mode`, which `create` in `core/commit.rs` writes to
 the row in the transaction that makes the thread, so the first run reads it
 as every later one does. A bridge whose `approvals` flag is false declines approvals, whatever
@@ -2684,8 +2684,8 @@ The decisions are pure functions in `lib/harness/switching.ts`, tested in
   what it was sent with. When Rust refuses, the pick is dropped and its
   sentence is kept (`refused`) until the next pick or send.
 - **The picker offers every agent for the life of a chat.**
-  `useComposerSelection` gives the Chat page, the lecture dock and Studio's
-  thread column the same four things: the selection, the refusal, the agent
+  `useComposerSelection` gives the Chat page and the lecture dock the same
+  four things: the selection, the refusal, the agent
   a pending switch leaves (`pendingSwitch`), and which agents are locked
   (`useSwitchLock`, `switchLocked` against the thread's saved provider, as
   Rust checks it). A locked tab is dimmed and opens a note, "{agent} — start
@@ -2694,8 +2694,7 @@ The decisions are pure functions in `lib/harness/switching.ts`, tested in
   other agent. A pending switch says "Switches from {agent} with your next
   message." under the tabs, and the trigger's title ends "from your next
   message". A refusal shows in the open picker, or above the box once it is
-  closed; never a toast. Studio's thread column locks every other agent
-  (`LOCK_OTHERS`) and still saves model and level picks.
+  closed; never a toast.
 - **The reasoning dial reads the thread.** An open thread's level is its
   `effort`; a thread from before levels were stored reads the session's
   dial, which every level pick also sets.
@@ -2987,11 +2986,6 @@ until one is chosen. The subject is a pill that opens the same dialog, and it
 drops under "What should we work on?" when the one-line sentence is wider
 than the column ([ui.md](./ui.md)). An open thread's header has no pill.
 
-`SubjectPicker` is the compact chip Studio's New video shows above its
-composer for a subject of its own: a searchable popover of the same rows,
-past terms' under a fold that a search or a past choice opens, each row's
-full name as its tooltip and label.
-
 **Until then the composer is `unscoped`**: words, pictures and pasted cards
 collect, but Enter and the send button do nothing and the placeholder reads
 "Choose a subject above to start a chat". The choice belongs to the draft
@@ -3002,17 +2996,16 @@ reads as unchosen, and creating the thread forgets it, so the next new chat
 asks again. Every Chat tab's new thread shares one draft key, and so one
 choice. An entry point names the scope in the route instead, with no dialog:
 a group's "+" opens `/chat?s=<id|general>`, and a revision artifact's Ask about this
-`/chat?s=<id>` when the artifact has a subject. The lecture dock is always
-its lecture's subject and Studio's threads their video's; neither shows the
-headline.
+`/chat?s=<id>` when the artifact has a subject, and Studio's New video
+`/chat?s=<id>` in the subject its grid shows. The lecture dock is always its
+lecture's subject and does not show the headline.
 
 **Rust holds the same line.** A send that creates a plain Chat thread must
 name its scope (`chatScope`: `"general"` or a subject id; `ChatScope` in
 `manager/options.rs`), and `harness_send` refuses one that does not before
 it writes any row, so a missed entry point can never file into General
-silently. A lecture's creation takes its lecture's subject and a Studio
-video's its own `subjectId`; a send to an existing thread, General ones
-included, is never checked. Studio's Ask for a change starts a plain thread,
+silently. A lecture's creation takes its lecture's subject; a send to an
+existing thread, General ones included, is never checked. Studio's Ask for a change starts a plain thread,
 so it names its scope too ([studio-page.md](./studio-page.md)).
 
 **`@` inserts a library path**, not content — the path is what `oculus read`
@@ -3082,8 +3075,7 @@ A `/` at the start of a word opens one menu with two groups, "Commands" then
 be a path: `1/2`, `a/b` and `and/or` never open it, nor does `/usr/bin` or
 `/etc/hosts` (a second slash anywhere in the word, past the caret too). There
 is no `$` trigger, since students type `$` for maths, and no `#`. Both
-composers share it through `useComposerTools`, and so do Studio's New video
-and thread column, which use `Composer`.
+composers share it through `useComposerTools`.
 
 - **Ranking** is T3's (`lib/search/ranking.ts`): exact, prefix, a match at a
   word boundary, anywhere, then a fuzzy subsequence; a name before a
@@ -3135,8 +3127,8 @@ what the line means.
 
 **The placeholder names both menus**: "Ask anything. @ files, / skills"
 (`COMPOSER_PLACEHOLDER`), "Ask about this lecture. @ files, / skills" in the
-lecture dock. A running turn's own hint and the unscoped one win; Studio's
-New video and thread column pass their own.
+lecture dock. A running turn's own hint and the unscoped one win; the
+subject Overview's ask bar passes its own.
 
 **ArrowUp in an empty box recalls earlier messages** of the open thread
 (`usePromptHistory`, `lib/harness/promptHistory.ts`, after T3's
@@ -3601,7 +3593,9 @@ Live Task/TaskList, Deadline/Upcoming, Lecture, StudioVideo, CheatNote and Revie
 The fresh Chat screen places its composer between the subject headline and
 Recent threads. `SkillPills` under the box inserts `oculus-studio` through
 `Composer.insertSkill`, the same skill chunk as the slash menu. It waits for
-the installed catalogue and never inserts a duplicate. Make a widget and
+the installed catalogue and never inserts a duplicate; Studio's New video
+arrives with the chip already in the box ([studio-page.md](./studio-page.md#new-video-starts-a-chat)).
+Make a widget and
 Learn are disabled with Coming soon tooltips. Pills have no selected state;
 removing the chip removes the skill from the next send.
 

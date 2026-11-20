@@ -288,7 +288,6 @@ export default function ChatPage() {
       switchFrom={switchFrom}
       subjects={subjects}
       subjectId={activeSubject}
-      subjectLocked={thread != null}
       unscoped={fresh && scope == null}
       running={running}
       usage={usage}

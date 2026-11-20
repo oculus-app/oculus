@@ -17,7 +17,7 @@ const FRAME = "overflow-hidden rounded-xl border border-border bg-black";
  * With a `dock` (the detail page's, labelled `dockLabel` on the bar) the
  * frame holds the picture and the dock, and takes the height that keeps the
  * picture 16:9 beside it (`useDockedFrameHeight`), within the window. Without
- * one (the thread page) the frame is the picture alone.
+ * one (a chat's inline player) the frame is the picture alone.
  */
 export function VideoPlayer({
   playback,

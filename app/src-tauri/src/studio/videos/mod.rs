@@ -111,7 +111,7 @@ pub fn video_in(videos: &Path, slug: &str) -> Result<PathBuf, String> {
     Ok(videos.join(slug))
 }
 
-/// What `oculus studio new` and the app's `studio_new_video` make.
+/// What `oculus studio new` makes.
 #[derive(Debug, Clone, Default)]
 pub struct NewVideo {
     pub slug: String,

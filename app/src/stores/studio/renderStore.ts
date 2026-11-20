@@ -44,7 +44,7 @@ function fractionOf(p: Extract<RenderProgress, { phase: "rendering" }>): number 
 /**
  * Studio renders, fed by `studio-render-progress` (`useStudioEvents`) and by
  * the page that started one. It lives here so a render keeps its bar through
- * navigation, and so the rail and the Recent list can mark it.
+ * navigation, and so the rail, the grid and a chat's video card can mark it.
  */
 export const useRenderStore = create<RenderState>((set, get) => {
   /** Ends the folder's render; a no-op when it already ended. */

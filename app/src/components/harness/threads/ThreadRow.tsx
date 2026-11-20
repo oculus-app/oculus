@@ -10,7 +10,7 @@ import { chatHref, PROVIDERS, type HarnessThread, type ThreadStatus } from "@/li
 import { activityLine } from "@/lib/harness/activity";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
-import { ConfirmDelete } from "./parts";
+import { ConfirmDelete, VideoGlyph } from "./parts";
 import { RowMenu } from "./RowMenu";
 import {
   HIDDEN_UNDER_ACTIONS,
@@ -126,6 +126,7 @@ export const ThreadRow = memo(function ThreadRow({
           {t.lecture_id && (
             <VideoCamera size={12} className="shrink-0 text-muted-foreground opacity-70" aria-label="Lecture thread" />
           )}
+          <VideoGlyph threadId={t.id} size={12} className="opacity-70" />
           {!showSubject && right}
         </span>
         <span className={cn("flex h-[18px] w-full min-w-0 items-center gap-1.5", ROW_PREVIEW, SIDE_NAV_FOLDS)}>

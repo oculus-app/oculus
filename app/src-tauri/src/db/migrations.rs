@@ -838,7 +838,7 @@ UPDATE subjects SET term_sort = substr(term_name, 1, 4) || '-' || CASE
         Migration {
             version: 46,
             description: "studio videos: the thread that makes each one",
-            // Written only by Rust (`db::store::link_studio_video`). The slug names a
+            // Written only by Rust (`harness::store::studio::link_created`). The slug names a
             // folder under `<data>/studio/videos/`; the folder is the video.
             sql: r#"
 CREATE TABLE IF NOT EXISTS studio_videos (
