@@ -104,7 +104,9 @@ pub(super) async fn link_created(
 }
 
 /// The first folder the output says was made that the command asked for,
-/// so a scratch video made in the same line is passed over.
+/// so a scratch video made in the same line is passed over. A command that
+/// asked for one video and made one folder links it whatever the slug's
+/// spelling in the command (`$SLUG`, say).
 fn printed_slug(output: &str, root: &Path, asked: &[String]) -> Option<String> {
     // CLI text may be coloured; JSON is emitted when --json is selected,
     // one document per command.
@@ -124,19 +126,23 @@ fn printed_slug(output: &str, root: &Path, asked: &[String]) -> Option<String> {
             })
             .collect(),
     };
-    dirs.iter().find_map(|dir| {
-        let path = Path::new(dir.trim());
-        if !path.is_absolute() || path.parent()? != root {
-            return None;
-        }
-        let slug = path.file_name()?.to_str()?;
-        if !asked.iter().any(|a| a == slug) {
-            return None;
-        }
-        // video_in canonicalises and refuses symlinks outside the video root.
-        videos::video_in(root, slug).ok()?;
-        Some(slug.to_owned())
-    })
+    let made: Vec<String> = dirs
+        .iter()
+        .filter_map(|dir| {
+            let path = Path::new(dir.trim());
+            if !path.is_absolute() || path.parent()? != root {
+                return None;
+            }
+            let slug = path.file_name()?.to_str()?;
+            // video_in canonicalises and refuses symlinks outside the video root.
+            videos::video_in(root, slug).ok()?;
+            Some(slug.to_owned())
+        })
+        .collect();
+    if let ([one], [_]) = (made.as_slice(), asked) {
+        return Some(one.clone());
+    }
+    made.into_iter().find(|slug| asked.contains(slug))
 }
 
 #[cfg(test)]
@@ -363,8 +369,18 @@ mod tests {
             printed_slug(&json, &root, &asked("second")).as_deref(),
             Some("second")
         );
-        // A folder the command did not ask for (`second`) is passed over.
-        assert!(printed_slug(&json, &root, &asked("gone")).is_none());
+        // One video asked for and one made: linked whatever the spelling.
+        assert_eq!(
+            printed_slug(&json, &root, &asked("")).as_deref(),
+            Some("second")
+        );
+        // Of two made, only the one the command named.
+        let two = format!(
+            "made {}\nmade {}",
+            root.join("first").display(),
+            root.join("second").display()
+        );
+        assert!(printed_slug(&two, &root, &["gone".into(), "x".into()]).is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 

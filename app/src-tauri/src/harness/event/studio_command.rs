@@ -88,7 +88,13 @@ fn collect(line: &str, windows: bool, depth: usize, out: &mut Vec<String>) {
         let mut i = 0;
         while let Some(arg) = args.get(i) {
             if !arg.starts_with('-') {
-                out.push(arg.clone());
+                // `(… new x)` and `` `… new x` `` leave a closer on the word;
+                // a `$SLUG` keeps none and is matched by the folder made.
+                let slug: String = arg
+                    .chars()
+                    .take_while(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-')
+                    .collect();
+                out.push(slug);
                 break;
             }
             i += if VALUED.contains(&arg.as_str()) { 2 } else { 1 };
@@ -231,6 +237,11 @@ mod tests {
     #[test]
     fn the_slug_skips_valued_flags_and_scratch_lines() {
         let slugs = |line: &str| new_slugs("Bash", &json!({ "command": line }));
+        assert_eq!(
+            slugs("(cd ../studio && oculus studio new minimax)"),
+            ["minimax"]
+        );
+        assert_eq!(slugs("oculus studio new $SLUG"), [""]);
         assert_eq!(
             slugs("oculus studio new --theme chalk --title 'Week 7' w7"),
             ["w7"]
