@@ -1,8 +1,10 @@
 //! `oculus studio lint`: `Project::lint` (or `lint_scene`) plus the checks
 //! that need the narration engine (`voice::lint`) or the library (a slide
-//! whose PDF changed, `slides::lint`), printed short: errors one
-//! a line in full, then warnings and notes, a scene's repeats of one kind
-//! on one line with a count and the first few.
+//! whose PDF changed, `slides::lint`), printed short: errors, then
+//! warnings, then notes, one problem a line (where, what, the fix, a fix
+//! said once) cut to `LINE` characters, a scene's notes of one kind on
+//! one line with a count and the first few, at most `MAX_LINES` lines and
+//! a count of the rest (`--all` prints every problem in full).
 
 use super::studio_error;
 use crate::*;
@@ -10,11 +12,21 @@ use app_lib::studio::tts::kokoro::{self, LexiconFiles};
 use app_lib::studio::voice::lint::{Note, VoiceLint};
 use app_lib::studio::voice::review::Store;
 use app_lib::studio::voice::{self, VoiceOverrides};
-use app_lib::studio::{brief, libraries, slides};
+use app_lib::studio::{brief, libraries, slides, videos};
 use studio_core::{LintIssue, LintLevel, Project};
 
 /// Examples a grouped line shows before `…`.
 const GROUP_EXAMPLES: usize = 3;
+/// Lines printed before the rest are counted, unless `--all`.
+pub(super) const MAX_LINES: usize = 15;
+/// Characters a line keeps, unless `--all`.
+const LINE: usize = 120;
+/// The longest text after a line's last `; ` that counts as its fix,
+/// printed on the first line that has it and left off the rest.
+const FIX: usize = 60;
+/// Characters a quote in a cut line keeps, tried in turn until the line
+/// fits.
+const QUOTES: [usize; 3] = [24, 10, 0];
 
 impl Ctx {
     pub(crate) fn studio_lint(&self, args: &StudioLintArgs) -> Result<(), String> {
@@ -41,6 +53,8 @@ impl Ctx {
         }
         report.issues.extend(stale);
         let errors = report.errors();
+        let dir = std::path::absolute(&args.dir).unwrap_or_else(|_| args.dir.clone());
+        let name = brief::target(&dir, &videos::videos_dir());
 
         if self.json {
             let entries: Vec<serde_json::Value> = report
@@ -51,14 +65,13 @@ impl Ctx {
                 .collect();
             self.emit(&entries)?;
         } else {
-            print_report(&report.issues, &spoken.notes);
+            print!("{}", text(&report.issues, &spoken.notes, args.all));
             let rest = report.issues.len() - errors + spoken.notes.len();
             if errors == 0 {
                 let what = match scope {
-                    Some(i) => format!("{} scene {i}", args.dir.display()),
+                    Some(i) => format!("{name} scene {i}"),
                     None => format!(
-                        "{} ({} scenes, {:.3} s)",
-                        args.dir.display(),
+                        "{name} ({} scenes, {:.3} s)",
                         project.video.scenes.len(),
                         project.length().map_err(studio_error)?
                     ),
@@ -78,10 +91,15 @@ impl Ctx {
         if errors == 0 {
             return Ok(());
         }
+        // The JSON form's error names the folder in full, as it always has.
+        let place = if self.json {
+            args.dir.display().to_string()
+        } else {
+            name
+        };
         Err(format!(
-            "{errors} error{} in {}",
+            "{errors} error{} in {place}",
             if errors == 1 { "" } else { "s" },
-            args.dir.display()
         ))
     }
 }
@@ -110,48 +128,108 @@ fn plural(n: usize, noun: &str) -> String {
     format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
 }
 
-/// A warning or note in a scene, ready to group: its scene, level, noun,
-/// short form and full line.
-struct Entry {
-    scene: Option<usize>,
+/// One printed line: its level, how many problems it stands for (a
+/// grouped line stands for several), where (bold in a terminal) and what.
+struct Line {
+    level: LintLevel,
+    problems: usize,
     place: String,
-    level: &'static str,
-    noun: &'static str,
-    short: String,
-    full: String,
+    text: String,
 }
 
-fn print_report(issues: &[LintIssue], notes: &[Note]) {
-    for issue in issues.iter().filter(|i| i.level == LintLevel::Error) {
-        print_issue(issue);
+impl Line {
+    /// The line, cut to `LINE` characters unless `all`; a fix (the text
+    /// after the last `; `) already in `fixes` is left out.
+    fn render(&self, all: bool, fixes: &mut Vec<String>) -> String {
+        let label = match self.level {
+            LintLevel::Error => String::new(),
+            level => format!("{} ", paint(&format!("{}:", level.name()), BOLD)),
+        };
+        let label_len = match self.level {
+            LintLevel::Error => 0,
+            level => level.name().len() + 2,
+        };
+        let (place, sep) = match self.place.is_empty() {
+            true => (String::new(), ""),
+            false => (paint(&self.place, BOLD), " "),
+        };
+        let used = label_len + self.place.chars().count() + sep.len();
+        let text = if all {
+            self.text.clone()
+        } else {
+            let text = match self.text.rsplit_once("; ") {
+                Some((what, fix)) if fix.chars().count() <= FIX => {
+                    if fixes.iter().any(|f| f == fix) {
+                        what.to_owned()
+                    } else {
+                        fixes.push(fix.to_owned());
+                        self.text.clone()
+                    }
+                }
+                _ => self.text.clone(),
+            };
+            fit(&text, LINE.saturating_sub(used).max(40))
+        };
+        format!("{label}{place}{sep}{text}")
     }
-    let mut entries: Vec<Entry> = Vec::new();
-    for level in [LintLevel::Warning, LintLevel::Note] {
+}
+
+/// Every problem as a line: errors, then warnings, then notes, a scene's
+/// notes of one kind on one line. Any lint kind prints this way: a kind
+/// with no `group` name groups under its own `kind`.
+fn lines(issues: &[LintIssue], notes: &[Note], all: bool) -> Vec<Line> {
+    let mut out: Vec<Line> = Vec::new();
+    for level in [LintLevel::Error, LintLevel::Warning] {
         for issue in issues.iter().filter(|i| i.level == level) {
-            let (noun, short) = issue.group.clone().unwrap_or(("issue", String::new()));
-            entries.push(Entry {
+            let message = issue.error.to_string();
+            let text = match all {
+                true => message,
+                false => message.lines().next().unwrap_or_default().to_owned(),
+            };
+            let (place, text) = match (place(issue), level) {
+                (Some(p), LintLevel::Error) => (p, text),
+                (Some(p), _) => (format!("{p}:"), text),
+                (None, LintLevel::Error) => (String::new(), text),
+                (None, _) => ("video:".to_owned(), text),
+            };
+            out.push(Line {
+                level,
+                problems: 1,
+                place,
+                text,
+            });
+        }
+    }
+    let mut entries: Vec<Entry> = issues
+        .iter()
+        .filter(|i| i.level == LintLevel::Note)
+        .map(|issue| {
+            let (noun, short) = issue.group.clone().unwrap_or_else(|| {
+                let first = issue.error.to_string();
+                (
+                    issue.error.kind(),
+                    fit(first.lines().next().unwrap_or(""), 40),
+                )
+            });
+            Entry {
                 scene: issue.scene,
                 place: place(issue).unwrap_or_else(|| "video".to_owned()),
-                level: level.name(),
                 noun,
                 short,
                 full: issue.error.to_string(),
-            });
-        }
-        if level == LintLevel::Note {
-            entries.extend(notes.iter().map(|n| Entry {
-                scene: Some(n.scene),
-                place: format!("scene {} `{}`", n.scene, n.id),
-                level: "note",
-                noun: "guessed word",
-                short: match &n.review {
-                    Some(r) => format!("\"{}\" script.md:{} {}", n.word, n.line, r.suffix()),
-                    None => format!("\"{}\" script.md:{}", n.word, n.line),
-                },
-                full: format!("script.md:{}: {}", n.line, n.message()),
-            }));
-        }
-    }
+            }
+        })
+        .collect();
+    entries.extend(notes.iter().map(|n| Entry {
+        scene: Some(n.scene),
+        place: format!("scene {} `{}`", n.scene, n.id),
+        noun: "guessed word",
+        short: match &n.review {
+            Some(r) => format!("\"{}\" script.md:{} {}", n.word, n.line, r.suffix()),
+            None => format!("\"{}\" script.md:{}", n.word, n.line),
+        },
+        full: format!("script.md:{}: {}", n.line, n.message()),
+    }));
     let mut done = vec![false; entries.len()];
     for i in 0..entries.len() {
         if done[i] {
@@ -159,44 +237,139 @@ fn print_report(issues: &[LintIssue], notes: &[Note]) {
         }
         let e = &entries[i];
         let same: Vec<usize> = (i..entries.len())
-            .filter(|&j| {
-                let o = &entries[j];
-                !done[j] && o.scene == e.scene && o.level == e.level && o.noun == e.noun
-            })
+            .filter(|&j| !done[j] && entries[j].scene == e.scene && entries[j].noun == e.noun)
             .collect();
         for &j in &same {
             done[j] = true;
         }
-        let label = paint(&format!("{}:", e.level), BOLD);
-        // A warning keeps its words: they say where in the narration to fix it.
-        if e.level == LintLevel::Warning.name() {
-            for &j in &same {
-                println!("{label} {}: {}", paint(&e.place, BOLD), entries[j].full);
-            }
-            continue;
-        }
-        if same.len() == 1 {
-            println!("{label} {}: {}", paint(&e.place, BOLD), e.full);
-            continue;
-        }
-        let shown: Vec<&str> = same
-            .iter()
-            .take(GROUP_EXAMPLES)
-            .map(|&j| entries[j].short.as_str())
-            .collect();
-        let more = if same.len() > GROUP_EXAMPLES {
-            ", …"
+        let text = if same.len() == 1 {
+            e.full.clone()
         } else {
-            ""
+            let shown: Vec<&str> = same
+                .iter()
+                .take(if all { same.len() } else { GROUP_EXAMPLES })
+                .map(|&j| entries[j].short.as_str())
+                .collect();
+            let more = if shown.len() < same.len() {
+                ", …"
+            } else {
+                ""
+            };
+            format!("{} {}s: {}{more}", same.len(), e.noun, shown.join(", "))
         };
-        println!(
-            "{label} {}: {} {}s: {}{more}",
-            paint(&e.place, BOLD),
-            same.len(),
-            e.noun,
-            shown.join(", ")
-        );
+        out.push(Line {
+            level: LintLevel::Note,
+            problems: same.len(),
+            place: format!("{}:", e.place),
+            text,
+        });
     }
+    out
+}
+
+/// A note in a scene, ready to group: its scene, noun, short form and
+/// full line.
+struct Entry {
+    scene: Option<usize>,
+    place: String,
+    noun: &'static str,
+    short: String,
+    full: String,
+}
+
+/// What `lint` prints before its last line: every problem with `all`,
+/// else the first `MAX_LINES` lines and a count of the rest.
+pub(super) fn text(issues: &[LintIssue], notes: &[Note], all: bool) -> String {
+    let lines = lines(issues, notes, all);
+    let shown = if all {
+        lines.len()
+    } else {
+        lines.len().min(MAX_LINES)
+    };
+    let mut out = String::new();
+    let mut fixes = Vec::new();
+    for l in &lines[..shown] {
+        out.push_str(&l.render(all, &mut fixes));
+        out.push('\n');
+    }
+    let left = &lines[shown..];
+    if !left.is_empty() {
+        let count = |level| -> usize {
+            left.iter()
+                .filter(|l| l.level == level)
+                .map(|l| l.problems)
+                .sum()
+        };
+        let parts: Vec<String> = [
+            (LintLevel::Error, "error"),
+            (LintLevel::Warning, "warning"),
+            (LintLevel::Note, "note"),
+        ]
+        .into_iter()
+        .map(|(level, noun)| (count(level), noun))
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, noun)| plural(n, noun))
+        .collect();
+        out.push_str(&format!(
+            "… and {} not shown; --all prints every one\n",
+            parts.join(", ")
+        ));
+    }
+    out
+}
+
+/// `s` in at most `max` characters: whole when it fits, else with its
+/// quotes cut to their first words (`"is built from …"`) or to `"…"`,
+/// then its start cut with `…`, keeping a short fix after its last `; `
+/// whole.
+fn fit(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_owned();
+    }
+    let mut s = s.to_owned();
+    for quote in QUOTES {
+        s = short_quotes(&s, quote);
+        if s.chars().count() <= max {
+            return s;
+        }
+    }
+    let tail = s
+        .rfind("; ")
+        .map(|at| &s[at..])
+        .filter(|t| t.chars().count() <= FIX.min(max / 2 + 10))
+        .unwrap_or("");
+    let keep = max.saturating_sub(tail.chars().count() + 1);
+    let head: String = s.chars().take(keep).collect();
+    format!("{}…{tail}", head.trim_end())
+}
+
+/// `s` with each `"…"` quote over `max` characters cut to the words
+/// that fit and `…`.
+fn short_quotes(s: &str, max: usize) -> String {
+    let mut out = String::new();
+    let mut parts = s.split('"');
+    out.push_str(parts.next().unwrap_or_default());
+    let rest: Vec<&str> = parts.collect();
+    for (i, part) in rest.iter().enumerate() {
+        out.push('"');
+        // Odd pieces sit inside quotes, when a closing quote follows.
+        let inside = i % 2 == 0 && i + 1 < rest.len();
+        if inside && part.chars().count() > max {
+            let mut kept = String::new();
+            for w in part.split(' ') {
+                if kept.chars().count() + w.chars().count() + 1 > max {
+                    break;
+                }
+                kept.push_str(w);
+                kept.push(' ');
+            }
+            out.push_str(&kept);
+            out.push('…');
+        } else {
+            out.push_str(part);
+        }
+    }
+    out
 }
 
 /// The checks that need the narration engine (`voice::lint`), with the
@@ -253,14 +426,6 @@ fn place(issue: &LintIssue) -> Option<String> {
     })
 }
 
-/// One error: where it is, then what is wrong.
-fn print_issue(issue: &LintIssue) {
-    match place(issue) {
-        Some(p) => println!("{} {}", paint(&p, BOLD), issue.error),
-        None => println!("{}", issue.error),
-    }
-}
-
 fn issue_json(issue: &LintIssue) -> serde_json::Value {
     let e = &issue.error;
     serde_json::json!({
@@ -277,4 +442,27 @@ fn issue_json(issue: &LintIssue) -> serde_json::Value {
             "snippet": l.snippet.trim(),
         })),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fit;
+
+    #[test]
+    fn a_long_line_loses_its_quote_before_its_span_or_fix() {
+        let line = "nothing on screen changes from 22.5 s to 25.9 s while the narration says \
+                    \"content locally. That repeatable collection is called scraping.\"; \
+                    give those words something to show";
+        let short = fit(line, 125);
+        assert!(short.chars().count() <= 125, "{short}");
+        assert!(
+            short.contains("to 25.9 s while the narration says \"content ")
+                && short.ends_with("…\"; give those words something to show"),
+            "{short}"
+        );
+        assert_eq!(fit("short", 110), "short");
+        let cut = fit(&"x".repeat(200), 50);
+        assert_eq!(cut.chars().count(), 50);
+        assert!(cut.ends_with('…'));
+    }
 }

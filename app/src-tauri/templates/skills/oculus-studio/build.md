@@ -17,13 +17,15 @@ Section names in quotes ("Moving maths", "Lint") are `reference.md`'s.
 
 ## Start
 
-Your first call is `oculus studio brief <slug> --scene <id>`. It prints your whole input: the scene's index, component and props; what
-the scenes either side carry in and hand on, and whether their components
-exist yet; your storyboard entry with its beat table; the notes files it
-names; every narration word at the time `word()` returns for it; and the
-exact `lint`, `beats`, `strip`, `frame` and `gallery` calls for the scene.
-It replaces `storyboard.md`, `script.md` and the narration manifest: do not
-read them. Read a notes file only when the brief names it and the scene
+Your first call is `oculus studio brief <slug> --scene <id>`. It prints
+the scene's index, component and props; the scenes either side and whether
+their components exist yet; the notes files your storyboard entry names;
+each narration sentence with the time `word()` returns for its words; and
+the exact `lint`, `beats`, `strip`, `frame` and `gallery` calls for the
+scene. It leaves out the storyboard: read your own `### <id>` entry in
+`storyboard.md` (its beat table, and the `Carries in:` and `Hands on:` of
+the scenes either side), and nothing else of it. The brief replaces
+`script.md` and the narration manifest: do not read them. Read a notes file only when the brief names it and the scene
 needs a fact from it (a number, a worked step). If the brief prints a
 narration error instead of word times, stop and reply with it.
 
@@ -68,9 +70,9 @@ Text first, pictures after. Run the brief's two calls:
   reply why the scene wants it. A note (an unsure or guessed word) is the
   director's.
 - `beats … --scene <N>`: what changes on screen, when, and the words said
-  then. Check the beats you just changed against the beat table: find
-  their keys' lines. It runs to 80 lines, so do not read it end to end
-  every time.
+  then, as a summary of at most 20 lines. Check the beat table against it,
+  then run it with `--key <key>` for each key you just changed to see its
+  every beat.
 
 Edit until lint has no errors and the beats land on their words.
 

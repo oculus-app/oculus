@@ -283,12 +283,14 @@ agent (`oculus studio agents` prints it and the call to make):
   real word times.
 - **Build**, one helper per scene, works from `build.md`: its first call is
   `oculus studio brief <slug> --scene <id>`, which stands in for the
-  storyboard, script and manifest; it writes the scene's components, cues
+  script and manifest (it leaves the storyboard out, so the builder reads
+  only its own entry there); it writes the scene's components, cues
   each beat with `word()` on the brief's word times, lands the beat a
   pause follows just before `pause()` and holds it through the silence,
   checks as text with
   `lint --scene` (every error fixed, each warning fixed or explained) and
-  `beats --scene`, then looks with the brief's `strip` or `frame` call,
+  `beats --scene` (and `--key` for each key it changed), then looks with
+  the brief's `strip` or `frame` call,
   reading the PNG at its fixed `-o` path in the same message (a missing
   component elsewhere does not stop them; stale narration anywhere does).
   A component two scenes share gets examples and a `gallery --sheet`. It
@@ -1900,7 +1902,8 @@ one beat with a start and an end; an entity's changes that start together
 are one beat (`move+resize`); a change starting as it appears is part of
 the appear, which reports where it settles. The same beat at the same
 sample on keys that differ only in a trailing number shares a line
-(`d0-d3,d5`). A Math's rewrite lists the pieces it gains and loses
+(`d0-d3,d5`); each beat keeps the entities it names (`members`, not in
+the JSON). A Math's rewrite lists the pieces it gains and loses
 (`+val -add`). Each `[pause]` is a beat of its own at its start, its
 length and the words before it: `  4.10  pause    1.0 s  "… lands on
 one."`.
@@ -2335,7 +2338,7 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
 - `frame` and `strip` take `--motion-blur` (a 180° shutter at the video's
   fps); `frame` then reports the sub-frames it averaged. `-o` is relative
   to the working directory, and its folder is made.
-- `oculus studio brief <DIR> --scene <ID|N>` prints one scene builder's
+- `oculus studio brief <DIR> --scene <ID|N>` builds one scene builder's
   whole input (`app/src-tauri/src/studio/brief/`): the scene's index,
   component and props and the folder; for the scenes before and after it,
   their component, whether it resolves yet, and their storyboard entries'
@@ -2343,16 +2346,22 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
   (from a `### <id>` heading, then the end of the line, a space or `(`, to
   the next `#` to `###` heading or `---` line, outside code fences), less
   its `Narration:` paragraph (to a blank line, a table row or a heading)
-  when the words below are printed; the
+  when the words below are given; the
   `notes/` paths the entry names, else every file in `notes/`; its length
-  and words, one line per sentence, each as `start word` at the time
-  `word()` returns (`Project::cued_words`), with each pause as `start
-  [pause 1.0 s]` after the word it follows at the time `pause()` returns
+  and words, one list per sentence, each at the time `word()` returns
+  (`Project::cued_words`), and each pause at the time `pause()` returns
   (`Project::cued_pauses`), or the narration error and the script text
   (its `clip_text`); and its `lint --scene`, `beats`, `strip`, `frame` (at the
   scene's middle) and `gallery` calls with absolute `-o` paths, naming the
   video by slug when it is in the data directory.
-  `--json` gives the same as `{index, count, id, component, props, dir,
+  The text (`brief/text.rs`) leaves out what the agent wrote itself: the
+  entry, the neighbours' hand-offs and the script text. It prints the
+  rest compactly, the narration one line per sentence from the sentence's
+  start, each word but a function word (`the`, `is`, `of`, ...) followed
+  by its time and each pause by the time `pause()` returns, after the word
+  it follows: `10.89 Each transition(11.11) row(11.77) ... command(13.73).
+  [pause 1.0 s](14.47)`.
+  `--json` gives all of it as `{index, count, id, component, props, dir,
   previous, next, storyboard, storyboard_missing, notes: {named, paths,
   missing}, narration: {kind: silent|spoken|unavailable, ...}, commands}`.
 - `frame` and `strip` read `script.md` and the narration manifest; stale or
@@ -2386,20 +2395,31 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
 - `oculus studio render <DIR>` writes one export preset's mp4:
   `--preset draft|final|small`, with `--draft` (the
   default) and `--final` for the first two; `-o`, `--threads` for the frame
-  renderers, not the encoder. It prints the plan, then per scene `rendered`
-  with its frames, seconds and frames a second, or `cached`, then the paths
-  written (the mp4, then its `.vtt`) and a summary; `--json`
+  renderers, not the encoder. In a terminal it prints the plan, a frame
+  progress line about every two seconds, then per scene `rendered` with
+  its frames, seconds and frames a second, or `cached`, then the paths
+  written (the mp4, then its `.vtt`) and a summary. When stdout is not a
+  terminal (`IsTerminal`; an agent's tool call) it prints only the plan,
+  one line per scene rendered (`scene 2 \`steps\`: 116 frames, 3.9 s`) and
+  the mp4 with its length and the render's time; `--json`
   gives `{dir, report: {path, preset, width, height, fps, frames, duration,
   audio, threads, segments: [{scene, id, outcome, frames, ms, fps}],
   sidecars, pruned, ms}}`. See "Rendering a video".
 - `oculus studio lint <DIR>` (`--scene <ID|N>` for `lint_scene`; the
-  voice checks are cut to that scene too) prints each error in full, one a
-  line, then the warnings, then the notes, and exits 1 if there is any
-  error. A scene's warnings or notes of one kind (`still span`, `unsure
-  word`, `guessed word`, ...) print as one line when there are several:
-  ``warning: scene 5 `mod` (ClockMod): 4 still spans: 0.9-7.7 s,
-  16.0-19.0 s, 27.8-32.8 s, …``. With no errors it ends `no errors` and the
-  counts, or `no problems`. With `--json` it prints one array: each issue
+  voice checks are cut to that scene too) prints the errors, then the
+  warnings, then the notes, one problem a line (where, what, the fix), and
+  exits 1 if there is any error. A scene's notes of one kind (`unsure
+  word`, `guessed word`, or the issue's `kind` for one with no group name)
+  print as one line when there are several: ``note: scene 9 `phi`
+  (PhiCount): 2 unsure words: "of" 41.4 s, "of" 51.2 s``. The text is cut
+  for an agent that re-reads it: an error's first line only (not the TSX
+  line quoted under it), each line to 120 characters (quotes cut to their
+  first words, then to `"…"`, before the line, and a short fix after the
+  last `; ` kept), a fix that repeats on its first line only, and at most
+  15 lines, then `… and 4 errors, 7 warnings not shown; --all prints every
+  one`. `--all` prints every problem in full. With no errors it ends `no
+  errors` and the counts, or `no problems`, naming the video by slug when
+  it is in the data directory. With `--json` it prints one array: each issue
   as `{level: "error"|"warning"|"note", scene, id, component, example,
   kind, message, loc}` (`kind` is `off_frame`, `still` or `fragment` for a
   warning, and `small_text`, `sparse`, `scene_title`, `long_scene` or
@@ -2409,10 +2429,20 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
   changed), then each
   guessed word as `{level: "note", scene, id, line, kind: "guessed",
   message, word, phonemes, guessed, review}`.
-- `oculus studio beats <DIR> --scene <ID|N>` prints the scene's timeline
-  (see "`beats` is the same samples as a timeline"), one beat a line as
+- `oculus studio beats <DIR> --scene <ID|N>` prints a summary of the
+  scene's timeline (see "`beats` is the same samples as a timeline") in at
+  most 20 lines (`Beat::summary`): one per moment, the beats that start
+  at one sample, and while there are more than 20, the two neighbouring
+  moments closest in time merge into a span (a `[pause]` keeps its own
+  line while others can merge). A line gives the time or span, each event
+  with the keys it moves while they fit in 84 characters (`+3` for the
+  rest), a lone beat's detail, and the words said:
+  `  6.20-6.80  move d12-d14, eq; recolour d0 +2  "… stands up"`. Then
+  `--key K prints every beat of one key; --json every beat` when beats were
+  folded. `--key <K>` prints every beat of that key and the keys under it
+  (`toy` takes `toy/left` and `toy#0`; `Beat::is_about`), one a line as
   `  6.20  move     d12-d14  → (1180,420)…(1180,660) over 0.8 s  "… stands
-  up"`, at most 80 lines and how many were cut; `--json` gives every beat
+  up"`, and fails when none moves it; `--json` gives every beat
   as `{index, id, component, length, beats: [{t, end, event, who, detail,
   words}]}`.
 
@@ -2435,6 +2465,15 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
 - `oculus studio new`, `list` and `title` make, list and rename the videos
   in the data directory, and every command above takes a video's slug in place of its
   folder (see "Videos live in the data directory").
+
+The text these commands print is re-read on every later model call of the
+agent that ran them, so `commands/studio/sizes.rs` pins it on a 16-scene
+fixture made for it (`app/src-tauri/fixtures/studio/sixteen-scenes`, one
+narrated `Dots` component drawing many beats, two errors and a warning or
+two a scene): `lint` under 2 KB with its errors first, `beats --scene` under
+2 KB, the brief one line per sentence, and a piped `render` under 1 KB
+(when an ffmpeg is found). The `--json` forms are the app's and are not
+cut.
 
 Flags are in [cli-reference.md](./cli-reference.md#oculus-studio).
 
