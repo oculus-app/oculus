@@ -42,7 +42,7 @@ impl StudioBrief {
 
 /// What the agent is told about the video. The folder exists already, so
 /// `oculus studio new` is ruled out; the draft is the hand-back, and the
-/// final waits for the student.
+/// final is the student's Export.
 pub fn section(video: &StudioBrief) -> String {
     let StudioBrief {
         slug,
@@ -82,10 +82,10 @@ pub fn section(video: &StudioBrief) -> String {
         ));
     }
     s.push_str(&format!(
-        "\nUse the `oculus-studio` skill as its director; the folder is its step 1, done. \
+        "\nMake it with the `oculus-studio` skill; the folder is its step 2, done. \
          Render the draft with `oculus studio render {slug}` and say it is ready: the \
-         app plays `renders/draft.mp4` inline in this conversation. Ask before rendering \
-         the final with `--final`.\n"
+         app plays `renders/draft.mp4` inline in this conversation. The draft is the \
+         hand-back; never render the final, which the student makes with Export.\n"
     ));
     s
 }
@@ -133,7 +133,7 @@ mod tests {
         assert!(text.contains("`../studio/subjects/MAST20004/`"));
         assert!(text.contains("about 60 seconds"));
         assert!(text.contains("oculus studio render bayes"));
-        assert!(text.contains("Ask before rendering the final"));
+        assert!(text.contains("never render the final"));
     }
 
     #[test]

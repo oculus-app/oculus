@@ -102,13 +102,13 @@ describe("videoProgress", () => {
     expect(app.steps[4].state).toBe("active");
   });
 
-  test("a draft is ready, dated, and Final waits for the agent to ask", () => {
+  test("a draft is ready, dated, and Final waits for an Export", () => {
     const d = detail({ scenes: [scene({ start: 0, duration: 4 })], renders: [render("draft")] }, true);
     const p = videoProgress({ detail: d, running: false });
     expect(p).toMatchObject({ label: "Draft ready", tone: "ok" });
     expect(p.steps.map((s) => s.state)).toEqual(["done", "done", "done", "done", "pending"]);
     expect(p.steps[3].when).toBe(300);
-    expect(p.steps[4].note).toBe("The agent asks before rendering it");
+    expect(p.steps[4].note).toBe("Export it from the video's page");
     expect(videoProgress({ detail: { ...d, renders: [render("draft"), render("final")] }, running: false }).label).toBe("Final ready");
   });
 

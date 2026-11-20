@@ -1,18 +1,18 @@
 # Studio reference
 
-The authoring rules for a video folder; `SKILL.md` has the roles, the
-workflow and the folder's layout, and `build.md` a scene helper's steps.
-`studio.d.ts` types every global named here. Every command takes the
+The authoring rules for a video folder; `SKILL.md` has the workflow, the
+script and picture rules and the folder's layout. `studio.d.ts` types
+every global named here. Every command takes the
 video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 
 ## Contents
 
 - video.json: its keys, a scene's keys, how long a scene lasts
 - script.md: sections, pauses, the spoken-form table, acronyms and fusions
-- Components: the file's three exports, prop builders, flat props
+- Components: the file's three exports, prop types, flat props
 - Elements: element props, layout, the style keys
 - The theme: token names and type sizes, making a new theme
-- Motion: Enter and Exit, Sequence, Stagger, Camera, Arrow, the helpers
+- Motion: Enter and Exit, Sequence, Stagger, Camera, Arrow, the functions
 - Maths: `Math`, backslashes, `\k` groups and keys, theme colours, size,
   errors
 - Moving maths: `Write`, `Steps`, the overlays; five recipes (a derivation
@@ -24,10 +24,10 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 - Lint: each kind and what to do, the literal rules exactly
 - Looking: frame, strip and gallery
 - Narrate
-- Pronunciation: guessed words, `oculus studio g2p`, suggesting a reading with `oculus studio pronounce`
-- Render
+- Pronunciation: `oculus studio g2p`, suggesting a reading, respellings
+- Render: the draft
 - Slides: a real crop of a lecture PDF page, `blocks`, `slide`, `Slide`
-- Libraries: how a name resolves, promoting, the starter components
+- Libraries: how a name resolves, promoting, the starter primitives
 
 ## video.json
 
@@ -60,7 +60,7 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 | `motion` | Optional: `transition`, `magicMove`, `morphColor`, `motionBlur` for the whole video (see "Transitions"). |
 | `voice` | Optional: `{ model, voice, speed }` over Settings → Studio → Narration for this video. Leave it out unless the student asks for a voice. |
 | `captions` | `true` burns word-highlight captions into the renders and `frame`: the phrase being said on a plate near the bottom edge, the current word highlighted. `new` leaves it out (off; the player's CC reads the `.vtt` every narrated render writes); set it only when the student asks. Styled by the theme's `captions` tokens. |
-| `long` | `true` when the student asked for a long video: lint's `long_video` does not apply. |
+| `long` | `true` when the student asked for a long video: lint's `long_video` does not apply. Otherwise a bigger idea is a series (`SKILL.md`). |
 
 A scene:
 
@@ -194,21 +194,21 @@ export default ({ count, cols, cues }, { theme }) => {
   the scene, `duration` its length, `size` the frame's `{ width, height }`.
 - The root element fills the frame unless it sets its own size; give it
   `flexGrow: 1` and the scene's background `fill`.
-- A helper component in the same file is called the same way, `(props,
+- A second component in the same file is called the same way, `(props,
   ctx)`; a `Sequence` or `Stagger` above it shifts its `ctx.t`.
 - A component is a pure function of its props and `t`. There is no `Date`,
   no `import` and no I/O; `Math.random` is seeded per scene, and anything at
   module level starts fresh on every frame. Derive everything from `t`.
 - `console.log` output is printed by `oculus studio frame`.
 
-**Prop builders:** `str()`, `num()`, `bool()`, `list(x)`, `oneOf([...])`,
+**Prop types:** `str()`, `num()`, `bool()`, `list(x)`, `oneOf([...])`,
 `latex()` (a string of LaTeX source, for a `<Math tex>`),
 and `token(section)`, which takes a token's *name* and hands the component
 its value:
 `token("color").default("accent")` set to `"positive"` in a scene's props
 gives `theme.color.positive`. Each takes `.default(v)` or `.optional()`.
 
-Props are flat: there is no object builder, so a prop is never an object
+Props are flat: there is no object type, so a prop is never an object
 and `list(x)` holds what `x` does (strings, numbers, booleans, `oneOf`
 values, tokens or lists). Describe a list of records as parallel lists:
 `labels: list(str())`, `values: list(num())`, `tones:
@@ -313,7 +313,7 @@ Everything moves as a function of `t`.
   from nothing over the first head length of shaft and settles on the last
   point at `progress` 1. With `from` and `to` instead of `points` it is an
   overlay that points at a term ("Moving maths").
-- Helpers: `interpolate(t, [0, 1], [0, 200], { easing })` (easing must be
+- Functions: `interpolate(t, [0, 1], [0, 200], { easing })` (easing must be
   a function here), `spring(t, { stiffness, damping, mass })`, `mix(c1, c2,
   p)` for colours, `clamp`, `lerp`, `linear`, `easeOutCubic`,
   `easeInOutCubic`, `cubicBezier(...theme.motion.easing.enter)`, `series`
@@ -430,8 +430,8 @@ itself in place, and shrinks aside when done. These do it:
 Each is a whole component, checked with `strip` on its fixed times. Its
 `narrated` prop is `true` in `video.json` (cues on `word()`) and `false`
 without narration (fixed times). The comment is the narration it is cued
-to. Start a scene from the closest one and change the maths, not the
-mechanism.
+to. They show the mechanisms (`Write`, `Steps`, the overlays, keys), not
+layouts to copy: the picture around them is your scene's own.
 
 **1. A derivation rewritten in place**, written on first: 15 = 2⁴ − 1 →
 (2²)² − 1 → (2² − 1)(2² + 1) → 3 × 5.
@@ -866,38 +866,14 @@ Warnings name the time span and the words said in it:
 | `lint` | A `lexicon.json` entry names a phoneme Kokoro lacks, or a respelling part the dictionary lacks | Tell the student which file and entry; never edit a lexicon yourself. |
 | `script` | Kokoro: a word with no phonemes, a `$`, or a sentence too long to say in one go | Reword: spell it out, or split the sentence or add a comma. |
 
-**The literal rules, exactly.** Lint reads each component's source:
-
-- A colour is a `#` hex string, or `rgb(`, `hsl(`, `oklch(` and the other
-  functional notations, in any string. A whole string that is a CSS colour
-  name is a colour only where a colour goes: the value of a `color`,
-  `fill`, `stroke`, `background` or `stops` key or of any key ending in
-  `Color` (an object key or a JSX attribute, including arrays, calls and
-  ternaries inside it), or of a key named after a `token("color")` prop
-  unless the theme has a colour by that name. Elsewhere it is a word on
-  screen (`label: "purple"`) and passes. `token(...)` and a `.default(...)`
-  on it take a token's name, not a literal.
-- A font is a bundled family's name as a string, or any string after
-  `fontFamily:`; the message names `theme.font.heading`, `.body` or `.mono`.
-- A number is checked only inside a `style={{ … }}` (or `style: { … }`)
-  object, as the value of a length key: `width`, `height`, `minWidth`,
-  `minHeight`, `maxWidth`, `maxHeight`, `gap`, `padding`, `margin`,
-  `left`, `top`, `right`, `bottom`, `radius`, `blur`, `translateX`,
-  `translateY`, `fontSize` or `letterSpacing`. It counts when it is the
-  value itself, a branch of it (an array element, as both numbers in
-  `padding: [0, 16]`; a ternary's arm, `gap: big ? 24 : 16`; a side of
-  `||`, `??` or `&&`) or a term added or subtracted (the `4` in `space.s
-  + 4`). It is an error only when it equals a theme `space` or `radius`
-  value (4, 8, 16, 24, 28, 40, 44, 64, 112, 999 in the bundled themes;
-  space is named first). A unitless key (`opacity`, `scale`, `rotate`,
-  `flexGrow`, `flexShrink`, `fontWeight`, `lineHeight`,
-  `transformOrigin`, `clipInset`) is never checked, so the `4` in
-  `opacity: clamp(pop * 4, 0, 1)` passes. So does a factor (`width: 24 *
-  s`), a side of a comparison, a call's argument (`Math.max(8, w)`), a
-  number inside a nested object (`shadow`, `border`, a gradient `fill`,
-  `reveal`), a negative number, a number outside `style` (a `const`,
-  `Arrow` points, a `stroke` prop), and every other value, such as 56 or
-  18.
+**Literals.** Lint reads each component's source for a colour (a `#`
+hex or `rgb(`-style string anywhere; a CSS colour name only where a colour
+goes, such as a `color`, `fill` or `stroke` value), a font family name, and
+a number equal to a theme `space` or `radius` value (4, 8, 16, 24, 28, 40,
+44, 64, 112, 999) as a length inside `style` (`width`, `gap`, `padding`,
+`left`, `fontSize`, …). Each error names the token to use. A unitless key
+(`opacity`, `scale`, `flexGrow`), a factor (`24 * s`), a call's argument and
+a number outside `style` pass.
 
 A broken `video.json` or `script.md` is not an issue but a failure: the
 command prints the file, the line and the reason, and nothing else runs.
@@ -924,10 +900,9 @@ Each command prints the PNG's absolute path.
 
 `oculus studio brief <slug> --scene <id|N>` prints one scene's whole input:
 its index, component and props; the scenes either side and whether their
-components exist yet; the notes its storyboard entry names; its narration,
-one line per sentence from the sentence's start, with the time `word()`
-returns after each word but a function word and the time `pause()` returns
-after each pause:
+components exist yet; its narration, one line per sentence from the
+sentence's start, with the time `word()` returns after each word but a
+function word and the time `pause()` returns after each pause:
 
 ```
 3.95 The states(4.08) are names(4.64) for configurations(5.21).
@@ -935,9 +910,8 @@ after each pause:
 ```
 
 and its exact `lint`, `beats`, `strip`, `frame` and `gallery` calls. It
-leaves out what you wrote yourself (the storyboard entry, the neighbours'
-hand-offs, the script text); `--json` has them. Read it instead of the
-manifest.
+leaves out the script text you wrote; `--json` has it. Read it instead of
+the manifest.
 
 `oculus studio beats <slug> --scene <id|N>` prints what changes on screen,
 as text, with the words said then: a summary of at most 20 lines, one per
@@ -980,7 +954,8 @@ server set in Settings → Studio → Narration, times its words, and writes
 does one scene (an id, unlike `strip --scene`, which takes an index);
 `--force` makes it again. A failure keeps the scenes before it and names
 the failed one: `no TTS server`, `no TTS model` and `no TTS voice` mean
-Settings → Studio → Narration is unset (`SKILL.md` step 5 says what to do).
+Settings → Studio → Narration is unset (`SKILL.md`, "Narration and
+pronunciation", says what to do).
 
 The engine is Kokoro, run inside the app, or a TTS server; Settings →
 Voice or the video's `voice` block (`"engine": "kokoro"`) picks it. With
@@ -1031,12 +1006,11 @@ is said; you suggest, and never edit a `lexicon.json`.
 ## Render
 
 `oculus studio render <slug>` writes `renders/draft.mp4`: 540 px and
-fast. `--final` writes `renders/final.mp4` at full size, with motion blur
-(by the default `motionBlur`, only drafts are sharp). `--preset small`
-(720 px) is for when the student asks for a file to share. A narrated
-video's mp4 gets its captions beside it as a `.vtt`. Each scene is cached, so a second render
-redoes only the scenes an edit touched. It never narrates: stale narration
-stops it, naming the scene. Report the path it prints.
+fast, with its captions beside it as a `.vtt` when narrated. Each scene is
+cached, so a second render redoes only the scenes an edit touched. It never
+narrates: stale narration stops it, naming the scene. Report the path it
+prints. The draft is your hand-back: the full-size final and the other
+presets are the student's, from Export on the video's page.
 
 ## Slides
 
@@ -1064,7 +1038,7 @@ oculus studio slide <slug> lecture-04.pdf --page 12 --bbox 0.5,0.2,0.95,0.8 --na
   in, other text near it is left out, and the sidecar's `edges` says what
   moved (`--exact` keeps the box as given). **Look at the crop** anyway
   (`frame` the scene); widen or narrow it with `--bbox`.
-- Use `Slide` as the scene (props in `video.json`), or copy the helper into
+- Use `Slide` as the scene (props in `video.json`), or copy its drawing function into
   a component to put the crop beside other elements: `area: [x, y, w, h]`
   places it. Cue `zoomAt` and `highlightAt` with `word()`. Without `page`
   it enters with `enter` (an Enter preset) at `at`.
@@ -1104,31 +1078,29 @@ for a default look; the name must be a theme that library reaches (its own
 `themes/`, the global one, or `default`).
 
 **The starter components** (global library) are drawing primitives, not
-scenes. A component cannot import another, so each file holds its primitive
-as a helper function and a default export that demos it: read it with
-`components show <slug> <Name>`, copy the helper (and the small functions
-beside it) into your scene component, and call it there with times from
-`word()`. Every part is keyed under an `id` prop (default the name in the
-table), so two calls with one id in a `Steps` glide part to part, and an
-overlay can target a part (`bars/b2`) or the whole (`dots`). The default
-export of `Axes`, `Graph`, `Grid`, `Bars` and `Code` sizes itself from
-`ctx.size`, so it fits 1280x720, 1920x1080 and 1080x1920; their helpers take
-explicit `width` and `height` (`Code`: `maxWidth`, `maxHeight`), so pass your
-scene's own when you copy one. Bad input throws an error naming the prop, the
-value and what is allowed.
+scenes: copy one when your picture *is* that primitive (an axis with a
+curve, a graph of nodes, a bar chart), and write your own otherwise. A
+component cannot import another, so each file holds its primitive as a
+function and a default export that demos it: read it with
+`components show <slug> <Name>`, copy that function (and the small ones
+beside it) into your scene component, and call it with times from
+`word()` and your scene's own `width` and `height`. Every part is keyed
+under an `id` prop (default the name below), so two calls with one id in a
+`Steps` glide part to part, and an overlay can target a part (`bars/b2`)
+or the whole. Bad input throws an error naming the prop, the value and
+what is allowed.
 
-| Primitive | Helper props | What it draws |
-| --- | --- | --- |
-| `NumberLine` | `from`, `to`, `step`, `labelEvery`, `width`, `at`, `dur`, `points: [{ value, name, at, moves: [[t, v]], color }]`, `span: { from, to, at, label, color }`, `id` (`nl`) | A line that draws on with its ticks and numbers, points that pop in and glide along it, an interval drawn on as a bar |
-| `Axes` | `formula("sin(x)/x")` makes a function from text; `axes({ x: [lo, hi, step], y, origin, width, height })` maps data to px (lo < hi and step > 0, else it throws); `endLabels(ax, [{ f, label }])` gives each curve's `nudge`; `<Axes ax at dur id>` (`ax`) holds `<Plot ax f from to at dur color label head nudge key>`, `<Dot ax x y at color label guides place key>`, `<Scatter ax xs ys at each color fit fitAt key>`, `<Area ax f g from to at dur color label key>`, `<Riemann ax f from to counts at refineAt color label key>` and `<Tangent ax f x0 x1 h h1 at moveAt dur color label key>` | Two axes drawn on with numbers; curves stroked on (breaking off-range), a dot riding the end, points with dashed guides, a scatter with its least-squares line (clipped to the plot, none under two distinct x, no r² when flat) and r², a shaded area, rectangles refined count by count (a rectangle splits in place), a tangent or shrinking secant with its slope; tick decimals follow the step, and curve names are kept apart. A formula's implicit product binds like `*`: `1/2x` is `(1/2)*x`, so write `1/(2x)`. Flat props: `fns` (formula strings), `tones`, `labels`, `marks`, `px`/`py`, `fit`, `shade`, `rects`, `tangent`, `secant` |
-| `Graph` | `layout(kind, nodes, edges, { width, height, root, columns, xs, ys, pad })` gives node px; `<Graph width height nodes edges weights directed kind root columns xs ys tones at edgesAt visit visitAt visitStart each via trace path walkAt walkEach radius tone pathTone id>` (`graph`) | Nodes and edges on a `circle`, `tree`, `layers` or `manual` layout, directed edges with heads, weights, self-loops, several edges between a pair fanned out as parallel curves; a plain-text label too long for its node is wrapped and set beside it, a TeX label stays inside; `visit` recolours nodes in order and lights the edge each came by, `path` walks a marker along nodes and must follow edges. Keys `graph/n<i>`, `graph/e<a>-<b>`, `graph/here` |
-| `Grid` | `<Grid cells keys lift tones appear rowLabels colLabels brackets cell width height fitRows fitCols enter at each marks pointers id>` (`grid`); `marks: [{ kind: "row"/"col"/"cell"/"block", index, tone, at, off, moves }]`, `pointers: [{ label, side, index, at, tone }]` | A matrix, DP table, board or pixel image of TeX cells: fills, row/column/block marks that slide, pointers along a side (two on one side part to stay readable); with `keys` (unique, one per cell) a cell follows its value, so a Steps between two arrangements slides it, and a swap of exactly two cells arcs them to opposite sides (`lift`, which the demo computes). `cells` rows must all be the same length. The font follows the 80th-percentile entry width, so one long entry shrinks alone. A glide takes 0.9 s and must finish before the scene ends. Keys `grid/c<r>_<c>` (or `grid/k<key>`) |
-| `Bars` | `bars({ labels, series, to, changeAt, orientation, histogram, stacked, sort, unit, width, height, ... })` maps data to px; `<Bars ch id at barsAt each names tones line lineLabel lineAt lineTone highlight highlightAt highlightTone dim diff diffLabel diffAt>` (`bars`) | A bar chart or histogram, grouped or stacked, vertical or horizontal: nice value axis (reaches `max` at least and always the data; ticks thinned to fit, crowded category labels thinned), bars growing (stagger capped), value labels counting up, states gliding to the next (`sort` re-ranks), a reference line, a highlighted subset (`highlightTone`, `dim`), a difference arrow (`diff`: a guide and arrow in clear space). A bare `\\` in a label starts a second line. Keys `bars/b<i>`, `bars/l<i>`, `bars/v<i>` |
-| `Code` | `tokenize(lines, lang)`; `<Code lines lang keys numbers first fontSize focus caret reveal notes trace added removed diffAt marks id maxWidth maxHeight>` (`code`) | Source on a panel, every character on a fixed column grid, coloured for `python`, `javascript`, `c`, `sql` or `plain`; a focus band that dims the rest, a caret, lines revealed one by one, notes beside lines, a trace table of variable values, a diff (`marks` reserves the +/- gutter so a Steps from a diff to clean code keeps the panel size). Short code grows to 1.5x the theme's size unless `fontSize` is set. `keys` keep a line's identity across versions, so a Steps slides the lines that persist with their numbers, cross-fades a changed line and glides diff bands (`code/l<key>`). In `c` a single quote starts a char literal only (`'x'`), in `javascript` a template literal runs over lines; characters outside the bundled fonts (CJK, emoji) draw as boxes. The one starter in monospace |
-| `Table` | `header`, `rows` (TeX), `at`, `each`, `by` (`row`/`col`), `marks: [{ rows, color, at }]`, `hide`, `colWidth`, `id` (`table`) | Cells of maths revealed row by row, rows banded; a Math elsewhere keyed like a cell (`table/r1c2`) takes its glyphs, so a value lifts out of the table |
-| `Slide` | `<Slide src aspect page pageAspect bbox caption source highlight highlightAt tone at zoomAt zoomDur enter area id>` (`slide`); the props `oculus studio slide` prints | A crop of a lecture PDF page on a paper card that fills the frame, a caption beside or below it and the source under it; given the page, it opens on the whole page and zooms into the crop; highlight boxes (fractions of the crop) draw on. Keys `slide/card`, `slide/img`, `slide/h<k>` ("Slides") |
-| `TitleCard` | `title`; optional `eyebrow`, `subtitle`, `accent` | The opening card, dark. A scene on its own, the only one |
+| Primitive | What it draws |
+| --- | --- |
+| `NumberLine` (`nl`) | A line that draws on with its ticks and numbers; points that pop in and glide along it; an interval drawn on as a bar |
+| `Axes` (`ax`) | Two axes drawn on with numbers; curves from formula text (`formula("sin(x)/x")`; `1/2x` is `(1/2)*x`) stroked on, dots with guides, a scatter with its fitted line, a shaded area, Riemann rectangles refined in place, a tangent or shrinking secant |
+| `Graph` (`graph`) | Nodes and edges on a circle, tree, layers or manual layout, directed or weighted; `visit` recolours nodes in order, `path` walks a marker along edges. Keys `graph/n<i>`, `graph/e<a>-<b>` |
+| `Grid` (`grid`) | A matrix, DP table, board or pixel image of TeX cells, with row, column and block marks and pointers; with `keys` a cell follows its value, so a Steps slides it. Keys `grid/c<r>_<c>` |
+| `Bars` (`bars`) | A bar chart or histogram, grouped, stacked or horizontal; bars growing, values counting up, re-sorting, a reference line, a highlighted subset, a difference arrow. Keys `bars/b<i>` |
+| `Code` (`code`) | Source on a panel, coloured for `python`, `javascript`, `c`, `sql` or `plain`: a focus band, a caret, lines revealed, notes, a trace table, a diff; `keys` slide persisting lines across versions. The one starter in monospace |
+| `Table` (`table`) | Cells of maths revealed row by row; a Math elsewhere keyed like a cell (`table/r1c2`) takes its glyphs, so a value lifts out |
+| `Slide` (`slide`) | A crop of a lecture PDF page on a card that fills the frame, opening on the whole page and zooming in, highlight boxes drawing on ("Slides") |
+| `TitleCard` | The opening card, dark: `title`, optional `eyebrow`, `subtitle`, `accent`. A scene on its own |
 
-Each demo's flat props are in `components show`; `gallery` draws its
-examples. A primitive draws; it never explains. The scene around it (what
-is said, what moves on which word, what stays) is yours.
+A primitive draws; it never explains. The scene around it (what is said,
+what moves on which word, what stays) is yours.

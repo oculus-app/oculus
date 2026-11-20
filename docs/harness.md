@@ -333,7 +333,7 @@ CLI puts the skill index in every turn, headless jobs included.
 
 **A skill is a folder of files.** `agents::docs::SKILLS` lists each skill's
 name and its files, `SKILL.md` first; `oculus-studio` also ships
-`reference.md`, `build.md` and `studio.d.ts` (`app/studio-core/studio.d.ts`),
+`reference.md` and `studio.d.ts` (`app/studio-core/studio.d.ts`),
 and `oculus-widgets` ships `widget.d.ts` (`app/widget-kit/widget.d.ts`) and
 four gallery widgets ([widgets.md](./widgets.md#the-agent-learns-widgets-from-oculus-widgets)),
 which `SKILL.md` tells the agent to open when it needs them, so only the
@@ -2958,26 +2958,26 @@ until one is picked.
 
 ## Subagents
 
-A chat agent may start helpers: the `oculus-studio` skill has a director
-fan research and scene building out to them. The two roles are
-`harness::studio_agents::ROLES`, `studio-research` and `studio-scene`.
+Two subagent roles exist for Studio, `harness::studio_agents::ROLES`:
+`studio-research` and `studio-scene`. The `oculus-studio` skill starts
+neither: the thread's own agent makes the whole video
+([studio.md](./studio.md#agent-flow-a-chat-agent-makes-a-video-with-the-oculus-studio-skill)).
 `studio-research`'s system prompt (`templates/STUDIO_RESEARCH.template.md`)
-points at the skill's "Research" section. `studio-scene`, which builds,
-fixes and reviews a scene, gets `STUDIO_SCENE.template.md`, then the
-skill's `build.md`, then the builder's sections of `reference.md`
-(`BUILDER_SECTIONS`: Components to Looking, and Slides, not the director's video.json,
+holds its notes format. `studio-scene`, which builds,
+fixes and reviews a scene, gets `STUDIO_SCENE.template.md`, then its
+steps (`STUDIO_SCENE_STEPS.template.md`), then the builder's sections of `reference.md`
+(`BUILDER_SECTIONS`: Components to Looking, and Slides, not video.json,
 script.md, Narrate, Pronunciation, Render and Libraries), cut at their
 `## ` headings from the same compiled-in files the skill ships, so a
 builder reads no file for them and every builder starts from the same
 system prompt. A test fails when a named heading is missing. Each CLI starts a
 subagent its own way, so each gets the job's model its own way; `oculus
-studio agents [--agent A]` prints, per agent, the model and the exact call,
-which the skill tells the agent to use as printed.
+studio agents [--agent A]` prints, per agent, the model and the exact call.
 
 | CLI | How a subagent starts | Where the model comes from | Measured |
 | --- | --- | --- | --- |
-| Claude | the `Agent` tool, `subagent_type: "studio-scene"` | `--agents` at spawn: one definition per role with a model, its full id and `effort` (the tool's own `model` takes only an alias) | One Haiku turn under `acceptEdits`, `--permission-prompts none` and the sandboxed settings: the definitions loaded and the subagent's `Write` and `Bash` ran under the parent's mode and sandbox, no denial. Subagents run in the background by default: the turn ended with a `result` while the helper ran, and the CLI then started a turn of its own on the completion notice, so the skill asks for `run_in_background: false` |
-| Codex | `spawn_agent` with `model`, `reasoning_effort`, `fork_turns: "none"` | the call itself; Codex sets `model` only when a skill or the user asks, which the skill does. No role prompt: the scene brief opens with a sentence naming `build.md` and the builder's sections (`codex_scene_opening`, the same words in `SKILL.md` and `oculus studio agents`) | One `gpt-6-luna` turn through `app-server` with the thread's `workspace-write` policy and `approvalPolicy: never`: the child wrote under the writable roots, no server request, the parent waited (`wait`) and answered. 4 slots including the parent; a finished child holds its slot until `close_agent` |
+| Claude | the `Agent` tool, `subagent_type: "studio-scene"` | `--agents` at spawn: one definition per role with a model, its full id and `effort` (the tool's own `model` takes only an alias) | One Haiku turn under `acceptEdits`, `--permission-prompts none` and the sandboxed settings: the definitions loaded and the subagent's `Write` and `Bash` ran under the parent's mode and sandbox, no denial. Subagents run in the background by default: the turn ended with a `result` while the helper ran, and the CLI then started a turn of its own on the completion notice, so `oculus studio agents` asks for `run_in_background: false` |
+| Codex | `spawn_agent` with `model`, `reasoning_effort`, `fork_turns: "none"` | the call itself; Codex sets `model` only when a skill or the user asks, which the skill does. No role prompt: the scene brief opens with a sentence naming the builder's sections (`codex_scene_opening`, the words `oculus studio agents` prints) | One `gpt-6-luna` turn through `app-server` with the thread's `workspace-write` policy and `approvalPolicy: never`: the child wrote under the writable roots, no server request, the parent waited (`wait`) and answered. 4 slots including the parent; a finished child holds its slot until `close_agent` |
 | opencode | the `task` tool, `subagent_type: "studio-scene"` | named agents in `opencode.json` (`mode: subagent`, `model`, `variant`), written from the jobs at each server start | Not run live. Read from opencode 1.18's task tool: `subagent_depth` counts parents, so 1 lets the thread's session spawn and a subagent not; a subagent session takes its parent's permissions, with `task` and `todowrite` denied unless its agent allows them |
 | agy | none | `invoke_subagent` takes a type name and no model | Not run: with no way to give the job's model, Studio starts none on agy and the agent does the work itself |
 
@@ -3390,8 +3390,8 @@ lecture, the link is read back on every send and before any spawn
 `instructions()` / `thread_sections()` append the "The video being made"
 section after the subject and lecture ones: the absolute folder, format,
 theme, subject library and length target read from video.json and the link,
-and the order of work (direct it with the skill, draft, ask before the
-final). It is the per-thread half the opencode bridge sends ahead
+and the order of work (make it with the skill, render the draft, never the
+final, which is the student's Export). It is the per-thread half the opencode bridge sends ahead
 of the first message. A video linked mid-thread is newer than the session:
 each live session remembers the video its instructions named (`Live::studio`),
 and when the thread's brief names another, `Harness::send` appends the
@@ -3422,8 +3422,8 @@ opens it on its own, not a render's end nor a turn's. Its other buttons:
   the scene's component is not written), the scene's title, start, length and
   narration, and "Play from this scene", which starts the card's player there.
 - **The chevron** is the progress timeline: Script, Scenes, Narration, Draft
-  and Final, each with when it finished or what it is doing; Final says the
-  agent asks before rendering it. A failure keeps its sentence there.
+  and Final, each with when it finished or what it is doing; Final, until
+  it exists, points at Export on the video's page. A failure keeps its sentence there.
 
 `videoProgress` (`lib/studio/progress.ts`) is the one derivation the card and
 the Work row share, a pure function of the detail, the thread's running
