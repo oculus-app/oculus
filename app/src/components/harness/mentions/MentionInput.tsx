@@ -232,7 +232,16 @@ export function MentionInput({
       splice(start, [{ kind: "chip", path }]);
     },
     insertSkill(start, name) {
-      splice(start, [{ kind: "skill", name }]);
+      if (start != null) {
+        splice(start, [{ kind: "skill", name }]);
+        return;
+      }
+      const el = box.current;
+      if (!el) return;
+      const r = readEditor(el, point(el));
+      if (r.chunks.some((c) => c.kind === "skill" && c.name === name)) return;
+      const next = insertAt(r.chunks, r.caret ?? r.text.length, [{ kind: "skill", name }]);
+      commit(next.chunks, next.caret, true);
     },
     insertAttachments(paths) {
       const el = box.current;

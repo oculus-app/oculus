@@ -6,7 +6,7 @@ export interface MentionInputHandle {
   /** Swap the `@…` token starting at message offset `start` for a chip plus a space. */
   insertMention(start: number, path: string): void;
   /** Swap the `/…` token starting at `start` for a skill chip plus a space. */
-  insertSkill(start: number, name: string): void;
+  insertSkill(start: number | null, name: string): void;
   /** Attachment chips (each a `./attachments/…` path) at the caret, or at the
    *  end when the box has no caret; the caret lands after them. */
   insertAttachments(paths: string[]): void;

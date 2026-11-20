@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Composer } from "@/components/harness/composer/Composer";
+import { SkillPills } from "@/components/harness/composer/SkillPills";
+import { Composer, type ComposerHandle } from "@/components/harness/composer/Composer";
 import { DraftHero } from "@/components/harness/composer/DraftHero";
 import { NewThreadDialog } from "@/components/harness/threads/NewThreadDialog";
 import { RecentThreads } from "@/components/harness/threads/RecentThreads";
@@ -221,6 +222,7 @@ export default function ChatPage() {
     },
     [newKey, navigate],
   );
+  const composerHandle = useRef<ComposerHandle>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   // The Overview's ask bar, sent from this pane, morphs into this composer.
   const warping = useWarpLanding(paneId, activeId);
@@ -269,6 +271,7 @@ export default function ChatPage() {
 
   const composer = (
     <Composer
+      ref={composerHandle}
       draftKey={draftKey(activeId, "chat")}
       provider={activeProvider}
       model={selection.model}
@@ -326,6 +329,8 @@ export default function ChatPage() {
           <div ref={recentScroll} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-6">
             <div className="mx-auto w-full max-w-[760px]">
               {subjectsLoaded && <DraftHero subjects={subjects} scope={scope} onChoose={onChoose} className="pt-10 pb-8" />}
+              <div ref={composerRef}>{composer}</div>
+              <SkillPills onPick={(name) => composerHandle.current?.insertSkill(name)} />
               <RecentThreads threads={threads} subjects={subjects} runningIds={runningIds} onOpen={onOpen} />
             </div>
           </div>
@@ -356,11 +361,11 @@ export default function ChatPage() {
             )}
           </div>
         )}
-        <div ref={composerRef} style={shift} className="shrink-0 px-6 pb-4">
+        {!fresh && <div ref={composerRef} style={shift} className="shrink-0 px-6 pb-4">
           <div className="mx-auto max-w-[760px]" style={warping ? { viewTransitionName: WARP_NAME } : undefined}>
             {composer}
           </div>
-        </div>
+        </div>}
 
         <DropOverlay show={dropping} label="Drop to attach a picture" />
         <NewThreadDialog

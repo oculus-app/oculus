@@ -3541,3 +3541,12 @@ Live Task/TaskList, Deadline/Upcoming, Lecture, StudioVideo, CheatNote and Revie
 - Never give an agent's HTML embed `allow-same-origin` — the page would run with the app's origin and reach the Tauri IPC.
 - Thread-row delete commits on `mousedown` — WebKit blurs the focused confirm on press and unmounts it before `click`.
 - The thread list reserves its gutter with `overflow-y: scroll`; `scrollbar-gutter: stable` is a no-op in this WebKit.
+
+## A fresh thread offers skill pills
+
+The fresh Chat screen places its composer between the subject headline and
+Recent threads. `SkillPills` under the box inserts `oculus-studio` through
+`Composer.insertSkill`, the same skill chunk as the slash menu. It waits for
+the installed catalogue and never inserts a duplicate. Make a widget and
+Learn are disabled with Coming soon tooltips. Pills have no selected state;
+removing the chip removes the skill from the next send.

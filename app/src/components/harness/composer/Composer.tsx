@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref, type ReactNode, type RefObject } from "react";
 import { SendControls } from "@/components/harness/composer/SendControls";
 import { MentionInput, type MentionInputHandle } from "@/components/harness/mentions/MentionInput";
 import { ComposerMenu } from "@/components/harness/mentions/ComposerMenu";
@@ -68,7 +68,12 @@ export const COMPOSER_PLACEHOLDER = "Ask anything. @ files, / skills";
  * It grows taller as the text wraps, with the controls held at its bottom
  * right; attachments sit above it.
  */
+export interface ComposerHandle {
+  insertSkill(name: string): void;
+}
+
 export function Composer({
+  ref: composerHandle,
   draftKey,
   provider,
   model,
@@ -101,6 +106,7 @@ export function Composer({
   threadId = null,
   compact = false,
 }: {
+  ref?: Ref<ComposerHandle>;
   /** Whose draft this box shows (`draftKey` in `stores/chat/draftStore.ts`). */
   draftKey: string;
   provider: Provider;
@@ -166,6 +172,11 @@ export function Composer({
   const dictation = useDictation(draftKey, (transcript) => (answerRef.current ?? ref.current)?.append(transcript));
   const tools = useComposerTools({ subjectId, input: ref });
   const mentions = tools.menu;
+  useImperativeHandle(composerHandle, () => ({
+    insertSkill(name) {
+      if (tools.skillNames?.has(name)) ref.current?.insertSkill(null, name);
+    },
+  }), [tools.skillNames]);
   /** The drop target for attachments: the whole box, not just the editor. */
   const wrapRef = useRef<HTMLDivElement>(null);
   /** Pasted/dropped files, written to the library as they arrive and put in
