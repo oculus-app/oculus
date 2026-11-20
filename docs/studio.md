@@ -290,25 +290,28 @@ scenes, so the depth goes into each scene: one picture taken through
 several big changes. A request that holds more than one question gets a
 series outline of at most 7 parts, each a question, in the reply, and only
 part 1 is made; later parts wait for the student ("make part 3"). Each part
-opens with one line picking up the one before and redraws any picture it
-needs; a component carried between parts is copied into the new part's
-folder or promoted to the subject library.
+opens with one line picking up the one before, redraws any picture it
+needs, and ends on one line asking the next part's question; a component
+carried between parts is copied into the new part's folder or promoted to
+the subject library.
 
 **The steps** (`SKILL.md`'s checklist):
 
 1. Scope, as above.
 2. Name the video: `oculus studio new --title` with what a student would
-   search for, the slug derived from it (a series part: `new --series`,
-   which takes the series' theme and subject).
+   search for, naming what the viewer gets rather than a fact on the way,
+   in words with no formula (the title card and the app set it as plain
+   text), the slug derived from it (a series part: `new --series`, which
+   takes the series' theme and subject).
 3. Read the one slide page or transcript slice the idea lives in, found
    with `oculus list`, the recording's `outline.md` and `oculus files`.
 4. Write a five-line plan in the reply (the question; the hook, the
    obvious answer that fails or a concrete scenario; the one picture
    everything happens to; three beats; the payoff) and carry straight on.
 5. Write `script.md` and `video.json` (each one-scene component's only
-   prop, `narrated`, set on narrated scenes), lint until only the missing
-   components and narration are left, and narrate, so the scenes cue to
-   real word times.
+   prop, `narrated`, set on narrated scenes), do the gap pass (below),
+   lint until only the missing components and narration are left, and
+   narrate, so the scenes cue to real word times.
 6. Write each scene: `oculus studio brief <slug> --scene <id>` for the word
    times and the check calls, the components cued with `word()` and landed
    before `pause()`, checked as text with `lint --scene` and `beats --scene`.
@@ -322,7 +325,17 @@ folder or promoted to the subject library.
 Academy, Primer, Reducible, Welch Labs, Freya Holmér): talk to "you",
 point at the picture with "this", "here", "watch" and "look", open on the
 question rather than an agenda, one breath a sentence, every number given
-meaning, and a `[pause]` where an idea lands. **The picture rules**: one
+meaning, and a `[pause]` where an idea lands. **The gap rules** are for
+a viewer who has watched no lecture and cannot ask: the motive comes
+before the fact, every symbol and number on screen has an origin that is
+said and shown, a term is defined before a label or sentence uses it, a
+colour that means something is named at its first use, a result lands on
+the name it already has, a worked check rewrites back into the equation
+it confirms, and nothing is introduced that the video does not explain.
+The gap pass, before narrating, reads the script as that viewer and adds
+a sentence and its beat, or cuts the thing, wherever an origin is
+missing; closing a gap comes before being short, within lint's
+`long_scene` and `long_video`. **The picture rules**: one
 large object fills the frame and changes in big steps, a hold is fine, no
 title over a scene, labels of a few words at the 40 px floor, and a wrong
 case beside the right one; lint's `sparse`, `scene_title` and `small_text`

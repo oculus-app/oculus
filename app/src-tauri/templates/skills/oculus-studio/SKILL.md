@@ -23,6 +23,7 @@ it is named. Nothing is asserted that the picture does not show.
 - Making a video: the checklist, then each step
 - The plan: five lines, in the reply
 - The script: how the references talk
+- Close every gap: what a viewer who saw no lecture needs
 - The picture: how the references draw
 - Moving maths
 - Writing a scene: components, cues, checking as text, looking
@@ -44,10 +45,12 @@ in two minutes, with one picture? "Why does binary search need only twenty
 guesses for a million names?" passes. "Explain sorting algorithms" or "make
 a video of lecture 11" does not: it holds several questions.
 
-Explain every basic the one question needs, on an example before its name
-(seven dots that refuse to make a rectangle, then "prime"), inside the
-scenes you have. When the basics alone need two minutes, they are a part of
-their own.
+The viewer has watched no lecture. Explain every basic the one question
+needs, on an example before its name (seven dots that refuse to make a
+rectangle, then "prime"), inside the scenes you have. Closing a gap comes
+before being short ("Close every gap"): take the seconds it needs, up to
+lint's 4 narrated scenes and 150 seconds. When the basics alone need two
+minutes, they are a part of their own.
 
 ## A series, when one video is not enough
 
@@ -75,6 +78,11 @@ oculus studio new why-factoring-is-hard --series shor --title "Why factoring is 
   before ("Last time, a power of two landed back on one. Here is why that
   breaks a lock."), and never relies on a picture the viewer must
   remember: draw it again.
+- **Each part ends on the next.** After its payoff, one line asks the next
+  part's question ("So the lock holds only while nobody can split n. Next:
+  the pattern that splits it."), and your reply names that part. What a
+  part raises and cannot explain is said to be the next part's question,
+  never left on screen unexplained.
 - A component carried from one part to the next is copied into the new
   part's `components/` (or promoted to the subject library, "Keeping a
   component"); a part never reads another part's folder.
@@ -131,7 +139,7 @@ Video progress:
 - [ ] 2. Name it and make the folder (oculus studio new --title)
 - [ ] 3. Read the one slide page or transcript slice the idea lives in
 - [ ] 4. Write the five-line plan in your reply, then carry straight on
-- [ ] 5. Write script.md and video.json; lint until only component_not_found and narration are left; narrate
+- [ ] 5. Write script.md and video.json; gap pass; lint until only component_not_found and narration are left; narrate
 - [ ] 6. Write each scene's components; lint --scene and beats --scene until clean
 - [ ] 7. Lint the whole video until no errors; one strip of the whole video; fix what it shows
 - [ ] 8. Render the draft and give the student its path
@@ -143,7 +151,12 @@ Studio is not itself a request to create one. If the brief already has
 "The video being made", use that folder and skip creation. Otherwise name
 the video: a title a student would search for, the question or idea in
 their words ("Why binary search needs twenty guesses", not "Lecture 11
-video"). Derive the slug from it (lowercase letters, digits, `-`) and run:
+video"). Name what the viewer gets, not a fact on the way to it: "How a
+repeating power factors fifteen", not "Why two to the fourth is one mod
+fifteen". The title is set as plain text on the title card and in the app,
+so write it in words, with no formula: "The staircase that adds up one to
+n", not "Why 1 + 2 + ... + n is n(n+1)/2". Derive the slug from it
+(lowercase letters, digits, `-`) and run:
 
 ```bash
 oculus studio new binary-search-twenty-guesses --subject COMP10002 --title "Why binary search needs twenty guesses"
@@ -173,7 +186,9 @@ the period is found for next week") rather than invent the step.
 `id`, its component name, and `"props": { "narrated": true }` on a
 narrated scene (`{}` and a `hold` on a silent one). `script.md`: each
 scene's narration in spoken form, with pauses ("The script" below and
-`reference.md` "script.md"). Then:
+`reference.md` "script.md"). Do the gap pass ("Close every gap") on the
+script before narrating, since a sentence added later means narrating
+again. Then:
 
 ```bash
 oculus studio lint binary-search-twenty-guesses
@@ -213,7 +228,8 @@ Payoff: each guess halves what is left, so doubling the list costs one more gues
 - **Question**: the one the video answers, asked in the first scene and
   answered in the last.
 - **Hook**: the obvious answer that fails, or a concrete scenario the
-  viewer can see themselves in.
+  viewer can see themselves in. It says why the viewer wants the answer
+  before any fact that leads to it.
 - **Picture**: the one object everything happens to. Every scene changes
   it; none replaces it with a slide.
 - **Beats**: three, each a big change to the picture. Two to four scenes
@@ -251,6 +267,51 @@ measured against Studio's own:
   fuse: "R S A rests" is heard as "RS arrests". A letter said alone ("q")
   may be timed as a word ("cue"), so cue the word beside it. `reference.md`
   ("script.md") has the spoken-form table and the acronym rule.
+
+## Close every gap
+
+The viewer has watched no lecture and cannot ask you anything. Each thing
+left unexplained ("where did that 5 come from?") stays in their head while
+the video moves on, and that is where they stop following. So a video
+raises only what it answers, and answers everything it raises.
+
+- **Motive before fact.** Say what the viewer gets, and why they want it,
+  before the fact that delivers it. "Two to the fourth leaves one over" is
+  a fact; "that leftover one hands you fifteen's factors" is the reason to
+  watch, so it comes first, in the title and the opening sentence.
+- **Every symbol and number has an origin, said and shown.** A 5 in a
+  formula that is the public key's `e = 5` travels there from it (the
+  "value put into a formula" row of "Moving maths"), or keeps its letter
+  and colour. A value somebody chose says who chose it and by what rule
+  ("e can be any number that shares no factor with seventy-two; here it is
+  five").
+- **A term on screen or in the script is defined first.** "91 splits in 4
+  tries" assumes the viewer knows what splitting is; "7 divides 91
+  exactly, on the fourth try" assumes nothing.
+- **A colour that means something is named at its first use** ("red: it
+  leaves a remainder; green: it divides exactly"), by a word, a label or
+  a mark, and means that for the whole video and series.
+- **A result lands on its name.** The 7 the trial divisions find is q: it
+  moves onto `q = 7`, so the viewer sees which earlier thing was just
+  found.
+- **Return to the claim.** When a worked check confirms an equation shown
+  earlier (`5 × 29 = 145 = 2 × 72 + 1` for `5 × d ≡ 1 (mod 72)`), its last
+  step rewrites into that equation with the unknown filled in
+  (`5 × 29 ≡ 1 (mod 72)`), so the viewer sees it hold.
+- **Introduce nothing you will not explain.** A step, symbol or name the
+  video has no room for stays off the screen and out of the script. A
+  closing chain `n → p, q → φ(n) → d` whose last two arrows the narration
+  never says is new material in the final seconds: show the part the words
+  cover, or say each arrow while pointing back at the numbers that walked
+  it. In a series, what is left over is the next part's question, said in
+  the last line.
+
+**The gap pass.** Before narrating, read the script and the plan's picture
+as someone who has watched no lecture. For each symbol, number, colour and
+label that will be on screen, and each term said, find the sentence that
+says where it comes from. Where there is none, add the sentence and its
+beat, or cut the thing. A gap costs a sentence: pay it, within lint's
+`long_scene` and `long_video`.
 
 ## The picture
 
