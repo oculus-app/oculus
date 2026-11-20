@@ -103,3 +103,20 @@ export function lastStudioAction(
   }
   return null;
 }
+
+/** Whether the thread's latest run has touched the video: a Studio call on
+ *  it, or any tool row naming its folder (a write to its script, the
+ *  folder `oculus studio new` printed). */
+export function touchesVideo(items: readonly HarnessItem[], slug: string): boolean {
+  const run = items[items.length - 1]?.run_id;
+  if (run == null) return false;
+  // A slug is `[a-z0-9-]+`, so it needs no escaping; `vv` is not `v`.
+  const folder = new RegExp(`/videos/${slug}(?![a-z0-9-])`);
+  for (let i = items.length - 1; i >= 0 && items[i].run_id === run; i--) {
+    const item = items[i];
+    if (item.kind !== "tool") continue;
+    if (studioAction(item)?.slug === slug) return true;
+    if (folder.test(item.meta ?? "") || folder.test(item.content ?? "")) return true;
+  }
+  return false;
+}

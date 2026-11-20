@@ -1,13 +1,14 @@
 import type { ActiveRender } from "@/stores/studio/renderStore";
 import type { StudioAction } from "./activity";
+import type { RenderPreset } from "./render";
 import type { VideoDetail } from "./videos";
 
 /**
  * Where a video being made in a chat is, for its card and its Thread info
  * row: one status line and five steps (Script, Scenes, Narration, Draft,
- * Final). Files say what is done; the call running now says what is
- * happening; a failure shows only once the agent has stopped, since while it
- * works it is still dealing with it.
+ * Final). Files say what is done; the call running now, or a turn that is
+ * working on this video, says what is happening; a failure shows only once
+ * the agent has stopped, since while it works it is still dealing with it.
  */
 
 export type StepName = "Script" | "Scenes" | "Narration" | "Draft" | "Final";
@@ -32,13 +33,19 @@ export interface VideoProgress {
 }
 
 export interface ProgressInput {
+  /** The last detail read; it may be older than `readError`. */
   detail: VideoDetail | null;
   /** The thread's agent is working. */
   running: boolean;
+  /** Its turn has touched this video (`touchesVideo`): the next step is
+   *  what it is doing. A turn on something else leaves the card still. */
+  working?: boolean;
   /** A render the app started (`renderStore`). */
   render?: ActiveRender;
-  /** Why the detail could not be read, or the app's last render failed. */
-  error?: string | null;
+  /** Why the latest read of the detail failed. */
+  readError?: string | null;
+  /** The app's last render of the video failed, and which preset it was. */
+  renderFailure?: { message: string; preset: RenderPreset } | null;
   /** The thread's latest Studio call on this video (`lastStudioAction`). */
   last?: { action: StudioAction; live: boolean } | null;
 }
@@ -59,7 +66,7 @@ function stepOf(action: StudioAction): number {
   return SCENES;
 }
 
-export function videoProgress({ detail, running, render, error, last }: ProgressInput): VideoProgress {
+export function videoProgress({ detail, running, working = false, render, readError, renderFailure, last }: ProgressInput): VideoProgress {
   const scenes = detail?.scenes ?? [];
   const total = scenes.length;
   const built = scenes.filter((s) => s.built !== false).length;
@@ -116,18 +123,23 @@ export function videoProgress({ detail, running, render, error, last }: Progress
   }
 
   if (!running) {
+    if (readError) return { label: "Can't read the video", tone: "bad", fraction: null, sweeping: false, steps };
     const failedCall = last && last.action.ok === false ? last.action : null;
-    const failure = error ?? (failedCall ? failedCall.output?.trim() || `oculus studio ${failedCall.action} failed` : null);
+    const failure = failedCall
+      ? { at: stepOf(failedCall), message: failedCall.output?.trim() || `oculus studio ${failedCall.action} failed` }
+      : renderFailure
+        ? { at: renderFailure.preset === "final" ? FINAL : DRAFT, message: renderFailure.message }
+        : null;
     if (failure) {
-      const at = failedCall ? stepOf(failedCall) : !detail ? SCRIPT : DRAFT;
-      steps[at] = { ...steps[at], state: "failed", note: failure, when: null };
-      return { label: detail ? `${steps[at].name} failed` : "Can't read the video", tone: "bad", fraction: null, sweeping: false, steps };
+      const { at, message } = failure;
+      steps[at] = { ...steps[at], state: "failed", note: message, when: null };
+      return { label: `${steps[at].name} failed`, tone: "bad", fraction: null, sweeping: false, steps };
     }
   }
 
   if (final) return { label: "Final ready", tone: "ok", fraction: null, sweeping: false, steps };
   if (draft && next < 0) return { label: "Draft ready", tone: "ok", fraction: null, sweeping: false, steps };
-  if (running && next >= 0) {
+  if (running && working && next >= 0) {
     const label = [
       "Writing the script",
       `Building scenes · ${built} of ${total}`,

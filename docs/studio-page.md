@@ -101,7 +101,8 @@ preset, and is fed by
 `studio-render-progress` (`useStudioEvents`, mounted with the other backend
 bridges) and by `start`, which awaits `renderVideo`. The fraction is the
 segments done plus the part of the current one, over all of them. An end,
-however it ends, removes the entry, keeps a failure's sentence in `errors`,
+however it ends, removes the entry, keeps a failure's sentence in `errors`
+(and its preset in `failedPresets`),
 bumps `settled[dir]` (a page showing the folder re-reads on it) and reloads
 the video list. The store outlives navigation, so the rail dot, a grid
 card's badge, a chat's video card and the page's bar all follow one render.

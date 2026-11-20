@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { buildRows } from "@/components/harness/timeline/rows";
 import type { HarnessItem, HarnessRun } from "@/lib/harness";
-import { lastStudioAction, studioAction } from "@/lib/studio/activity";
+import { lastStudioAction, studioAction, touchesVideo } from "@/lib/studio/activity";
 import { videoProgress } from "@/lib/studio/progress";
 import type { SceneInfo, VideoDetail } from "@/lib/studio/videos";
 
@@ -62,19 +62,29 @@ describe("studioAction", () => {
     expect(lastStudioAction([narrate, tool("ls", true)], "v", true)?.live).toBe(false);
     expect(lastStudioAction([tool("oculus studio render other", true)], "v", false)).toBeNull();
   });
+
+  test("a run touches the video through a Studio call or a path in its folder", () => {
+    const run = { run_id: 3 };
+    expect(touchesVideo([tool("cat /data/studio/videos/v/script.md", true, run)], "v")).toBe(true);
+    expect(touchesVideo([tool("oculus studio lint v", true, run)], "v")).toBe(true);
+    expect(touchesVideo([tool("oculus studio lint v", true, { run_id: 2 }), tool("ls", true, run)], "v")).toBe(false);
+    expect(touchesVideo([tool("cat /data/studio/videos/vv/script.md", true, run)], "v")).toBe(false);
+  });
 });
 
 describe("videoProgress", () => {
   test("an empty folder waits for its script, and is writing it while the agent works", () => {
     expect(videoProgress({ detail: detail(), running: false })).toMatchObject({ label: "Not written yet", tone: "muted" });
-    const busy = videoProgress({ detail: detail(), running: true });
+    const busy = videoProgress({ detail: detail(), running: true, working: true });
     expect(busy).toMatchObject({ label: "Writing the script", tone: "busy" });
     expect(busy.steps[0].state).toBe("active");
+    // A turn about something else leaves the card still.
+    expect(videoProgress({ detail: detail(), running: true }).tone).toBe("muted");
   });
 
   test("scenes build with a count and a fraction for the bar", () => {
     const d = detail({ scenes: [scene(), scene({ built: false }), scene({ built: false }), scene()] });
-    const p = videoProgress({ detail: d, running: true });
+    const p = videoProgress({ detail: d, running: true, working: true });
     expect(p.label).toBe("Building scenes · 2 of 4");
     expect(p.fraction).toBe(0.5);
     expect(p.steps.map((s) => s.state)).toEqual(["done", "active", "pending", "pending", "pending"]);
@@ -113,11 +123,18 @@ describe("videoProgress", () => {
     const d = detail({ scenes: [scene()] });
     const failed = tool("oculus studio narrate v", false);
     const last = { action: studioAction(failed)!, live: false };
-    expect(videoProgress({ detail: d, running: true, last }).tone).toBe("busy");
+    expect(videoProgress({ detail: d, running: true, working: true, last }).tone).toBe("busy");
     const p = videoProgress({ detail: d, running: false, last });
     expect(p).toMatchObject({ label: "Narration failed", tone: "bad" });
     expect(p.steps[2]).toMatchObject({ state: "failed", note: "narration failed: no voice" });
-    expect(videoProgress({ detail: null, running: false, error: "no such video" })).toMatchObject({ label: "Can't read the video", tone: "bad" });
+    expect(videoProgress({ detail: null, running: false, readError: "no such video" })).toMatchObject({ label: "Can't read the video", tone: "bad" });
+    // A read that fails after one that worked names no step.
+    const stale = videoProgress({ detail: detail({ renders: [render("draft")] }), running: false, readError: "gone" });
+    expect(stale.label).toBe("Can't read the video");
+    expect(stale.steps.some((s) => s.state === "failed")).toBe(false);
+    const final = videoProgress({ detail: d, running: false, renderFailure: { message: "ffmpeg died", preset: "final" } });
+    expect(final).toMatchObject({ label: "Final failed" });
+    expect(final.steps[4]).toMatchObject({ state: "failed", note: "ffmpeg died" });
   });
 });
 

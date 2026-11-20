@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 
 import { parseToolMeta } from "@/lib/harness";
-import { lastStudioAction } from "@/lib/studio/activity";
+import { lastStudioAction, touchesVideo } from "@/lib/studio/activity";
 import { videoProgress } from "@/lib/studio/progress";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
 import { useRenderStore } from "@/stores/studio/renderStore";
@@ -22,8 +22,10 @@ export function useThreadVideo(threadId: number | null) {
   const { detail, error, reload } = useVideoDetail(slug);
   const render = useRenderStore((s) => (row ? s.active[row.dir] : undefined));
   const renderError = useRenderStore((s) => (row ? s.errors[row.dir] : undefined));
+  const failedPreset = useRenderStore((s) => (row ? s.failedPresets[row.dir] : undefined));
 
   const last = useMemo(() => (slug ? lastStudioAction(items, slug, running) : null), [items, slug, running]);
+  const working = useMemo(() => running && !!slug && touchesVideo(items, slug), [items, slug, running]);
   const finished = useMemo(
     () => items.reduce((n, i) => (i.kind === "tool" && parseToolMeta(i).ok != null ? n + 1 : n), 0),
     [items],
@@ -33,8 +35,17 @@ export function useThreadVideo(threadId: number | null) {
   }, [slug, running, finished, row?.modified, reload]);
 
   const progress = useMemo(
-    () => videoProgress({ detail, running, render, error: error ?? renderError, last }),
-    [detail, running, render, error, renderError, last],
+    () =>
+      videoProgress({
+        detail,
+        running,
+        working,
+        render,
+        readError: error,
+        renderFailure: renderError && failedPreset ? { message: renderError, preset: failedPreset } : null,
+        last,
+      }),
+    [detail, running, working, render, error, renderError, failedPreset, last],
   );
   return { row, detail, progress };
 }

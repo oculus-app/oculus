@@ -65,6 +65,8 @@ export function useRowVisibility(rootRef: RefObject<HTMLDivElement | null>, thre
           const host = contents.get(row)?.host;
           // Detaching a frame destroys its browsing context. Media and frames
           // retain their connection; ordinary message DOM leaves the document.
+          // A player scrolled out of sight stops rather than playing unseen.
+          host?.querySelectorAll("video, audio").forEach((m) => (m as HTMLMediaElement).pause());
           if (host && !host.querySelector("iframe, video, audio")) host.remove();
         }
       }

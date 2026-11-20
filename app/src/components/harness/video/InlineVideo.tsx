@@ -17,8 +17,9 @@ export interface PlayRequest {
 /**
  * A video's render playing inside the chat: the app's media player
  * with no dock, sharing the app's one sound (`useLibraryPlayback`). Mounted
- * by a Play press, it starts at `request.at`; unmounting pauses it, so a row
- * scrolled out of the window leaves nothing playing.
+ * by a Play press, it starts at `request.at`; unmounting pauses it, and a
+ * row scrolled out of sight is paused by `useRowVisibility`, which keeps a
+ * row holding media in the document.
  */
 export function InlineVideo({
   detail,

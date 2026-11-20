@@ -22,6 +22,8 @@ interface RenderState {
   active: Record<string, ActiveRender>;
   /** The last failure per folder, until its next render starts. */
   errors: Record<string, string>;
+  /** The preset that failure was rendering. */
+  failedPresets: Record<string, RenderPreset>;
   /** Bumped when a render for the folder ends, however it ended: a page
    *  showing its files reloads on it. */
   settled: Record<string, number>;
@@ -51,10 +53,14 @@ export const useRenderStore = create<RenderState>((set, get) => {
   const settle = (dir: string, error?: string) => {
     if (!(dir in get().active)) return;
     set((s) => {
-      const { [dir]: _ended, ...active } = s.active;
+      const { [dir]: ended, ...active } = s.active;
       const errors = { ...s.errors };
-      if (error) errors[dir] = error;
-      return { active, errors, settled: { ...s.settled, [dir]: (s.settled[dir] ?? 0) + 1 } };
+      const failedPresets = { ...s.failedPresets };
+      if (error) {
+        errors[dir] = error;
+        failedPresets[dir] = ended.preset;
+      }
+      return { active, errors, failedPresets, settled: { ...s.settled, [dir]: (s.settled[dir] ?? 0) + 1 } };
     });
     void useVideosStore.getState().reload();
   };
@@ -62,6 +68,7 @@ export const useRenderStore = create<RenderState>((set, get) => {
   return {
     active: {},
     errors: {},
+    failedPresets: {},
     settled: {},
 
     start: async (dir, slug, preset) => {

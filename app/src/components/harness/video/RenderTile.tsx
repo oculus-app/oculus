@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Play, X } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { videoSeconds } from "@/lib/studio/videos";
 import { useVideosStore } from "@/stores/studio/videosStore";
 import { InlineVideo, type PlayRequest } from "./InlineVideo";
 import { VideoThumb } from "./VideoThumb";
+import { useOneInlinePlayer } from "./useOneInlinePlayer";
 
 /**
  * A finished `oculus studio render`, drawn under its run's fold: the video's
@@ -28,6 +29,7 @@ export const RenderTile = memo(function RenderTile({ item }: { item: HarnessItem
     if (slug && modified != null) void reload();
   }, [slug, modified, reload]);
   const [play, setPlay] = useState<PlayRequest | null>(null);
+  useOneInlinePlayer(play != null, useCallback(() => setPlay(null), []));
   if (!action || !slug) return null;
 
   const preset = action.preset;

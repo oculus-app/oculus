@@ -3375,20 +3375,30 @@ provider's spelling, Codex's `zsh -lc` included). Files say what is done:
 script sections, scenes whose component resolves (`SceneInfo.built`), a
 narration whose times hold (a stale one, `timingProblem`, waits rather than
 failing), the draft and final renders. The call running now (the thread's
-last tool row, unfinished) says what is happening. A failed call, or a
-render or read failure, shows only once the turn has ended, since while it
-runs the agent is still dealing with it. `useThreadVideo` re-reads the detail
-whenever a tool call finishes, the turn ends or the folder's modified time
-moves.
+last tool row, unfinished) says what is happening; between calls, a running
+turn that has touched the video (`touchesVideo`: a Studio call on it, or a
+tool row naming its folder) shows its next step working, and a turn about
+anything else leaves the card as it is. A failed call or app render shows
+only once the turn has ended, on its own step (a render's on Draft or Final
+by its preset), since while it runs the agent is still dealing with it; a
+detail that will not read says "Can't read the video" and names no step.
+`useThreadVideo` re-reads the detail whenever a tool call finishes, the
+turn ends or the folder's modified time moves. Every view of a video shares
+one read per slug (`useVideoDetail`): the card, its Work row and the page
+beside it asking in the same task make one `studio_video_detail` call.
 
 **A render is a tile.** The thread's latest successful `oculus studio render`
 of each video and preset is lifted out of its run's fold as a `render` row
 (`buildRows`), drawn by `RenderTile`: the thumbnail, "Rendered draft",
 the length and size, and Play, which grows the same inline player in the
 tile on that preset. Earlier renders of the same preset wrote the same file,
-so they stay plain tool rows in the fold. A row the window drops or
-`useRowVisibility` detaches pauses its player: unmounting pauses the element,
-and a detached element is paused by the browser.
+so they stay plain tool rows in the fold. A row holding media is never
+detached by `useRowVisibility` (only skipped, `content-visibility: hidden`),
+so it pauses the row's `<video>` and `<audio>` as it scrolls out of sight
+(a row holding the focus stays drawn); a row the window drops unmounts its
+player, which pauses it. One inline player is open at a time
+(`useOneInlinePlayer`): Play on another card or tile closes the open one, so
+a single player answers the media keys.
 
 ## The subject Overview's ask bar starts a thread
 
