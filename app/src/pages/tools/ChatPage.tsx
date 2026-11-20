@@ -10,7 +10,7 @@ import { JumpToLatest } from "@/components/harness/timeline/JumpToLatest";
 import { Timeline } from "@/components/harness/timeline/Timeline";
 import { ThreadInfoButton } from "@/components/harness/threadInfo/ThreadInfoButton";
 import { ThreadInfoCard, type ThreadInfoProps } from "@/components/harness/threadInfo/ThreadInfoCard";
-import { GAP, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
+import { GAP, PAD, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
 import { useThreadInfo } from "@/components/harness/threadInfo/useThreadInfo";
 import { useThreadActions } from "@/components/harness/threads/useThreadActions";
 import { useComposerSelection } from "@/components/harness/threads/useComposerSelection";
@@ -25,6 +25,7 @@ import { useRateLimits } from "@/hooks/agents/useRateLimits";
 import { useStickToBottom } from "@/hooks/ui/useStickToBottom";
 import { useWarpLanding } from "@/hooks/ui/useWarpLanding";
 import { useScrollFade } from "@/hooks/ui/useScrollFade";
+import { usePresence } from "@/hooks/ui/usePresence";
 import {
   harnessDeleteThread,
   chatHref,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/harness";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
 import { draftKey, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
+import { cn } from "@/lib/utils";
 import { WARP_NAME } from "@/lib/ui/warp";
 
 /**
@@ -184,10 +186,9 @@ export default function ChatPage() {
   // Borrowed rows belong to the outgoing thread; wait for this thread's
   // history before choosing its initial bottom position.
   const ownRows = items.length === 0 || items[0].thread_id === activeId;
+  // One scroller for both views, so the column eases between their paddings.
   const scroll = useStickToBottom(activeId, !fresh && ownRows, running, items);
-  useScrollFade(scroll.outer, "y", !fresh);
-  const recentScroll = useRef<HTMLDivElement>(null);
-  useScrollFade(recentScroll, "y", fresh);
+  useScrollFade(scroll.outer, "y", fresh);
 
   // A sent new chat is forgotten (its row, scope and words), but only once
   // this tab shows the thread: cleared first, the new-chat page drew
@@ -306,8 +307,16 @@ export default function ChatPage() {
     usage,
   };
   const floating = info.floating && infoCard != null;
-  // The column moves left to clear the card, the rail's gutter kept.
-  const shift = floating ? { paddingLeft: RAIL, paddingRight: RESERVE } : undefined;
+  // Mounted through its exit, so hiding it springs out as the column eases back.
+  const card = usePresence(floating);
+  // The column moves left to clear the card, the rail's gutter kept. The
+  // scroller always shows its scrollbar (`overflow-y: scroll`), so the
+  // composer adds its width on the right to centre in the same box.
+  const sides = floating ? { left: RAIL, right: RESERVE } : { left: PAD, right: PAD };
+  const scrollPad = { paddingLeft: sides.left, paddingRight: sides.right };
+  const composerPad = { paddingLeft: sides.left, paddingRight: sides.right + info.scrollbar };
+  // Eased once the pane has settled, so a thread opened cold draws in place.
+  const easeShift = info.settled && "transition-[padding-left,padding-right] duration-200 ease-out motion-reduce:transition-none";
   /** Pictures drop anywhere on the conversation, not only on the box. */
   const columnRef = useRef<HTMLDivElement>(null);
   const [dropping, setDropping] = useState(false);
@@ -370,19 +379,23 @@ export default function ChatPage() {
           {infoCard && <ThreadInfoButton info={info} {...infoCard} />}
         </PageHeader>
 
-        {fresh ? (
-          <div ref={recentScroll} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-6">
-            <div className="mx-auto w-full max-w-[760px]">
-              {subjectsLoaded && <DraftHero subjects={subjects} scope={scope} onChoose={onChoose} className="pt-10 pb-8" />}
-              <RecentThreads threads={threads} subjects={subjects} runningIds={runningIds} onOpen={onOpen} />
-            </div>
-          </div>
-        ) : (
-          <div ref={info.areaRef} className="relative min-h-0 flex-1">
-            {/* `overflow-x-hidden` is load-bearing: `overflow-y: auto` makes x
-                `auto` too, so one wide row would scroll the whole thread. */}
-            <div ref={scroll.outer} style={shift} className="h-full overflow-x-hidden overflow-y-auto px-6 pt-6 pb-10">
-              <div ref={scroll.inner} className="mx-auto w-full max-w-[760px]">
+        <div ref={info.areaRef} className="relative min-h-0 flex-1">
+          {/* `overflow-y: scroll` keeps the scrollbar's gutter while nothing
+              overflows, so a fold opening never narrows the column.
+              `overflow-x-hidden` is load-bearing: it makes x `auto` too, and
+              one wide row would scroll the whole thread. */}
+          <div
+            ref={scroll.outer}
+            style={scrollPad}
+            className={cn("h-full overflow-x-hidden overflow-y-scroll pt-6", fresh ? "pb-6" : "pb-10", easeShift)}
+          >
+            {fresh ? (
+              <div key="recent" className="mx-auto w-full max-w-[760px]">
+                {subjectsLoaded && <DraftHero subjects={subjects} scope={scope} onChoose={onChoose} className="pt-10 pb-8" />}
+                <RecentThreads threads={threads} subjects={subjects} runningIds={runningIds} onOpen={onOpen} />
+              </div>
+            ) : (
+              <div key="thread" ref={scroll.inner} className="mx-auto w-full max-w-[760px]">
                 <Timeline
                   items={items}
                   threadId={activeId}
@@ -391,20 +404,34 @@ export default function ChatPage() {
                   pending={pending}
                 />
               </div>
-            </div>
-            {/* Centred under the column, wherever the card has moved it. */}
-            <div className="pointer-events-none absolute inset-0" style={floating ? { left: RAIL, right: RESERVE } : undefined}>
-              <JumpToLatest show={scroll.showJump} onClick={scroll.scrollToBottom} />
-            </div>
-            <ThreadMap scrollRef={scroll.outer} contentRef={scroll.inner} markers={markers} />
-            {floating && (
-              <div className="absolute z-20" style={{ top: GAP, right: GAP + info.scrollbar }}>
-                <ThreadInfoCard {...infoCard} onHeight={info.onCardHeight} />
-              </div>
             )}
           </div>
-        )}
-        <div ref={composerRef} style={shift} className="shrink-0 px-6 pb-4">
+          {!fresh && (
+            <>
+              {/* Centred under the column, wherever the card has moved it. */}
+              <div
+                className={cn("pointer-events-none absolute inset-y-0", info.settled && "transition-[left,right] duration-200 ease-out motion-reduce:transition-none")}
+                style={{ left: sides.left - PAD, right: sides.right - PAD + info.scrollbar }}
+              >
+                <JumpToLatest show={scroll.showJump} onClick={scroll.scrollToBottom} />
+              </div>
+              <ThreadMap scrollRef={scroll.outer} contentRef={scroll.inner} markers={markers} />
+            </>
+          )}
+          {card.mounted && infoCard && (
+            <div
+              data-state={card.state}
+              className={cn(
+                "absolute z-20 will-change-[opacity,scale]",
+                info.settled && "popup-motion [--popup-origin:top_right]",
+              )}
+              style={{ top: GAP, right: GAP + info.scrollbar }}
+            >
+              <ThreadInfoCard {...infoCard} onHeight={info.onCardHeight} />
+            </div>
+          )}
+        </div>
+        <div ref={composerRef} style={composerPad} className={cn("shrink-0 pb-4", easeShift)}>
           <div className="mx-auto max-w-[760px]" style={warping ? { viewTransitionName: WARP_NAME } : undefined}>
             {composer}
           </div>

@@ -515,7 +515,8 @@ glyph; subject and project crumbs retain their custom identity icons.
   years, and a half-typed value reads empty. Use
   `app/src/components/projects/fields/DateTimeField.tsx`; bare `type="time"` is fine.
 - **`scrollbar-gutter` is a no-op in WebKit** — reserve the gutter with
-  `overflow-y: scroll` (`page-scroll`, `GridTable`, the lightbox).
+  `overflow-y: scroll` (`page-scroll`, `GridTable`, the lightbox, every chat
+  timeline's scroller), or a fold that starts the overflow narrows the column.
 - **Icons jitter half a pixel when a layer is promoted or dropped** — recurring.
   At a fractional page zoom (1.1, 1.3) WebKit re-snaps content by half a device
   pixel whenever an element gains or loses its own compositing layer, so icons

@@ -926,7 +926,10 @@ shows it.
   gutter, a column of at least 640px and the card's 304px reserve), the
   scroller and the composer take that reserve as right padding, so the column
   moves left and narrows rather than sitting under the card. The card keeps
-  clear of the scroller's scrollbar. With less room (a narrow window, the side
+  clear of the scroller's scrollbar. A new thread and an open one share one
+  scroller, so when the first send brings the card in, the column and
+  composer ease over (200 ms) as the card fades in; a thread opened cold is
+  measured before paint and draws in place. With less room (a narrow window, the side
   panel open), or when the card is taller than the pane, the button opens the
   same card as its popover, aligned to the pane's right edge. Nothing floats
   over another pane ([shell.md](./shell.md)).

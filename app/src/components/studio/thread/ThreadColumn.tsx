@@ -71,10 +71,12 @@ export function ThreadColumn({ threadId, onTurnEnd }: { threadId: number; onTurn
 
   return (
     <div ref={columnRef} className="relative flex h-full min-w-0 flex-1 flex-col">
-      {/* `overflow-x-hidden` is load-bearing: `overflow-y: auto` makes x `auto`
-          too, so one wide row would scroll the whole thread. */}
+      {/* `overflow-y: scroll` keeps the scrollbar's gutter, so a fold opening
+          never narrows the column; the right padding gives back its 6px to
+          line up with the composer. `overflow-x-hidden` is load-bearing: it
+          makes x `auto` too, and one wide row would scroll the whole thread. */}
       <div className="relative min-h-0 flex-1">
-        <div ref={scroll.outer} className="h-full overflow-x-hidden overflow-y-auto px-6 pt-6 pb-10">
+        <div ref={scroll.outer} className="h-full overflow-x-hidden overflow-y-scroll pt-6 pr-[18px] pb-10 pl-6">
           <div ref={scroll.inner} className="mx-auto w-full max-w-[640px]">
             <Timeline items={items} threadId={threadId} running={running} questions={questions} pending={pending} />
           </div>

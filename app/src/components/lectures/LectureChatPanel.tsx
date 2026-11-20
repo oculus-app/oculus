@@ -241,10 +241,12 @@ export const LectureChatPanel = memo(function LectureChatPanel({
         </button>
       </div>
 
-      {/* `overflow-x-hidden`: `overflow-y: auto` makes x `auto` too, and one
-          wide row would scroll the whole column. See `RowShell`. */}
+      {/* `overflow-y: scroll` keeps the scrollbar's 6px gutter, so a fold
+          opening never narrows the column (the right padding gives it back).
+          `overflow-x-hidden`: scroll makes x `auto` too, and one wide row
+          would scroll the whole column. See `RowShell`. */}
       <div className="relative min-h-0 flex-1">
-        <div ref={scroll.outer} className="h-full overflow-x-hidden overflow-y-auto px-2">
+        <div ref={scroll.outer} className="h-full overflow-x-hidden overflow-y-scroll pr-0.5 pl-2">
           <div ref={scroll.inner} className="min-w-0 pt-1 pb-6">
             {empty ? (
               // No suggestion chips: the dock is too narrow.
