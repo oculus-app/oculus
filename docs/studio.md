@@ -2043,11 +2043,16 @@ unlinked while the first video's folder exists; once that folder is gone its
 row is dropped and the thread may link another. The folder must pass
 `video_in`. Since `studio new` refuses a folder that exists, a row already
 naming the slug was left by a deleted video, and the new folder's thread
-takes it over. Scratch videos are never linked: `studio new --scratch`, and
-any creation in a thread whose user rows carry `meta.libraryChange` (Ask for
-a change on Components and Themes sends `libraryChange`, and its text asks
-for `--scratch`). Threads come only from Chat: Studio's New video opens one
-with the skill chip in its box.
+takes it over. The folder linked is one the command asked for by slug, so
+in `studio new tmp --scratch && studio new real` it is `real`. The command
+is read in every agent's shell (`sh`/`zsh -lc`, and PowerShell or `cmd /c`
+on Windows; `harness/event/studio_command.rs`). Scratch videos are never
+linked: `studio new --scratch`, and any creation in a turn whose initiating
+user row carries `meta.libraryChange` (Ask for a change on Components and
+Themes sends `libraryChange`, and its text asks for `--scratch`). A later
+turn in that thread asking for a real video links it as any other. Threads
+come only from Chat: Studio's New video opens one with the skill chip in its
+box.
 
 Every send reads the link (`StudioBrief::read`, `None` once the folder is
 gone) into "The video being made":

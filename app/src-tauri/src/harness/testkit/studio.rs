@@ -1,5 +1,5 @@
 use super::{replay, scenario::Scenario};
-use crate::harness::event::studio_command::is_studio_new;
+use crate::harness::event::studio_command::new_slugs;
 use serde_json::Value;
 
 /// Replay the captured shell envelopes, substituting only the command's
@@ -39,7 +39,7 @@ fn studio_creation_is_recognised_through_each_recorded_bridge() {
                     .and_then(|s| serde_json::from_str::<Value>(s).ok())
                     .unwrap_or_else(|| item["meta"].clone());
                 meta["ok"] == true
-                    && is_studio_new(meta["name"].as_str().unwrap_or(""), &meta["input"])
+                    && !new_slugs(meta["name"].as_str().unwrap_or(""), &meta["input"]).is_empty()
             }),
             "{name}: {:?}",
             replay.items

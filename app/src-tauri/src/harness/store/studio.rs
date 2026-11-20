@@ -1,8 +1,9 @@
 //! Link a command's newly made video in the same transaction as its tool row.
-//! A scratch video (`studio new --scratch`, or any made in an Ask for a
-//! change thread, whose user rows carry `libraryChange`) is never linked.
+//! A scratch video (`studio new --scratch`, or any made by a turn an Ask for
+//! a change send started, whose user row carries `libraryChange`) is never
+//! linked.
 
-use crate::harness::event::studio_command::is_studio_new;
+use crate::harness::event::studio_command::new_slugs;
 use crate::studio::videos;
 use serde_json::Value;
 use sqlx::SqliteConnection;
@@ -32,21 +33,34 @@ pub(super) async fn link_created(
     output: &str,
     root: &Path,
 ) -> Result<(), String> {
-    if !is_studio_new(name, input) {
+    let asked = new_slugs(name, input);
+    if asked.is_empty() {
         return Ok(());
     }
-    let Some(slug) = printed_slug(output, root) else {
+    let Some(slug) = printed_slug(output, root, &asked) else {
         return Ok(());
     };
-    let change: Option<i64> = sqlx::query_scalar(
-        "SELECT 1 FROM harness_items WHERE thread_id = ?1 AND kind = 'user'
-         AND json_extract(meta, '$.libraryChange') = 1 LIMIT 1",
+    // The row's run is the authority, not whichever run happens to be live
+    // when a delayed completion arrives.
+    let meta: Option<Value> = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT u.meta FROM harness_items t JOIN harness_runs r ON r.id = t.run_id
+         JOIN harness_items u ON u.id = r.initiating_item_id
+         WHERE t.id = ?1 AND t.thread_id = ?2 AND u.kind = 'user'",
     )
+    .bind(item)
     .bind(thread)
     .fetch_optional(&mut *conn)
     .await
-    .map_err(|e| e.to_string())?;
-    if change.is_some() {
+    .map_err(|e| e.to_string())?
+    .flatten()
+    .and_then(|s| serde_json::from_str(&s).ok());
+    // An Ask for a change turn's videos are scratch; a later turn in the same
+    // thread asking for a real video links as any other.
+    if meta
+        .as_ref()
+        .and_then(|m| m.get("libraryChange")?.as_bool())
+        == Some(true)
+    {
         return Ok(());
     }
     // A link whose folder is gone (the video was deleted) frees the thread
@@ -64,21 +78,8 @@ pub(super) async fn link_created(
             .await
             .map_err(|e| e.to_string())?;
     }
-    // The row's run is the authority, not whichever run happens to be live
-    // when a delayed completion arrives. A second creation stays unlinked.
-    let meta: Option<String> = sqlx::query_scalar(
-        "SELECT u.meta FROM harness_items t JOIN harness_runs r ON r.id = t.run_id
-         JOIN harness_items u ON u.id = r.initiating_item_id
-         WHERE t.id = ?1 AND t.thread_id = ?2 AND u.kind = 'user'",
-    )
-    .bind(item)
-    .bind(thread)
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(|e| e.to_string())?
-    .flatten();
     let length = meta
-        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .as_ref()
         .and_then(|v| v.get("studio")?.get("lengthSecs")?.as_i64())
         .filter(|n| *n > 0);
     // A thread keeps its first video, a duplicate event included. `studio
@@ -102,23 +103,40 @@ pub(super) async fn link_created(
     Ok(())
 }
 
-fn printed_slug(output: &str, root: &Path) -> Option<String> {
-    // CLI text may be coloured; JSON is emitted when --json is selected.
+/// The first folder the output says was made that the command asked for,
+/// so a scratch video made in the same line is passed over.
+fn printed_slug(output: &str, root: &Path, asked: &[String]) -> Option<String> {
+    // CLI text may be coloured; JSON is emitted when --json is selected,
+    // one document per command.
     let ansi = regex::Regex::new(r"\x1b\[[0-9;]*m").ok()?;
     let clean = ansi.replace_all(output, "");
-    let json = serde_json::from_str::<Value>(clean.trim()).ok();
-    let dir = json
-        .as_ref()
-        .and_then(|v| v.get("dir")?.as_str())
-        .or_else(|| clean.lines().find_map(|l| l.trim().strip_prefix("made ")))?;
-    let path = Path::new(dir.trim());
-    if !path.is_absolute() || path.parent()? != root {
-        return None;
-    }
-    let slug = path.file_name()?.to_str()?;
-    // video_in canonicalises and refuses symlinks outside the video root.
-    videos::video_in(root, slug).ok()?;
-    Some(slug.into())
+    let whole = serde_json::from_str::<Value>(clean.trim()).ok();
+    let dirs: Vec<String> = match whole.as_ref().and_then(|v| v.get("dir")?.as_str()) {
+        Some(dir) => vec![dir.to_owned()],
+        None => clean
+            .lines()
+            .filter_map(|l| {
+                let l = l.trim();
+                l.strip_prefix("made ").map(str::to_owned).or_else(|| {
+                    let v = serde_json::from_str::<Value>(l).ok()?;
+                    Some(v.get("dir")?.as_str()?.to_owned())
+                })
+            })
+            .collect(),
+    };
+    dirs.iter().find_map(|dir| {
+        let path = Path::new(dir.trim());
+        if !path.is_absolute() || path.parent()? != root {
+            return None;
+        }
+        let slug = path.file_name()?.to_str()?;
+        if !asked.iter().any(|a| a == slug) {
+            return None;
+        }
+        // video_in canonicalises and refuses symlinks outside the video root.
+        videos::video_in(root, slug).ok()?;
+        Some(slug.to_owned())
+    })
 }
 
 #[cfg(test)]
@@ -297,7 +315,7 @@ mod tests {
                 &pool,
                 thread,
                 item,
-                "oculus studio new x",
+                &format!("oculus studio new {slug}"),
                 &root.join(slug),
                 &root,
             )
@@ -312,7 +330,7 @@ mod tests {
             &pool,
             thread,
             item,
-            "oculus studio new x",
+            "oculus studio new second",
             &root.join("second"),
             &root,
         )
@@ -336,12 +354,49 @@ mod tests {
         .await;
         assert_eq!(link_of(&pool, other).await, Some(("gone".into(), None)));
 
-        assert!(printed_slug("made /tmp/elsewhere", &root).is_none());
-        assert!(printed_slug(&format!("made {}/../first", root.display()), &root).is_none());
+        let asked = |s: &str| vec![s.to_owned()];
+        assert!(printed_slug("made /tmp/elsewhere", &root, &asked("elsewhere")).is_none());
+        let up = format!("made {}/../first", root.display());
+        assert!(printed_slug(&up, &root, &asked("first")).is_none());
+        let json = json!({"dir":root.join("second")}).to_string();
         assert_eq!(
-            printed_slug(&json!({"dir":root.join("second")}).to_string(), &root).as_deref(),
+            printed_slug(&json, &root, &asked("second")).as_deref(),
             Some("second")
         );
+        // A folder the command did not ask for (`second`) is passed over.
+        assert!(printed_slug(&json, &root, &asked("gone")).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_line_making_a_scratch_video_then_a_real_one_links_the_real_one() {
+        let pool = pool().await;
+        let root = scratch_root();
+        let thread = store::create_thread(&pool, Provider::Claude, None, None, None, "video")
+            .await
+            .unwrap();
+        let run = send(&pool, thread, json!({})).await;
+        let item = tool(&pool, thread, &run).await;
+        make(&root, "tmp");
+        make(&root, "real");
+        let mut conn = pool.acquire().await.unwrap();
+        link_created(
+            &mut conn,
+            thread,
+            item,
+            "Bash",
+            &json!({"command":"oculus studio new tmp --scratch && oculus studio new real"}),
+            &format!(
+                "made {}\nmade {}",
+                root.join("tmp").display(),
+                root.join("real").display()
+            ),
+            &root,
+        )
+        .await
+        .unwrap();
+        drop(conn);
+        assert_eq!(link_of(&pool, thread).await, Some(("real".into(), None)));
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -367,8 +422,23 @@ mod tests {
         assert_eq!(
             link_of(&pool, thread).await,
             None,
-            "an Ask for a change thread"
+            "an Ask for a change turn"
         );
+
+        // A later turn in that thread asking for a real video links it.
+        let later = send(&pool, thread, json!({})).await;
+        let item = tool(&pool, thread, &later).await;
+        make(&root, "real");
+        created(
+            &pool,
+            thread,
+            item,
+            "oculus studio new real",
+            &root.join("real"),
+            &root,
+        )
+        .await;
+        assert_eq!(link_of(&pool, thread).await, Some(("real".into(), None)));
 
         let plain = store::create_thread(&pool, Provider::Claude, None, None, None, "chat")
             .await

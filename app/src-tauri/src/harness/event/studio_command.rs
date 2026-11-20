@@ -2,22 +2,30 @@
 
 use serde_json::Value;
 
-pub fn is_studio_new(name: &str, input: &Value) -> bool {
+/// The slugs a shell tool's command asked `oculus studio new` to make, in
+/// order, scratch videos left out.
+pub fn new_slugs(name: &str, input: &Value) -> Vec<String> {
     let keys: &[&str] = match name {
         "Bash" | "bash" | "commandExecution" => &["command"],
         "run_command" => &["CommandLine", "Command"],
-        _ => return false,
+        _ => return Vec::new(),
     };
-    keys.iter()
-        .filter_map(|key| input.get(key)?.as_str())
-        .any(|line| has_new(line, 0))
+    let mut out = Vec::new();
+    for line in keys.iter().filter_map(|key| input.get(key)?.as_str()) {
+        collect(line, false, 0, &mut out);
+    }
+    out
 }
 
-fn has_new(line: &str, depth: usize) -> bool {
+/// Flags of `studio new` that take a value, so the word after one is not
+/// the slug.
+const VALUED: &[&str] = &["--theme", "--subject", "--title"];
+
+fn collect(line: &str, windows: bool, depth: usize, out: &mut Vec<String>) {
     if depth > 3 {
-        return false;
+        return;
     }
-    commands(line).iter().any(|words| {
+    for words in commands(line, windows) {
         let mut at = 0;
         while words
             .get(at)
@@ -26,17 +34,39 @@ fn has_new(line: &str, depth: usize) -> bool {
             at += 1;
         }
         let Some(exe) = words.get(at) else {
-            return false;
+            continue;
         };
-        let base = exe.rsplit(['/', '\\']).next().unwrap_or(exe);
+        let base = exe
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(exe)
+            .to_ascii_lowercase();
+        let base = base.strip_suffix(".exe").unwrap_or(&base);
         if matches!(base, "sh" | "bash" | "zsh") {
-            return words
+            if words
                 .get(at + 1)
                 .is_some_and(|w| matches!(w.as_str(), "-c" | "-lc"))
-                && words.get(at + 2).is_some_and(|w| has_new(w, depth + 1));
+            {
+                if let Some(inner) = words.get(at + 2) {
+                    collect(inner, false, depth + 1, out);
+                }
+            }
+            continue;
         }
-        if !base.eq_ignore_ascii_case("oculus") && !base.eq_ignore_ascii_case("oculus.exe") {
-            return false;
+        // Codex on Windows runs `powershell.exe -Command '…'`; the rest of
+        // the words are the command, with backslashes as path separators.
+        if matches!(base, "powershell" | "pwsh" | "cmd") {
+            let switch = words[at + 1..]
+                .iter()
+                .position(|w| matches!(w.to_ascii_lowercase().as_str(), "-command" | "-c" | "/c"));
+            if let Some(i) = switch {
+                let inner = words[at + 2 + i..].join(" ");
+                collect(&inner, true, depth + 1, out);
+            }
+            continue;
+        }
+        if base != "oculus" {
+            continue;
         }
         at += 1;
         while words
@@ -45,16 +75,30 @@ fn has_new(line: &str, depth: usize) -> bool {
         {
             at += 1;
         }
+        if words.get(at).map(String::as_str) != Some("studio")
+            || words.get(at + 1).map(String::as_str) != Some("new")
+        {
+            continue;
+        }
+        let args = &words[at + 2..];
         // A scratch video checks a library item and belongs to no thread.
-        words.get(at).is_some_and(|w| w == "studio")
-            && words.get(at + 1).is_some_and(|w| w == "new")
-            && !words[at + 2..].iter().any(|w| w == "--scratch")
-    })
+        if args.iter().any(|w| w == "--scratch") {
+            continue;
+        }
+        let mut i = 0;
+        while let Some(arg) = args.get(i) {
+            if !arg.starts_with('-') {
+                out.push(arg.clone());
+                break;
+            }
+            i += if VALUED.contains(&arg.as_str()) { 2 } else { 1 };
+        }
+    }
 }
 
 /// Shell words with quotes respected; separators split commands, redirects
 /// and pipelines end the part inspected. Quoted prose is never a command.
-fn commands(line: &str) -> Vec<Vec<String>> {
+fn commands(line: &str, windows: bool) -> Vec<Vec<String>> {
     let mut out = Vec::new();
     let mut words = Vec::new();
     let mut word = String::new();
@@ -65,18 +109,29 @@ fn commands(line: &str) -> Vec<Vec<String>> {
         if let Some(q) = quote {
             if c == q {
                 quote = None;
-            } else if c == '\\' && q == '"' {
-                if let Some(next) = chars.next() {
-                    word.push(next);
-                }
+            } else if c == '\\'
+                && q == '"'
+                && !windows
+                && chars
+                    .peek()
+                    .is_some_and(|n| matches!(n, '$' | '`' | '"' | '\\' | '\n'))
+            {
+                // Inside double quotes a backslash escapes only these, as in
+                // sh; `"C:\Users"` keeps its separator.
+                word.push(chars.next().unwrap_or(c));
             } else {
                 word.push(c);
             }
         } else if c == '\'' || c == '"' {
             quote = Some(c);
-        } else if c == '\\' {
+        } else if c == '\\' && !windows {
             if let Some(next) = chars.next() {
                 word.push(next);
+            }
+        } else if windows && c == '&' && chars.peek() != Some(&'&') {
+            // PowerShell's call operator: `& 'C:\…\oculus.exe' studio …`.
+            if !word.is_empty() && !drop {
+                words.push(std::mem::take(&mut word));
             }
         } else if c.is_whitespace() || matches!(c, ';' | '&' | '|' | '>' | '<') {
             if !word.is_empty() {
@@ -139,7 +194,7 @@ mod tests {
                 json!({"CommandLine":"oculus studio new minimax"}),
             ),
         ] {
-            assert!(is_studio_new(name, &input), "{name}: {input}");
+            assert!(!new_slugs(name, &input).is_empty(), "{name}: {input}");
         }
         for line in [
             "echo 'oculus studio new minimax'",
@@ -149,11 +204,40 @@ mod tests {
             "echo x | oculus studio new minimax",
             "oculus studio new scratch-card --scratch",
         ] {
-            assert!(!is_studio_new("Bash", &json!({"command":line})), "{line}");
+            assert!(
+                new_slugs("Bash", &json!({"command":line})).is_empty(),
+                "{line}"
+            );
         }
-        assert!(!is_studio_new(
-            "Read",
-            &json!({"command":"oculus studio new x"})
-        ));
+        assert!(new_slugs("Read", &json!({"command":"oculus studio new x"})).is_empty());
+    }
+
+    #[test]
+    fn windows_shells_and_paths() {
+        for line in [
+            r#"powershell.exe -NoProfile -Command "oculus studio new minimax""#,
+            r#"pwsh -c 'C:\Users\me\AppData\Local\Oculus\oculus.exe studio new minimax'"#,
+            r#"cmd /c oculus.exe studio new minimax"#,
+            r#"powershell -Command "& 'C:\Program Files\Oculus\OCULUS.EXE' studio new minimax""#,
+        ] {
+            assert_eq!(
+                new_slugs("commandExecution", &json!({ "command": line })),
+                vec!["minimax".to_owned()],
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_slug_skips_valued_flags_and_scratch_lines() {
+        let slugs = |line: &str| new_slugs("Bash", &json!({ "command": line }));
+        assert_eq!(
+            slugs("oculus studio new --theme chalk --title 'Week 7' w7"),
+            ["w7"]
+        );
+        assert_eq!(
+            slugs("oculus studio new tmp --scratch && oculus studio new real"),
+            ["real"]
+        );
     }
 }
