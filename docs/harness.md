@@ -3334,7 +3334,12 @@ section after the subject and lecture ones: the absolute folder, format,
 theme, subject library and length target read from video.json and the link,
 and the order of work (direct it with the skill, draft, ask before the
 final). It is the per-thread half the opencode bridge sends ahead
-of the first message.
+of the first message. A video linked mid-thread is newer than the session:
+each live session remembers the video its instructions named (`Live::studio`),
+and when the thread's brief names another, `Harness::send` appends the
+section to that one send's prompt (`studio::late_section`, every provider
+alike) and records it, so it rides once. A send whose write fails carries it
+again.
 
 **The video card.** A linked thread shows `VideoCard`
 (`components/harness/video/`) above its timeline, outside the row window, so

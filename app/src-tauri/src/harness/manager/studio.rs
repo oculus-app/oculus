@@ -22,20 +22,21 @@ pub struct StudioBrief {
 }
 
 impl StudioBrief {
-    /// The brief for `link`'s video under `videos`.
-    pub fn read(videos: &Path, link: &StudioLink) -> Self {
-        let dir = videos.join(&link.slug);
+    /// The brief for `link`'s video under `videos`; `None` once its folder
+    /// is gone, so a deleted video is never briefed.
+    pub fn read(videos: &Path, link: &StudioLink) -> Option<Self> {
+        let dir = crate::studio::videos::video_in(videos, &link.slug).ok()?;
         let video = std::fs::read_to_string(dir.join("video.json"))
             .ok()
             .and_then(|text| serde_json::from_str::<studio_core::Video>(&text).ok());
-        Self {
+        Some(Self {
             slug: link.slug.clone(),
             theme: video.as_ref().map(|v| v.theme.clone()),
             subject: video.as_ref().and_then(|v| v.subject.clone()),
             portrait: video.as_ref().map(|v| v.size.height > v.size.width),
             length_secs: link.length_secs,
             dir,
-        }
+        })
     }
 }
 
@@ -89,6 +90,14 @@ pub fn section(video: &StudioBrief) -> String {
     s
 }
 
+/// The section a live session has not had: the thread's video was linked
+/// after the session came up (or replaced since), so its instructions never
+/// named it. `bound` is the video the session was told about.
+pub(super) fn late_section(bound: Option<&str>, brief: Option<&StudioBrief>) -> Option<String> {
+    let brief = brief?;
+    (bound != Some(brief.slug.as_str())).then(|| section(brief).trim_start().to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,7 +123,7 @@ mod tests {
         )
         .unwrap();
 
-        let brief = StudioBrief::read(&root, &link("bayes", Some(60)));
+        let brief = StudioBrief::read(&root, &link("bayes", Some(60))).unwrap();
         assert_eq!(brief.theme.as_deref(), Some("warm"));
         assert_eq!(brief.portrait, Some(true));
         let text = section(&brief);
@@ -132,9 +141,25 @@ mod tests {
         let root = Scratch::new("studio-brief-broken");
         std::fs::create_dir_all(root.join("broken")).unwrap();
         std::fs::write(root.join("broken/video.json"), "{").unwrap();
-        let text = section(&StudioBrief::read(&root, &link("broken", None)));
+        let text = section(&StudioBrief::read(&root, &link("broken", None)).unwrap());
         assert!(text.contains("**broken**"));
         assert!(!text.contains("Format:") && !text.contains("Theme:"));
         assert!(!text.contains("Length:"));
+        assert!(
+            StudioBrief::read(&root, &link("deleted", None)).is_none(),
+            "a link whose folder is gone briefs nothing"
+        );
+    }
+
+    #[test]
+    fn a_video_linked_after_spawn_rides_the_next_send_once() {
+        let root = Scratch::new("studio-brief-late");
+        std::fs::create_dir_all(root.join("bayes")).unwrap();
+        let brief = StudioBrief::read(&root, &link("bayes", None)).unwrap();
+        let late = late_section(None, Some(&brief)).unwrap();
+        assert!(late.starts_with("## The video being made"), "{late}");
+        assert_eq!(late_section(Some("bayes"), Some(&brief)), None);
+        assert!(late_section(Some("older"), Some(&brief)).is_some());
+        assert_eq!(late_section(None, None), None);
     }
 }

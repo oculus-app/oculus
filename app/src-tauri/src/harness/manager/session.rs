@@ -67,22 +67,45 @@ impl Harness {
         // Sent outside the lock: the CLI can take a minute to accept a
         // message, and holding the map would stall every other thread's
         // send and Stop, this thread's Stop included.
-        let (handle, generation, sinks) = {
+        let (handle, generation, sinks, late, before) = {
             let mut live = self.live.lock().unwrap();
             let caps = self.capabilities(provider);
             self.ensure(&mut live, thread_id, (provider, caps), resume, opts, sinks)?;
             let session = live
-                .get(&thread_id)
+                .get_mut(&thread_id)
                 .ok_or_else(|| SendError::Unsent("no session".into()))?;
+            // A video linked after this session came up: its section rides
+            // this send, once, whatever the provider.
+            let late =
+                super::studio::late_section(session.studio.as_deref(), opts.studio_brief.as_ref());
+            let before = session.studio.clone();
+            if late.is_some() {
+                session.studio = opts.studio_brief.as_ref().map(|b| b.slug.clone());
+            }
             (
                 session.handle.clone(),
                 session.generation,
                 session.sinks.clone(),
+                late,
+                before,
             )
+        };
+        let text = match &late {
+            Some(section) => format!("{text}\n\n---\n{section}"),
+            None => text.to_owned(),
         };
         // The run this send belongs to is bound to the turn it is accepted as.
         let bound: Bound = Arc::new(move |turn| sinks.bound(generation, turn));
-        handle.send_turn(text, &bound).map_err(SendError::Unknown)
+        let sent = handle.send_turn(&text, &bound).map_err(SendError::Unknown);
+        if sent.is_err() && late.is_some() {
+            // Not known to have arrived: the next send carries it again.
+            if let Some(session) = self.live.lock().unwrap().get_mut(&thread_id) {
+                if session.generation == generation {
+                    session.studio = before;
+                }
+            }
+        }
+        sent
     }
 
     /// The thread's live session has work running in the background that
@@ -204,6 +227,7 @@ impl Harness {
                     mode,
                     generation,
                     sinks: sinks.clone(),
+                    studio: opts.studio_brief.as_ref().map(|b| b.slug.clone()),
                 },
             );
             return Ok(());
@@ -330,6 +354,7 @@ impl Harness {
                 mode,
                 generation,
                 sinks: sinks.clone(),
+                studio: opts.studio_brief.as_ref().map(|b| b.slug.clone()),
             },
         );
         Ok(())

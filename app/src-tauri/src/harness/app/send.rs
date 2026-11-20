@@ -77,16 +77,14 @@ pub(super) async fn lecture_brief(
 }
 
 /// The Studio section of a thread's brief, read off the video's link and
-/// folder on every send. `None` for a thread that makes no video.
+/// folder on every send. `None` for a thread that makes no video, or whose
+/// video's folder is gone.
 pub(super) async fn studio_brief(pool: &SqlitePool, thread_id: i64) -> Option<StudioBrief> {
     let link = crate::db::store::studio_link_of_thread(pool, thread_id)
         .await
         .ok()
         .flatten()?;
-    Some(StudioBrief::read(
-        &crate::studio::videos::videos_dir(),
-        &link,
-    ))
+    StudioBrief::read(&crate::studio::videos::videos_dir(), &link)
 }
 
 /// Why a start step did not hand its run to the provider.
