@@ -88,7 +88,7 @@ export function ListHeader({
                   on ? "bg-popover text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <IconC size={14} className="shrink-0" />
+                <IconC size={14} className="shrink-0 will-change-transform" />
                 <span className="truncate">{label}</span>
               </button>
             );

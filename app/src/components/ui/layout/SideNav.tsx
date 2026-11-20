@@ -1,4 +1,4 @@
-import { useRef, type ReactNode, type Ref } from "react";
+import { useRef, useState, type ReactNode, type Ref, type TransitionEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { MagnifyingGlass, SidebarSimple, X, type Icon } from "@phosphor-icons/react";
 
@@ -13,8 +13,7 @@ export const SIDE_NAV_ROW_IDLE =
   "text-muted-foreground font-normal hover:bg-sidebar-item-hover hover:text-foreground";
 export const SIDE_NAV_ROW_ACTIVE = "bg-sidebar-item-active text-foreground font-medium";
 
-/** Fades a label out while the column folds away, so it is gone before the
- *  narrowing width can be seen truncating it. */
+/** Fades a label out while the column folds away, and back in as it opens. */
 export const SIDE_NAV_FOLDS =
   "transition-opacity will-change-[opacity] duration-150 group-data-[collapsed=true]/nav:opacity-0";
 
@@ -49,6 +48,22 @@ export function SideNav({
   const scrollRef = useRef<HTMLDivElement>(null);
   useScrollFade(scrollRef);
 
+  // While it folds, and while folded, the content keeps its open width and
+  // the easing edge only clips it: laid out at every width on the way, each
+  // row reflowed and repainted per frame, and an unfold dropped frames.
+  const openWidth = useRef(width);
+  if (!collapsed && width) openWidth.current = width;
+  const [easing, setEasing] = useState(false);
+  const [wasCollapsed, setWasCollapsed] = useState(collapsed);
+  if (wasCollapsed !== collapsed) {
+    setWasCollapsed(collapsed);
+    setEasing(animate);
+  }
+  const eased = (e: TransitionEvent) => {
+    if (e.target === e.currentTarget && e.propertyName === "width") setEasing(false);
+  };
+  const held = (collapsed || easing) && openWidth.current ? openWidth.current : undefined;
+
   return (
     <nav
       aria-label={ariaLabel}
@@ -56,20 +71,28 @@ export function SideNav({
       // A zero-width column is gone: no seam border, nothing to tab into.
       inert={width === 0}
       style={width == null ? undefined : { width }}
+      onTransitionEnd={eased}
+      onTransitionCancel={eased}
       className={cn(
-        "group/nav flex h-full shrink-0 flex-col overflow-hidden border-r border-border-subtle bg-background",
+        // The seam is drawn over the edge, not a border: a border's width snaps
+        // to device pixels at a fractional zoom, and content held at the
+        // open width less 1px settled a device pixel off, jittering its icons.
+        "group/nav relative h-full shrink-0 overflow-hidden bg-background",
+        "after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-subtle",
         width == null && "w-52",
-        width === 0 && "border-r-0",
+        width === 0 && "after:hidden",
         animate && "transition-[width] duration-200 ease-out",
       )}
     >
-      <div className="shrink-0">{header}</div>
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pt-1 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {/* One wrapper: the fade's ResizeObserver watches the first child. */}
-        <div className={cn(fill && "flex min-h-full flex-col")}>{children}</div>
+      <div style={held ? { width: held } : undefined} className={cn("flex h-full flex-col", !held && "w-full")}>
+        <div className="shrink-0">{header}</div>
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pt-1 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {/* One wrapper: the fade's ResizeObserver watches the first child. */}
+          <div className={cn(fill && "flex min-h-full flex-col")}>{children}</div>
+        </div>
       </div>
     </nav>
   );

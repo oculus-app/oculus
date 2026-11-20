@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useStoredState } from "@/hooks/ui/useStoredState";
 import { threadInfoFloats } from "./layout";
 
@@ -29,18 +29,30 @@ export interface ThreadInfoState {
 export function useThreadInfo(scroller: RefObject<HTMLElement | null>): ThreadInfoState {
   const [shown, setShown] = useStoredState(SHOWN_KEY, readShown);
   const [area, areaRef] = useState<HTMLDivElement | null>(null);
-  const [box, setBox] = useState({ width: 0, height: 0, scrollbar: 0 });
+  // The box lives in a ref and only what it decides is state: a fold eases
+  // the pane's width every frame, and the page must not re-render with it.
+  const box = useRef({ width: 0, height: 0 });
+  const [fit, setFit] = useState({ floats: false, scrollbar: 0 });
   const [cardHeight, onCardHeight] = useState(0);
+  const cardRef = useRef(cardHeight);
+  cardRef.current = cardHeight;
   const [popoverOpen, setPopoverOpen] = useState(false);
+
+  const decide = useCallback((scrollbar?: number) => {
+    const { width, height } = box.current;
+    const floats = width > 0 && threadInfoFloats(width, height, cardRef.current);
+    setFit((f) => {
+      const next = { floats, scrollbar: scrollbar ?? f.scrollbar };
+      return f.floats === next.floats && f.scrollbar === next.scrollbar ? f : next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!area) return;
     const el = scroller.current;
     const measure = () => {
-      const width = el?.clientWidth ?? area.clientWidth;
-      const height = area.clientHeight;
-      const scrollbar = el ? el.offsetWidth - el.clientWidth : 0;
-      setBox((b) => (b.width === width && b.height === height && b.scrollbar === scrollbar ? b : { width, height, scrollbar }));
+      box.current = { width: el?.clientWidth ?? area.clientWidth, height: area.clientHeight };
+      decide(el ? el.offsetWidth - el.clientWidth : 0);
     };
     measure();
     // The scroller's box also changes when its scrollbar comes or goes.
@@ -48,9 +60,10 @@ export function useThreadInfo(scroller: RefObject<HTMLElement | null>): ThreadIn
     ro.observe(area);
     if (el) ro.observe(el);
     return () => ro.disconnect();
-  }, [area, scroller]);
+  }, [area, scroller, decide]);
+  useLayoutEffect(() => decide(), [cardHeight, decide]);
 
-  const floats = box.width > 0 && threadInfoFloats(box.width, box.height, cardHeight);
+  const { floats } = fit;
   // Room came back: the card floats again, and the popover would be a second copy.
   useEffect(() => {
     if (floats) setPopoverOpen(false);
@@ -70,6 +83,6 @@ export function useThreadInfo(scroller: RefObject<HTMLElement | null>): ThreadIn
     toggle,
     areaRef,
     onCardHeight,
-    scrollbar: box.scrollbar,
+    scrollbar: fit.scrollbar,
   };
 }

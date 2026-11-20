@@ -404,8 +404,12 @@ themes are opt-in and keep the same structure.
   ⌘⌥B, from `SideNavCollapseToggle` at the start of the
   page's 48px header row, beside its title, or by dragging it narrow. The
   toggle takes the panel itself; `useSideNavPanel` binds ⌘⌥B and names it in
-  the panel's `shortcut`, so every toggle's tooltip shows it. Labels
-  fade as the width eases shut (`SIDE_NAV_FOLDS`). Drag samples are coalesced
+  the panel's `shortcut`, so every toggle's tooltip shows it. While it
+  folds or unfolds, and while folded, the column's content keeps its open
+  width and the easing edge only clips it, so no row reflows or repaints per
+  frame; labels fade with the fold (`SIDE_NAV_FOLDS`). Its seam is a line
+  drawn over the right edge, not a border, whose width snaps to device pixels
+  at a fractional zoom and left the held content a pixel off where it settles. Drag samples are coalesced
   into one width update per animation frame; release applies the last sample
   even before that frame arrives. The width and fold are saved to storage
   only after dragging ends, so synchronous storage stays out of the resize
@@ -521,7 +525,8 @@ glyph; subject and project crumbs retain their custom identity icons.
   expands (`SwitcherList` in `app/src/components/subjects/nav/SubjectSwitcher.tsx`), and anything that transitions
   `opacity` or `transform` — a hover-reveal button (`MessageActions` in
   `app/src/components/harness/timeline/`, `ThreadRow`'s delete), a caret that fades and rotates, the
-  label fade `SIDE_NAV_FOLDS`. All carry `will-change`, which keeps the layer on
+  label fade `SIDE_NAV_FOLDS`, and a side nav's fold settling (Chat's
+  Recents/Subject icons, `threads/list/Header.tsx`). All carry `will-change`, which keeps the layer on
   from the start. Whole-pixel row heights do not help. **Every new
   `transition-opacity` / `transition-transform` on an icon, or on a row holding
   one, gets `will-change-[opacity]` (or `[opacity,transform]`)** — grep for
