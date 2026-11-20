@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  */
 
 const CONTENT =
-  "z-50 min-w-48 overflow-hidden rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none";
+  "popup-motion z-50 min-w-48 overflow-hidden rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none";
 
 const ITEM =
   "flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2 py-1.5 text-[12.5px] outline-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-[state=open]:bg-accent";

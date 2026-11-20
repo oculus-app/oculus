@@ -2,9 +2,10 @@ import { createContext, useContext, useEffect, useId, useRef, useState, useSyncE
 import { createPortal } from "react-dom";
 import { X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { POPUP_EXIT_MS } from "@/hooks/ui/usePresence";
 
 /**
- * A short notice that needs nothing back: it drops in at the top centre of
+ * A short notice that needs nothing back: it springs in at the top centre of
  * the window and leaves on its own (docs/ui.md says when one fits).
  *
  * Portalled to the body and fixed below the tab strip and the page's 48px
@@ -46,7 +47,7 @@ export function Toast({
       setMounted(true);
       return;
     }
-    const timer = window.setTimeout(() => setMounted(false), EXIT_MS);
+    const timer = window.setTimeout(() => setMounted(false), POPUP_EXIT_MS);
     return () => window.clearTimeout(timer);
   }, [open]);
 
@@ -101,8 +102,8 @@ export function Toast({
           if (e.key === "Escape") closeRef.current();
         }}
         className={cn(
-          "w-full max-w-[21rem] rounded-xl border border-border-subtle bg-popover text-popover-foreground shadow-lg",
-          open ? "toast-enter pointer-events-auto" : "toast-exit",
+          "popup-motion w-full max-w-[21rem] rounded-xl border border-border-subtle bg-popover text-popover-foreground shadow-lg [--popup-origin:top]",
+          open && "pointer-events-auto",
           className,
         )}
       >
@@ -115,8 +116,6 @@ export function Toast({
   );
 }
 
-/** Matches the exit animation in `utilities.css`. */
-const EXIT_MS = 160;
 
 const TimerContext = createContext<{ duration: number; paused: boolean; close: () => void; run: number } | null>(null);
 

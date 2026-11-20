@@ -449,9 +449,8 @@ themes are opt-in and keep the same structure.
   never moves layout or covers a title: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
   wide at most unless the caller's `className` reshapes it (Groq's is a
-  content-wide pill). It drops in and lifts out (`toast-enter`, `toast-exit` in
-  `utilities.css`; reduced motion fades only, and the entrance leaves no
-  transform behind), is `role="status"` with `aria-live="polite"`, closes
+  content-wide pill). It springs in and out from its top edge
+  (`popup-motion`, below), is `role="status"` with `aria-live="polite"`, closes
   after 6 s with the timer paused while hovered or focused, on Escape or
   its `ToastClose`, and only the newest stays open. `ToastClose` is the ×
   inside a ring that drains clockwise over those 6 s and holds while the
@@ -537,6 +536,15 @@ glyph; subject and project crumbs retain their custom identity icons.
   the buttons or their SVGs leaves the ancestor's clip free to re-snap.
   A `mask-image` switched on by hover is a trigger too: keep the mask on and
   move its stops instead (`under-actions`, under a thread row's ⋯).
+- **Every popup moves with `popup-motion`** (`app/src/styles/utilities.css`):
+  menus, context menus, popovers, tooltips, hover cards, selects, dialogs, the
+  toast and Chat's floating thread info card. It opens on a spring with a
+  slight overshoot and closes on a critically damped one, scaling towards its
+  trigger (Radix's `--radix-popper-transform-origin`) while a short fade
+  hides it; reduced motion keeps only the fade. The class keys off
+  `data-state`, so a Radix content just takes the class; anything else sets
+  `data-state` and `--popup-origin` itself and stays mounted for the 110 ms
+  exit (`usePresence`). Don't add `animate-in`/`zoom-in` classes to a popup.
 - **A list row joining or leaving moves with `row-presence`**: its height
   grows from nothing as it fades in (`@starting-style`, only on
   `data-enter`, so the first draw doesn't animate) and folds back as it fades
