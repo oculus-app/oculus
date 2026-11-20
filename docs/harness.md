@@ -56,7 +56,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Voice dictation and microphone capture (cleanup: [viewers.md](./viewers.md#dictation-cleanup-groq-or-s1-mini-as-chosen)) | `app/src/components/harness/dictation/`, `app/src/lib/dictation/recording.ts`, `app/src/lib/dictation/cleanup.ts`, `app/src/lib/dictation/groqUsage.ts` |
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
-| Files pasted or dropped into a composer: writing them, their chips, the shelf, their names | `app/src-tauri/src/harness/attach.rs`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
+| Files pasted or dropped into a composer: writing them, their chips, the shelf, their names, deleting them with their chat | `app/src-tauri/src/harness/attach.rs`, `app/src-tauri/src/harness/app/thread_files.rs`, `app/src/components/harness/threads/DeleteThreadDialog.tsx`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
 | Long pastes held as text cards: format, card, editor and viewer | `app/src/lib/harness/attachments.ts`, `app/src/components/harness/attachments/PastedText.tsx`, `app/src/components/harness/attachments/PastedTextEditor.tsx` |
 | Library paths and attachments in rows and prose (`splitLibraryPaths`); copy as markdown | `app/src/lib/files/libraryPaths.ts`, `app/src/lib/files/openFile.ts`, `app/src/lib/markdown/selection.ts` |
 | Timeline window, off-screen layout, scroll anchoring, the expand protocol | `app/src/components/harness/timeline/useRowWindow.ts`, `app/src/components/harness/timeline/rowWindow.ts`, `app/src/components/harness/timeline/useRowVisibility.ts`, `app/src/components/harness/timeline/RetainedRow.tsx`, `app/src/hooks/ui/useStickToBottom.ts`, `app/src/lib/ui/followTimeline.ts`, `app/src/lib/ui/scrollAnchor.ts`, `app/src/lib/ui/expandable.ts` |
@@ -1046,8 +1046,8 @@ the page writes it into the draft once and drops it from the route.
   title is bright and medium while the thread is Done, Approval, Question
   or Failed, dimmed otherwise, and always a step brighter and larger than
   the preview (`threads/rowType.ts`, [ui.md](./ui.md)). Hover shows a ⋯
-  menu (open in a new tab, and delete, which arms the row's inline
-  confirm). It has no surface of its own: the line under it (the subject's,
+  menu (open in a new tab, and delete, which asks first and offers to delete
+  the files only that chat attached, [below](#attachments-are-files-in-agentsattachments)); the menu is not modal, so the row stays hovered when it closes. It has no surface of its own: the line under it (the subject's,
   or the title's in the Subject view) fades out at its end (`UNDER_ACTIONS`),
   and its status or age hands off to the ⋯: the one leaving fades at once,
   the other 80 ms later, so both never show together (`HIDDEN_UNDER_ACTIONS`,
@@ -3220,6 +3220,12 @@ and survives a relaunch, a stash and a thread switch. `harness_attach_image`
 (clipboard bytes, with the name the clipboard gave) and `harness_attach_file`
 (a dropped path) answer `./attachments/<name>`; a task body writes its
 pictures the same way. Nothing deletes a file whose draft was never sent.
+Deleting a chat can take its attachments with it (`DeleteThreadDialog`, a
+ticked box): `harness_thread_attachments` lists the stamped names the chat's
+messages and queue mention that no other chat does, and
+`harness_delete_attachments`, run after the chat's rows are gone, checks again
+and removes only what is still unnamed (`thread_files.rs`). What the agent
+made in `outputs/` stays.
 The claimed filename never reaches disk: `write_file` sniffs the bytes — a
 picture, `%PDF-` as `.pdf`, or UTF-8 with no control byte but tabs, line
 breaks, form feed and escape as text, which keeps

@@ -45,11 +45,10 @@ const render = (patch: Partial<HarnessThread>, props: Partial<Parameters<typeof 
       question={undefined}
       active={false}
       running={false}
-      confirming={false}
+      drafted={false}
       onOpen={() => {}}
       onNewTab={() => {}}
-      onArm={() => {}}
-      onDelete={() => {}}
+      onAskDelete={() => {}}
       {...props}
     />,
   );
@@ -129,12 +128,6 @@ describe("ThreadRow", () => {
 
   test("a general thread reads General", () => {
     expect(render({ subject_id: null }, { subject: undefined })).toContain("General");
-  });
-
-  test("an armed row shows its delete confirm instead of the menu", () => {
-    const html = render({}, { confirming: true });
-    expect(html).toContain(">Delete<");
-    expect(html).not.toContain("Actions for");
   });
 
   test("hover offers the menu alone", () => {
@@ -243,7 +236,6 @@ describe("view switch", () => {
         query=""
         onQuery={() => {}}
         onSearchEnter={() => {}}
-        fresh={false}
         onNew={() => {}}
         collapsed={false}
       />,

@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/dialog";
 
 /** The app's "delete this?" confirmation: a title, a sentence saying what goes,
- *  "Keep it" and a destructive confirm. While `busy`, both buttons are disabled
- *  and dismissal is ignored, so the dialog cannot close under a running delete. */
+ *  any `children` (an option such as "also delete its files"), "Keep it" and a
+ *  destructive confirm. While `busy`, both buttons are disabled and dismissal
+ *  is ignored, so the dialog cannot close under a running delete. */
 export function ConfirmDialog({
   open,
   onCancel,
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   confirmLabel,
   busyLabel,
   busy = false,
+  children,
 }: {
   open: boolean;
   onCancel: () => void;
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   confirmLabel: string;
   busyLabel?: string;
   busy?: boolean;
+  children?: ReactNode;
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !busy && onCancel()}>
@@ -39,6 +42,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={onCancel}>
             Keep it

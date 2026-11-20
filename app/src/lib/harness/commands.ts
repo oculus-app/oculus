@@ -183,6 +183,18 @@ export function harnessDeleteThread(threadId: number): Promise<void> {
   return invoke("harness_delete_thread", { commandId: commandId(), threadId });
 }
 
+/** The files only this chat attached (`agents/attachments/<name>`), for the
+ *  delete dialog; never what the agent made. */
+export function harnessThreadAttachments(threadId: number): Promise<string[]> {
+  return invoke<string[]>("harness_thread_attachments", { threadId });
+}
+
+/** After a chat is deleted: removes those of `paths` no chat still names,
+ *  returning the ones removed. */
+export function harnessDeleteAttachments(paths: string[]): Promise<string[]> {
+  return invoke<string[]>("harness_delete_attachments", { paths });
+}
+
 /** The thread is on screen: stamps `viewed_at` (never `updated_at`) and
  *  returns it; null when the thread is gone. */
 export async function harnessThreadViewed(threadId: number): Promise<string | null> {

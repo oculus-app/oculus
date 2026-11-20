@@ -384,6 +384,8 @@ pub fn run() {
             harness::attach::harness_attach_image,
             harness::attach::harness_attach_file,
             harness::attach::harness_attachments_exist,
+            harness::app::thread_files::harness_thread_attachments,
+            harness::app::thread_files::harness_delete_attachments,
             lectures::chapters::app::lecture_find_chapters,
             lectures::chapters::app::lecture_grab_frames,
             lectures::chapters::app::lecture_thumbnail,

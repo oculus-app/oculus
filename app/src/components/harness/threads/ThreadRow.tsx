@@ -10,7 +10,6 @@ import { chatHref, PROVIDERS, type HarnessThread, type ThreadStatus } from "@/li
 import { activityLine } from "@/lib/harness/activity";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
-import { ConfirmDelete } from "./parts";
 import { RowMenu } from "./RowMenu";
 import { DRAFT_MARK, DRAFT_TINT } from "./list/DraftRows";
 import {
@@ -44,12 +43,10 @@ export const ThreadRow = memo(function ThreadRow({
   question,
   active,
   running,
-  confirming,
   drafted,
   onOpen,
   onNewTab,
-  onArm,
-  onDelete,
+  onAskDelete,
 }: {
   thread: HarnessThread;
   /** Undefined for a general thread, or one whose subject is gone. */
@@ -62,14 +59,12 @@ export const ThreadRow = memo(function ThreadRow({
   question: string | undefined;
   active: boolean;
   running: boolean;
-  confirming: boolean;
   /** Its composer holds unsent words: the row wears a pencil. */
   drafted: boolean;
   onOpen: (id: number) => void;
   onNewTab: (thread: HarnessThread) => void;
-  /** Arms this row's delete, or disarms with null. */
-  onArm: (id: number | null) => void;
-  onDelete: (id: number) => void;
+  /** Asks to delete it; the list confirms in a dialog. */
+  onAskDelete: (thread: HarnessThread) => void;
 }) {
   const title = t.title?.trim() || "Untitled";
   const status = threadRowStatus(t, running);
@@ -154,29 +149,16 @@ export const ThreadRow = memo(function ThreadRow({
       <div
         className={cn(
           "absolute top-1 right-1.5 flex items-center",
-          !confirming && SIDE_NAV_FOLDS,
+          SIDE_NAV_FOLDS,
           "group-data-[collapsed=true]/nav:pointer-events-none",
         )}
       >
-        {confirming ? (
-          <div className="rounded-md border border-border-subtle bg-popover px-0.5">
-            <ConfirmDelete
-              label="Delete"
-              onConfirm={() => {
-                onArm(null);
-                onDelete(t.id);
-              }}
-              onCancel={() => onArm(null)}
-            />
-          </div>
-        ) : (
-          <div
-            data-row-actions
-            className={cn("flex items-center gap-px", ROW_ACTIONS)}
-          >
-            <RowMenu title={title} onNewTab={() => onNewTab(t)} onDelete={() => onArm(t.id)} />
-          </div>
-        )}
+        <div
+          data-row-actions
+          className={cn("flex items-center gap-px", ROW_ACTIONS)}
+        >
+          <RowMenu title={title} onNewTab={() => onNewTab(t)} onDelete={() => onAskDelete(t)} />
+        </div>
       </div>
     </div>
   );

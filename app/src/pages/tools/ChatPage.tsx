@@ -27,6 +27,7 @@ import { useWarpLanding } from "@/hooks/ui/useWarpLanding";
 import { useScrollFade } from "@/hooks/ui/useScrollFade";
 import { usePresence } from "@/hooks/ui/usePresence";
 import {
+  harnessDeleteAttachments,
   harnessDeleteThread,
   chatHref,
   chatDraftId,
@@ -280,13 +281,15 @@ export default function ChatPage() {
     sel?.collapseToEnd();
   }, []);
   const onDelete = useCallback(
-    (id: number) => {
+    (id: number, attachments: string[]) => {
       harnessDeleteThread(id)
         .then(() => {
           store.getState().removed(id);
           const drafts = useDraftStore.getState();
           drafts.setDraft(draftKey(id, "chat"), "");
           drafts.setPastes(draftKey(id, "chat"), []);
+          // Only once the chat's rows are gone, so Rust's recheck no longer sees them.
+          if (attachments.length) return harnessDeleteAttachments(attachments).then(() => undefined);
         })
         // Never swallow: a failed delete looks exactly like a lost click.
         .catch((e) => console.error("harness delete failed", e));

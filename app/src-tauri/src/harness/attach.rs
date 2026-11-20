@@ -281,9 +281,93 @@ pub async fn harness_attachments_exist(paths: Vec<String>) -> Result<Vec<bool>, 
     .await
 }
 
+/// The attachments a message names, as `agents/attachments/<name>`, in first
+/// mention order. Only this app's stamped names ([`filename`]) count, so a
+/// file the agent wrote into the folder under a name of its own is never
+/// taken for something the student attached.
+pub fn attachment_paths(text: &str) -> Vec<String> {
+    static STAMPED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"attachments/(\d{8}-\d{6}-[0-9a-f]{8}\.[A-Za-z0-9]{1,8})\b").unwrap()
+    });
+    let mut paths: Vec<String> = Vec::new();
+    for found in STAMPED.captures_iter(text) {
+        let path = format!("agents/attachments/{}", &found[1]);
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
+}
+
+/// Delete each `agents/attachments/<name>` file, returning the paths it
+/// removed. A path [`resolve_attachment`] refuses, or one already gone, is
+/// skipped; any other failure stops and surfaces.
+pub fn remove_attachments(data_dir: &Path, paths: &[String]) -> Result<Vec<String>, String> {
+    let root = match verified_dir(data_dir) {
+        Ok(root) => root,
+        // No attachments folder: nothing of these is on disk.
+        Err(_) if !attachments_dir(data_dir).exists() => return Ok(Vec::new()),
+        Err(e) => return Err(e),
+    };
+    let mut removed = Vec::new();
+    for rel in paths {
+        let Ok(file) = resolve_attachment(&root, rel) else {
+            continue;
+        };
+        if !file.is_file() {
+            continue;
+        }
+        std::fs::remove_file(&file).map_err(|e| format!("{rel}: {e}"))?;
+        removed.push(rel.clone());
+    }
+    Ok(removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_stamped_attachments_only() {
+        let text = "look ./attachments/20261120-063301-0a1b2c3d.png and \
+                    agents/attachments/20261120-063302-00ff00ff.pdf, again \
+                    ./attachments/20261120-063301-0a1b2c3d.png, not attachments/notes.md \
+                    nor attachments/../20261120-063301-0a1b2c3d.png";
+        assert_eq!(
+            attachment_paths(text),
+            vec![
+                "agents/attachments/20261120-063301-0a1b2c3d.png".to_string(),
+                "agents/attachments/20261120-063302-00ff00ff.pdf".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn removes_attachments_and_nothing_outside() {
+        let data = crate::test_support::Scratch::new("attach-remove");
+        let root = attachments_root(&data).unwrap();
+        std::fs::write(root.join("a.png"), b"a").unwrap();
+        std::fs::write(data.join("agents").join("keep.txt"), b"k").unwrap();
+        let removed = remove_attachments(
+            &data,
+            &[
+                "agents/attachments/a.png".into(),
+                "agents/attachments/gone.png".into(),
+                "agents/attachments/../keep.txt".into(),
+                "agents/keep.txt".into(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(removed, vec!["agents/attachments/a.png".to_string()]);
+        assert!(!root.join("a.png").exists());
+        assert!(data.join("agents").join("keep.txt").exists());
+
+        let empty = crate::test_support::Scratch::new("attach-remove-none");
+        assert_eq!(
+            remove_attachments(&empty, &["agents/attachments/a.png".into()]).unwrap(),
+            Vec::<String>::new()
+        );
+    }
 
     #[test]
     fn sniffs_the_formats_a_screenshot_arrives_as() {

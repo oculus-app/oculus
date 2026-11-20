@@ -10,6 +10,7 @@ import { useStoredState } from "@/hooks/ui/useStoredState";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { draftKey, hasDraft, useDraftStore } from "@/stores/chat/draftStore";
+import { DeleteThreadDialog } from "./DeleteThreadDialog";
 import { DraftRows } from "./list/DraftRows";
 import { ThreadRow } from "./ThreadRow";
 import { useThreadPreviews } from "./useThreadPreviews";
@@ -60,11 +61,12 @@ export const ThreadList = memo(function ThreadList({
   onOpen: (id: number) => void;
   /** No argument: the new chat asks for its scope; otherwise that group's. */
   onNew: (scope?: ChatScope) => void;
-  onDelete: (id: number) => void;
+  /** `attachments`: the chat's own files to delete after it (`DeleteThreadDialog`). */
+  onDelete: (id: number, attachments: string[]) => void;
 }) {
   const { collapsed } = panel;
   const [view, setView] = useStoredState(VIEW_KEY, readThreadView);
-  const [confirming, setConfirming] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<HarnessThread | null>(null);
   const [query, setQuery] = useState("");
   const found = useThreadSearch(query);
   const more = useHarnessStore((s) => s.moreThreads);
@@ -102,12 +104,10 @@ export const ThreadList = memo(function ThreadList({
       question={lines.questions.get(t.id)}
       active={t.id === activeId}
       running={runningIds.has(t.id)}
-      confirming={confirming === t.id}
       drafted={drafted.has(t.id)}
       onOpen={onOpen}
       onNewTab={openInNewTab}
-      onArm={setConfirming}
-      onDelete={onDelete}
+      onAskDelete={setDeleting}
     />
   );
 
@@ -163,6 +163,14 @@ export const ThreadList = memo(function ThreadList({
           className="-mx-0.5"
         />
       )}
+      <DeleteThreadDialog
+        thread={deleting}
+        onCancel={() => setDeleting(null)}
+        onConfirm={(t, attachments) => {
+          onDelete(t.id, attachments);
+          setDeleting(null);
+        }}
+      />
     </>
   );
 });
