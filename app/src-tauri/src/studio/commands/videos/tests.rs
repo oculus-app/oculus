@@ -235,6 +235,7 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
     let intro = &detail.scenes[0];
     assert_eq!(intro.id.as_deref(), Some("intro"));
     assert_eq!(intro.component, "Cued");
+    assert!(intro.built, "the video's own component resolves");
     assert_eq!(intro.start, Some(0.0));
     assert!(intro.duration.unwrap() >= 3.0, "{:?}", intro.duration);
     assert_eq!(
@@ -251,6 +252,8 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
         dir.join("renders").join("draft.mp4").to_string_lossy()
     );
     assert!(detail.renders[0].modified > 0);
+    assert_eq!(detail.timing_problem, None);
+    assert!(detail.script_modified.is_some() && detail.narration_modified.is_some());
 
     let json = serde_json::to_value(&detail).unwrap();
     assert_eq!(json["renders"][0]["preset"], "draft");
@@ -259,6 +262,8 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
     assert_eq!(json["captions"], false);
     assert_eq!(json["scenes"][1]["duration"], 1.5);
     assert_eq!(json["row"]["slug"], "narrated");
+    assert!(json["timingProblem"].is_null());
+    assert!(json["scenes"][0]["built"].as_bool().unwrap());
 }
 
 #[test]
@@ -282,6 +287,10 @@ fn the_detail_of_an_unnarrated_video_has_no_times_and_falls_back_to_the_settings
     )
     .unwrap();
     assert_eq!(detail.voice.as_deref(), Some("settings"));
+    assert!(
+        detail.timing_problem.is_some(),
+        "a stale narration says why the scenes have no times"
+    );
     assert!(detail
         .scenes
         .iter()

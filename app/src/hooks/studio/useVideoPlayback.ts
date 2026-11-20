@@ -7,7 +7,7 @@ import { useStoredState } from "@/hooks/ui/useStoredState";
 import { mediaSrc, parseVtt, spanAt, type Cue } from "@/lib/lectures/media";
 import { playableRenders } from "@/lib/studio/exports";
 import type { RenderPreset } from "@/lib/studio/render";
-import { renderCaptions, type VideoDetail } from "@/lib/studio/videos";
+import { renderCaptions, videoSeconds, type VideoDetail } from "@/lib/studio/videos";
 import type { Dock } from "@/stores/lectures/playerPrefsStore";
 
 /** Without captions beside it, a render has no cues. */
@@ -33,10 +33,11 @@ export function sceneStarts(detail: VideoDetail): number[] {
  * can pick another), its URL, the `<video>` element, and the scene under the
  * playhead. A re-render of the same file starts the player over. The
  * render's `.vtt` beside it, when there is one, is the CC. `docked` is
- * whether the page gives the player a dock, which T then folds.
+ * whether the page gives the player a dock, which T then folds; `preset`
+ * starts on that render instead of the newest.
  */
-export function useVideoPlayback(detail: VideoDetail, docked: boolean) {
-  const [picked, setPicked] = useState<RenderPreset | null>(null);
+export function useVideoPlayback(detail: VideoDetail, docked: boolean, preset: RenderPreset | null = null) {
+  const [picked, setPicked] = useState<RenderPreset | null>(preset);
   const playable = useMemo(() => playableRenders(detail.renders), [detail.renders]);
   const shown = useMemo(
     () => playable.find((r) => r.preset === picked) ?? playable[0] ?? null,
@@ -56,10 +57,7 @@ export function useVideoPlayback(detail: VideoDetail, docked: boolean) {
     };
   }, [path, version]);
 
-  const duration = useMemo(() => {
-    const last = detail.scenes[detail.scenes.length - 1];
-    return last?.start != null && last.duration != null ? last.start + last.duration : 0;
-  }, [detail.scenes]);
+  const duration = useMemo(() => videoSeconds(detail) ?? 0, [detail]);
 
   const [cues, setCues] = useState<Cue[]>(NO_CUES);
   const slug = detail.row.slug;
@@ -110,6 +108,8 @@ export function useVideoPlayback(detail: VideoDetail, docked: boolean) {
     shown,
     playable,
     src,
+    /** The `<video>` element, once mounted. */
+    el,
     setEl,
     pick: setPicked,
     current,

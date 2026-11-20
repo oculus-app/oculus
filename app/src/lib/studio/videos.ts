@@ -49,6 +49,11 @@ export function newVideo(options: NewVideoOptions): Promise<{ slug: string; dir:
 export interface SceneInfo {
   id: string | null;
   component: string;
+  /** The scene's `title` prop, when it has one. */
+  title: string | null;
+  /** Its component resolves (the video's own, the subject's or the global
+   *  library's); false while the agent has yet to write it. */
+  built: boolean;
   start: number | null;
   duration: number | null;
   /** The scene's narration, from `script.md`'s `## id` section. */
@@ -77,8 +82,21 @@ export interface VideoDetail {
   voice: string | null;
   /** video.json's `captions`: the renders have captions drawn into the picture. */
   captions: boolean;
+  /** Why the narration no longer gives every scene a length (the script
+   *  changed after narrating); null when it does, or there is none. */
+  timingProblem: string | null;
+  /** When `script.md` and the narration manifest were last written, in
+   *  seconds since the epoch; null while there is none. */
+  scriptModified: number | null;
+  narrationModified: number | null;
   scenes: SceneInfo[];
   renders: RenderFile[];
+}
+
+/** The video's length in seconds, once every scene has one. */
+export function videoSeconds(detail: VideoDetail): number | null {
+  const last = detail.scenes[detail.scenes.length - 1];
+  return last?.start != null && last.duration != null ? last.start + last.duration : null;
 }
 
 export function videoDetail(slug: string): Promise<VideoDetail> {

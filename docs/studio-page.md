@@ -121,7 +121,9 @@ player and render bar itself):
   when the video's captions are drawn into the picture, `detail.captions`).
   No render shows "Not rendered yet", and the header offers Render draft. The scrub bar's notches
   are the scene starts. The element shares the app's one sound with lectures
-  and library videos (`useLibraryPlayback`).
+  and library videos (`useLibraryPlayback`). The same player, without a
+  dock, plays a video inside a chat thread
+  ([harness.md](./harness.md#a-studio-thread-carries-its-video)).
 - **The scene strip** has a tile per scene, a still from `studio_frame` at
   80% of the scene's length (a second in if there is no narration). A press
   seeks to the scene's start; a scene with no start is only a picture, and

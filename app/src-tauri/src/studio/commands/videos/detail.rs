@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
-use studio_core::{Library, Project};
+use studio_core::{ComponentSource, Library, Project};
 
 use super::rows::VideoView;
 use crate::db::store::StudioLink;
@@ -25,6 +25,16 @@ pub struct VideoDetail {
     pub voice: Option<String>,
     /// video.json's `captions`: the renders have captions burned in.
     pub captions: bool,
+    /// Why a narrated video's scenes have no times (the script changed
+    /// after narrating); null when they do, or nothing is narrated.
+    #[serde(rename = "timingProblem")]
+    pub timing_problem: Option<String>,
+    /// When `script.md` and the narration manifest were last written, in
+    /// seconds since the epoch: the chat's video card dates its steps by them.
+    #[serde(rename = "scriptModified")]
+    pub script_modified: Option<u64>,
+    #[serde(rename = "narrationModified")]
+    pub narration_modified: Option<u64>,
     pub scenes: Vec<SceneInfo>,
     pub renders: Vec<RenderFile>,
 }
@@ -33,6 +43,11 @@ pub struct VideoDetail {
 pub struct SceneInfo {
     pub id: Option<String>,
     pub component: String,
+    /// The scene's `title` prop, when it has one.
+    pub title: Option<String>,
+    /// Its component resolves in the video's cascade; false while the agent
+    /// has yet to write it.
+    pub built: bool,
     /// Seconds; null while a scene's length is unknown (see `detail_in`).
     pub start: Option<f64>,
     pub duration: Option<f64>,
@@ -63,7 +78,14 @@ pub fn detail_in(
     let dir = videos::video_in(videos, slug)?;
     let row = videos::row(&dir);
     let project = Project::load_with(&dir, library).map_err(|e| e.to_string())?;
-    let timeline = project.timeline().ok();
+    let timing = project.timeline();
+    let timing_problem = if row.narrated {
+        timing.as_ref().err().map(ToString::to_string)
+    } else {
+        None
+    };
+    let timeline = timing.ok();
+    let components = project.components.names();
     let scenes = project
         .video
         .scenes
@@ -72,6 +94,12 @@ pub fn detail_in(
         .map(|(i, scene)| SceneInfo {
             id: scene.id.clone(),
             component: scene.component.clone(),
+            title: scene
+                .props
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned),
+            built: components.contains(&scene.component),
             start: timeline.as_ref().map(|t| t.start(i)),
             duration: timeline.as_ref().and_then(|t| t.scene_length(i)),
             text: project.section(i).map(|s| s.text.clone()),
@@ -91,6 +119,9 @@ pub fn detail_in(
         theme: project.video.theme.clone(),
         voice,
         captions: project.video.captions,
+        timing_problem,
+        script_modified: modified(&dir.join("script.md")),
+        narration_modified: modified(&dir.join("narration/manifest.json")),
         scenes,
         renders: renders(&dir),
     })
@@ -119,4 +150,14 @@ fn renders(dir: &Path) -> Vec<RenderFile> {
             })
         })
         .collect()
+}
+
+fn modified(path: &Path) -> Option<u64> {
+    path.metadata()
+        .ok()?
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs())
 }

@@ -14,6 +14,7 @@ import type { PendingActions, QuestionActions } from "./types";
 import { useRowWindow } from "./useRowWindow";
 import { useRowVisibility } from "./useRowVisibility";
 import { RetainedRow } from "./RetainedRow";
+import { RenderTile } from "../video/RenderTile";
 import { ModelNamesProvider, RunDividerRow } from "./ModelNames";
 import { ThreadAnnouncer } from "./ThreadAnnouncer";
 import { AssistantSend } from "@/components/markdown/openui/assistant";
@@ -31,7 +32,8 @@ export type { PendingActions, QuestionActions } from "./types";
 
 /**
  * The thread as a list. Each run is its question, one "Worked for 12s" fold
- * of its work, the widget fences of folded replies, then its one answer and
+ * of its work, the widget fences of folded replies and its render tiles
+ * (`RenderTile`), then its one answer and
  * any outcome row (`buildRows`). Rows from before runs, and turns the agent
  * started itself, keep the older shape: a finished step of two or more tool
  * or reasoning rows folds into one summary row ("Explored 3 files").
@@ -130,6 +132,10 @@ export const Timeline = memo(function Timeline({
           ) : r.kind === "artifacts" ? (
             <RetainedRow key={r.id} className={ROW}>
               <ArtifactRow item={r.item} />
+            </RetainedRow>
+          ) : r.kind === "render" ? (
+            <RetainedRow key={r.id} className={ROW}>
+              <RenderTile item={r.item} />
             </RetainedRow>
           ) : (
             <RetainedRow key={r.key ?? r.item.id} className={ROW} questionId={r.item.kind === "user" ? r.item.id : undefined}>

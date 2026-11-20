@@ -10,6 +10,8 @@ import { ThreadMap } from "@/components/harness/timeline/ThreadMap";
 import { JumpToLatest } from "@/components/harness/timeline/JumpToLatest";
 import { Timeline } from "@/components/harness/timeline/Timeline";
 import { ThreadInfoButton } from "@/components/harness/threadInfo/ThreadInfoButton";
+import { VideoCard } from "@/components/harness/video/VideoCard";
+import "@/components/harness/video/workKind";
 import { ThreadInfoCard, type ThreadInfoProps } from "@/components/harness/threadInfo/ThreadInfoCard";
 import { GAP, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
 import { useThreadInfo } from "@/components/harness/threadInfo/useThreadInfo";
@@ -51,6 +53,7 @@ import { WARP_NAME } from "@/lib/ui/warp";
  * (`RecentThreads`) below it. New thread and the headline's pill ask for the
  * subject in `NewThreadDialog`. The composer is docked at the bottom of both,
  * and a new thread's will not send until a subject or General is chosen.
+ * A thread making a Studio video has its card above the timeline (`VideoCard`).
  *
  * Subscribes slice by slice: `live` is written many times a second mid-turn,
  * so the streaming parts subscribe where they are drawn, not here.
@@ -344,6 +347,8 @@ export default function ChatPage() {
                 `auto` too, so one wide row would scroll the whole thread. */}
             <div ref={scroll.outer} style={shift} className="h-full overflow-x-hidden overflow-y-auto px-6 pt-6 pb-10">
               <div ref={scroll.inner} className="mx-auto w-full max-w-[760px]">
+                {/* Outside the row window, so scrolling never unmounts it or its player. */}
+                {activeId != null && <VideoCard key={activeId} threadId={activeId} />}
                 <Timeline
                   items={items}
                   threadId={activeId}

@@ -12,21 +12,29 @@ export function useVideoDetail(slug: string) {
   const dir = detail?.row.dir;
   const settled = useRenderStore((s) => (dir ? (s.settled[dir] ?? 0) : 0));
 
+  const generation = useRef(0);
   const reload = useCallback(async () => {
+    if (!slug) return;
+    const mine = ++generation.current;
     try {
-      setDetail(await videoDetail(slug));
+      const next = await videoDetail(slug);
+      if (mine !== generation.current) return;
+      setDetail(next);
       setError(null);
     } catch (e) {
+      if (mine !== generation.current) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (mine === generation.current) setLoading(false);
     }
   }, [slug]);
 
   useEffect(() => {
     setDetail(null);
-    setLoading(true);
+    setError(null);
+    setLoading(!!slug);
     void reload();
+    return () => { generation.current++; };
   }, [reload]);
 
   // The count at first sight of the folder is not news.

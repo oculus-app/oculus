@@ -38,6 +38,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
 | Unsent text per thread (and per new-thread box), and a new thread's chosen scope, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts` |
 | Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
+| The video a thread makes: its card above the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/activity.ts` |
 | Proposal dispatch context and confirmed jobs | `app/src-tauri/src/harness/app/proposal_context.rs`, `app/src-tauri/src/harness/app/proposal_jobs/` |
 | Local OpenUI Query tools and event refresh | `app/src/components/markdown/openui/query/` |
 | Seeded simulation and maths functions | `app/src/components/markdown/openui/functions/` |
@@ -923,8 +924,10 @@ reasoning, and its context-window use as tokens ("46k / 1M", the share in
 its title) over a bar tinted like the usage ring (`usageTint`). **Work** is a registry (`threadInfo/work.ts`): a feature
 calls `registerWorkKind({ id, useRows })` at module load, and `useRows` is a
 hook that returns that kind's rows for the thread (glyph, title, status in
-words, the route it opens). No kind is registered yet; with no rows the group
-draws nothing.
+words, the route it opens); with no rows the group draws nothing. The one
+kind is the video the thread is making (`components/harness/video/workKind.ts`):
+its title and its card's status line, opening the video's page
+([A Studio thread carries its video](#a-studio-thread-carries-its-video)).
 
 **Read** and **Made** are projected from the thread's rows by
 `deriveThreadInfo` (`lib/harness/threadInfo/derive.ts`), with no query, one
@@ -1752,7 +1755,9 @@ the thread's `revision`, which is what a reload compares
 projection of the rows and the thread's runs. A run's contiguous rows become,
 in order: its question; one fold (`RunWorkGroup.tsx`) holding every earlier
 reply, reasoning and tool row; one `artifacts` row per folded reply that may
-hold a widget fence; then its answer and its outcome rows (delivery notice,
+hold a widget fence; a `render` tile for its latest render of a Studio
+video ([A Studio thread carries its video](#a-studio-thread-carries-its-video));
+then its answer and its outcome rows (delivery notice,
 stop, error, refusal, compaction) in their stored order. The answer is the
 run's `answer_item_id`, so a reply startup recovery left without a role
 still folds. A run with no work (a plain reply) has no fold. The answer row
@@ -3338,6 +3343,52 @@ theme, subject library and length target read from video.json and the link,
 and the order of work (direct it with the skill, draft, ask before the
 final). It is the per-thread half the opencode bridge sends ahead
 of the first message.
+
+**The video card.** A linked thread shows `VideoCard`
+(`components/harness/video/`) above its timeline, outside the row window, so
+scrolling never unmounts it. The app draws it from the link, the folder's
+detail (`studio_video_detail`) and `renderStore`; the agent never writes it.
+Collapsed it is the thumbnail, the title and one status line: a brand spinner
+while the agent works ("Writing the script", "Building scenes · 4 of 7",
+"Narrating", "Rendering draft · 64%"), a green check with the length once a
+draft or the final is ready, red when a step failed. A 2px bar on its bottom
+edge fills while scenes build or a render reports a fraction, and sweeps
+(`progress-sweep`) for the agent's own render, which reports none. Its
+buttons:
+
+- **Play** grows the player in the card (`InlineVideo`: Studio's
+  `VideoPlayer` without a dock, the newest render, sharing the app's one
+  sound through `useLibraryPlayback`); pressed again it closes.
+- **The eye** is the storyboard: one scene's still at a time (`studio_frame`
+  through `useSceneStill`), arrows and a numbered chip per scene (dashed while
+  the scene's component is not written), the scene's title, start, length and
+  narration, and "Play from this scene", which starts the card's player there.
+- **The chevron** is the progress timeline: Script, Scenes, Narration, Draft
+  and Final, each with when it finished or what it is doing; Final says the
+  agent asks before rendering it. A failure keeps its sentence there.
+
+`videoProgress` (`lib/studio/progress.ts`) is the one derivation the card and
+the Work row share, a pure function of the detail, the thread's running
+state, the app's render and the thread's latest Studio call on the video
+(`lastStudioAction`, `lib/studio/activity.ts`, which reads the command in any
+provider's spelling, Codex's `zsh -lc` included). Files say what is done:
+script sections, scenes whose component resolves (`SceneInfo.built`), a
+narration whose times hold (a stale one, `timingProblem`, waits rather than
+failing), the draft and final renders. The call running now (the thread's
+last tool row, unfinished) says what is happening. A failed call, or a
+render or read failure, shows only once the turn has ended, since while it
+runs the agent is still dealing with it. `useThreadVideo` re-reads the detail
+whenever a tool call finishes, the turn ends or the folder's modified time
+moves.
+
+**A render is a tile.** The thread's latest successful `oculus studio render`
+of each video and preset is lifted out of its run's fold as a `render` row
+(`buildRows`), drawn by `RenderTile`: the thumbnail, "Rendered draft",
+the length and size, and Play, which grows the same inline player in the
+tile on that preset. Earlier renders of the same preset wrote the same file,
+so they stay plain tool rows in the fold. A row the window drops or
+`useRowVisibility` detaches pauses its player: unmounting pauses the element,
+and a detached element is paused by the browser.
 
 ## The subject Overview's ask bar starts a thread
 

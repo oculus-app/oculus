@@ -1,5 +1,6 @@
 import { mayHoldWidget } from "@/components/markdown/openui/remarkWidgets";
 import { sqliteUtcToMs } from "@/lib/format/format";
+import { studioAction } from "@/lib/studio/activity";
 import {
   describeOculusCli,
   elapsedText,
@@ -57,7 +58,9 @@ export type ViewRow =
   | { kind: "bundle"; id: string; items: HarnessItem[] }
   | WorkFold
   /** The widget fences of a folded reply, drawn once outside its fold. */
-  | { kind: "artifacts"; id: string; item: HarnessItem };
+  | { kind: "artifacts"; id: string; item: HarnessItem }
+  /** A finished `oculus studio render`, drawn as a playable tile under its fold. */
+  | { kind: "render"; id: string; item: HarnessItem };
 
 /** A reply carrying an interactive fence stays visible in a runless stretch:
  *  only a run's fold can pin the fence alone. */
@@ -118,6 +121,7 @@ function runRows(
   before: HarnessRun | undefined,
   live: boolean,
   streaming: boolean,
+  renders: ReadonlySet<number>,
   out: ViewRow[],
 ): void {
   const state: RunState | null = runEnded(run) ? (run!.status as RunState) : live ? "running" : null;
@@ -166,6 +170,7 @@ function runRows(
       });
       for (const item of work) {
         if (item.kind === "assistant" && mayHoldWidget(item.content)) out.push({ kind: "artifacts", id: `a-${item.id}`, item });
+        if (renders.has(item.id)) out.push({ kind: "render", id: `r-${item.id}`, item });
       }
     }
     for (const item of stretch.items) {
@@ -227,14 +232,15 @@ export function streamingReply(items: HarnessItem[]): { run: number; ordinal: nu
 /**
  * The thread as rows. Each run's contiguous rows become: its question (with
  * a divider above it where the run switched or carried a handoff), one
- * fold of its work, the widget fences of folded replies, then its answer and
- * outcome rows (notice, stop, error, refusal, compaction) in order. Rows with
- * no run keep the step bundles. `running` is the thread's: only its last run
+ * fold of its work, the widget fences of folded replies and its latest
+ * render tiles, then its answer and outcome rows (notice, stop, error,
+ * refusal, compaction) in order. Rows with no run keep the step bundles. `running` is the thread's: only its last run
  * can be in flight.
  */
 export function buildRows(items: HarnessItem[], running: boolean, ctx: RowContext = {}): ViewRow[] {
   const out: ViewRow[] = [];
   const runs = ctx.runs ?? {};
+  const renders = latestRenders(items);
   let before: HarnessRun | undefined;
   let i = 0;
   while (i < items.length) {
@@ -246,12 +252,24 @@ export function buildRows(items: HarnessItem[], running: boolean, ctx: RowContex
     } else {
       while (j < items.length && items[j].run_id === runId) j++;
       const run = runs[runId];
-      runRows(items.slice(i, j), run, before, running && j === items.length, !!ctx.streaming, out);
+      runRows(items.slice(i, j), run, before, running && j === items.length, !!ctx.streaming, renders, out);
       before = runs[runId] ?? before;
     }
     i = j;
   }
   return out;
+}
+
+/** The thread's last successful `oculus studio render` per video and preset:
+ *  earlier ones wrote the same file, so only the latest gets a tile. */
+function latestRenders(items: HarnessItem[]): Set<number> {
+  const latest = new Map<string, number>();
+  for (const item of items) {
+    if (item.kind !== "tool" || !(item.content?.includes("studio") || item.meta?.includes("studio"))) continue;
+    const action = studioAction(item);
+    if (action?.action === "render" && action.ok === true && action.slug) latest.set(`${action.slug}:${action.preset}`, item.id);
+  }
+  return new Set(latest.values());
 }
 
 /** Inside an open fold: earlier replies as they are, and two or more tool or
@@ -310,7 +328,7 @@ export const foldMatches = (text: string, query: string) => {
 /** Every item a row stands for, folded ones included: what the row window,
  *  rail jumps and find match against. */
 export function rowItems(row: ViewRow): HarnessItem[] {
-  return row.kind === "item" || row.kind === "artifacts" ? [row.item] : row.items;
+  return row.kind === "item" || row.kind === "artifacts" || row.kind === "render" ? [row.item] : row.items;
 }
 
 function plural(n: number, one: string, many = `${one}s`) {
