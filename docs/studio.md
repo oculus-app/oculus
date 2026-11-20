@@ -282,9 +282,8 @@ plays it ([harness.md](./harness.md#a-studio-thread-carries-its-video)); the
 Studio page's New video opens a new thread with the skill chip in its box
 ([studio-page.md](./studio-page.md#new-video-starts-a-chat)).
 The `oculus-studio` skill ([harness.md](./harness.md#the-brief-is-appended-except-on-opencode))
-is the whole brief, and `AGENTS.md` only points at it. The thread's own
-agent makes the whole video, the same way on every provider: it starts no
-other agent and stops for no approval.
+is the whole brief, and `AGENTS.md` points at it. The thread's agent
+writes the script and scenes, then renders a draft.
 
 **Scope.** A video answers one question in 60 to 120 seconds over 2 to 4
 scenes, so the depth goes into each scene: one picture taken through
@@ -2351,8 +2350,8 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
 - `frame` and `strip` take `--motion-blur` (a 180° shutter at the video's
   fps); `frame` then reports the sub-frames it averaged. `-o` is relative
   to the working directory, and its folder is made.
-- `oculus studio brief <DIR> --scene <ID|N>` builds one scene builder's
-  whole input (`app/src-tauri/src/studio/brief/`): the scene's index,
+- `oculus studio brief <DIR> --scene <ID|N>` prints a scene's context,
+  word times and check commands (`app/src-tauri/src/studio/brief/`): the scene's index,
   component and props and the folder; for the scenes before and after it,
   their component, whether it resolves yet, and their storyboard entries'
   `Carries in:` and `Hands on:`; its own `storyboard.md` entry verbatim
@@ -2400,11 +2399,6 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
   bytes }], voices: [{ id, name, accent, gender, grade, bytes, status,
   chosen }] }`, `{ dir, downloaded: [ids], seconds }` and `{ deleted_bytes
   }`.
-- `oculus studio agents [--agent A]` prints, for each agent or one, the
-  model and effort its `studio-research` and `studio-scene` subagents run
-  on and the call that starts one (`--json`: `[{agent, roles: [{role, job,
-  model, effort, spawn}]}]`). It reads only the settings; see
-  [harness.md](./harness.md#subagents).
 - `oculus studio render <DIR>` writes one export preset's mp4:
   `--preset draft|final|small`, with `--draft` (the
   default) and `--final` for the first two; `-o`, `--threads` for the frame

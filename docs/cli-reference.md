@@ -1847,7 +1847,7 @@ Commands:
   frame       Render one frame of a video to a PNG
   strip       Render frames across a stretch of a video as one contact-sheet PNG
   lint        Check a whole video, or one scene, without writing to its folder
-  brief       Print one scene builder's whole input
+  brief       Print a scene's context, word times and check commands
   beats       Print what changes on screen in one scene, as a timeline
   gallery     Render every example of a component as a still
   slide       Crop a region of a library PDF page into a video's assets
@@ -1860,7 +1860,6 @@ Commands:
   g2p         Show how Kokoro reads text: each word's phonemes and who read it
   pronounce   Suggest how Kokoro should say a word, for the student to review
   voices      List Kokoro's voices, or download or delete them and its packs
-  agents      Which models a chat agent's Studio subagents run on, and how to start one
   aligner     Download, check or delete the narration aligner model (378 MB)
   help        Print this message or the help of the given subcommand(s)
 
@@ -2227,7 +2226,7 @@ Options:
 ### `oculus studio brief`
 
 ```
-Print one scene builder's whole input
+Print a scene's context, word times and check commands
 
 For one scene: its index, component and props; the scenes before and after it and
 whether their components exist yet; the `notes/` files its `storyboard.md` entry names,
@@ -3040,29 +3039,6 @@ Arguments:
 Options:
       --all
           Every voice
-
-  -h, --help
-          Print help (see a summary with '-h')
-```
-
-### `oculus studio agents`
-
-```
-Which models a chat agent's Studio subagents run on, and how to start one
-
-For each agent, or only `--agent`'s: the `studio-research` and `studio-scene` roles, the
-model and effort Settings -> Jobs gives that agent (its first entry in "Studio research"
-and "Studio scenes"), and the exact call that agent makes to start one. A role with no
-entry for the agent is off: the agent does that work itself. agy's subagents take no
-model, so agy always does it itself. Reads only the settings.
-
-oculus studio agents --agent codex
-
-Usage: oculus studio agents [OPTIONS]
-
-Options:
-      --agent <AGENT>
-          Only this agent: claude, codex, opencode or antigravity
 
   -h, --help
           Print help (see a summary with '-h')

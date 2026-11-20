@@ -26,7 +26,6 @@ mod providers;
 pub mod reply_json;
 mod requests;
 pub mod store;
-pub mod studio_agents;
 mod suggest;
 mod transport;
 

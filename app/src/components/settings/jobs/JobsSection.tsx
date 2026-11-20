@@ -49,7 +49,6 @@ export function JobsSection() {
               job={job.id}
               label={job.label}
               description={job.description}
-              perAgent={job.perAgent}
               chain={jobs[job.id]}
               providers={providers}
               onChange={(edit) => editChain(job.id, edit)}
@@ -62,7 +61,6 @@ export function JobsSection() {
         <JobModelsDialog
           job={openJob.id}
           label={openJob.label}
-          perAgent={openJob.perAgent}
           chain={jobs[openJob.id]}
           providers={providers}
           onChange={(edit) => editChain(openJob.id, edit)}

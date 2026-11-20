@@ -1,6 +1,5 @@
-//! `oculus studio brief`: a scene builder's whole input in one read, so it
-//! never opens the whole storyboard or the narration manifest: the scene,
-//! what its neighbours hand on and expect, its storyboard entry
+//! `oculus studio brief`: the scene, what its neighbours hand on and expect,
+//! its storyboard entry
 //! (`storyboard`), the notes it names, its words at the times `word()`
 //! returns, and the commands that check it. `--json` gives all of it;
 //! `text` prints it less what the agent wrote itself (docs/studio.md,

@@ -6,17 +6,14 @@ import { DEFAULT_JOB_MODELS, type JobChain, type JobId } from "@/lib/db";
 import { reasoningLabel, type PickerProvider, type Provider } from "@/lib/harness";
 import { ChainPicker } from "./ChainPicker";
 import { JobAttention } from "./JobAttention";
-import { agentLabel, modelLabel, startingProvider, withEntry } from "./chain";
+import { modelLabel, startingProvider, withEntry } from "./chain";
 
 /** One job: what it does, what the audit found, and its first model, with
- *  the fallbacks one click away in `JobModelsDialog`. A `perAgent` job's
- *  other entries are other agents' models, not fallbacks, and only the
- *  agents it lists are offered. */
+ *  the fallbacks one click away in `JobModelsDialog`. */
 export function JobRow({
   job,
   label,
   description,
-  perAgent,
   chain,
   providers,
   onChange,
@@ -26,7 +23,6 @@ export function JobRow({
   job: JobId;
   label: string;
   description: string;
-  perAgent?: readonly Provider[];
   chain: JobChain;
   providers: PickerProvider[];
   onChange: (edit: (chain: JobChain) => JobChain) => void;
@@ -34,30 +30,18 @@ export function JobRow({
   onFallbacks: () => void;
 }) {
   const off = chain.length === 0;
-  const offered = perAgent ? providers.filter((p) => perAgent.includes(p.id)) : providers;
   const rest = chain.slice(1);
   const describe = (e: JobChain[number]) =>
     [
-      perAgent && agentLabel(providers, e.provider),
       modelLabel(providers, e.provider, e.model),
       e.reasoningEffort && reasoningLabel(e.reasoningEffort),
     ]
       .filter(Boolean)
       .join(" ");
-  const restTip = perAgent
-    ? rest.length === 0
-      ? "Add a model for another agent"
-      : `Also ${rest.map(describe).join(", ")}`
-    : rest.length === 0
-      ? "Add fallbacks"
-      : `Then ${rest.map(describe).join(", then ")}`;
-  const restLabel = perAgent
-    ? rest.length > 0
-      ? `${rest.length} more agents`
-      : "Add a model for another agent"
-    : rest.length > 0
-      ? `${rest.length} fallbacks`
-      : "Add fallbacks";
+  const restTip = rest.length > 0
+    ? `Then ${rest.map(describe).join(", then ")}`
+    : "Add fallbacks";
+  const restLabel = rest.length > 0 ? `${rest.length} fallbacks` : "Add fallbacks";
 
   return (
     <div className="settings-row flex items-start justify-between gap-4 py-2.5">
@@ -70,9 +54,9 @@ export function JobRow({
           the description, and every row's text wraps at the same edge. */}
       <div className="settings-actions -mr-1.5 flex w-56 shrink-0 items-center justify-end gap-0.5">
         <ChainPicker
-          providers={offered}
+          providers={providers}
           entry={chain[0] ?? null}
-          fallbackProvider={startingProvider(DEFAULT_JOB_MODELS[job], offered)}
+          fallbackProvider={startingProvider(DEFAULT_JOB_MODELS[job], providers)}
           onPick={(pick) => onChange((c) => withEntry(c, 0, pick))}
           onView={onView}
           align="end"

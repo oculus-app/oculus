@@ -1,5 +1,5 @@
-//! `oculus studio brief`: one scene builder's whole input as compact text
-//! or JSON (`app_lib::studio::brief`).
+//! `oculus studio brief`: a scene's context, word times and check commands
+//! as compact text or JSON (`app_lib::studio::brief`).
 
 use super::studio_error;
 use crate::*;
