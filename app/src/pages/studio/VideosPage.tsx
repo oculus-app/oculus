@@ -22,7 +22,8 @@ export default function VideosPage() {
   // A remembered subject that no longer has a video shows everything.
   const filter = subjects.includes(chosen) ? chosen : ALL;
   const shown = filter === ALL ? videos : videos.filter((v) => v.subject === filter);
-  const newVideo = useNewVideoChat(filter === ALL ? null : filter);
+  const startVideo = useNewVideoChat();
+  const newVideo = () => startVideo(filter === ALL ? null : filter);
   // An agent or the CLI may have changed the folders since the layout read them.
   useEffect(() => {
     void useVideosStore.getState().reload();

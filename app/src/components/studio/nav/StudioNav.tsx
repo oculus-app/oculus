@@ -1,6 +1,6 @@
 import { Cube, FilmSlate, Palette, Plus, SquaresFour } from "@phosphor-icons/react";
 
-import { ALL, readSubject, SUBJECT_KEY } from "@/components/studio/videos/SubjectPills";
+import { storedSubject } from "@/components/studio/videos/SubjectPills";
 import { ResizeHandle } from "@/components/ui/layout/ResizeHandle";
 import {
   SIDE_NAV_FOLDS,
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/layout/SideNav";
 import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
 import { useNewVideoChat } from "@/hooks/studio/useNewVideoChat";
-import { useStoredState } from "@/hooks/ui/useStoredState";
 import { COMPONENTS_HREF, THEMES_HREF, VIDEOS_HREF } from "@/lib/studio/routes";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +22,7 @@ import { cn } from "@/lib/utils";
  */
 export function StudioNav({ panel }: { panel: ReturnType<typeof useResizablePanel> }) {
   const { collapsed } = panel;
-  const [subject] = useStoredState(SUBJECT_KEY, readSubject);
-  const newVideo = useNewVideoChat(subject === ALL ? null : subject);
+  const newVideo = useNewVideoChat();
 
   return (
     <>
@@ -35,7 +33,7 @@ export function StudioNav({ panel }: { panel: ReturnType<typeof useResizablePane
         animate={!panel.dragging}
         header={<SideNavHeading icon={FilmSlate}>Studio</SideNavHeading>}
       >
-        <button type="button" data-side-nav-close onClick={() => void newVideo()} className={cn(SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE, "cursor-pointer")}>
+        <button type="button" data-side-nav-close onClick={() => void newVideo(storedSubject())} className={cn(SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE, "cursor-pointer")}>
           <Plus size={16} className="shrink-0" />
           <span className={cn("min-w-0 flex-1 truncate text-left", SIDE_NAV_FOLDS)}>New video</span>
         </button>
