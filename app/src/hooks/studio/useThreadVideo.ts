@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 
 import { parseToolMeta } from "@/lib/harness";
-import { lastStudioAction, touchesVideo } from "@/lib/studio/activity";
+import { failedStep, lastStudioAction, touchesVideo } from "@/lib/studio/activity";
 import { videoProgress } from "@/lib/studio/progress";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
 import { useRenderStore } from "@/stores/studio/renderStore";
@@ -12,7 +12,8 @@ import { useVideoDetail } from "./useVideoDetail";
  * The video a chat thread is making (`VideoRow.threadId`), its detail and
  * where it is (`videoProgress`). The detail is read again whenever a tool
  * call finishes or the turn ends, the moments its files can have changed,
- * and when a render the app ran ends (`useVideoDetail`).
+ * and when a render the app ran ends (`useVideoDetail`). A video whose
+ * folder is gone leaves the list, and the thread has no video.
  */
 export function useThreadVideo(threadId: number | null) {
   const row = useVideosStore((s) => (threadId == null ? null : (s.videos.find((v) => v.threadId === threadId) ?? null)));
@@ -25,6 +26,7 @@ export function useThreadVideo(threadId: number | null) {
   const failedPreset = useRenderStore((s) => (row ? s.failedPresets[row.dir] : undefined));
 
   const last = useMemo(() => (slug ? lastStudioAction(items, slug, running) : null), [items, slug, running]);
+  const failed = useMemo(() => (slug ? failedStep(items, slug) : null), [items, slug]);
   const working = useMemo(() => running && !!slug && touchesVideo(items, slug), [items, slug, running]);
   const finished = useMemo(
     () => items.reduce((n, i) => (i.kind === "tool" && parseToolMeta(i).ok != null ? n + 1 : n), 0),
@@ -33,6 +35,12 @@ export function useThreadVideo(threadId: number | null) {
   useEffect(() => {
     if (slug) void reload();
   }, [slug, running, finished, row?.modified, reload]);
+
+  // A read that fails may mean the folder was deleted (in Finder, say): the
+  // list then drops the row, and the card with it.
+  useEffect(() => {
+    if (error) void useVideosStore.getState().reload();
+  }, [error]);
 
   const progress = useMemo(
     () =>
@@ -44,8 +52,9 @@ export function useThreadVideo(threadId: number | null) {
         readError: error,
         renderFailure: renderError && failedPreset ? { message: renderError, preset: failedPreset } : null,
         last,
+        failed,
       }),
-    [detail, running, working, render, error, renderError, failedPreset, last],
+    [detail, running, working, render, error, renderError, failedPreset, last, failed],
   );
   return { row, detail, progress };
 }

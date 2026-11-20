@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { buildRows } from "@/components/harness/timeline/rows";
 import type { HarnessItem, HarnessRun } from "@/lib/harness";
-import { lastStudioAction, studioAction, touchesVideo } from "@/lib/studio/activity";
+import { failedStep, lastStudioAction, studioAction, touchesVideo } from "@/lib/studio/activity";
 import { videoProgress } from "@/lib/studio/progress";
 import type { SceneInfo, VideoDetail } from "@/lib/studio/videos";
 
@@ -121,10 +121,10 @@ describe("videoProgress", () => {
 
   test("a failed call shows once the agent stops, on its step, with its words", () => {
     const d = detail({ scenes: [scene()] });
-    const failed = tool("oculus studio narrate v", false);
-    const last = { action: studioAction(failed)!, live: false };
-    expect(videoProgress({ detail: d, running: true, working: true, last }).tone).toBe("busy");
-    const p = videoProgress({ detail: d, running: false, last });
+    const failed = studioAction(tool("oculus studio narrate v", false))!;
+    const last = { action: failed, live: false };
+    expect(videoProgress({ detail: d, running: true, working: true, last, failed }).tone).toBe("busy");
+    const p = videoProgress({ detail: d, running: false, last, failed });
     expect(p).toMatchObject({ label: "Narration failed", tone: "bad" });
     expect(p.steps[2]).toMatchObject({ state: "failed", note: "narration failed: no voice" });
     expect(videoProgress({ detail: null, running: false, readError: "no such video" })).toMatchObject({ label: "Can't read the video", tone: "bad" });
@@ -135,6 +135,31 @@ describe("videoProgress", () => {
     const final = videoProgress({ detail: d, running: false, renderFailure: { message: "ffmpeg died", preset: "final" } });
     expect(final).toMatchObject({ label: "Final failed" });
     expect(final.steps[4]).toMatchObject({ state: "failed", note: "ffmpeg died" });
+  });
+});
+
+describe("studioAction on Windows", () => {
+  test("PowerShell and cmd wrappers unwrap, backslash paths included", () => {
+    for (const line of [
+      `powershell.exe -NoProfile -Command "oculus studio render v --preset final"`,
+      String.raw`pwsh -c 'C:\Users\me\AppData\Local\Oculus\oculus.exe studio render v --preset final'`,
+      String.raw`powershell -Command "& 'C:\Program Files\Oculus\OCULUS.EXE' studio render C:\Users\me\videos\v --preset final"`,
+      `cmd /c oculus.exe studio render v --preset final`,
+    ]) {
+      expect(studioAction(tool(line, true)), line).toMatchObject({ action: "render", slug: "v", preset: "final" });
+    }
+  });
+});
+
+describe("failedStep", () => {
+  test("a failed check never fails the video; a step's own retry clears it", () => {
+    expect(failedStep([tool("oculus studio lint v", false)], "v")).toBeNull();
+    expect(failedStep([tool("oculus studio narrate v", false), tool("oculus studio lint v", true)], "v")?.action).toBe("narrate");
+    expect(failedStep([tool("oculus studio narrate v", false), tool("oculus studio narrate v", true)], "v")).toBeNull();
+    // A draft that failed stays failed when narration then succeeds.
+    expect(failedStep([tool("oculus studio render v", false), tool("oculus studio narrate v", true)], "v")?.preset).toBe("draft");
+    expect(failedStep([tool("oculus studio render other", false)], "v")).toBeNull();
+    expect(failedStep([tool("oculus studio render v", false)], "v")?.ok).toBe(false);
   });
 });
 

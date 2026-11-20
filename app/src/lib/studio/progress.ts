@@ -48,6 +48,8 @@ export interface ProgressInput {
   renderFailure?: { message: string; preset: RenderPreset } | null;
   /** The thread's latest Studio call on this video (`lastStudioAction`). */
   last?: { action: StudioAction; live: boolean } | null;
+  /** Its latest failed render or narration not since redone (`failedStep`). */
+  failed?: StudioAction | null;
 }
 
 const SCRIPT = 0;
@@ -66,7 +68,7 @@ function stepOf(action: StudioAction): number {
   return SCENES;
 }
 
-export function videoProgress({ detail, running, working = false, render, readError, renderFailure, last }: ProgressInput): VideoProgress {
+export function videoProgress({ detail, running, working = false, render, readError, renderFailure, last, failed }: ProgressInput): VideoProgress {
   const scenes = detail?.scenes ?? [];
   const total = scenes.length;
   const built = scenes.filter((s) => s.built !== false).length;
@@ -124,9 +126,8 @@ export function videoProgress({ detail, running, working = false, render, readEr
 
   if (!running) {
     if (readError) return { label: "Can't read the video", tone: "bad", fraction: null, sweeping: false, steps };
-    const failedCall = last && last.action.ok === false ? last.action : null;
-    const failure = failedCall
-      ? { at: stepOf(failedCall), message: failedCall.output?.trim() || `oculus studio ${failedCall.action} failed` }
+    const failure = failed
+      ? { at: stepOf(failed), message: failed.output?.trim() || `oculus studio ${failed.action} failed` }
       : renderFailure
         ? { at: renderFailure.preset === "final" ? FINAL : DRAFT, message: renderFailure.message }
         : null;

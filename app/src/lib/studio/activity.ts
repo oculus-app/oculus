@@ -21,12 +21,25 @@ const SHELLS = new Set(["sh", "zsh", "bash"]);
 /** Studio flags that take a value, so the word after one is not the folder. */
 const VALUED = new Set(["--preset", "-o", "--out", "--threads", "--scene", "--t", "--at", "--scale", "--theme", "--subject", "--title", "--voice", "--server", "--model"]);
 
-/** A Codex call wraps its command in `zsh -lc '…'`: unwrap it to the inner line. */
+const WINDOWS_SHELLS = new Set(["powershell", "pwsh", "cmd"]);
+const WINDOWS_LINE = /^\s*(?:\S*[\\/])?(?:powershell|pwsh|cmd)(?:\.exe)?\s/i;
+
+/** A Codex call wraps its command in `zsh -lc '…'`, or on Windows in
+ *  `powershell -Command '…'`: unwrap it to the inner line. */
 function commands(line: string, depth = 0): string[][] {
   if (depth > 3) return [];
-  return shellCommands(line).flatMap((words) => {
-    const exe = words[0]?.split(/[/\\]/).pop() ?? "";
-    return SHELLS.has(exe) && (words[1] === "-lc" || words[1] === "-c") ? commands(words[2] ?? "", depth + 1) : [words];
+  // In PowerShell and cmd a backslash is a path separator, never an escape.
+  const text = WINDOWS_LINE.test(line) ? line.replace(/\\/g, "/") : line;
+  return shellCommands(text).flatMap((words) => {
+    const exe = (words[0]?.split("/").pop() ?? "").toLowerCase().replace(/\.exe$/, "");
+    if (SHELLS.has(exe) && (words[1] === "-lc" || words[1] === "-c")) return commands(words[2] ?? "", depth + 1);
+    if (WINDOWS_SHELLS.has(exe)) {
+      const at = words.findIndex((w, i) => i > 0 && ["-command", "-c", "/c"].includes(w.toLowerCase()));
+      // `& 'C:/…/oculus.exe' studio …` is PowerShell's call operator.
+      const inner = at > 0 ? words.slice(at + 1).join(" ").replace(/\\/g, "/").replace(/^\s*&\s+/, "") : "";
+      return inner ? commands(inner, depth + 1) : [];
+    }
+    return [words];
   });
 }
 
@@ -100,6 +113,27 @@ export function lastStudioAction(
     const action = studioAction(item);
     if (!action || action.action === "new" || (action.slug != null && action.slug !== slug)) continue;
     return { action, live: running && action.ok == null && item === lastTool };
+  }
+  return null;
+}
+
+/** The calls that make one of the video's steps. A failed check (`lint`,
+ *  `frame`, …) is the agent finding something to fix, not the video failing. */
+const MAKERS = new Set(["render", "narrate"]);
+
+/** The thread's latest render or narration of `slug` that failed and was
+ *  not tried again with success since; each step (narrate, draft, final)
+ *  is judged by its own latest attempt. */
+export function failedStep(items: readonly HarnessItem[], slug: string): StudioAction | null {
+  const judged = new Set<string>();
+  for (let i = items.length - 1; i >= 0; i--) {
+    const action = studioAction(items[i]);
+    if (!action || !MAKERS.has(action.action) || action.ok == null) continue;
+    if (action.slug != null && action.slug !== slug) continue;
+    const step = action.action === "render" ? `render:${action.preset}` : action.action;
+    if (judged.has(step)) continue;
+    judged.add(step);
+    if (action.ok === false) return action;
   }
   return null;
 }

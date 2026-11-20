@@ -124,6 +124,7 @@ export function MediaPlayer({
     // video stack visually while leaving the divider between the two.
     <div
       ref={containerRef}
+      data-fullscreen={isFullscreen || undefined}
       className={cn(
         "flex overflow-hidden min-h-0 min-w-0 bg-background relative",
         // Over the sidebar and the tab strip alike.

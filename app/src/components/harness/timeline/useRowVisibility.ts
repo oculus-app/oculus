@@ -37,6 +37,8 @@ export function useRowVisibility(rootRef: RefObject<HTMLDivElement | null>, thre
     };
     const selected = (row: HTMLElement) => {
       if (row.hasAttribute(HELD_ANCHOR) || row.contains(document.activeElement)) return true;
+      // A player there is fullscreen: the window's resize must not pause it.
+      if (row.querySelector("[data-fullscreen]")) return true;
       const selection = window.getSelection();
       return !!selection?.rangeCount && !selection.isCollapsed && selection.getRangeAt(0).intersectsNode(row);
     };

@@ -3378,10 +3378,15 @@ failing), the draft and final renders. The call running now (the thread's
 last tool row, unfinished) says what is happening; between calls, a running
 turn that has touched the video (`touchesVideo`: a Studio call on it, or a
 tool row naming its folder) shows its next step working, and a turn about
-anything else leaves the card as it is. A failed call or app render shows
-only once the turn has ended, on its own step (a render's on Draft or Final
-by its preset), since while it runs the agent is still dealing with it; a
-detail that will not read says "Can't read the video" and names no step.
+anything else leaves the card as it is. Only a render or a narration can
+fail the video (`failedStep`): each step is judged by its latest attempt, so
+a retry that works clears it, and a failed check such as `lint` is the agent
+finding something to fix. A failure, or an app render's, shows only once the
+turn has ended, on its own step (a render's on Draft or Final by its
+preset), since while it runs the agent is still dealing with it. A detail
+that will not read says "Can't read the video" and names no step, and
+reloads the video list: a folder deleted (in Finder, say) leaves the list,
+and the card with it.
 `useThreadVideo` re-reads the detail whenever a tool call finishes, the
 turn ends or the folder's modified time moves. Every view of a video shares
 one read per slug (`useVideoDetail`): the card, its Work row and the page
@@ -3396,11 +3401,12 @@ tile on that preset. Earlier renders of the same preset wrote the same file,
 so they stay plain tool rows in the fold. A row holding media is never
 detached by `useRowVisibility` (only skipped, `content-visibility: hidden`),
 so it pauses the row's `<video>` and `<audio>` as it scrolls out of sight
-(a row a text selection crosses, or one a find or rail jump asked for,
-stays drawn); a row the window drops unmounts its
-player, which pauses it. One inline player is open at a time
-(`useOneInlinePlayer`): Play on another card or tile closes the open one, so
-a single player answers the media keys.
+(a row holding the focus or a fullscreen player, one a text selection
+crosses, or one a find or rail jump asked for stays drawn); a row the window drops unmounts its
+player, which pauses it. One inline player is open per pane
+(`useOneInlinePlayer`): Play on another card or tile in the same pane closes
+the open one, so a single player answers that pane's media keys; one in
+another tab stays open, paused by the app's one sound.
 
 ## The subject Overview's ask bar starts a thread
 
