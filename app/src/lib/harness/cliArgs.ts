@@ -106,6 +106,27 @@ function heredocEnd(line: string, from: number, { delimiter, tabs }: { delimiter
   return line.length;
 }
 
+/** One literal shell word; adjacent quoted spans join. `$` and backticks in
+ *  double quotes expand in the outer shell, so those never match. */
+const LITERAL = /(?:[\w./,:@%+=-]+|'[^']*'|"(?:[^"\\$`]|\\.)*"|\\.)+/.source;
+const WRAPPED = new RegExp(`^[ \\t]*(${LITERAL})[ \\t]+-l?c[ \\t]+(${LITERAL})[ \\t]*$`, "s");
+
+function unquote(word: string): string {
+  let out = "";
+  for (const [, single, double, escaped, bare] of word.matchAll(/'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)|([^'"\\]+)/gs))
+    out += single ?? escaped ?? bare ?? double.replace(/\\([$`"\\\n])/g, "$1");
+  return out;
+}
+
+/** The script inside `/bin/zsh -lc '…'` (zsh, bash or sh, `-c` or `-lc`), for
+ *  display, matching Rust's `classify/codex.rs`. A stored Codex row may
+ *  carry the wrapper; anything less literal than one script stays as it is. */
+export function unwrapShell(command: string): string {
+  const m = WRAPPED.exec(command);
+  if (!m || !/^(?:zsh|bash|sh)$/.test(unquote(m[1]).split("/").pop() ?? "")) return command;
+  return unquote(m[2]);
+}
+
 export function shellCommands(line: string) {
   return parseShell(line).commands;
 }

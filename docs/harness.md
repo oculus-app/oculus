@@ -505,7 +505,9 @@ still update the picker.
   stderr (`2>&1`, `2>/dev/null`) or reads stdin from a file or heredoc, since
   its exit status and stdout stay its own. Pipes, other redirects and
   substitutions keep the full script visible. Unknown or ambiguous wrappers keep the wire
-  command. Approvals use the recorded command and working directory.
+  command. Approvals use the recorded command and working directory. A stored
+  row whose title is the wrapper is unwrapped the same way when it renders
+  (`unwrapShell` in `app/src/lib/harness/cliArgs.ts`).
 - **A reasoning row has the Brain glyph.** Finished, it reads "Thought for 12s"
   and opens to the thought as muted markdown; while it streams, `LiveTail`
   shows a shimmering "Thinking" (`text-shimmer`) and the thought's latest

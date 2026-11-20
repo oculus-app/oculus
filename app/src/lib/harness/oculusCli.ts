@@ -1,5 +1,5 @@
 import { displayCode, humanizeSlug } from "@/lib/format/format";
-import { base, code, column, flag, isOculus, join, parseArgs, pathCourse, parseShell, shellCommands } from "./cliArgs";
+import { base, code, column, flag, isOculus, join, parseArgs, pathCourse, parseShell, shellCommands, unwrapShell } from "./cliArgs";
 import { group, row, words, type CliEntry, type CliIcon, type Emphasis } from "./cliRow";
 import { cliState, draftedCount, memoryWording, refusedWrite, type CliState } from "./cliResult";
 import type { ToolMeta } from "./types";
@@ -230,7 +230,7 @@ function describeCall({ entry, key, args }: Call, state: "done" | "live", output
 }
 
 export function describeOculusCli(line: string, meta: ToolMeta = {}, running = true): CliAction[] {
-  const { commands, combinedStatus } = parseShell(line);
+  const { commands, combinedStatus } = parseShell(unwrapShell(line));
   const calls = commands.flatMap(words => {
     let at = 0;
     while (/^[a-zA-Z_]\w*=/.test(words[at]) || ["env", "time"].includes(words[at])) at++;

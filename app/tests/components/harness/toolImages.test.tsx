@@ -134,6 +134,14 @@ test("local markdown refuses traversal and preserves citation locations", async 
   expect(fullCitation("agents/outputs/what?.md")).toMatchObject({ path: "agents/outputs/what?.md" });
 });
 
+test("a stored Codex row with its shell wrapper shows the inner command", async () => {
+  const raw = "/bin/zsh -lc 'cat AGENTS.md'";
+  const meta: ToolMeta = { kind: "bash", name: "commandExecution", input: { command: raw }, ok: true };
+  await act(() => root.render(<ToolRow item={tool(raw, meta)} running={false} />));
+  expect(host.textContent).toContain("cat AGENTS.md");
+  expect(host.textContent).not.toContain("/bin/zsh");
+});
+
 test("an old oculus row the wording table cannot read still shows that it failed", async () => {
   const title = "/bin/zsh -lc 'oculus task add x'";
   const meta: ToolMeta = { kind: "oculus_cli", name: "commandExecution", input: { command: title }, ok: false };

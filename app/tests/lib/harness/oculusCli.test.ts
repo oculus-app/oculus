@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { describeOculusCli, shellCommands, summariseOculusCli } from "@/lib/harness";
-import { parseShell } from "@/lib/harness/cliArgs";
+import { parseShell, unwrapShell } from "@/lib/harness/cliArgs";
 
 const title = (line: string, done = true, output = "") =>
   summariseOculusCli(describeOculusCli(line, { ok: done ? true : null, output }));
@@ -12,6 +12,16 @@ describe("oculus CLI row titles", () => {
       ["oculus", "memory", "list"],
     ]);
     expect(shellCommands(`cd 'my dir'; oculus read x.pdf`)).toEqual([["cd", "my dir"], ["oculus", "read", "x.pdf"]]);
+  });
+
+  test("a stored Codex row's shell wrapper unwraps only around one literal script", () => {
+    expect(unwrapShell(`/bin/zsh -lc 'oculus memory list -s COMP30026_2026_SM2'`)).toBe("oculus memory list -s COMP30026_2026_SM2");
+    expect(unwrapShell(`bash -c "oculus grep \\"a|b\\" -n 3"`)).toBe(`oculus grep "a|b" -n 3`);
+    expect(unwrapShell(`./bin/sh -lc 'echo '\\''quoted'\\'''`)).toBe("echo 'quoted'");
+    for (const raw of [`sh -c "ls $folder"`, `sh -lc 'ls' | head`, `fish -lc 'oculus read x'`, `sh -c 'x' extra`, `sh -lc 'ls`])
+      expect(unwrapShell(raw)).toBe(raw);
+    expect(title(`/bin/zsh -lc 'oculus memory list -s COMP30026_2026_SM2'`))
+      .toEqual({ title: "Listed memories", em: "COMP30026", icon: "memory" });
   });
 
   test("a heredoc is the command's stdin, not more commands", () => {

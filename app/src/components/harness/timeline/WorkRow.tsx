@@ -38,6 +38,7 @@ import { CodeText, CompactMd } from "@/components/markdown/MdComponents";
 import { ImageLightbox } from "@/components/ui/lightbox/Lightbox";
 import { useDataDir } from "@/hooks/backend/useDataDir";
 import { readPicturePath } from "./readPicture";
+import { unwrapShell } from "@/lib/harness/cliArgs";
 import {
   describeOculusCli,
   latestThought,
@@ -333,7 +334,8 @@ export const ToolRow = memo(function ToolRow({
   const entries = args(meta.input);
   const isCommand = kind === "bash" || kind === "oculus_cli";
   const command = isCommand
-    ? (meta.name === "commandExecution" && item.content) || entries.find(([key]) => key === "command")?.[1]
+    ? (meta.name === "commandExecution" && item.content && unwrapShell(item.content)) ||
+      entries.find(([key]) => key === "command")?.[1]
     : undefined;
   const input = meta.input as Record<string, unknown> | null;
   const readPath = kind === "read" && (input?.file_path ?? input?.path ?? input?.Path ?? input?.AbsolutePath);
