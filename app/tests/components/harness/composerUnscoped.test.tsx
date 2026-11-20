@@ -54,10 +54,6 @@ test("an empty box names its two menus unless the caller gives its own hint", ()
   expect(render(false, "Ask for a change")).not.toContain("Ask anything.");
 });
 
-test("a box with no onSubject shows no subject chip: Chat's headline picks it", () => {
-  expect(render(true)).not.toContain('aria-label="Subject:');
-});
-
 test("Enter is swallowed while unscoped; Shift+Enter still breaks the line", () => {
   const key = (k: string, shiftKey: boolean) => ({ key: k, shiftKey, metaKey: false, ctrlKey: false });
   expect(enterKey(key("Enter", false), true, true)).toBe("hold");

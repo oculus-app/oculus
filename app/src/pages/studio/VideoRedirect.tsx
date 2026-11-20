@@ -1,7 +1,7 @@
 import { Navigate, useParams } from "react-router-dom";
 import { videoHref } from "@/lib/studio/routes";
 
-/** A saved path under a video's own (a page Studio no longer has) opens the video. */
+/** Any path below a video's own (a saved tab, a stale link) opens the video. */
 export default function VideoRedirect() {
   const { slug = "" } = useParams();
   return <Navigate to={videoHref(slug)} replace />;

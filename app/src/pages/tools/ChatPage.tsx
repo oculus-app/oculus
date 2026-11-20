@@ -48,11 +48,12 @@ import { WARP_NAME } from "@/lib/ui/warp";
 /**
  * Chat with a CLI agent running from the library's `agents/` folder
  * (`docs/harness.md`): the conversations column (`ThreadList`) beside a thread.
- * `?t=<id>` is that thread's timeline; bare `/chat` is a new thread: its
- * headline names the subject (`DraftHero`), the recent threads
- * (`RecentThreads`) below it. New thread and the headline's pill ask for the
- * subject in `NewThreadDialog`. The composer is docked at the bottom of both,
- * and a new thread's will not send until a subject or General is chosen.
+ * `?t=<id>` is that thread's timeline, its composer docked at the bottom;
+ * bare `/chat` is a new thread: its headline names the subject (`DraftHero`),
+ * then the composer and the skill pills, then the recent threads
+ * (`RecentThreads`), all in one scroller. New thread and the headline's pill
+ * ask for the subject in `NewThreadDialog`, and a new thread's composer will
+ * not send until a subject or General is chosen.
  * A thread making a Studio video has its card above the timeline (`VideoCard`).
  *
  * Subscribes slice by slice: `live` is written many times a second mid-turn,

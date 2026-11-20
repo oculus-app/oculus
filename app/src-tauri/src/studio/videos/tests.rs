@@ -1,6 +1,6 @@
 //! `new` scaffolds a video that loads and lints clean over the libraries,
-//! `list` reads every video, a bare slug resolves under `videos/`, a title
-//! makes a unique slug, and the app's scope reaches only a video's folder.
+//! `list` reads every video, a bare slug resolves under `videos/`, and the
+//! app's scope reaches only a video's folder.
 
 use std::path::{Path, PathBuf};
 
@@ -159,33 +159,6 @@ fn a_bare_slug_resolves_under_videos_and_an_existing_dir_wins() {
     );
     let err = resolve_in(&videos, Path::new("no/such/dir")).unwrap_err();
     assert!(err.contains("no folder no/such/dir"), "{err}");
-}
-
-#[test]
-fn a_slug_is_kebab_ascii_and_unique_among_the_folders() {
-    for (title, slug) in [
-        ("Gradient descent: a primer!", "gradient-descent-a-primer"),
-        ("  Bayes' rule  ", "bayes-rule"),
-        ("Écoulement 3D", "coulement-3d"),
-        ("???", ""),
-        ("", ""),
-    ] {
-        assert_eq!(slug_from_title(title), slug, "{title:?}");
-    }
-    let long = slug_from_title(&"word ".repeat(40));
-    assert!(
-        valid_slug(&long) && long.len() <= 56 && !long.ends_with('-'),
-        "{long}"
-    );
-
-    let root = Scratch::new("videos-unique");
-    assert_eq!(unique_slug(&root, Some("Bayes rule")), "bayes-rule");
-    assert_eq!(unique_slug(&root, None), "untitled");
-    create_in(&root, &new("bayes-rule")).unwrap();
-    create_in(&root, &new("bayes-rule-2")).unwrap();
-    assert_eq!(unique_slug(&root, Some("Bayes rule")), "bayes-rule-3");
-    let made = unique_slug(&root, Some(&"x".repeat(100)));
-    assert!(valid_slug(&made), "{made}");
 }
 
 #[test]

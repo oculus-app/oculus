@@ -101,8 +101,9 @@ export const routes: RouteObject[] = [
       },
       {
         // Videos: the nav column (`StudioLayout`) beside the grid, one
-        // video's detail, the Components playground and the Themes page. A
-        // saved tab on a page Studio no longer has opens its video, or the grid.
+        // video's detail, the Components playground and the Themes page. Any
+        // other path below a video's opens the video, and any other Studio
+        // path the grid.
         path: "studio",
         element: <StudioLayout />,
         children: [

@@ -2,7 +2,7 @@ import type { Subject } from "@/lib/db";
 import { displayCode, displayName } from "@/lib/format/format";
 import { GENERAL_SCOPE, type ChatScope } from "@/lib/harness/scope";
 
-/** One subject choice, in `SubjectPicker` and the new-thread dialog: General,
+/** One subject choice, in the new-thread dialog and the headline: General,
  *  or a subject by its short code. */
 export interface SubjectOption {
   scope: ChatScope;

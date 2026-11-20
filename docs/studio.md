@@ -223,14 +223,10 @@ one folder besides `agents/` and the database an agent thread may write
   of that name, and a path must, once symlinks are followed, be a folder
   directly inside `videos/`. `videos/`, `components/` and any folder
   elsewhere are refused ("is not a video").
-- A title makes a slug (`slug_from_title`): ASCII letters and digits
-  lowercased, any other run one `-`, at most 56 characters (room for a
-  suffix), `untitled` when none is left. `unique_slug` appends `-2`, `-3`...
-  until no folder has the name.
 - video.json has no title field. The Videos list and the detail call a video
   by its slug spelled out (`title_of`: `gradient-descent` -> `Gradient
-  descent`); the scaffold's `TitleCard` carries the title the student typed,
-  and an agent may rewrite it.
+  descent`); the scaffold's `TitleCard` carries `--title`, and an agent may
+  rewrite it.
 
 ## Agent flow: a chat agent makes a video with the `oculus-studio` skill
 

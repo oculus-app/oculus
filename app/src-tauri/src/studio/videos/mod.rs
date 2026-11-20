@@ -3,10 +3,9 @@
 //! a command's DIR argument into a folder: a path that exists wins, else a
 //! bare slug names a video here (docs/studio.md, "Videos live in the data
 //! directory"). `scoped_in` is `resolve_in` for the app's commands, which may
-//! name only a video; `slug` makes a unique slug from a title.
+//! name only a video.
 
 mod captions;
-mod slug;
 #[cfg(test)]
 mod tests;
 
@@ -20,7 +19,6 @@ use studio_core::{valid_subject, valid_theme_name, Video};
 use crate::library::paths::{data_dir, studio_dir};
 
 pub use captions::{set_captions, with_captions};
-pub use slug::{slug_from_title, unique_slug};
 
 /// `<data dir>/studio/videos`.
 pub fn videos_dir() -> PathBuf {
