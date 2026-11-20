@@ -111,7 +111,9 @@ card's badge, a chat's video card and the page's bar all follow one render.
 
 The grid (`MediaGrid`, `MediaTile`) shows each video's thumbnail
 (`studio_thumbnail`, 16:9, a portrait one letterboxed rather than cropped),
-title and subject, scene count and age. A video that is rendering carries a
+title (video.json's `title`, else its title card's, else the slug spelled
+out: [studio.md](./studio.md#videos-live-in-the-data-directory)) and subject,
+scene count and age. A video that is rendering carries a
 badge with its percentage and a bar. One whose video.json will not load shows
 the problem in place of its facts. Pills over the grid narrow by subject
 (shown when two or more subjects have videos; the choice is remembered in

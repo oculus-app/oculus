@@ -1842,6 +1842,7 @@ Usage: oculus studio <COMMAND>
 Commands:
   new         Make a new video under `<app data>/studio/videos/<SLUG>/`
   list        List the videos under `<app data>/studio/videos/`
+  title       Rename a video
   frame       Render one frame of a video to a PNG
   strip       Render frames across a stretch of a video as one contact-sheet PNG
   lint        Check a whole video, or one scene, without writing to its folder
@@ -1872,13 +1873,14 @@ Options:
 ```
 Make a new video under `<app data>/studio/videos/<SLUG>/`
 
-Writes `video.json` (1920x1080, or 1080x1920 with `--portrait`, 30 fps, the default
-theme, the subject, and one silent `TitleCard` scene holding `--title`), an empty
-`script.md`, and empty `components/` and `assets/`, then prints the folder. The default
-theme is the `defaultTheme` in the subject library's `library.json`, else the global
-library's, else `default`, and video.json names it. Every other `oculus studio` command
-takes the slug in place of the folder. Refuses a slug that exists, and refuses when
-narration is not set up (no voice resolves) unless `--scratch`.
+Writes `video.json` (`--title` as its `title`, 1920x1080, or 1080x1920 with
+`--portrait`, 30 fps, the default theme, the subject, and one silent `TitleCard` scene
+holding `--title`), an empty `script.md`, and empty `components/` and `assets/`, then
+prints the folder. The default theme is the `defaultTheme` in the subject library's
+`library.json`, else the global library's, else `default`, and video.json names it.
+Every other `oculus studio` command takes the slug in place of the folder. Refuses a
+slug that exists, and refuses when narration is not set up (no voice resolves) unless
+`--scratch`.
 
 oculus studio new gradient-descent --subject COMP30027 --title "Gradient descent"
 
@@ -1896,7 +1898,8 @@ Options:
           The course the video belongs to; its library is read before the global one
 
       --title <TITLE>
-          The title card's text (default: the slug, spaced)
+          What the video is called, and its title card's text (default: the slug,
+          spaced)
 
       --portrait
           1080x1920 instead of 1920x1080
@@ -1915,8 +1918,10 @@ Options:
 List the videos under `<app data>/studio/videos/`
 
 One line per video: its slug, subject, scene count, whether it has narration
-(`narrated`; `lint` says whether it is current), the renders in its `renders/` and when
-it last changed. A folder whose video.json does not load is listed with the reason.
+(`narrated`; `lint` says whether it is current), the renders in its `renders/`, when it
+last changed and its title. The title is video.json's `title`, else the first scene's
+text when it is a `TitleCard`, else the slug spelled out. A folder whose video.json does
+not load is listed with the reason.
 
 Usage: oculus studio list [OPTIONS]
 
@@ -1924,6 +1929,31 @@ Options:
       --subject <CODE>
           Only this course's videos
 
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+### `oculus studio title`
+
+```
+Rename a video
+
+Sets video.json's `title`, the name the Videos grid, the chat and `oculus studio list`
+show, and changes nothing else: the folder and its slug stay, and so do the title card
+and the rest of video.json, as written.
+
+oculus studio title shor-breaks-rsa "How Shor breaks RSA"
+
+Usage: oculus studio title <DIR> <TITLE>
+
+Arguments:
+  <DIR>
+          The video folder (or its slug)
+
+  <TITLE>
+          The new name
+
+Options:
   -h, --help
           Print help (see a summary with '-h')
 ```

@@ -134,15 +134,19 @@ Video progress:
 **Step 1.** Run `oculus studio new` only when the student's request is for a
 video. Selecting this skill while asking about themes, components or Studio
 is not itself a request to create one. If the brief already has "The video
-being made", use that folder and skip creation. Otherwise pick a slug
+being made", use that folder and skip creation. Otherwise name the video:
+a title a student would search for, the question or idea in their words
+("How Shor breaks RSA", not "Lecture 11 video"). Derive the slug from it
 (lowercase letters, digits, `-`) and run:
 
 ```bash
-oculus studio new shor-breaks-rsa --subject MULT20015 --title "How Shor breaks R S A"
+oculus studio new shor-breaks-rsa --subject MULT20015 --title "How Shor breaks RSA"
 ```
 
-It refuses a slug that exists (`oculus studio list` shows them). `--theme NAME`
-selects the requested theme; without it the subject's default is used. Pass
+The title is the video's name in the Videos grid and the chat, and the
+title card's text. `oculus studio title <slug> "<title>"` renames it later;
+the slug never changes. `new` refuses a slug that exists (`oculus studio
+list` shows them). `--theme NAME` selects the requested theme; without it the subject's default is used. Pass
 the theme and format from the message's Video style context when provided.
 `--portrait` is for Reels or a requested vertical video. The command refuses
 when narration has no configured voice; ask the student to fix Settings →

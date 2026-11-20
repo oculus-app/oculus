@@ -13,6 +13,7 @@ use crate::*;
 pub(crate) enum StudioAction {
     New(StudioNewArgs),
     List(StudioListArgs),
+    Title(StudioTitleArgs),
     Frame(StudioFrameArgs),
     Strip(StudioStripArgs),
     Lint(StudioLintArgs),
@@ -190,6 +191,7 @@ impl StudioAction {
     /// The DIR this command reads, if it takes one, for slug resolution.
     pub(crate) fn dir_mut(&mut self) -> Option<&mut PathBuf> {
         match self {
+            StudioAction::Title(a) => Some(&mut a.dir),
             StudioAction::Frame(a) => Some(&mut a.dir),
             StudioAction::Strip(a) => Some(&mut a.dir),
             StudioAction::Lint(a) => Some(&mut a.dir),
@@ -226,9 +228,9 @@ impl StudioAction {
 
 /// Make a new video under `<app data>/studio/videos/<SLUG>/`
 ///
-/// Writes `video.json` (1920x1080, or 1080x1920 with `--portrait`, 30 fps,
-/// the default theme, the subject, and one silent `TitleCard` scene holding
-/// `--title`), an empty `script.md`, and empty `components/` and `assets/`,
+/// Writes `video.json` (`--title` as its `title`, 1920x1080, or 1080x1920
+/// with `--portrait`, 30 fps, the default theme, the subject, and one silent
+/// `TitleCard` scene holding `--title`), an empty `script.md`, and empty `components/` and `assets/`,
 /// then prints the folder. The default theme is the `defaultTheme` in the
 /// subject library's `library.json`, else the global library's, else
 /// `default`, and video.json names it. Every other `oculus studio`
@@ -249,7 +251,8 @@ pub(crate) struct StudioNewArgs {
     /// global one
     #[arg(long, value_name = "CODE")]
     pub(crate) subject: Option<String>,
-    /// The title card's text (default: the slug, spaced)
+    /// What the video is called, and its title card's text (default: the
+    /// slug, spaced)
     #[arg(long, value_name = "TITLE")]
     pub(crate) title: Option<String>,
     /// 1080x1920 instead of 1920x1080
@@ -283,13 +286,33 @@ pub(crate) struct StudioAgentsArgs {
 ///
 /// One line per video: its slug, subject, scene count, whether it has
 /// narration (`narrated`; `lint` says whether it is current), the renders
-/// in its `renders/` and when it last changed. A folder whose video.json
-/// does not load is listed with the reason.
+/// in its `renders/`, when it last changed and its title. The title is
+/// video.json's `title`, else the first scene's text when it is a
+/// `TitleCard`, else the slug spelled out. A folder whose video.json does
+/// not load is listed with the reason.
 #[derive(Args)]
 pub(crate) struct StudioListArgs {
     /// Only this course's videos
     #[arg(long, value_name = "CODE")]
     pub(crate) subject: Option<String>,
+}
+
+/// Rename a video
+///
+/// Sets video.json's `title`, the name the Videos grid, the chat and
+/// `oculus studio list` show, and changes nothing else: the folder and its
+/// slug stay, and so do the title card and the rest of video.json, as
+/// written.
+///
+///     oculus studio title shor-breaks-rsa "How Shor breaks RSA"
+#[derive(Args)]
+pub(crate) struct StudioTitleArgs {
+    /// The video folder (or its slug)
+    #[arg(value_name = "DIR")]
+    pub(crate) dir: PathBuf,
+    /// The new name
+    #[arg(value_name = "TITLE")]
+    pub(crate) title: String,
 }
 
 /// Which engine, voice and speed to use, and the server and model for the
