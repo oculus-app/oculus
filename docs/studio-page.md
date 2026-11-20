@@ -37,7 +37,10 @@ video's detail, `/studio/videos/:slug/thread` the conversation that made it,
 each page header's toggle, as Chat's column) and reads the video list once;
 a page puts its own `StudioHeader` row over its body. A video's title rides
 in `?n=` (`videoHref`) because `tabInfo` titles a tab from its path alone,
-and falls back to the slug. There is no Reels page.
+and falls back to the slug. There is no Reels page. In the side panel (a
+video opened beside its chat) a Studio page has no nav column and its header
+no toggle: the panel's switcher, expand and × claim the row as on any page
+built on `PageHeader` ([shell.md](./shell.md#the-side-panel-is-a-stack-of-items-beside-the-page)).
 
 The Recent list is the newest eight videos, or every title the column's
 search matches. A row opens the thread when the video has one, else the
@@ -163,6 +166,12 @@ the problem in place of its facts. Pills over the grid narrow by subject
 
 The detail (`VideoDetailStage`) is the player with a dock, and under it a row
 of the facts (subject, theme, voice, length, shape) beside the render bar.
+Opened beside the chat that makes it (the video card's title or expand
+button, [harness.md](./harness.md#a-studio-thread-carries-its-video)), it
+reads the video again when that thread's turn ends or the folder's modified
+time moves, so it follows the agent's edits; at side-panel widths the dock
+goes under the picture (below). Playing it pauses the chat's inline player
+and the other way round, as for any two library videos.
 **Continue in chat** opens the thread page. The header's last button is
 **Render draft** while the video has no playable render (it starts
 `studio_render` for `draft` through `renderStore`, and spins, disabled, while

@@ -6,6 +6,7 @@ import { useVideoDetail } from "@/hooks/studio/useVideoDetail";
 import type { HarnessItem } from "@/lib/harness";
 import { fmtClockSecs } from "@/lib/lectures/media";
 import { studioAction } from "@/lib/studio/activity";
+import { openVideoBeside } from "@/lib/studio/openVideo";
 import { videoSeconds } from "@/lib/studio/videos";
 import { useVideosStore } from "@/stores/studio/videosStore";
 import { InlineVideo, type PlayRequest } from "./InlineVideo";
@@ -55,7 +56,7 @@ export const RenderTile = memo(function RenderTile({ item }: { item: HarnessItem
       </div>
       {play && detail && file && (
         <div className="border-t border-border-subtle p-3">
-          <InlineVideo detail={detail} request={play} preset={preset} />
+          <InlineVideo detail={detail} request={play} preset={preset} onOpenBeside={() => openVideoBeside(slug, detail.row.title)} />
         </div>
       )}
     </div>

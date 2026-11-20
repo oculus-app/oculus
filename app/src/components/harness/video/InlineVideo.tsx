@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+import { SidebarSimple } from "@phosphor-icons/react";
+
+import { ControlButton } from "@/components/media/player/ControlButton";
 
 import { VideoPlayer } from "@/components/studio/video/VideoPlayer";
 import { useVideoPlayback } from "@/hooks/studio/useVideoPlayback";
@@ -21,11 +24,14 @@ export function InlineVideo({
   detail,
   request,
   preset = null,
+  onOpenBeside,
 }: {
   detail: VideoDetail;
   request: PlayRequest;
   /** That render rather than the newest. */
   preset?: RenderPreset | null;
+  /** The control bar's button that opens the video's page beside the chat. */
+  onOpenBeside?: () => void;
 }) {
   const playback = useVideoPlayback(detail, false, preset);
   const { el } = playback;
@@ -42,5 +48,16 @@ export function InlineVideo({
     return () => el.removeEventListener("loadedmetadata", play);
   }, [el, at, n]);
   useEffect(() => (el ? () => el.pause() : undefined), [el]);
-  return <VideoPlayer playback={playback} />;
+  return (
+    <VideoPlayer
+      playback={playback}
+      controls={
+        onOpenBeside && (
+          <ControlButton label="Open beside the chat" onClick={onOpenBeside}>
+            <SidebarSimple size={16} className="scale-x-[-1]" />
+          </ControlButton>
+        )
+      }
+    />
+  );
 }

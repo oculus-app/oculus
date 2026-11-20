@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "@phosphor-icons/react";
 
-import { PageHeader, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneTitle, PaneTrail, useInSidePanel } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useStudioPanel } from "@/layouts/StudioLayout";
 
-/** A Studio page's 48px header row: the nav column's toggle, an optional
- *  way back, the title, and the page's actions at the end. */
+/** A Studio page's 48px header row: the nav column's toggle (none in the
+ *  side panel, which has no nav column), an optional way back, the title,
+ *  and the page's actions at the end. */
 export function StudioHeader({
   title,
   back,
@@ -20,9 +21,10 @@ export function StudioHeader({
 }) {
   const panel = useStudioPanel();
   const navigate = useNavigate();
+  const inSide = useInSidePanel();
   return (
     <PageHeader>
-      <SideNavCollapseToggle panel={panel} />
+      {!inSide && <SideNavCollapseToggle panel={panel} />}
       {back && (
         <button
           type="button"

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { StudioHeader } from "@/components/studio/StudioHeader";
@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useVideoDetail } from "@/hooks/studio/useVideoDetail";
 import { playableRenders } from "@/lib/studio/exports";
 import { videoHref, VIDEOS_HREF } from "@/lib/studio/routes";
+import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { useVideosStore } from "@/stores/studio/videosStore";
 
 /** The page's width: the video fills it, though not past a sane size. */
@@ -28,6 +29,16 @@ export default function VideoPage() {
   const { detail, error, reload } = useVideoDetail(slug);
   const title = row?.title ?? detail?.row.title ?? slug;
   const threadId = row?.threadId ?? detail?.row.threadId ?? null;
+  // The agent may change the files while the page is open beside its chat:
+  // read them again when its turn ends or the folder's time moves.
+  const running = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.running);
+  const modified = row?.modified;
+  const seen = useRef({ running, modified });
+  useEffect(() => {
+    const was = seen.current;
+    seen.current = { running, modified };
+    if ((was.running && !running) || was.modified !== modified) void reload();
+  }, [running, modified, reload]);
 
   useEffect(() => {
     document.title = `${title} · Oculus`;

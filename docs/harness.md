@@ -3353,8 +3353,11 @@ while the agent works ("Writing the script", "Building scenes · 4 of 7",
 "Narrating", "Rendering draft · 64%"), a green check with the length once a
 draft or the final is ready, red when a step failed. A 2px bar on its bottom
 edge fills while scenes build or a render reports a fraction, and sweeps
-(`progress-sweep`) for the agent's own render, which reports none. Its
-buttons:
+(`progress-sweep`) for the agent's own render, which reports none. The
+thumbnail and title open the video's page beside the chat
+(`openVideoBeside`, as a file chip opens its file; ⌘-click a new tab), and so
+do the card's last button and a button on its player's control bar. Nothing
+opens it on its own, not a render's end nor a turn's. Its other buttons:
 
 - **Play** grows the player in the card (`InlineVideo`: Studio's
   `VideoPlayer` without a dock, the newest render, sharing the app's one

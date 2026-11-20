@@ -23,10 +23,13 @@ export function VideoPlayer({
   playback,
   dock,
   dockLabel,
+  controls,
 }: {
   playback: VideoPlayback;
   dock?: ReactNode;
   dockLabel?: string;
+  /** Buttons for the control bar, before the dock button. */
+  controls?: ReactNode;
 }) {
   const { player, shown, src, setEl, chapters, hasCaptions } = playback;
   const frame = useDockedFrameHeight(player);
@@ -61,6 +64,7 @@ export function VideoPlayer({
         captions={hasCaptions}
         dock={dock}
         dockLabel={dockLabel}
+        controls={controls}
         // Under the control bar, so the dock button still folds and opens it.
         overlay={
           !shown && (
