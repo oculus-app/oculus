@@ -120,21 +120,24 @@ pub async fn begin(tx: &mut SqliteConnection, send: &SendIntent) -> Result<RunSt
             "continuation",
             Some(serde_json::json!({ "proposal": card }).to_string()),
         ),
-        None => (
-            "user",
-            "student",
-            "send",
+        None => ("user", "student", "send", {
+            let mut meta = serde_json::Map::new();
+            if let Some(at) = send.at {
+                meta.insert("at".into(), at.into());
+            }
+            if let Some(style) = send
+                .options
+                .as_deref()
+                .and_then(|s| serde_json::from_str::<crate::harness::SendOptions>(s).ok())
+                .and_then(|o| o.studio_style)
             {
-                let mut meta = serde_json::Map::new();
-                if let Some(at) = send.at { meta.insert("at".into(), at.into()); }
-                if let Some(style) = send.options.as_deref()
-                    .and_then(|s| serde_json::from_str::<crate::harness::SendOptions>(s).ok())
-                    .and_then(|o| o.studio_style) {
-                    meta.insert("studio".into(), serde_json::to_value(style).map_err(|e| e.to_string())?);
-                }
-                (!meta.is_empty()).then(|| serde_json::Value::Object(meta).to_string())
-            },
-        ),
+                meta.insert(
+                    "studio".into(),
+                    serde_json::to_value(style).map_err(|e| e.to_string())?,
+                );
+            }
+            (!meta.is_empty()).then(|| serde_json::Value::Object(meta).to_string())
+        }),
     };
     let item_id = sqlx::query(
         "INSERT INTO harness_items (thread_id, kind, content, meta) VALUES (?1, ?2, ?3, ?4)",
