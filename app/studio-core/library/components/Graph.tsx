@@ -81,7 +81,7 @@ export const examples = {
     path: [0, 0, 1, 2, 2, 0],
     walkAt: 2.2,
     walkEach: 0.65,
-    radius: 84,
+    radius: 90,
   },
   network: {
     nodes: ["x_1", "x_2", "x_3", "", "", "", "", "", "", "", "", "y_1", "y_2"],
@@ -96,7 +96,7 @@ export const examples = {
     visit: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     visitAt: [2.2, 2.2, 2.2, 3, 3, 3, 3, 3.8, 3.8, 3.8, 3.8, 4.6, 4.6],
     trace: "all",
-    radius: 38,
+    radius: 48,
   },
   schedule: {
     nodes: ["A", "B", "C", "D", "E", "F", "G"],
@@ -332,7 +332,7 @@ const Graph = (
     nodes, edges, weights = [], directed = false, kind = "circle", width = 1600, height = 880,
     root = 0, columns = [], xs = [], ys = [], tones = [], at = 0, edgesAt,
     visit = [], visitAt = [], visitStart = 0, each = 0.6, via = [], trace = "tree",
-    path = [], walkAt = 0, walkEach = 0.8, radius = 60, tone, pathTone, id = "graph",
+    path = [], walkAt = 0, walkEach = 0.8, radius = 60, tone, pathTone, id = "graph", floor = 0,
   },
   { t, theme },
 ) => {
@@ -349,7 +349,7 @@ const Graph = (
     const w = clamp(r * 0.07, 2, 5) * (m > 24 ? 0.55 : 1);
     const head = directed ? Math.max(14, 5 * w) : 0;
     const hug = r + (directed ? w : 0.5 * w);
-    const wfs = clamp(r * 0.55, 26, 40);
+    const wfs = Math.max(floor, clamp(r * 0.55, 26, 40));
     const ring = clamp(r * 0.06, 2, 5);
     const pos = layout(kind, nodes, edges, { width, height, root, columns, xs, ys, pad });
     const mid = [0, 1].map((k) => pos.reduce((s, p) => s + p[k], 0) / Math.max(1, n));
@@ -445,8 +445,8 @@ const Graph = (
     const disks = edges.flatMap(([a, b], e) => (a === b ? [loopDisk(a, e)] : []));
     const outside = [];
     const set = nodes.map((label, i) => {
-      if (!isPlain(label) || fitIn(label, r) >= 0.37 * radius) return null;
-      const size = clamp(0.7 * r, 0.4 * radius, 0.7 * radius);
+      if (!isPlain(label) || fitIn(label, r) >= Math.max(0.37 * radius, floor)) return null;
+      const size = Math.max(floor, clamp(0.7 * r, 0.4 * radius, 0.7 * radius));
       const lines = wrapWords(label);
       const [lw, lh] = [Math.max(...lines.map((l) => textW(l, size))) + 0.3 * size, 1.3 * size * lines.length];
       const gap = 6 + 2 * ring;
@@ -514,7 +514,8 @@ const Graph = (
   layoutNow = arrange(r, pad);
   const { pos, shapes, loops, tags, set, outward, shaft, w, head, hug, wfs, ring } = layoutNow;
   // One label size for the graph (not below half the largest); a longer label shrinks alone to fit.
-  const text = Math.max(0.5 * r * 0.85, Math.min(r * 0.85, ...nodes.map((label, i) => (set[i] ? Infinity : fitIn(label, r)))));
+  // None goes under `floor`, lint's small_text floor: a plain label that would goes outside its node.
+  const text = Math.max(floor, 0.5 * r * 0.85, Math.min(r * 0.85, ...nodes.map((label, i) => (set[i] ? Infinity : fitIn(label, r)))));
 
   // Visits: when each node is reached, and when the edge it was reached by lights.
   const reached = nodes.map(() => Infinity);
@@ -705,7 +706,7 @@ const Graph = (
       >
         {own}
         {label === "" || set[i] ? null : (
-          <Math key={`${id}/l${i}`} tex={labelTex(label)} style={{ fontSize: Math.min(text, fitIn(label, r)), color: mix(color.text, color.onAccent, current * (1 - walked)) }} />
+          <Math key={`${id}/l${i}`} tex={labelTex(label)} style={{ fontSize: Math.max(floor, Math.min(text, fitIn(label, r))), color: mix(color.text, color.onAccent, current * (1 - walked)) }} />
         )}
       </Box>
     );
@@ -730,7 +731,7 @@ export default (props, { theme, size }) => {
   const scale = Math.min(width / 1600, height / 880);
   return (
     <Stack justify="center" align="center" style={{ flexGrow: 1, fill: theme.color.bg }}>
-      <Graph {...rest} kind={kind} width={width} height={height} radius={(radius ?? 60) * scale} />
+      <Graph {...rest} kind={kind} width={width} height={height} radius={(radius ?? 60) * scale} floor={Math.min(size.width, size.height) / 27} />
     </Stack>
   );
 };

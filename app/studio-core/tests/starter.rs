@@ -63,6 +63,53 @@ fn the_starter_set_lints_clean_with_each_bundled_theme() {
     }
 }
 
+/// Every example of every starter, at 1920x1080 on each bundled theme, held
+/// long enough for `small_text` (over 1 s after the theme's transition in):
+/// the theme's type scale starts at the floor, so nothing a starter sets
+/// from it is too small for the chat player.
+#[test]
+fn no_starter_example_sets_text_under_the_small_text_floor() {
+    let root = std::env::temp_dir().join(format!("studio-starter-floor-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let (video, global) = (root.join("video"), root.join("library"));
+    std::fs::create_dir_all(&video).unwrap();
+    seed_library(&global, false).unwrap();
+    let theme = Theme::bundled("default").unwrap();
+    let size = Size {
+        width: 1920,
+        height: 1080,
+    };
+    let mut engine = Engine::new(theme, size, None, RenderOptions::default()).unwrap();
+    let mut scenes = Vec::new();
+    for (name, tsx) in STARTER_COMPONENTS {
+        let info = engine.load_component(name, tsx).unwrap();
+        for props in info.examples.values() {
+            scenes.push(json!({ "component": name, "props": props, "hold": 6.0 }));
+        }
+    }
+    let library = Library {
+        global: Some(global),
+        ..Library::default()
+    };
+    for theme in ["default", "warm"] {
+        let v =
+            json!({ "size": { "width": 1920, "height": 1080 }, "theme": theme, "scenes": scenes });
+        std::fs::write(video.join("video.json"), v.to_string()).unwrap();
+        let report = Project::load_with(&video, &library)
+            .unwrap()
+            .lint()
+            .unwrap();
+        let small: Vec<String> = report
+            .issues
+            .iter()
+            .filter(|i| i.error.kind() == "small_text")
+            .map(ToString::to_string)
+            .collect();
+        assert!(small.is_empty(), "{theme}: {small:#?}");
+    }
+    std::fs::remove_dir_all(&root).ok();
+}
+
 /// A library component named like a prelude element (`Steps`, the slide
 /// starter some libraries still hold) is only a scene name: each component
 /// is its own module, so inside every other component `<Steps>` is still

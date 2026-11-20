@@ -100,7 +100,7 @@ pub fn fill_defaults(tokens: &mut Value) {
         types.entry("code").or_insert_with(|| {
             serde_json::json!({
                 "fontFamily": MONO_FAMILY,
-                "fontSize": 28,
+                "fontSize": 40,
                 "fontWeight": 400,
                 "lineHeight": 1.5,
                 "letterSpacing": 0

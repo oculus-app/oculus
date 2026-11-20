@@ -1598,8 +1598,11 @@ centroid smoothly.
   the mono face.
 - A theme is tokens only: `color`, `font` (`heading`, `body` and `mono`
   families), `type` (style fragments to spread into `style`; the bundled
-  themes have `display`, `h1`, `h2`, `h3`, `body`, `label`, `caption` and
-  `code`, the monospace fragment, 28 px), `space`, `radius`,
+  themes have `display` 104, `h1` 72, `h2` 60, `h3` 52, `body` 44, `label`
+  40, `caption` 40 and `code` 40, the monospace fragment, in px on the
+  1920x1080 frame: none is under lint's `small_text` floor of 1/27 of the
+  frame's shorter side, and a theme that lacks `code` gets it at 40 px),
+  `space`, `radius`,
   `motion` (`duration`, `easing` as cubic-bezier points, `spring` presets,
   and optionally `transition`, `magicMove`, `morphColor` and `motionBlur`,
   the bottom of the motion cascade; the bundled theme sets `morphColor:
@@ -1813,7 +1816,16 @@ since a magic move's first frames carry the last scene's layout.
 - **`small_text`**: a Text or Math set under 1/27 of the frame's shorter
   side (40 px at 1080p) for over 1 s. One error per entity, naming its
   smallest size, its string, how long it is small and what that size reads
-  as in the ~600 px chat player.
+  as in the ~600 px chat player. The bundled themes' type scale starts at
+  this floor (see "Fonts and themes are bundled, never the system's"), so
+  only a size a component writes or shrinks can fail it. The starters that
+  size their own labels keep to it as well: `Bars` hides value labels
+  rather than shrink them under it and thins crowded category labels,
+  `Graph` moves a plain node label that will not fit inside its node at the
+  floor to its side, `Grid` widens its label gutters, and `Code` sets its
+  notes and trace at least that large (a panel too wide to fit still
+  shrinks, and fails). `tests/starter.rs` lints every starter example at
+  1920x1080 on both bundled themes for `small_text`.
 - **`sparse`**: for over 3 s, the box every shown entity fits in (cut to
   the frame) is under 60% of the frame's width or under 50% of its height,
   or nothing is shown. It measures boxes, not ink, so a thin stroke or a
@@ -1851,10 +1863,10 @@ The rest are warnings. Each names the scene, the time span, the entity
   px both ways with nothing shown within 40 px.
 
 Calibration (2026-11-20), on three narrated videos of 7 to 16 scenes and
-375 to 605 s: every one fails `small_text` (in 15 of 16, 16 of 16 and 7 of 7
-scenes, at 11 to 38 px; the default theme's `h3`, `body`, `code`, `label`
-and `caption` are all under 40 px), `scene_title`
-(2, 14 and 7 scenes), `long_scene` (13 of 15, 14 of 16 and 7 of 7 narrated
+375 to 605 s: every one fails `small_text` (in 3 of 16, 5 of 16 and 2 of 7
+scenes, at 15 to 39 px, all sizes written into their own components; on
+the type scale before it started at the floor, 15, 16 and 7 scenes),
+`scene_title` (2, 13 and 7 scenes), `long_scene` (13 of 15, 14 of 16 and 7 of 7 narrated
 scenes, at 31 to 65 s) and `long_video`. Two fail `sparse` in 8 and 11
 scenes; the third's outline boxes and title span at least 83% by 71% of the
 frame in every sample, so its thinness is ink, which `sparse` does not

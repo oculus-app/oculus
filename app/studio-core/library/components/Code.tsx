@@ -79,7 +79,7 @@ export const examples = {
   },
   query: {
     lines: [
-      "SELECT d.name, COUNT(*) AS staff, AVG(e.salary) AS pay",
+      "SELECT d.name, COUNT(*), AVG(e.salary) AS pay",
       "FROM employees e",
       "JOIN departments d ON d.id = e.dept_id",
       "WHERE e.hired >= '2020-01-01'",
@@ -92,7 +92,7 @@ export const examples = {
     focusEnd: [2, 3, 4, 5, 0, 6],
     focusAt: [0.6, 1.5, 2.4, 3.2, 4.0, 4.8],
     noteLine: [2, 3, 4, 5, 0, 6],
-    noteText: ["pair each row with its department", "keep recent hires", "one group per department", "keep groups of 6 or more", "only now compute the columns", "sort the result"],
+    noteText: ["pair rows with their dept", "keep recent hires", "one group per department", "keep groups of 6 or more", "now compute the columns", "sort the result"],
     noteAt: [0.6, 1.5, 2.4, 3.2, 4.0, 4.8],
   },
   fix: {
@@ -302,7 +302,8 @@ const Code = (
     const cw = fs * ADVANCE;
     const lh = fs * type.code.lineHeight;
     const pad = sp("l");
-    const small = fs * 0.85 * (type.body.fontSize / type.code.fontSize);
+    // Notes and the trace never go under lint's small_text floor.
+    const small = Math.max(fs * 0.85 * (type.body.fontSize / type.code.fontSize), Math.min(frame.width, frame.height) / 27);
     const codeX = pad + (numbers ? digits * cw + sp("m") : 0) + (diff ? 2 * cw : 0);
     const noteX = codeX + cols * cw + sp("l");
     const noteW = notes.length ? fs * 0.12 + sp("s") + longest(notes.map((n) => n.text)) * small * 0.9 * 0.56 : 0;

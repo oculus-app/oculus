@@ -226,7 +226,9 @@ const checkData = ({ labels, series, to, changeAt, histogram }) => {
  * along the value axis, `cross(p, s)` the [start, thickness] of the bar at
  * (fractional) slot p in series s, `rect`, `at(c, v)` a point, `catPos(x)`
  * a position along the bars, `pose(t)` the values and slots at t, plus the
- * ticks, the label texts and sizes. Unit and label fonts follow `size`.
+ * ticks, the label texts and sizes. Unit and label fonts follow `size`,
+ * and none goes under `floor` (lint's `small_text`, 1/27 of the frame's
+ * shorter side): value labels that would are hidden, crowded labels thin.
  * The value axis reaches `max` if given and always covers the data; its
  * ticks are thinned until their numbers clear each other (and number at
  * most 12). `labelOn(i)` says whether label i is shown: a crowded axis
@@ -234,7 +236,7 @@ const checkData = ({ labels, series, to, changeAt, histogram }) => {
  */
 const bars = (o) => {
   const { labels, series, to = [], changeAt = [], histogram = false, stacked = false, unit = "", size = 40 } = o;
-  const { width: W = 1700, height: H = 920, glide = 0.9, names = [], lineLabel } = o;
+  const { width: W = 1700, height: H = 920, glide = 0.9, names = [], lineLabel, floor = 0 } = o;
   checkData({ labels, series, to, changeAt, histogram });
   const vertical = o.orientation !== "horizontal";
   const n = series[0].length;
@@ -284,7 +286,7 @@ const bars = (o) => {
   let axis = axisFor(o.step ?? niceStep(span));
 
   const catSize = size;
-  const tickSize = size * 0.9;
+  const tickSize = Math.max(size * 0.9, floor);
   const gap = size * 0.6;
   const lineH = size * 1.7;
   const tickW = Math.max(...axis.ticks.map((v) => texW(numTex(v) + unit, tickSize)));
@@ -292,7 +294,7 @@ const bars = (o) => {
   const dec = o.decimals ?? Math.min(Math.max(0, ...states.flat(2).map((v) => places(v, 6))), Math.max(2, places(axis.step, 6)));
   const big = Math.max(hi, -lo);
   const valText = (v) => (big < 1e-4 || big >= 1e15 ? numTex(Number(v.toPrecision(3))) : fixedTex(v, dec)) + unit;
-  const valW0 = Math.max(texW(valText(hi), size * 0.9), texW(valText(lo), size * 0.9));
+  const valW0 = Math.max(texW(valText(hi), tickSize), texW(valText(lo), tickSize));
   const lineHoriz = o.line !== undefined && vertical === (o.lineOn !== "category");
   const lineLines = lineLabel ? lineCount(lineLabel) : 1;
   const nameLines = Math.max(1, ...names.map(lineCount));
@@ -304,7 +306,7 @@ const bars = (o) => {
   let [L, R, T, B] = [0, 0, 0, 0];
   let labelTex = labels;
   let catEff = catSize;
-  let valEff = size * 0.9;
+  let valEff = tickSize;
   let showVal = o.valueLabels !== false;
   let every = 1;
   const gapFrac = histogram ? 0 : 0.3;
@@ -322,11 +324,11 @@ const bars = (o) => {
     const limit = sw * 0.94;
     labelTex = wrap(labels, limit, catSize);
     const widest = Math.max(...labelTex.map((l) => texW(l, catSize)));
-    catEff = Math.max(catSize * 0.62, Math.min(catSize, (catSize * limit) / widest));
+    catEff = Math.max(catSize * 0.62, floor, Math.min(catSize, (catSize * limit) / widest));
     const fitted = widest * (catEff / catSize);
     if (fitted > limit * 1.001) every = Math.ceil((fitted * 1.25) / sw);
     if (!stacked) valEff = Math.min(valEff, (valEff * bt * 1.15) / valW0);
-    if (valEff < size * 0.55 && !stacked) showVal = false;
+    if (valEff < Math.max(size * 0.55, floor) && !stacked) showVal = false;
     const lines = Math.max(...labelTex.map(lineCount));
     T = legendH + lineRow + (showVal ? valEff * 1.9 : gap * 1.2);
     B = gap * 0.9 + lines * catEff * 1.6 + (showVal && !stacked && lo < 0 ? valEff * 1.7 : 0);
@@ -338,13 +340,13 @@ const bars = (o) => {
     const widest = Math.max(...labelTex.map((l) => texW(l, catSize)));
     const sh = (H - T - B) / n;
     const lines = Math.max(...labelTex.map(lineCount));
-    catEff = Math.max(catSize * 0.62, Math.min(catSize, (catSize * wideLimit) / widest, (sh * 0.92) / (lines * 1.5)));
+    catEff = Math.max(catSize * 0.62, floor, Math.min(catSize, (catSize * wideLimit) / widest, (sh * 0.92) / (lines * 1.5)));
     if (lines * catEff * 1.5 > sh * 0.92 * 1.001) every = Math.ceil((lines * catEff * 1.5 * 1.25) / sh);
     L = Math.min(wideLimit, Math.max(...labelTex.map((l) => texW(l, catEff)))) + gap * 1.4;
     const bt = group(sh) / (stacked ? 1 : S);
     if (!stacked) valEff = Math.min(valEff, bt / 1.45);
-    if (valEff < size * 0.55 && !stacked) showVal = false;
-    R = Math.max(gap, tickW / 2 + gap * 0.3, showVal && !stacked ? valW0 * (valEff / (size * 0.9)) + gap * 1.8 : 0);
+    if (valEff < Math.max(size * 0.55, floor) && !stacked) showVal = false;
+    R = Math.max(gap, tickW / 2 + gap * 0.3, showVal && !stacked ? valW0 * (valEff / tickSize) + gap * 1.8 : 0);
     if (lineHoriz && lineLabel) R = Math.max(R, texW(lineLabel, size) + gap * 1.6);
   }
   const [px0, px1, py0, py1] = [L, W - R, T, H - B];
@@ -807,7 +809,7 @@ const Bars = (
     const items = names.map((name, s) => (
       <Row key={`${id}/key${s}`} gap={gap * 0.5} align="center" style={{ opacity: fade(at + 0.3) }}>
         <Box style={{ width: size * 0.55, height: size * 0.55, radius: radius.s, fill: toneOf(s, s) }} />
-        <Math key={`${id}/name${s}`} tex={multiline(name)} style={{ fontSize: size * 0.9, color: color.text }} />
+        <Math key={`${id}/name${s}`} tex={multiline(name)} style={{ fontSize: tick, color: color.text }} />
       </Row>
     ));
     parts.push(
@@ -855,6 +857,7 @@ export default (p, { theme, size }) => {
     lineOn: p.lineOn,
     lineLabel: p.lineLabel,
     size: 40 * k,
+    floor: Math.min(size.width, size.height) / 27,
     width: size.width - 2 * space.xxl,
     height: size.height - 2 * (space.xl + space.s),
   });

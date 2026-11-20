@@ -208,10 +208,10 @@ export default (_p, { theme }) => (
     };
     assert_eq!(fill("m/x"), solid("#5e6ad2"));
     assert_eq!(fill("m/y"), solid("#6b6e7a"));
-    // 32 px body text, set 1.21 times larger, as KaTeX does.
+    // 44 px body text, set 1.21 times larger, as KaTeX does.
     let m = find(&tree, "m").unwrap();
     let f = crate::math::typeset(r"\textcolor{accent}{x} + y", true).unwrap();
-    assert!((m.rect.width() - f.width * 32.0 * 1.21).abs() < 1e-3);
+    assert!((m.rect.width() - f.width * 44.0 * 1.21).abs() < 1e-3);
 }
 
 #[test]

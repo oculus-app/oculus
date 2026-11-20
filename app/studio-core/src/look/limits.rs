@@ -27,8 +27,9 @@ pub(crate) const OPENING: f64 = 0.5;
 
 /// Text or a Math set under this share of the frame's shorter side is too
 /// small: 40 px at 1080p, which the ~600 px chat player shows at 12 px.
-/// The three calibration videos (2026-11-20) set labels at 11-38 px in
-/// every narrated scene; 48 px labels pass.
+/// The three calibration videos (2026-11-20) still write 15-39 px labels
+/// into 3, 5 and 2 scenes with the themes' scale at this floor (every
+/// scene before it); 48 px labels pass.
 pub(crate) const SMALL_TEXT: f64 = 1.0 / 27.0;
 /// ...when shown for longer than this, so a label in flight passes.
 pub(crate) const SMALL_FOR: f64 = 1.0;
@@ -49,7 +50,7 @@ pub(crate) const SPARSE_FOR: f64 = 3.0;
 /// A Text centred in this top share of the frame...
 pub(crate) const TITLE_BAND: f64 = 0.15;
 /// ...shown for more than this share of the scene is a slide title: every
-/// Canvas-scraping scene's heading and 14 of 16 in one automata video sit
+/// Canvas-scraping scene's heading and 13 of 16 in one automata video sit
 /// at the top for the whole scene.
 pub(crate) const TITLE_SHARE: f64 = 0.8;
 /// The component whose whole job is a title: `sparse` and `scene_title`

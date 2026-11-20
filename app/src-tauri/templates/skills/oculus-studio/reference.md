@@ -264,8 +264,14 @@ Colours are `#rgb`, `#rrggbb` or `#rrggbbaa`, always read from the theme.
 - `type`: `display`, `h1`, `h2`, `h3`, `body`, `label`, `caption`, `code`,
   each a style fragment to spread: `{ ...type.h1, color: color.text }`.
   Sizes in the bundled themes, in px on the 1920x1080 frame: `display` 104,
-  `h1` 72, `h2` 52, `h3` 38, `body` 32, `label` 24, `caption` 22, `code`
-  28 (monospace).
+  `h1` 72, `h2` 60, `h3` 52, `body` 44, `label` 40, `caption` 40, `code`
+  40 (monospace). 40 is the floor: lint's `small_text` fails any Text or
+  Math under 1/27 of the frame's shorter side (40 px at 1080p), since the
+  chat player is about 600 px wide. Use these tokens rather than writing a
+  size, and never shrink one below them. The starters keep their own
+  labels at or above it (`Bars` hides value labels that would be smaller);
+  a `Code` panel too wide for the frame still shrinks, and fails: show
+  fewer or shorter lines.
 - `space`: `xxs` 4, `xs` 8, `s` 16, `m` 24, `l` 40, `xl` 64, `xxl` 112.
 - `radius`: `s` 8, `m` 16, `l` 28, `xl` 44, `pill` 999.
 - `font`: `heading` (Manrope), `body` (Inter), `mono` (JetBrains Mono). No
@@ -817,7 +823,7 @@ span and the words said in it:
 
 | `kind` | What it means | What to do |
 | --- | --- | --- |
-| `small_text` | A Text or Math is set under 1/27 of the frame's shorter side (40 px at 1080p) for over a second, transforms included; the chat player is about 600 px wide, where 40 px reads as 12 px | Set it at 40 px or more (`type.h2` and up), or drop it and say it: a label the narration says need not be written. |
+| `small_text` | A Text or Math is set under 1/27 of the frame's shorter side (40 px at 1080p) for over a second, transforms included; the chat player is about 600 px wide, where 40 px reads as 12 px | Use a `type` token (every one is 40 px or more) instead of a written size, or drop it and say it: a label the narration says need not be written. |
 | `sparse` | For over 3 s, everything shown fits in a box under 60% of the frame's width or 50% of its height (a stroke or label counts by its box, not its ink); a `TitleCard` is exempt | Draw the main element larger and centred, or put what it is about beside it; one big picture, not a small one in an empty frame. |
 | `scene_title` | A Text centred in the top 15% of the frame stays for over 80% of the scene, outside a `TitleCard` | Cut it. Say the idea in the narration, and let the picture's own labels name what it shows. |
 | `long_scene` | The scene's narration runs over 30 s | Split it into scenes of one beat each, or cut what the picture already says. |
