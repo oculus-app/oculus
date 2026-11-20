@@ -45,8 +45,10 @@ fn has_new(line: &str, depth: usize) -> bool {
         {
             at += 1;
         }
+        // A scratch video checks a library item and belongs to no thread.
         words.get(at).is_some_and(|w| w == "studio")
             && words.get(at + 1).is_some_and(|w| w == "new")
+            && !words[at + 2..].iter().any(|w| w == "--scratch")
     })
 }
 
@@ -145,6 +147,7 @@ mod tests {
             "oculus studio render minimax",
             "myoculus studio new minimax",
             "echo x | oculus studio new minimax",
+            "oculus studio new scratch-card --scratch",
         ] {
             assert!(!is_studio_new("Bash", &json!({"command":line})), "{line}");
         }

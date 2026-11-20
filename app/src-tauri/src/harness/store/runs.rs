@@ -125,12 +125,11 @@ pub async fn begin(tx: &mut SqliteConnection, send: &SendIntent) -> Result<RunSt
             if let Some(at) = send.at {
                 meta.insert("at".into(), at.into());
             }
-            if let Some(style) = send
-                .options
-                .as_deref()
-                .and_then(|s| serde_json::from_str::<crate::harness::SendOptions>(s).ok())
-                .and_then(|o| o.studio_style)
-            {
+            let options = super::queue::restored(send.options.clone());
+            if options.library_change {
+                meta.insert("libraryChange".into(), true.into());
+            }
+            if let Some(style) = options.studio_style {
                 meta.insert(
                     "studio".into(),
                     serde_json::to_value(style).map_err(|e| e.to_string())?,

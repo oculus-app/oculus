@@ -192,7 +192,7 @@ Everything Studio keeps is under `<app data>/studio/`
 one folder besides `agents/` and the database an agent thread may write
 ([harness.md](./harness.md#every-thread-runs-from-agents-it-writes-there-and-in-the-students-own-files)).
 
-- `oculus studio new <slug> [--subject CODE] [--title T] [--theme NAME] [--portrait]`
+- `oculus studio new <slug> [--subject CODE] [--title T] [--theme NAME] [--portrait] [--scratch]`
   (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` at
   1920x1080 (1080x1920 with `--portrait`), 30 fps, the default theme, the
   subject, `"captions": true`, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
@@ -201,7 +201,10 @@ one folder besides `agents/` and the database an agent thread may write
   `library.json` `defaultTheme`, else the global library's, else `default`
   (see "Libraries cascade"), and video.json names it, so a later change of
   default leaves the video as it was. A slug is lowercase letters, digits and `-`, at most 64
-  characters; one that exists is refused and left alone. It prints the
+  characters; one that exists is refused and left alone. It refuses when no
+  narration voice resolves (`voice::resolve`), since a video is narrated,
+  unless `--scratch`: a scratch video checks a component or theme, is never
+  narrated, and is never linked to the chat that made it. It prints the
   folder (`--json`: `{dir, slug}`).
 - `oculus studio list [--subject CODE]` prints each video's slug, subject,
   scene count, whether `narration/manifest.json` exists (`narrated`; `lint`
@@ -2035,16 +2038,23 @@ under `studio/videos/` to the thread, including a request without a chip or
 one made mid-thread. `studio_videos(slug PK, thread_id, length_secs,
 created_at)` keeps one video per thread. Deleting the thread keeps the video.
 
-The link is committed with the tool completion, using the tool's originating
-run to read `meta.studio.lengthSecs` from the user row. A second creation in
-the same thread stays unlinked. The folder must pass `video_in`. Since
-`studio new` refuses a folder that exists, a row already naming the slug was
-left by a deleted video, and the new folder's thread takes it over. Threads
-come only from Chat: Studio's New video opens one with the skill chip in its
-box. Ask for a change on Components and Themes starts a plain thread, and the
-scratch video its agent makes is linked to it like any other.
+The link is committed with the tool completion
+(`harness/store/studio.rs`, from `store/apply.rs`), using the tool's
+originating run to read `meta.studio.lengthSecs` from the user row, which
+`begin` writes from the send's style (`SendOptions::studio_style`, read back
+through `queue::restored`). A second creation in the same thread stays
+unlinked while the first video's folder exists; once that folder is gone its
+row is dropped and the thread may link another. The folder must pass
+`video_in`. Since `studio new` refuses a folder that exists, a row already
+naming the slug was left by a deleted video, and the new folder's thread
+takes it over. Scratch videos are never linked: `studio new --scratch`, and
+any creation in a thread whose user rows carry `meta.libraryChange` (Ask for
+a change on Components and Themes sends `libraryChange`, and its text asks
+for `--scratch`). Threads come only from Chat: Studio's New video opens one
+with the skill chip in its box.
 
-Every send reads the link (`StudioBrief::read`) into "The video being made":
+Every send reads the link (`StudioBrief::read`, `None` once the folder is
+gone) into "The video being made":
 the absolute folder, format, theme, subject library and optional length
 request. The agent uses that folder, renders a draft, and asks before the
 final. Chat's style choices ride prompt context and user-row metadata.

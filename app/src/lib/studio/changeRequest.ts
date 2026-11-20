@@ -22,8 +22,8 @@ export function changeRequestText(c: {
   const scope = own ? `subject level, ${own}` : "global level";
   const library = own ? `the ${own} library` : "the global library";
   const scratch = own
-    ? `Make a scratch video with \`oculus studio new\` (subject ${own})`
-    : "Make a scratch video with `oculus studio new`";
+    ? `Make a scratch video with \`oculus studio new --scratch\` (subject ${own})`
+    : "Make a scratch video with `oculus studio new --scratch`";
   if (c.kind === "theme") {
     const file = own ? `../studio/subjects/${own}/themes/${c.name}.json` : `../studio/library/themes/${c.name}.json`;
     return [

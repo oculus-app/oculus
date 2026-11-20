@@ -335,7 +335,7 @@ async fn apply_rows(
                 .unwrap_or_default();
             if *ok {
                 if let (Some(name), Some(input)) = (&meta.name, &meta.input) {
-                    super::studio::link_created(conn, thread_id, item_id, name, input, output, &crate::studio::videos::videos_dir()).await?;
+                    super::studio::link_created(conn, thread_id, item_id, name, input, output, &super::studio::videos_root()).await?;
                 }
             }
             meta.ok = Some(*ok);

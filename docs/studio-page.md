@@ -290,9 +290,12 @@ the library select's subject, or General), later sends continue it, and a differ
 new one since a thread's subject is fixed at creation. The text is
 `changeRequestText` (`lib/studio/changeRequest.ts`): a first line naming the
 component and its level, the request, then the instruction to use the
-oculus-studio skill, make a scratch video, change the component in its
+oculus-studio skill, make a scratch video (`oculus studio new --scratch`,
+which needs no narration), change the component in its
 `components/` folder, check it with `gallery` and `promote` it to the same
-level. The Themes page sends a theme's version of the same text. The thread is an ordinary one, so it shows in Chat ("Open thread").
+level. The Themes page sends a theme's version of the same text. The thread is an ordinary one, so it shows in Chat ("Open thread"); its
+sends carry `libraryChange`, so no scratch video is linked to it
+([studio.md](./studio.md#a-video-has-a-thread)).
 While its turn runs the box shows a spinner and refuses another send; when
 the turn ends the page reads the component's source and history again,
 reloads the list (so props and examples follow the new text) and redraws

@@ -50,7 +50,9 @@ pub fn stored(options: &SendOptions) -> Result<String, String> {
     .map_err(|e| e.to_string())
 }
 
-fn restored(json: Option<String>) -> SendOptions {
+/// A run's stored options back as a send's (`stored`'s inverse); unreadable
+/// text is a send with no options.
+pub(crate) fn restored(json: Option<String>) -> SendOptions {
     let stored: Stored = json
         .and_then(|json| serde_json::from_str(&json).ok())
         .unwrap_or_default();

@@ -104,6 +104,8 @@ export function useLibraryChange(kind: LibraryItemKind, subject: ChangeSubject |
             reasoningEffort: store.reasoning,
             // A plain thread, so it names its scope as Chat's composer does.
             chatScope: subject?.id ?? GENERAL_SCOPE,
+            // Its scratch videos are never linked to the thread.
+            libraryChange: true,
           },
         );
         if (!open) await store.loadThreads();

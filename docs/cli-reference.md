@@ -1870,7 +1870,8 @@ theme, the subject, and one silent `TitleCard` scene holding `--title`), an empt
 `script.md`, and empty `components/` and `assets/`, then prints the folder. The default
 theme is the `defaultTheme` in the subject library's `library.json`, else the global
 library's, else `default`, and video.json names it. Every other `oculus studio` command
-takes the slug in place of the folder. Refuses a slug that exists.
+takes the slug in place of the folder. Refuses a slug that exists, and refuses when
+narration is not set up (no voice resolves) unless `--scratch`.
 
 oculus studio new gradient-descent --subject COMP30027 --title "Gradient descent"
 
@@ -1892,6 +1893,10 @@ Options:
 
       --portrait
           1080x1920 instead of 1920x1080
+
+      --scratch
+          A scratch video for checking a component or theme: never narrated, so
+          narration need not be set up, and never linked to the chat that made it
 
   -h, --help
           Print help (see a summary with '-h')

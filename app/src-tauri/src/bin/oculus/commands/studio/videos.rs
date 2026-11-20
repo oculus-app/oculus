@@ -9,8 +9,12 @@ use app_lib::studio::videos::{self, NewVideo, VideoRow};
 impl Ctx {
     pub(crate) fn studio_new(&self, args: &StudioNewArgs) -> Result<(), String> {
         let library = libraries(false).map_err(|e| e.to_string())?;
-        let voice = app_lib::studio::voice::VoiceOverrides::default();
-        app_lib::studio::voice::resolve(&voice, &voice, &app_lib::studio::voice::settings())?;
+        // A video is narrated, so it needs a voice before any work goes into
+        // it; a scratch video is only drawn.
+        if !args.scratch {
+            let voice = app_lib::studio::voice::VoiceOverrides::default();
+            app_lib::studio::voice::resolve(&voice, &voice, &app_lib::studio::voice::settings())?;
+        }
         let theme = match &args.theme {
             Some(theme) => theme.clone(),
             None => default_theme(&library, args.subject.as_deref())?,

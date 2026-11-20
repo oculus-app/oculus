@@ -146,7 +146,9 @@ selects the requested theme; without it the subject's default is used. Pass
 the theme and format from the message's Video style context when provided.
 `--portrait` is for Reels or a requested vertical video. The command refuses
 when narration has no configured voice; ask the student to fix Settings →
-Studio → Narration. It writes one silent `TitleCard`
+Studio → Narration. A scratch video made only to check a component or theme
+takes `--scratch`: it is never narrated, so it needs no voice, and it is not
+the conversation's video. It writes one silent `TitleCard`
 scene; keep or replace it.
 
 **Step 2.** Map the source cheaply: `oculus list -l CODE` for the recording,

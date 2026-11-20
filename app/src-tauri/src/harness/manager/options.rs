@@ -54,6 +54,11 @@ pub struct SendOptions {
     pub skills: Vec<String>,
     /// Video choices carried by this message, persisted as user-row meta.studio.
     pub studio_style: Option<StudioStyle>,
+    /// Studio's Ask for a change: persisted as user-row `meta.libraryChange`,
+    /// so the scratch videos its thread makes are never linked to it
+    /// (`store/studio.rs`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub library_change: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

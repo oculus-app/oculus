@@ -233,7 +233,8 @@ impl StudioAction {
 /// subject library's `library.json`, else the global library's, else
 /// `default`, and video.json names it. Every other `oculus studio`
 /// command takes the slug in place of the folder. Refuses a slug that
-/// exists.
+/// exists, and refuses when narration is not set up (no voice resolves)
+/// unless `--scratch`.
 ///
 ///     oculus studio new gradient-descent --subject COMP30027 --title "Gradient descent"
 #[derive(Args)]
@@ -254,6 +255,11 @@ pub(crate) struct StudioNewArgs {
     /// 1080x1920 instead of 1920x1080
     #[arg(long)]
     pub(crate) portrait: bool,
+    /// A scratch video for checking a component or theme: never narrated,
+    /// so narration need not be set up, and never linked to the chat that
+    /// made it
+    #[arg(long)]
+    pub(crate) scratch: bool,
 }
 
 /// Which models a chat agent's Studio subagents run on, and how to start one
