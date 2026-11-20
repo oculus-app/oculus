@@ -10,8 +10,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Video {
-    /// What the video is called. Optional: without it the app names a
-    /// video by its title card, then its slug.
+    /// What the video is called. Optional: without it, or when it is blank,
+    /// the app names a video by its title card, then its slug.
     #[serde(default)]
     pub title: Option<String>,
     pub size: Size,
@@ -156,9 +156,6 @@ pub(super) fn check(video: &Video, scripted: bool) -> Result<(), String> {
         ));
     }
     check_fps(f64::from(video.fps))?;
-    if video.title.as_deref().is_some_and(|t| t.trim().is_empty()) {
-        return Err("title is empty; give the video a name or leave `title` out".to_owned());
-    }
     if let Some(subject) = &video.subject
         && !valid_subject(subject)
     {

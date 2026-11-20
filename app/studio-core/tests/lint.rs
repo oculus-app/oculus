@@ -162,8 +162,8 @@ fn bad_video_json_is_a_project_error() {
     write(
         r#"{ "title": "  ", "size": { "width": 100, "height": 100 }, "theme": "default", "scenes": [{ "component": "A", "hold": 1 }] }"#,
     );
-    let e = Project::load(&dir).err().unwrap().to_string();
-    assert!(e.contains("title is empty"), "{e}");
+    let project = Project::load(&dir).unwrap();
+    assert_eq!(project.video.title.as_deref(), Some("  "));
     write(
         r#"{ "title": "How Shor breaks RSA", "size": { "width": 100, "height": 100 }, "theme": "mine.json", "scenes": [{ "component": "A", "hold": 1 }] }"#,
     );
