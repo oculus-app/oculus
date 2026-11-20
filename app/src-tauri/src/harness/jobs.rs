@@ -4,11 +4,8 @@
 //! models (provider, model, level), set in Settings → Jobs with the composer's
 //! `ModelPicker`. The first runs; when its run fails for any reason the next
 //! one does ([`try_each`]). An empty list switches the job off, and never
-//! falls back to the default, which can be an expensive model. The two Studio
-//! jobs read their list differently: it holds one model per agent, and a chat
-//! agent's subagents take the first entry for its own agent ([`for_agent`]).
-//! Stored as one
-//! JSON value under [`SETTINGS_KEY`] (`getJobModels`/`setJobModels` in
+//! falls back to the default, which can be an expensive model. The registry is
+//! one JSON value under [`SETTINGS_KEY`] (`getJobModels`/`setJobModels` in
 //! `app/src/lib/db/jobModels.ts`); an unreadable value costs the job its
 //! config, not its run.
 
@@ -33,11 +30,6 @@ pub enum Job {
     /// The document editor's inline completion (`document_suggest`).
     DocumentSuggestions,
     RevisionMarking,
-    /// A chat agent's subagent that reads lecture material for a video
-    /// (`harness::studio_agents`).
-    StudioResearch,
-    /// A chat agent's subagent that builds one scene of a video.
-    StudioScene,
     /// A chat widget's `ask` from `oculus/ask` (`widgets::ask`).
     WidgetAsk,
 }
@@ -51,8 +43,6 @@ impl Job {
             Job::ThreadNaming => "threadNaming",
             Job::DocumentSuggestions => "documentSuggestions",
             Job::RevisionMarking => "revisionMarking",
-            Job::StudioResearch => "studioResearch",
-            Job::StudioScene => "studioScene",
             Job::WidgetAsk => "widgetAsk",
         }
     }
@@ -65,8 +55,6 @@ impl Job {
             Job::ThreadNaming => "Chat thread names",
             Job::DocumentSuggestions => "Document suggestions",
             Job::RevisionMarking => "Revision marking",
-            Job::StudioResearch => "Studio research",
-            Job::StudioScene => "Studio scenes",
             Job::WidgetAsk => "Widget questions",
         }
     }
@@ -87,12 +75,11 @@ impl JobSelection {
     }
 }
 
-/// What a job runs on until someone says otherwise. The Studio jobs name one
-/// model per agent whose subagents take a model (`studio_agents::takes_model`).
+/// What a job runs on until someone says otherwise.
 /// Widget questions have none: agent-written code spends on it, so it stays
 /// off until the student picks a model.
 /// Native Claude Code is disabled on Windows (docs/harness.md), so there the
-/// small jobs run on Codex and the Studio jobs drop their Claude entry.
+/// small jobs run on Codex.
 pub fn default_chain(job: Job) -> Vec<JobSelection> {
     let one = |provider, model: &str, effort: Option<&str>| JobSelection {
         provider,
@@ -107,7 +94,7 @@ pub fn default_chain(job: Job) -> Vec<JobSelection> {
     {
         return vec![one(Provider::Codex, "gpt-5.6-luna", Some("medium"))];
     }
-    let chain = match job {
+    match job {
         Job::LectureChapters => vec![one(Provider::Codex, "gpt-5.6-luna", Some("xhigh"))],
         // Provisional, until the lecture-end eval picks the default.
         Job::LectureEnd => vec![one(Provider::Claude, "claude-haiku-4-5-20251001", None)],
@@ -118,40 +105,7 @@ pub fn default_chain(job: Job) -> Vec<JobSelection> {
             vec![one(Provider::Claude, "claude-sonnet-5-5", Some("medium"))]
         }
         Job::RevisionMarking => vec![one(Provider::Codex, "gpt-6-luna", Some("medium"))],
-        // Small and fast: notes from a slice of a lecture.
-        Job::StudioResearch => vec![
-            one(Provider::Claude, "claude-haiku-5-5", None),
-            one(Provider::Codex, "gpt-6-luna", Some("medium")),
-        ],
-        // Strong: a scene's animation is the hard part of a video.
-        Job::StudioScene => vec![
-            one(Provider::Claude, "claude-opus-5-5", Some("high")),
-            one(Provider::Codex, "gpt-6.1-sol", Some("high")),
-        ],
         Job::WidgetAsk => Vec::new(),
-    };
-    if cfg!(windows) {
-        chain
-            .into_iter()
-            .filter(|s| s.provider != Provider::Claude)
-            .collect()
-    } else {
-        chain
-    }
-}
-
-/// The entry an agent's subagents run on: the first for that agent, or none,
-/// which switches the job off for that agent.
-pub fn for_agent(chain: &[JobSelection], provider: Provider) -> Option<&JobSelection> {
-    chain.iter().find(|s| s.provider == provider)
-}
-
-/// [`chain`] for a caller with no pool, such as a spawn: read through
-/// `store::setting_blocking`. No database is the default, like no row.
-pub fn chain_blocking(job: Job) -> Vec<JobSelection> {
-    match crate::db::store::setting_blocking(SETTINGS_KEY) {
-        Some(raw) => from_json(&raw, job),
-        None => default_chain(job),
     }
 }
 
@@ -480,46 +434,33 @@ mod tests {
         }
     }
 
-    #[test]
-    #[cfg(not(windows))]
-    fn the_studio_defaults_name_one_model_per_agent_that_takes_one() {
-        for job in [Job::StudioResearch, Job::StudioScene] {
-            let chain = default_chain(job);
-            let agents: Vec<Provider> = chain.iter().map(|s| s.provider).collect();
-            assert_eq!(agents, [Provider::Claude, Provider::Codex], "{job:?}");
+    #[tokio::test]
+    async fn stored_selections_for_retired_jobs_are_ignored() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        for migration in crate::db::migrations::all() {
+            sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
         }
-        let r = default_chain(Job::StudioResearch);
-        assert_eq!(
-            (r[0].model.as_str(), r[0].effort()),
-            ("claude-haiku-5-5", None)
-        );
-        let s = default_chain(Job::StudioScene);
-        assert_eq!(
-            (s[0].model.as_str(), s[0].effort()),
-            ("claude-opus-5-5", Some("high"))
-        );
-        assert_eq!(Job::StudioScene.key(), "studioScene");
-    }
+        let body = r#"{
+            "studio\u0052esearch":[{"provider":"codex","model":"gpt-6-luna"}],
+            "studio\u0053cene":[{"provider":"codex","model":"gpt-6.1-sol"}],
+            "widgetAsk":[{"provider":"opencode","model":"openrouter/widget"}]
+        }"#;
+        crate::db::store::set_setting(&pool, SETTINGS_KEY, body)
+            .await
+            .unwrap();
 
-    #[test]
-    fn an_agent_takes_its_own_first_entry_or_none() {
-        let chain = from_json(
-            r#"{"studioScene":[
-                {"provider":"codex","model":"gpt-6.1-sol","reasoningEffort":"high"},
-                {"provider":"opencode","model":"openrouter/a","reasoningEffort":null},
-                {"provider":"opencode","model":"openrouter/b","reasoningEffort":null}]}"#,
-            Job::StudioScene,
-        );
-        assert_eq!(
-            for_agent(&chain, Provider::Opencode).map(|s| s.model.as_str()),
-            Some("openrouter/a")
-        );
-        assert_eq!(
-            for_agent(&chain, Provider::Codex).map(|s| s.model.as_str()),
-            Some("gpt-6.1-sol")
-        );
-        assert!(for_agent(&chain, Provider::Claude).is_none());
-        assert!(from_json(r#"{"studioScene":[]}"#, Job::StudioScene).is_empty());
+        let configured = chain(&pool, Job::WidgetAsk).await;
+        assert_eq!(configured.len(), 1);
+        assert_eq!(configured[0].provider, Provider::Opencode);
+        assert_eq!(configured[0].model, "openrouter/widget");
+        assert!(is_default(
+            &chain(&pool, Job::ThreadNaming).await,
+            Job::ThreadNaming
+        ));
     }
 
     #[test]

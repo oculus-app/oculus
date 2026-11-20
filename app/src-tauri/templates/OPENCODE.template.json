@@ -52,7 +52,6 @@
     "paths": ["skills"]
   },
   "agent": {
-    "{{SUBAGENTS}}": null,
     "oculus": {
       "mode": "primary",
       "description": "The Oculus coursework agent",

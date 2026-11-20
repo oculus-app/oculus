@@ -1,10 +1,8 @@
-//! opencode's `agents/opencode.json`, rendered with this library's brief,
-//! paths and Studio subagents.
+//! opencode's `agents/opencode.json`, rendered with this library's brief and paths.
 
 use std::path::{Path, PathBuf};
 
 use crate::harness::opencode;
-use crate::harness::Provider;
 
 use super::instructions::{instructions, thread_cwd};
 use super::naming::NAMING_INSTRUCTIONS;
@@ -21,8 +19,5 @@ pub fn write_opencode_config(data_dir: &Path) -> Result<PathBuf, String> {
             writer: crate::harness::suggest::INSTRUCTIONS,
             lecture_end: crate::lectures::lecture_end::INSTRUCTIONS,
         },
-        &crate::harness::studio_agents::opencode_agents_fragment(
-            &crate::harness::studio_agents::assigned_now(Provider::Opencode),
-        ),
     )
 }

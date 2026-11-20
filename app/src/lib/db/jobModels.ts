@@ -3,8 +3,7 @@ import { isProvider, type Provider } from "@/lib/harness/providers";
 import { providerAvailability } from "@/lib/harness/availability";
 
 // Each non-chat model job names an ordered list of models: the first, then
-// fallbacks tried when a run fails. The Studio jobs read theirs as one model
-// per agent instead (`perAgent`). One JSON value, read back in Rust by
+// fallbacks tried when a run fails. One JSON value, read back in Rust by
 // `harness::jobs`, where the jobs run. An empty list turns the job off.
 
 /** Mirrors `Job` in `app/src-tauri/src/harness/jobs.rs`. */
@@ -14,8 +13,6 @@ export type JobId =
   | "threadNaming"
   | "documentSuggestions"
   | "revisionMarking"
-  | "studioResearch"
-  | "studioScene"
   | "widgetAsk";
 
 /** `reasoningEffort` is null only for a model that takes no level. */
@@ -30,18 +27,11 @@ export type JobChain = JobSelection[];
 
 export type JobModels = Record<JobId, JobChain>;
 
-/** The agents whose subagents take a model (`studio_agents::takes_model`):
- *  agy's `invoke_subagent` takes none, so it is not offered. */
-const SUBAGENT_AGENTS: readonly Provider[] = ["claude", "codex", "opencode"];
-
-/** The jobs Settings → Jobs lists, in the order it lists them. A `perAgent`
- *  job holds one model per agent in that list rather than fallbacks: a chat
- *  agent's subagents take the first entry for their own agent. */
+/** The jobs Settings → Jobs lists, in the order it lists them. */
 export const JOBS: {
   id: JobId;
   label: string;
   description: string;
-  perAgent?: readonly Provider[];
 }[] = [
   {
     id: "lectureChapters",
@@ -69,20 +59,6 @@ export const JOBS: {
   },
   { id: "revisionMarking", label: "Revision marking", description: "Mark submitted answers against their model answer and rubric." },
   {
-    id: "studioResearch",
-    label: "Studio research",
-    description:
-      "Read lectures and prepare video notes.",
-    perAgent: SUBAGENT_AGENTS,
-  },
-  {
-    id: "studioScene",
-    label: "Studio scenes",
-    description:
-      "Build animations for each video scene.",
-    perAgent: SUBAGENT_AGENTS,
-  },
-  {
     id: "widgetAsk",
     label: "Widget questions",
     description: "Answer a chat widget's request once you allow it. Off until you choose a model.",
@@ -103,14 +79,6 @@ export const DEFAULT_JOB_MODELS: JobModels = {
   threadNaming: [{ provider: "claude", model: "claude-haiku-4-5-20251001", reasoningEffort: null }],
   documentSuggestions: [{ provider: "claude", model: "claude-sonnet-5-5", reasoningEffort: "medium" }],
   revisionMarking: [{ provider: "codex", model: "gpt-6-luna", reasoningEffort: "medium" }],
-  studioResearch: [
-    { provider: "claude", model: "claude-haiku-5-5", reasoningEffort: null },
-    { provider: "codex", model: "gpt-6-luna", reasoningEffort: "medium" },
-  ],
-  studioScene: [
-    { provider: "claude", model: "claude-opus-5-5", reasoningEffort: "high" },
-    { provider: "codex", model: "gpt-6.1-sol", reasoningEffort: "high" },
-  ],
   // Agent-written code spends on it, so it stays off until a model is chosen.
   widgetAsk: [],
 };

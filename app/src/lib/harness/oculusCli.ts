@@ -148,7 +148,6 @@ export const cliRegistry: CliEntry[] = [
   row("studio voices list", "voice", voiceList),
   row("studio voices download", "voice", words("Downloading", "Downloaded", "voice assets"), voices, true),
   row("studio voices delete", "voice", words("Removing", "Removed", "voice assets"), voices, true),
-  row("studio agents", "agent", words("Checking", "Checked", "Studio agent assignments"), a => flag(a, "--agent")),
   group("studio aligner", "voice"),
   row("studio aligner status", "voice", words("Checking", "Checked", "narration aligner")),
   row("studio aligner download", "voice", words("Downloading", "Downloaded", "narration aligner"), undefined, true),

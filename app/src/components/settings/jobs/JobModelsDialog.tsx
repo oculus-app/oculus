@@ -17,12 +17,10 @@ import { ChainList } from "./ChainList";
 import { providersFor, startingProvider, withEntry, withoutEntry } from "./chain";
 
 /** Edits apply as they are made, through the same save as the job's row, so
- *  there is nothing to confirm or cancel. A `perAgent` job lists a model per
- *  agent rather than fallbacks, and offers only those agents. */
+ *  there is nothing to confirm or cancel. */
 export function JobModelsDialog({
   job,
   label,
-  perAgent,
   chain,
   providers,
   onChange,
@@ -31,7 +29,6 @@ export function JobModelsDialog({
 }: {
   job: JobId;
   label: string;
-  perAgent?: readonly Provider[];
   chain: JobChain;
   providers: PickerProvider[];
   /** Takes an edit to apply to the current chain, not a finished one, so
@@ -40,14 +37,13 @@ export function JobModelsDialog({
   onView: (provider: Provider) => void;
   onClose: () => void;
 }) {
-  const offered = perAgent ? providers.filter((p) => perAgent.includes(p.id)) : providers;
   // The entry the open "add" menu just appended, so the menu stays on it for
   // its level and a second pick replaces it rather than appending again.
   // Cleared when the menu closes.
   const [added, setAdded] = useState<number | null>(null);
   // Agents the chain doesn't hold yet; the one just added still counts as free.
-  const addable = providersFor(offered, chain, added ?? -1);
-  const addProvider = addable[0]?.id ?? startingProvider(DEFAULT_JOB_MODELS[job], offered);
+  const addable = providersFor(providers, chain, added ?? -1);
+  const addProvider = addable[0]?.id ?? startingProvider(DEFAULT_JOB_MODELS[job], providers);
   const addPick = (pick: JobSelection) => {
     const at = added ?? chain.length;
     // A pick already in the chain moves there (`withEntry`), so find it again.
@@ -62,9 +58,7 @@ export function JobModelsDialog({
         <DialogHeader>
           <DialogTitle>{label}</DialogTitle>
           <DialogDescription>
-            {perAgent
-              ? "A chat agent's helpers run on the first model here for that agent. An agent with none does the work itself."
-              : "Runs on the first model. If a run fails for any reason, the next one takes over. Each agent takes one, as its models share a usage limit; opencode can take several. With none, the job is off."}
+            Runs on the first model. If a run fails, the next one takes over. Each agent takes one model because its models share a usage limit. opencode can take several. With no models, the job is off.
           </DialogDescription>
         </DialogHeader>
 
@@ -72,7 +66,7 @@ export function JobModelsDialog({
           {chain.length > 0 && (
             <ChainList
               chain={chain}
-              providers={offered}
+              providers={providers}
               onChange={onChange}
               onView={onView}
               onPick={(i, pick) => onChange((c) => withEntry(c, i, pick))}
@@ -89,9 +83,7 @@ export function JobModelsDialog({
               onOpenChange={(open) => !open && setAdded(null)}
               emptyLabel={
                 chain.length > (added === null ? 0 : 1)
-                  ? perAgent
-                    ? "Add a model for another agent"
-                    : "Add a fallback"
+                  ? "Add a fallback"
                   : "Add a model"
               }
               emptyIcon={<Plus className="size-3.5 shrink-0" />}

@@ -46,7 +46,6 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Model picker and its catalogue hook | `app/src/components/harness/composer/ModelPicker.tsx`, `app/src/components/harness/composer/model/` (the menu, its rows, `modelSummary`), `app/src/hooks/agents/useProviderModels.ts` |
 | Settings → opencode: the provider and model tables, the connect flow, the offered-model gate | `app/src/pages/settings/integrations/OpencodePage.tsx`, `app/src/components/settings/agents/opencode/`, `app/src/components/settings/agents/OpencodeConnectDialog.tsx`, `app/src/lib/harness/opencodeCatalogue.ts` |
 | Per-job models | `app/src-tauri/src/harness/jobs.rs`, `JOBS` in `app/src/lib/db/jobModels.ts`, `app/src/components/settings/jobs/`, `app/src/hooks/agents/useJobAudit.ts` |
-| Subagents (Studio's research and scene helpers) | `app/src-tauri/src/harness/studio_agents.rs`, `app/src-tauri/templates/STUDIO_*.template.md`, `oculus studio agents` (`app/src-tauri/src/bin/oculus/commands/studio/agents.rs`) |
 | One-off turns (`Harness::one_off`, `Harness::one_turn`): thread names, the editor's inline suggestions (`document_suggest`), where a lecture ends, a widget's `ask` (stoppable by id) | `app/src-tauri/src/harness/manager/one_off.rs`, `app/src-tauri/src/harness/manager/stoppable.rs`, `app/src-tauri/src/harness/app/suggest.rs`, `app/src-tauri/src/harness/suggest/`, `app/src-tauri/src/lectures/lecture_end/`, `app/src-tauri/src/widgets/ask/` |
 | The JSON in a model's reply (whole reply, fences, balanced brackets), for the jobs that want JSON back | `app/src-tauri/src/harness/reply_json.rs` |
 | `@` and `/` menu, mention input, skill chips | `app/src/components/harness/mentions/useComposerMenu.ts`, `app/src/components/harness/mentions/ComposerMenu.tsx`, `app/src/components/harness/mentions/trigger.ts`, `app/src/components/harness/mentions/MentionInput.tsx`, `app/src/components/harness/mentions/SkillChip.tsx`, `app/src/components/markdown/FileChip.tsx`, `app/src/components/harness/composer/useComposerTools.ts` |
@@ -307,6 +306,10 @@ system prompt, so the brief is the `oculus` agent's prompt in
 `agents/opencode.json`, rewritten on every server start. Where there is no
 per-call append (opencode), the per-thread half rides the first user
 message.
+
+opencode's chat config allows `task` and sets `subagent_depth: 1`, so a
+chat can start a subagent one level deep. The hidden one-off agents deny
+all tools, including `task`.
 
 **Each instruction has one owner.** `AGENTS.template.md` holds library use,
 teaching and memory for both terminal and in-app agents. The brief references
@@ -2913,8 +2916,9 @@ expensive model. The registry is one `settings` value, `job_models`, read by
 `jobs.rs` and written by `jobModels.ts`, which must parse it alike: each job's
 key holds an array (entries that don't parse are dropped one by one), or a
 single selection object, still read as a one-model list. A missing or unreadable
-value or key is the job's default; both sides carry the defaults and must agree
-(a new job is a `Job` variant plus entries in `JOBS` and `DEFAULT_JOB_MODELS`).
+value or key is the job's default. Unknown job keys are ignored. Both sides
+carry the defaults and must agree (a new job is a `Job` variant plus entries
+in `JOBS` and `DEFAULT_JOB_MODELS`).
 On the CLI, `--provider`/`--model`/`--effort` override the first model and drop
 the fallbacks for one run.
 
@@ -2943,57 +2947,6 @@ down, it answers an empty list (so the audit removes nothing) and the picker's
 opencode tab links to Settings → opencode, whose opening starts it. It is asked
 again when `harnessOpencodeModels` next answers (`OPENCODE_RUNNING_EVENT`) —
 the composer or the opencode page starting it.
-
-**The two Studio jobs hold a model per agent, not fallbacks.** "Studio
-research" (`studioResearch`) and "Studio scenes" (`studioScene`) are the
-models a chat agent's [subagents](#subagents) run on while it makes a video.
-Nothing tries them in order: an agent's subagents take the first entry for
-that agent (`jobs::for_agent`), and an agent with none does the work itself.
-Their `JOBS` rows carry `perAgent`, which offers only the agents whose
-subagents take a model (not agy) and words the row and dialog for it ("Add a
-model for another agent"). The defaults name Claude and Codex (Haiku 5.5 and
-GPT-6-Luna for research; Opus 5.5 and GPT-6.1-Sol at high for scenes);
-opencode's models depend on the student's providers, so opencode has none
-until one is picked.
-
-## Subagents
-
-Two subagent roles exist for Studio, `harness::studio_agents::ROLES`:
-`studio-research` and `studio-scene`. The `oculus-studio` skill starts
-neither: the thread's own agent makes the whole video
-([studio.md](./studio.md#agent-flow-a-chat-agent-makes-a-video-with-the-oculus-studio-skill)).
-`studio-research`'s system prompt (`templates/STUDIO_RESEARCH.template.md`)
-holds its notes format. `studio-scene`, which builds,
-fixes and reviews a scene, gets `STUDIO_SCENE.template.md`, then its
-steps (`STUDIO_SCENE_STEPS.template.md`), then the builder's sections of `reference.md`
-(`BUILDER_SECTIONS`: Components to Looking, and Slides, not video.json,
-script.md, Narrate, Pronunciation, Render and Libraries), cut at their
-`## ` headings from the same compiled-in files the skill ships, so a
-builder reads no file for them and every builder starts from the same
-system prompt. A test fails when a named heading is missing. Each CLI starts a
-subagent its own way, so each gets the job's model its own way; `oculus
-studio agents [--agent A]` prints, per agent, the model and the exact call.
-
-| CLI | How a subagent starts | Where the model comes from | Measured |
-| --- | --- | --- | --- |
-| Claude | the `Agent` tool, `subagent_type: "studio-scene"` | `--agents` at spawn: one definition per role with a model, its full id and `effort` (the tool's own `model` takes only an alias) | One Haiku turn under `acceptEdits`, `--permission-prompts none` and the sandboxed settings: the definitions loaded and the subagent's `Write` and `Bash` ran under the parent's mode and sandbox, no denial. Subagents run in the background by default: the turn ended with a `result` while the helper ran, and the CLI then started a turn of its own on the completion notice, so `oculus studio agents` asks for `run_in_background: false` |
-| Codex | `spawn_agent` with `model`, `reasoning_effort`, `fork_turns: "none"` | the call itself; Codex sets `model` only when a skill or the user asks, which the skill does. No role prompt: the scene brief opens with a sentence naming the builder's sections (`codex_scene_opening`, the words `oculus studio agents` prints) | One `gpt-6-luna` turn through `app-server` with the thread's `workspace-write` policy and `approvalPolicy: never`: the child wrote under the writable roots, no server request, the parent waited (`wait`) and answered. 4 slots including the parent; a finished child holds its slot until `close_agent` |
-| opencode | the `task` tool, `subagent_type: "studio-scene"` | named agents in `opencode.json` (`mode: subagent`, `model`, `variant`), written from the jobs at each server start | Not run live. Read from opencode 1.18's task tool: `subagent_depth` counts parents, so 1 lets the thread's session spawn and a subagent not; a subagent session takes its parent's permissions, with `task` and `todowrite` denied unless its agent allows them |
-| agy | none | `invoke_subagent` takes a type name and no model | Not run: with no way to give the job's model, Studio starts none on agy and the agent does the work itself |
-
-opencode's template sets `subagent_depth: 1` and `task: allow` for this; the
-named agents carry no `permission` of their own, so they are never wider
-than the thread. The hidden one-off agents keep `"*": "deny"`, `task`
-included. A role off for an agent is left out of its definitions, and
-`oculus studio agents` says to do that role's work in order.
-
-A change in Settings → Jobs reaches Claude's definitions at the thread's
-next spawn and opencode's at its server's next start; Codex reads it per
-call, from `oculus studio agents`.
-
-Studio role prompts reuse the brief's Chat shell section through
-`studio_agents.rs`'s section extractor. They receive sandbox rules without
-the chat's teaching, proposal or output instructions.
 
 ## Memory
 

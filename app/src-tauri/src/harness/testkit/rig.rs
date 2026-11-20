@@ -89,7 +89,7 @@ impl Rig {
             crate::db::store::set_setting(
                 &pool,
                 jobs::SETTINGS_KEY,
-                r#"{"threadNaming":[],"studioResearch":[],"studioScene":[],"widgetAsk":[]}"#,
+                r#"{"threadNaming":[],"widgetAsk":[]}"#,
             )
             .await
             .unwrap();

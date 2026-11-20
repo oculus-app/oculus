@@ -15,20 +15,17 @@ pub struct OneOffPrompts<'a> {
     pub lecture_end: &'a str,
 }
 
-/// Write `agents/opencode.json`: the permissions, the system prompts and the
-/// Studio subagents (`studio_agents::opencode_agents_fragment`). Rewritten on
-/// every server start, since all three carry the library's paths or settings.
+/// Write the library's permissions and system prompts before every server start.
 pub fn write_config(
     directory: &Path,
     library: &Path,
     prompt: &str,
     one_off: &OneOffPrompts,
-    subagents: &str,
 ) -> Result<PathBuf, String> {
     std::fs::create_dir_all(directory)
         .map_err(|e| format!("cannot create {}: {e}", directory.display()))?;
     let path = directory.join(CONFIG_NAME);
-    std::fs::write(&path, render_config(library, prompt, one_off, subagents))
+    std::fs::write(&path, render_config(library, prompt, one_off))
         .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     Ok(path)
 }
@@ -36,9 +33,8 @@ pub fn write_config(
 /// Text substitution, never a parse/re-serialize: the ruleset is ordered
 /// (last rule wins) and `serde_json`'s map sorts keys, which would silently
 /// invert the containment. Values are JSON-escaped.
-fn render_config(library: &Path, prompt: &str, one_off: &OneOffPrompts, subagents: &str) -> String {
+fn render_config(library: &Path, prompt: &str, one_off: &OneOffPrompts) -> String {
     CONFIG_TEMPLATE
-        .replace("\"{{SUBAGENTS}}\": null,", subagents)
         .replace(
             "{{LIBRARY}}",
             &json_fragment(&crate::library::paths::slash_path(library)),
@@ -93,7 +89,6 @@ mod tests {
                 writer: "w",
                 lecture_end: "l",
             },
-            "",
         );
         let v: Value = serde_json::from_str(&rendered).expect("the template renders valid JSON");
         assert!(v.get("sandbox").is_none());
@@ -130,7 +125,6 @@ mod tests {
                 writer: "w",
                 lecture_end: "l",
             },
-            "",
         );
         let rules: Vec<(String, String)> = rendered
             .lines()
@@ -188,7 +182,6 @@ mod tests {
                 writer: "w",
                 lecture_end: "l",
             },
-            "",
         );
         for inner in [
             "courses/A/notes.md",
@@ -216,44 +209,6 @@ mod tests {
         }
     }
 
-    /// The Studio subagents land in `agent` beside the primary ones, as
-    /// subagents on their job's model with no permission of their own, so
-    /// they run under the parent session's.
-    #[test]
-    fn the_studio_subagents_are_rendered_from_the_jobs() {
-        use crate::harness::jobs::{Job, JobSelection};
-        use crate::harness::studio_agents::{assigned, opencode_agents_fragment};
-        let roles = assigned(crate::harness::Provider::Opencode, |job| match job {
-            Job::StudioScene => vec![JobSelection {
-                provider: crate::harness::Provider::Opencode,
-                model: "openrouter/strong".into(),
-                reasoning_effort: Some("high".into()),
-            }],
-            _ => Vec::new(),
-        });
-        let rendered = render_config(
-            Path::new("/Users/x/Library/Application Support/oculus"),
-            "p",
-            &OneOffPrompts {
-                naming: "n",
-                writer: "w",
-                lecture_end: "l",
-            },
-            &opencode_agents_fragment(&roles),
-        );
-        let v: Value = serde_json::from_str(&rendered).expect("the template renders valid JSON");
-        let scene = &v["agent"]["studio-scene"];
-        assert_eq!(scene["mode"], "subagent");
-        assert_eq!(scene["model"], "openrouter/strong");
-        assert_eq!(scene["variant"], "high");
-        assert!(scene.get("permission").is_none());
-        assert!(
-            v["agent"].get("studio-research").is_none(),
-            "off: not defined"
-        );
-        assert_eq!(v["agent"][AGENT]["mode"], "primary");
-    }
-
     /// Pins the rule shapes that work: siblings of `agents/` denied one by one,
     /// the bash map ending on an allow, and in-directory paths relative.
     #[test]
@@ -266,7 +221,6 @@ mod tests {
                 writer: "You complete \"notes\".",
                 lecture_end: "You find where lectures end.",
             },
-            "",
         );
         let v: Value = serde_json::from_str(&rendered).expect("the template renders valid JSON");
 
@@ -313,10 +267,6 @@ mod tests {
         // denied `task` by opencode unless its agent allows it.
         assert_eq!(v["permission"]["task"], "allow");
         assert_eq!(v["subagent_depth"], 1);
-        assert!(
-            v["agent"].get("{{SUBAGENTS}}").is_none(),
-            "the placeholder is always replaced"
-        );
         // Parity with Claude and Codex.
         for key in ["webfetch", "websearch"] {
             assert_eq!(v["permission"][key], "allow", "{key}");
