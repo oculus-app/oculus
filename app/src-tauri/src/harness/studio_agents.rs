@@ -8,9 +8,10 @@
 //! `--agents`, opencode's config), Codex through `spawn_agent`'s `model`,
 //! which the skill asks for by the words [`how_to_spawn`] prints. agy's
 //! `invoke_subagent` takes no model, so agy does the work itself. The scene
-//! prompt carries the skill's `build.md` and the builder's sections of
-//! `reference.md`; Codex, with no role prompt, is told to read the same by
-//! [`codex_scene_opening`]. docs/harness.md ("Subagents") has the rest.
+//! prompt carries the role's steps and the builder's sections of
+//! `reference.md`; Codex, with no role prompt, is told to read the sections
+//! by [`codex_scene_opening`]. The `oculus-studio` skill starts neither
+//! role. docs/harness.md ("Subagents") has the rest.
 
 use std::sync::LazyLock;
 
@@ -50,7 +51,7 @@ pub const ROLES: [Role; 2] = [
 ];
 
 const SCENE_ROLE: &str = include_str!("../../templates/STUDIO_SCENE.template.md");
-const BUILD: &str = include_str!("../../templates/skills/oculus-studio/build.md");
+const BUILD: &str = include_str!("../../templates/STUDIO_SCENE_STEPS.template.md");
 const REFERENCE: &str = include_str!("../../templates/skills/oculus-studio/reference.md");
 const HARNESS: &str = include_str!("../../templates/HARNESS.template.md");
 
@@ -87,7 +88,7 @@ pub const BUILDER_SECTIONS: [&str; 11] = [
     "Slides",
 ];
 
-/// The scene role, shared chat shell, `build.md`, then [`BUILDER_SECTIONS`].
+/// The scene role, shared chat shell, its steps, then [`BUILDER_SECTIONS`].
 fn scene_prompt() -> &'static str {
     static PROMPT: LazyLock<String> = LazyLock::new(|| {
         let mut out = format!(
@@ -132,8 +133,8 @@ fn section<'a>(doc: &'a str, name: &str) -> Option<&'a str> {
     start.map(|s| &doc[s..])
 }
 
-/// What a Codex director's scene brief opens with, since Codex gives a
-/// subagent no role prompt; `SKILL.md` repeats it word for word.
+/// What a Codex scene brief opens with, since Codex gives a subagent no
+/// role prompt.
 pub fn codex_scene_opening() -> String {
     let quoted: Vec<String> = BUILDER_SECTIONS
         .iter()
@@ -141,7 +142,7 @@ pub fn codex_scene_opening() -> String {
         .collect();
     let (last, rest) = quoted.split_last().expect("sections");
     format!(
-        "Read `skills/oculus-studio/build.md`, then these sections of `skills/oculus-studio/reference.md`: {} and {last}.",
+        "Read these sections of `skills/oculus-studio/reference.md`: {} and {last}.",
         rest.join(", ")
     )
 }
@@ -344,10 +345,11 @@ mod tests {
         assert!(agy.contains("yourself"));
     }
 
-    /// The scene prompt carries the role and shell, build.md, then each builder
-    /// section of reference.md from its heading on, and no director section.
+    /// The scene prompt carries the role and shell, its steps, then each
+    /// builder section of reference.md from its heading on, and no director
+    /// section.
     #[test]
-    fn the_scene_prompt_carries_build_md_and_the_builder_sections() {
+    fn the_scene_prompt_carries_the_steps_and_the_builder_sections() {
         let prompt = scene_prompt();
         assert!(prompt.starts_with(SCENE_ROLE.trim_end()));
         assert!(prompt.contains(BUILD.trim_end()));
@@ -398,14 +400,11 @@ mod tests {
         }
     }
 
-    /// Codex gets no role prompt, so its director opens each scene brief with
-    /// the files to read, in the same words in SKILL.md and `studio agents`.
+    /// Codex gets no role prompt, so a scene brief opens with the sections to
+    /// read, in the words `studio agents` prints.
     #[test]
     fn codex_scene_briefs_open_with_the_same_files() {
         let opening = codex_scene_opening();
-        let skill = include_str!("../../templates/skills/oculus-studio/SKILL.md");
-        let skill = skill.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(skill.contains(&opening), "SKILL.md lacks: {opening}");
         let roles = assigned(Provider::Codex, chain);
         let scene = how_to_spawn(Provider::Codex, roles[1].0, roles[1].1.as_ref());
         assert!(scene.ends_with(&opening), "{scene}");
@@ -414,6 +413,6 @@ mod tests {
             roles[0].0,
             Some(&sel(Provider::Codex, "gpt-6.1-sol", None)),
         );
-        assert!(!research.contains("build.md"));
+        assert!(!research.contains("reference.md"));
     }
 }

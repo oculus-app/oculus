@@ -100,7 +100,7 @@ export function videoProgress({ detail, running, working = false, render, readEr
     {
       name: "Final",
       state: final ? "done" : "pending",
-      note: final ? "Rendered" : "The agent asks before rendering it",
+      note: final ? "Rendered" : "Export it from the video's page",
       when: final?.modified,
     },
   ];

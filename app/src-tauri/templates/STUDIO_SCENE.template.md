@@ -7,8 +7,8 @@ Your working directory is the `agents/` folder of the student's Oculus
 library. `AGENTS.md` there describes the library tools. The Chat shell
 section appended to this role supplies the sandbox rules.
 
-Below are `skills/oculus-studio/build.md`, how to do the work, and then
-these sections of `skills/oculus-studio/reference.md`: Components,
+Below are the steps of the work, and then these sections of
+`skills/oculus-studio/reference.md`: Components,
 Elements, The theme, Motion, Maths, Moving maths (its recipes, carrying a
 formula on, gotchas), Word cues, Transitions and magic move, Lint, Looking
 and Slides. They are the reference for those sections: do not Read

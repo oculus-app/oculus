@@ -255,60 +255,59 @@ plays it ([harness.md](./harness.md#a-studio-thread-carries-its-video)); the
 Studio page's New video opens a new thread with the skill chip in its box
 ([studio-page.md](./studio-page.md#new-video-starts-a-chat)).
 The `oculus-studio` skill ([harness.md](./harness.md#the-brief-is-appended-except-on-opencode))
-is the whole brief, and `AGENTS.md` only points at it. The target is a
-3Blue1Brown-style explainer: maths written term by term as it is said and
-rewritten in place, every basic defined on an example before it is named,
-no slide shapes (card-and-arrow chains, a heading over lines, a formula
-that appears whole, a text-only scene), and no length budget.
+is the whole brief, and `AGENTS.md` only points at it. The thread's own
+agent makes the whole video, the same way on every provider: it starts no
+other agent and stops for no approval.
 
-`SKILL.md` splits the work into roles, each helper started as a
-[subagent](./harness.md#subagents) on the model Settings → Jobs gives that
-agent (`oculus studio agents` prints it and the call to make):
+**Scope.** A video answers one question in 60 to 120 seconds over 2 to 4
+scenes, so the depth goes into each scene: one picture taken through
+several big changes. A request that holds more than one question gets a
+series outline of at most 7 parts, each a question, in the reply, and only
+part 1 is made; later parts wait for the student ("make part 3"). Each part
+opens with one line picking up the one before and redraws any picture it
+needs; a component carried between parts is copied into the new part's
+folder or promoted to the subject library.
 
-- **Research**, one helper per slice of the lecture (about ten minutes or
-  ten slides), writes `notes/<nn>-<topic>.md` in the video's folder in a
-  fixed shape: definitions, worked examples with every number, figures
-  with page refs, what the slice assumes, what it leaves for later.
-- **Direct**, the thread's own agent, reads only the notes and writes
-  `storyboard.md`: the question, the viewer (a first-year who missed the
-  lecture), a ladder of every term in the order it is defined, and many
-  short scenes, each with what it carries in and hands on by key, the
-  idea, the picture, a narration draft and a beat list (each clause and
-  what appears or moves as it is said). It stops for the student's
-  go-ahead on the storyboard, then writes `video.json` (each one-scene
-  component's only prop, `narrated`, set on narrated scenes) and
-  `script.md`, placing a `[pause]` where an idea lands (a result shown, a
-  definition complete, a rewrite finished, the end of a scene's argument),
-  then lints and narrates before any scene is built, so builders cue to
-  real word times.
-- **Build**, one helper per scene, works from `build.md`: its first call is
-  `oculus studio brief <slug> --scene <id>`, which stands in for the
-  script and manifest (it leaves the storyboard out, so the builder reads
-  only its own entry there); it writes the scene's components, cues
-  each beat with `word()` on the brief's word times, lands the beat a
-  pause follows just before `pause()` and holds it through the silence,
-  checks as text with
-  `lint --scene` (every error fixed, each warning fixed or explained) and
-  `beats --scene` (and `--key` for each key it changed), then looks with
-  the brief's `strip` or `frame` call,
-  reading the PNG at its fixed `-o` path in the same message (a missing
-  component elsewhere does not stop them; stale narration anywhere does).
-  A component two scenes share gets examples and a `gallery --sheet`. It
-  replies with its components, props, strip, kept warnings and any
-  narration change, which the director makes and re-narrates. The
-  director's brief is a few lines: slug, scene, component, shared keys and
-  the student's rules for the video.
-- **Review**, one helper per finished scene on the same scene role, runs
-  `brief`, `lint --scene` and `beats --scene`, looks at one strip and a few
-  frames, and replies `PASS` or a numbered fix list of at most ten (what,
-  when, where); it edits nothing. The director reads verdicts, not strips,
-  and sends a fix list to a fresh builder with the build brief and the
-  last reply.
+**The steps** (`SKILL.md`'s checklist):
 
-The director then lints until no errors are left, takes its one look at a
-strip of the whole video for the joins, and renders a draft, then
-`--final`. An agent whose role is off, or that cannot start helpers (agy),
-does the items itself in order.
+1. Scope, as above.
+2. Name the video: `oculus studio new --title` with what a student would
+   search for, the slug derived from it (a series part: `new --series`,
+   which takes the series' theme and subject).
+3. Read the one slide page or transcript slice the idea lives in, found
+   with `oculus list`, the recording's `outline.md` and `oculus files`.
+4. Write a five-line plan in the reply (the question; the hook, the
+   obvious answer that fails or a concrete scenario; the one picture
+   everything happens to; three beats; the payoff) and carry straight on.
+5. Write `script.md` and `video.json` (each one-scene component's only
+   prop, `narrated`, set on narrated scenes), lint until only the missing
+   components and narration are left, and narrate, so the scenes cue to
+   real word times.
+6. Write each scene: `oculus studio brief <slug> --scene <id>` for the word
+   times and the check calls, the components cued with `word()` and landed
+   before `pause()`, checked as text with `lint --scene` and `beats --scene`.
+7. Lint the whole video until no errors, take one strip of the whole video,
+   and look again only after a fix the strip asked for.
+8. Render the draft and give its path. The draft is the hand-back; the
+   full-size final is the student's Export on the video's page.
+
+**The script rules** come from the reference videos measured on
+2026-11-20 (3Blue1Brown, StatQuest, Kurzgesagt, minutephysics, Khan
+Academy, Primer, Reducible, Welch Labs, Freya Holmér): talk to "you",
+point at the picture with "this", "here", "watch" and "look", open on the
+question rather than an agenda, one breath a sentence, every number given
+meaning, and a `[pause]` where an idea lands. **The picture rules**: one
+large object fills the frame and changes in big steps, a hold is fine, no
+title over a scene, labels of a few words at the 40 px floor, and a wrong
+case beside the right one; lint's `sparse`, `scene_title` and `small_text`
+fail the slide look ([The look](#the-look-the-slide-look-as-errors-the-rest-as-warnings)). Card-and-arrow chains, a heading
+over lines, a formula that appears whole and a text-only scene are banned.
+Maths moves as it is said: every formula a `Math`, written on per `\k`
+group with `Write`, rewritten in place with `Steps`, pointed at with the
+overlays, shrunk into a corner, a value flying into its slot, carried to
+the next scene by key. The agent writes its own components; the library's
+starters are primitives to copy when the picture is one, never templates.
+
 When `narrate` fails for want of a voice or the aligner, the agent stops and
 tells the student what to set in Settings -> Studio; it never downloads the
 aligner or the voice packs. After narrating with Kokoro it judges each
@@ -316,22 +315,7 @@ guessed-word note, suggests a reading for each doubtful word with `oculus
 studio pronounce suggest` (it never edits a lexicon), tells the student to
 review them in Settings -> Studio -> Pronunciation, and carries on: a decision applies at the
 next narrate, and a suggestion marked wrong comes back in the notes with
-the student's note for another try. The story rules (explain with reasons, link each scene to the
-last, numbers given meaning, example then rule, the payoff shown, the end
-answering the opening question, phrasing the voice cannot fuse) and the
-taste rules (the picture carries the idea, the frame filled, every motion
-cued, stable magic-move keys, tokens over literals) and a map of moving
-maths close `SKILL.md`: every formula a `Math`, written on per `\k` group
-with `Write`, rewritten in place with `Steps`, pointed at with the
-overlays, shrunk into a corner, a value flying into its slot, carried to
-the next scene by key; never a formula appearing whole, stacked lines or
-maths as Text.
-
-`build.md` is the scene helper's procedure (brief, write, check as text,
-look, the bar every scene meets, the reply, review). The `studio-scene`
-role prompt carries it with the builder's sections of `reference.md`; on
-Codex the director's brief has the helper read them by file
-([harness.md](./harness.md#subagents)).
+the student's note for another try.
 
 `reference.md` is this page's authoring rules distilled for an agent
 (video.json, spoken form and pauses, the component contract, elements and style keys,
@@ -2128,8 +2112,8 @@ box.
 Every send reads the link (`StudioBrief::read`, `None` once the folder is
 gone) into "The video being made":
 the absolute folder, format, theme, subject library and optional length
-request. The agent uses that folder, renders a draft, and asks before the
-final. Chat's style choices ride prompt context and user-row metadata.
+request. The agent uses that folder and renders a draft, never the
+final, which the student makes with Export. Chat's style choices ride prompt context and user-row metadata.
 See [harness.md](./harness.md#a-studio-thread-carries-its-video).
 
 
