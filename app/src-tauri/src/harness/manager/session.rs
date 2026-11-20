@@ -77,10 +77,10 @@ impl Harness {
             // A video linked after this session came up: its section rides
             // this send, once, whatever the provider.
             let late =
-                super::studio::late_section(session.studio.as_deref(), opts.studio_brief.as_ref());
+                super::studio::late_section(session.studio.as_ref(), opts.studio_brief.as_ref());
             let before = session.studio.clone();
             if late.is_some() {
-                session.studio = opts.studio_brief.as_ref().map(|b| b.slug.clone());
+                session.studio = opts.studio_brief.clone();
             }
             (
                 session.handle.clone(),
@@ -418,9 +418,9 @@ impl Harness {
 /// The video a newly spawned session's instructions named. A resumed session
 /// counts as told about none: not every CLI re-applies instructions on
 /// resume, so the first send carries the section again.
-fn briefed(resume: Option<&str>, opts: &SendOptions) -> Option<String> {
+fn briefed(resume: Option<&str>, opts: &SendOptions) -> Option<super::studio::StudioBrief> {
     match resume {
         Some(_) => None,
-        None => opts.studio_brief.as_ref().map(|b| b.slug.clone()),
+        None => opts.studio_brief.clone(),
     }
 }

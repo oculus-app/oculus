@@ -1,9 +1,14 @@
 use std::path::{Path, PathBuf};
 
-/// `<data dir>/studio`: Studio's videos and its component and theme
+/// `<data dir>/studio`: Studio's videos, series outlines and component and theme
 /// libraries (docs/studio.md). It holds no secrets.
 pub fn studio_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("studio")
+}
+
+/// The outlines alongside a Studio videos root, including in a scratch library.
+pub fn studio_series_dir(videos: &Path) -> PathBuf {
+    videos.with_file_name("series")
 }
 
 /// The data-dir folders an agent thread may write whole outside its

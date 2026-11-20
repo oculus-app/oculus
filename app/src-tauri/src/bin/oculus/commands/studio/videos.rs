@@ -9,27 +9,30 @@ use app_lib::studio::videos::{self, NewVideo, VideoRow};
 impl Ctx {
     pub(crate) fn studio_new(&self, args: &StudioNewArgs) -> Result<(), String> {
         let library = libraries(false).map_err(|e| e.to_string())?;
+        let videos = videos::videos_dir();
+        let mut new = match &args.series {
+            Some(series) => NewVideo::from_part(&videos, series, &args.slug)?,
+            None => NewVideo {
+                slug: args.slug.clone(),
+                subject: args.subject.clone(),
+                theme: Some(match &args.theme {
+                    Some(theme) => theme.clone(),
+                    None => default_theme(&library, args.subject.as_deref())?,
+                }),
+                ..NewVideo::default()
+            },
+        };
+        if let Some(title) = &args.title {
+            new.title = Some(title.clone());
+        }
+        new.portrait = args.portrait;
         // A video is narrated, so it needs a voice before any work goes into
         // it; a scratch video is only drawn.
         if !args.scratch {
             let voice = app_lib::studio::voice::VoiceOverrides::default();
             app_lib::studio::voice::resolve(&voice, &voice, &app_lib::studio::voice::settings())?;
         }
-        let theme = match &args.theme {
-            Some(theme) => theme.clone(),
-            None => default_theme(&library, args.subject.as_deref())?,
-        };
-        let dir = videos::create_in(
-            &videos::videos_dir(),
-            &NewVideo {
-                slug: args.slug.clone(),
-                subject: args.subject.clone(),
-                title: args.title.clone(),
-                portrait: args.portrait,
-                theme: Some(theme),
-                ..NewVideo::default()
-            },
-        )?;
+        let dir = videos::create_in(&videos, &new)?;
         if let Err(e) = studio_core::Project::load_with(&dir, &library) {
             std::fs::remove_dir_all(&dir).ok();
             return Err(e.to_string());
@@ -88,6 +91,8 @@ fn row_json(row: &VideoRow) -> serde_json::Value {
         "title": row.title,
         "dir": row.dir.to_string_lossy(),
         "subject": row.subject,
+        "series": row.series,
+        "part": row.part,
         "scenes": row.scenes,
         "narrated": row.narrated,
         "renders": row.renders,
@@ -107,6 +112,11 @@ fn print_row(row: &VideoRow) {
         );
         return;
     }
+    let series = match (&row.series, row.part) {
+        (Some(s), Some(n)) => format!("  {s} part {n}"),
+        (Some(s), None) => format!("  {s} (missing outline entry)"),
+        _ => String::new(),
+    };
     let scenes = row.scenes.unwrap_or(0);
     let renders = if row.renders.is_empty() {
         "no renders".to_owned()
@@ -114,7 +124,7 @@ fn print_row(row: &VideoRow) {
         row.renders.join(", ")
     };
     println!(
-        "{} {:<12} {:>2} scene{} {:<10} {:<22} {}  {}",
+        "{} {:<12} {:>2} scene{} {:<10} {:<22} {}  {}{series}",
         paint(&format!("{:<28}", row.slug), BOLD),
         row.subject.as_deref().unwrap_or("-"),
         scenes,

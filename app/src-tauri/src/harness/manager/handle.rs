@@ -221,7 +221,7 @@ pub(super) struct Live {
     pub(super) sinks: Arc<dyn Sinks>,
     /// The video whose "The video being made" section this session has had:
     /// bound at spawn, or carried by a send since (`studio::late_section`).
-    pub(super) studio: Option<String>,
+    pub(super) studio: Option<super::studio::StudioBrief>,
 }
 
 impl Live {

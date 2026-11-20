@@ -116,6 +116,7 @@ pub fn video_in(videos: &Path, slug: &str) -> Result<PathBuf, String> {
 #[derive(Debug, Clone, Default)]
 pub struct NewVideo {
     pub slug: String,
+    pub series: Option<String>,
     pub subject: Option<String>,
     /// video.json's `title` and the title card's text; without it the card
     /// shows the slug spelled out and video.json has no `title`.
@@ -128,6 +129,22 @@ pub struct NewVideo {
     pub theme: Option<String>,
     /// Written as video.json's `voice` block when any field is set.
     pub voice: Option<studio_core::Voice>,
+}
+
+impl NewVideo {
+    /// Resolve the part before checking narration or creating a folder.
+    pub fn from_part(videos: &Path, series: &str, slug: &str) -> Result<Self, String> {
+        let outline = super::series::read(videos, series)?;
+        let (_, part) = outline.entry(series, slug)?;
+        Ok(Self {
+            slug: slug.to_owned(),
+            title: Some(part.title.clone()),
+            series: Some(series.to_owned()),
+            theme: Some(outline.theme),
+            subject: outline.subject,
+            ..Self::default()
+        })
+    }
 }
 
 /// Scaffolds `videos/<slug>/`: a `video.json` (the title, 30 fps, the
@@ -213,6 +230,9 @@ fn video_json(new: &NewVideo) -> String {
             json!(new.theme.as_deref().unwrap_or("default"))
         ),
     ]);
+    if let Some(series) = &new.series {
+        lines.push(format!("  \"series\": {},", json!(series)));
+    }
     if let Some(s) = &new.subject {
         lines.push(format!("  \"subject\": {},", json!(s)));
     }
@@ -248,6 +268,8 @@ pub struct VideoRow {
     pub dir: PathBuf,
     /// What the video is called ([`video_title`]).
     pub title: String,
+    pub series: Option<String>,
+    pub part: Option<usize>,
     pub subject: Option<String>,
     /// `None` when video.json does not load; `problem` says why.
     pub scenes: Option<usize>,
@@ -261,10 +283,33 @@ pub struct VideoRow {
     pub problem: Option<String>,
 }
 
+impl VideoRow {
+    pub fn has_render(&self) -> bool {
+        self.renders.iter().any(|name| name.ends_with(".mp4"))
+    }
+}
+
 /// Every folder under `videos`, by slug; with `subject`, only that
 /// subject's. A folder whose video.json does not load is listed with the
 /// reason (and is never one `subject` matches).
 pub fn list_in(videos: &Path, subject: Option<&str>) -> Result<Vec<VideoRow>, String> {
+    let mut rows = folder_rows(videos, subject)?;
+    let mut outlines = std::collections::HashMap::new();
+    for row in &mut rows {
+        if let Some(series) = &row.series {
+            let outline = outlines
+                .entry(series.clone())
+                .or_insert_with(|| super::series::read(videos, series).ok());
+            row.part = outline
+                .as_ref()
+                .and_then(|o| o.entry(series, &row.slug).ok())
+                .map(|(n, _)| n);
+        }
+    }
+    Ok(rows)
+}
+
+pub(super) fn folder_rows(videos: &Path, subject: Option<&str>) -> Result<Vec<VideoRow>, String> {
     let entries = match std::fs::read_dir(videos) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -277,7 +322,7 @@ pub fn list_in(videos: &Path, subject: Option<&str>) -> Result<Vec<VideoRow>, St
         if !dir.is_dir() {
             continue;
         }
-        let row = row(&dir);
+        let row = folder_row(&dir);
         if subject.is_none_or(|s| row.subject.as_deref() == Some(s)) {
             rows.push(row);
         }
@@ -288,6 +333,14 @@ pub fn list_in(videos: &Path, subject: Option<&str>) -> Result<Vec<VideoRow>, St
 
 /// The row of the video in `dir`.
 pub fn row(dir: &Path) -> VideoRow {
+    let mut row = folder_row(dir);
+    if let (Some(videos), Some(series)) = (dir.parent(), &row.series) {
+        row.part = super::series::part_number(videos, series, &row.slug).ok();
+    }
+    row
+}
+
+pub(super) fn folder_row(dir: &Path) -> VideoRow {
     let slug = dir
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -299,9 +352,9 @@ pub fn row(dir: &Path) -> VideoRow {
             serde_json::from_str::<Video>(&text).map_err(|e| format!("{}: {e}", path.display()))
         });
     let title = video_title(video.as_ref().ok(), &slug);
-    let (subject, scenes, problem) = match video {
-        Ok(v) => (v.subject, Some(v.scenes.len()), None),
-        Err(e) => (None, None, Some(e)),
+    let (subject, series, scenes, problem) = match video {
+        Ok(v) => (v.subject, v.series, Some(v.scenes.len()), None),
+        Err(e) => (None, None, None, Some(e)),
     };
     let mut renders: Vec<String> = std::fs::read_dir(dir.join("renders"))
         .map(|rd| {
@@ -317,6 +370,8 @@ pub fn row(dir: &Path) -> VideoRow {
         dir: dir.to_owned(),
         title,
         subject,
+        series,
+        part: None,
         scenes,
         narrated: dir.join(studio_core::MANIFEST_PATH).is_file(),
         renders,

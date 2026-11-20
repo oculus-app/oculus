@@ -251,6 +251,7 @@ mod tests {
         let root = crate::test_support::Scratch::new("harness-studio");
         let video = StudioBrief {
             slug: "bayes".into(),
+            series: None,
             dir: root.join("studio/videos/bayes"),
             theme: Some("default".into()),
             subject: None,

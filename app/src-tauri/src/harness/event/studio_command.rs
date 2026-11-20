@@ -19,7 +19,7 @@ pub fn new_slugs(name: &str, input: &Value) -> Vec<String> {
 
 /// Flags of `studio new` that take a value, so the word after one is not
 /// the slug.
-const VALUED: &[&str] = &["--theme", "--subject", "--title"];
+const VALUED: &[&str] = &["--theme", "--subject", "--title", "--series"];
 
 fn collect(line: &str, windows: bool, depth: usize, out: &mut Vec<String>) {
     if depth > 3 {
@@ -242,6 +242,10 @@ mod tests {
             ["minimax"]
         );
         assert_eq!(slugs("oculus studio new $SLUG"), [""]);
+        assert_eq!(
+            slugs("oculus studio new --series limits slopes"),
+            ["slopes"]
+        );
         assert_eq!(
             slugs("oculus studio new --theme chalk --title 'Week 7' w7"),
             ["w7"]
