@@ -1,6 +1,6 @@
 //! The Studio page's commands: the videos under `<data>/studio/videos/`, one
 //! video's detail, and PNG stills of it (docs/studio.md, "The Studio page's
-//! commands"). Each takes a slug and reaches no folder outside `videos/`.
+//! commands"). The list also reads the series outlines beside `videos/`.
 
 mod detail;
 mod frame;
@@ -18,12 +18,12 @@ use crate::studio::videos::videos_dir;
 use crate::studio::voice;
 use detail::VideoDetail;
 use frame::FrameAt;
-use rows::VideoView;
+use rows::VideoList;
 use slot::on_render_slot;
 
 /// The videos newest first; `subject` is a course code.
 #[tauri::command]
-pub async fn studio_videos(subject: Option<String>) -> Result<Vec<VideoView>, String> {
+pub async fn studio_videos(subject: Option<String>) -> Result<VideoList, String> {
     let links = studio_links(&open_pool().await?).await?;
     crate::runtime::blocking::run(move || rows::list_in(&videos_dir(), subject.as_deref(), &links))
         .await

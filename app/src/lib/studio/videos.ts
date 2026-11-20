@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { RenderPreset } from "@/lib/studio/render";
 
 // Studio's videos under `<data>/studio/videos/<slug>/`
-// (`app/src-tauri/src/studio/commands/videos.rs`). A slug is `[a-z0-9-]+`.
+// (`app/src-tauri/src/studio/commands/videos/`). A slug is `[a-z0-9-]+`.
 
 /** Mirrors `videos::VideoRow` plus the thread link. */
 export interface VideoRow {
@@ -16,6 +16,9 @@ export interface VideoRow {
   subject: string | null;
   /** null when video.json does not load; `problem` says why. */
   scenes: number | null;
+  series: string | null;
+  /** Current 1-based position in the series outline. */
+  part: number | null;
   /** A narration manifest exists; it may be stale. */
   narrated: boolean;
   /** File names in `renders/`: `draft.mp4`, `final.mp4`, … */
@@ -27,9 +30,37 @@ export interface VideoRow {
   threadId: number | null;
 }
 
+export interface SeriesPart {
+  slug: string;
+  title: string;
+  question: string;
+  number: number;
+  exists: boolean;
+  made: boolean;
+  /** Populated once the part has a render. */
+  video: VideoRow | null;
+}
+
+export interface StudioSeries {
+  slug: string;
+  title: string;
+  subject: string | null;
+  theme: string;
+  parts: SeriesPart[];
+}
+
+export interface VideoList {
+  videos: VideoRow[];
+  series: StudioSeries[];
+}
+
+export function listVideosAndSeries(subject?: string | null): Promise<VideoList> {
+  return invoke<VideoList>("studio_videos", { subject: subject ?? null });
+}
+
 /** Videos newest first; `subject` is a course code. */
 export function listVideos(subject?: string | null): Promise<VideoRow[]> {
-  return invoke<VideoRow[]>("studio_videos", { subject: subject ?? null });
+  return listVideosAndSeries(subject).then((list) => list.videos);
 }
 
 /** One scene of a video, in order. Times are seconds and null until the

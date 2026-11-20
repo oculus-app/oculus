@@ -17,6 +17,7 @@ mod pronounce;
 mod render;
 #[cfg(test)]
 mod sizes;
+mod series;
 mod slide;
 mod themes;
 mod videos;
@@ -35,6 +36,7 @@ impl Ctx {
             *dir = video_dirs::resolve(dir)?;
         }
         match action {
+            StudioAction::Series { action } => self.studio_series(action),
             StudioAction::New(a) => self.studio_new(&a),
             StudioAction::List(a) => self.studio_list(&a),
             StudioAction::Title(a) => self.studio_title(&a),

@@ -15,6 +15,7 @@ pub mod error;
 pub mod libraries;
 pub mod narrate;
 pub mod render;
+pub mod series;
 pub mod slides;
 #[cfg(test)]
 mod test_wav;

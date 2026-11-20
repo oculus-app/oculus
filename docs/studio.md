@@ -34,6 +34,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | Props schemas and their validation | `app/studio-core/src/schema/` |
 | Component and theme libraries: the starter set, seeding, the snapshot write path and removal, `library.json` (a library's default theme), promoting a video's own file | `app/studio-core/src/library/`, `app/studio-core/library/` (the starter files), `app/src-tauri/src/studio/libraries/` (the app's data-dir roots, `promote.rs`, `defaults.rs`) |
 | Videos in the data directory: `new`, `list`, slug resolution, a video's name and `title`, video.json's text edits, the app's scope | `app/src-tauri/src/studio/videos/` (`title.rs`, `edit.rs`, `captions.rs`), `app/src-tauri/src/library/paths/studio.rs` (`studio_dir`, `agent_write_dirs`) |
+| Series outlines, part numbers and render status | `app/src-tauri/src/studio/series/` |
 | Galleries: each example of a component as a still, and its contact sheet | `app/studio-core/src/gallery/` |
 | Themes and bundled fonts | `app/studio-core/themes/`, `app/studio-core/fonts/`, `app/studio-core/src/theme/`, `app/studio-core/src/fonts/` |
 | Every error and its message | `app/studio-core/src/error.rs` |
@@ -84,8 +85,9 @@ narration/    manifest.json and the clips it names
   `Project::timeline`); a `t` past the end is an error that states the
   video's length.
 - `title` (optional) is what the video is called; studio-core only stores
-  it and refuses an empty one. No frame shows it (a title card shows its
+  it. A blank title falls back to the title card and then the slug. No frame shows it (a title card shows its
   own `title` prop), so it is not in a scene's fingerprint.
+- `series` (optional) names the [outline](#a-series-keeps-its-parts-in-order) that contains this video.
 - `fps` (optional, default 30) is 24, 25, 30, 50 or 60; any other value
   fails the load with the rates.
 - `id` (`[a-z0-9-]+`, unique) names the scene's section in `script.md`. It
@@ -193,7 +195,7 @@ export default ({ title, bullets, accent }, { t, duration, theme, size }) =>
 
 Everything Studio keeps is under `<app data>/studio/`
 (`library::paths::studio_dir`): `videos/<slug>/` (one folder per video),
-`library/` (the global library), `subjects/<CODE>/` (each subject's) and
+`series/<slug>/` (one outline per series), `library/` (the global library), `subjects/<CODE>/` (each subject's) and
 `pronunciations/` (the readings waiting for the student's review, see
 "The student reviews the agent's suggested readings").
 `courses/` stays read-only to agents, so no library lives there. It is the
@@ -218,9 +220,9 @@ one folder besides `agents/` and the database an agent thread may write
 - `oculus studio list [--subject CODE]` prints each video's slug, subject,
   scene count, whether `narration/manifest.json` exists (`narrated`; `lint`
   says whether it is current), the files in `renders/`, the newest change
-  to video.json, script.md or `components/`, and its title. A folder whose
+  to video.json, script.md or `components/`, its title and any series and part number. A folder whose
   video.json does not parse is listed with the reason. `--json` gives
-  `[{slug, title, dir, subject, scenes, narrated, renders, modified,
+  `[{slug, title, dir, subject, series, part, scenes, narrated, renders, modified,
   problem}]`.
 - `oculus studio title <slug> <title>` (`videos::set_title`) renames a
   video: it sets video.json's `title`, trimmed, and nothing else. The
@@ -246,6 +248,31 @@ one folder besides `agents/` and the database an agent thread may write
   (`videos/edit.rs`): the value replaced where the key is, else the key
   added (`title` first, `captions` before `scenes`), so the agent's
   formatting and key order stay as they were.
+
+## A series keeps its parts in order
+
+A request with several questions can have one small video per question.
+`oculus studio series new <slug> --title TITLE [--subject CODE] [--theme NAME]`
+creates `<data>/studio/series/<slug>/series.json` with a title, subject,
+theme and an empty `parts` array. The theme defaults the same way as a video's.
+Series and video slugs use the same alphabet and may share a name.
+
+`series add <series> --title TITLE --question QUESTION` appends
+`{slug, title, question}`. The title supplies the slug unless `--slug` is
+given. With `--at N`, the entry takes position N, counting from one.
+The array is the sole source of part numbers. Inserting a question moves
+later parts in the list, detail and thread brief without changing any videos.
+
+`oculus studio new <slug> --series <series>` creates the outlined video
+with the series' subject and theme. Its title comes from the entry unless
+`--title` is given. The only link in video.json is `series`. Lint reports
+a missing outline or an outline that omits the video's slug. To reuse a
+component, copy it into the part or promote it to the subject library.
+
+`oculus studio series show <series>` lists every question in order. A part
+is made when its matching video has an MP4 in `renders/`. A scaffold with
+no render shows as “not made, folder exists”. Deleting the video leaves the
+outline entry available to make again.
 
 ## Agent flow: a chat agent makes a video with the `oculus-studio` skill
 
@@ -2033,12 +2060,11 @@ error before any frame renders.
 
 `studio::commands::videos` is what the Studio page calls
 (`app/src/lib/studio/videos.ts` is the typed wrapper; JSON is camelCase).
-Each takes a slug, resolves it with `videos::video_in`, and returns what is
-on disk now; nothing is cached but thumbnails.
+The list reads both the video folders and the series outlines. Commands on one video resolve its slug with `videos::video_in`. Only thumbnails are cached.
 
 | Command | Does |
 | --- | --- |
-| `studio_videos(subject?)` | `videos::list_in` plus `title` and `threadId`, newest change first (a video whose video.json does not load sorts last and carries `problem`) |
+| `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series` and `part`. Each series has its ordered outline, with a nullable video row per part and `exists` and `made` flags. |
 | `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
 | `studio_render_captions(slug, preset)` | the WebVTT text beside that preset's render (`renders/<preset>.vtt`), for the player's CC |
 | `studio_set_captions(slug, on)` | sets video.json's `captions`: the `true`/`false` literal is replaced in the text, or the key is added before `scenes` on a line of its own, so the rest of the file keeps its formatting (`videos::set_captions`) |
@@ -2112,8 +2138,11 @@ box.
 Every send reads the link (`StudioBrief::read`, `None` once the folder is
 gone) into "The video being made":
 the absolute folder, format, theme, subject library and optional length
-request. The agent uses that folder and renders a draft, never the
-final, which the student makes with Export. Chat's style choices ride prompt context and user-row metadata.
+request. When video.json names a series, the brief also gives its ordered
+questions, slugs and render status. Later parts use this same thread through
+the first video's link. The agent renders the requested part's draft, never
+the final, which the student makes with Export. Chat's style choices ride
+prompt context and user-row metadata.
 See [harness.md](./harness.md#a-studio-thread-carries-its-video).
 
 

@@ -1841,6 +1841,7 @@ Usage: oculus studio <COMMAND>
 
 Commands:
   new         Make a new video under `<app data>/studio/videos/<SLUG>/`
+  series      Outline a series of small videos, one question per part
   list        List the videos under `<app data>/studio/videos/`
   title       Rename a video
   frame       Render one frame of a video to a PNG
@@ -1891,6 +1892,10 @@ Arguments:
           The video's name: lowercase letters, digits and `-`
 
 Options:
+      --series <SERIES>
+          Make this outline entry using the series' subject, theme and (unless
+          overridden) title
+
       --theme <NAME>
           Theme name; omitted uses the subject's default
 
@@ -1898,8 +1903,8 @@ Options:
           The course the video belongs to; its library is read before the global one
 
       --title <TITLE>
-          What the video is called, and its title card's text (default: the slug,
-          spaced)
+          The video and title card's name (default: the outline title for a part,
+          otherwise the spaced slug)
 
       --portrait
           1080x1920 instead of 1920x1080
@@ -1912,6 +1917,93 @@ Options:
           Print help (see a summary with '-h')
 ```
 
+### `oculus studio series`
+
+```
+Outline a series of small videos, one question per part
+
+Usage: oculus studio series <COMMAND>
+
+Commands:
+  new   Create an empty outline with shared subject and theme
+  add   Add a question to the outline without creating a video folder
+  show  Show each part's number, title, question, slug and render status
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+#### `oculus studio series new`
+
+```
+Create an empty outline with shared subject and theme
+
+Usage: oculus studio series new [OPTIONS] --title <TITLE> <SLUG>
+
+Arguments:
+  <SLUG>
+          Series folder name: lowercase letters, digits and `-`, up to 64 characters
+
+Options:
+      --title <TITLE>
+          The series' display title
+
+      --subject <CODE>
+          Course code inherited by each part
+
+      --theme <THEME>
+          Omitted uses the subject or global default
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+#### `oculus studio series add`
+
+```
+Add a question to the outline without creating a video folder
+
+Usage: oculus studio series add [OPTIONS] --title <TITLE> --question <QUESTION> <SERIES>
+
+Arguments:
+  <SERIES>
+          The series slug
+
+Options:
+      --title <TITLE>
+          The part's outline title and default video title
+
+      --question <QUESTION>
+          The question this video answers
+
+      --slug <SLUG>
+          The video's slug (derived from its title when omitted)
+
+      --at <N>
+          Insert at this 1-based part number (default: append)
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+#### `oculus studio series show`
+
+```
+Show each part's number, title, question, slug and render status
+
+Usage: oculus studio series show <SERIES>
+
+Arguments:
+  <SERIES>
+          The series slug
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
 ### `oculus studio list`
 
 ```
@@ -1919,9 +2011,9 @@ List the videos under `<app data>/studio/videos/`
 
 One line per video: its slug, subject, scene count, whether it has narration
 (`narrated`; `lint` says whether it is current), the renders in its `renders/`, when it
-last changed and its title. The title is video.json's `title`, else the first scene's
-text when it is a `TitleCard`, else the slug spelled out. A folder whose video.json does
-not load is listed with the reason.
+last changed, its title and any series and part number. The title is video.json's
+`title`, else the first scene's text when it is a `TitleCard`, else the slug spelled
+out. A folder whose video.json does not load is listed with the reason.
 
 Usage: oculus studio list [OPTIONS]
 

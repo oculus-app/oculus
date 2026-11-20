@@ -12,6 +12,11 @@ use crate::*;
 #[derive(Subcommand)]
 pub(crate) enum StudioAction {
     New(StudioNewArgs),
+    /// Outline a series of small videos, one question per part
+    Series {
+        #[command(subcommand)]
+        action: StudioSeriesAction,
+    },
     List(StudioListArgs),
     Title(StudioTitleArgs),
     Frame(StudioFrameArgs),
@@ -73,6 +78,46 @@ pub(crate) enum StudioAction {
     Aligner {
         #[command(subcommand)]
         action: StudioAlignerAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum StudioSeriesAction {
+    /// Create an empty outline with shared subject and theme
+    New {
+        /// Series folder name: lowercase letters, digits and `-`, up to 64 characters
+        slug: String,
+        /// The series' display title
+        #[arg(long)]
+        title: String,
+        /// Course code inherited by each part
+        #[arg(long, value_name = "CODE")]
+        subject: Option<String>,
+        /// Omitted uses the subject or global default
+        #[arg(long)]
+        theme: Option<String>,
+    },
+    /// Add a question to the outline without creating a video folder
+    Add {
+        /// The series slug
+        series: String,
+        /// The part's outline title and default video title
+        #[arg(long)]
+        title: String,
+        /// The question this video answers
+        #[arg(long)]
+        question: String,
+        /// The video's slug (derived from its title when omitted)
+        #[arg(long)]
+        slug: Option<String>,
+        /// Insert at this 1-based part number (default: append)
+        #[arg(long, value_name = "N")]
+        at: Option<usize>,
+    },
+    /// Show each part's number, title, question, slug and render status
+    Show {
+        /// The series slug
+        series: String,
     },
 }
 
@@ -216,6 +261,7 @@ impl StudioAction {
                 StudioThemesAction::Promote(a) => Some(&mut a.dir),
             },
             StudioAction::New(_)
+            | StudioAction::Series { .. }
             | StudioAction::List(_)
             | StudioAction::Tts(_)
             | StudioAction::Blocks(_)
@@ -241,6 +287,9 @@ impl StudioAction {
 ///     oculus studio new gradient-descent --subject COMP30027 --title "Gradient descent"
 #[derive(Args)]
 pub(crate) struct StudioNewArgs {
+    /// Make this outline entry using the series' subject, theme and (unless overridden) title
+    #[arg(long, conflicts_with_all = ["subject", "theme"])]
+    pub(crate) series: Option<String>,
     /// Theme name; omitted uses the subject's default
     #[arg(long, value_name = "NAME")]
     pub(crate) theme: Option<String>,
@@ -251,8 +300,7 @@ pub(crate) struct StudioNewArgs {
     /// global one
     #[arg(long, value_name = "CODE")]
     pub(crate) subject: Option<String>,
-    /// What the video is called, and its title card's text (default: the
-    /// slug, spaced)
+    /// The video and title card's name (default: the outline title for a part, otherwise the spaced slug)
     #[arg(long, value_name = "TITLE")]
     pub(crate) title: Option<String>,
     /// 1080x1920 instead of 1920x1080
@@ -286,7 +334,7 @@ pub(crate) struct StudioAgentsArgs {
 ///
 /// One line per video: its slug, subject, scene count, whether it has
 /// narration (`narrated`; `lint` says whether it is current), the renders
-/// in its `renders/`, when it last changed and its title. The title is
+/// in its `renders/`, when it last changed, its title and any series and part number. The title is
 /// video.json's `title`, else the first scene's text when it is a
 /// `TitleCard`, else the slug spelled out. A folder whose video.json does
 /// not load is listed with the reason.

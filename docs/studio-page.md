@@ -109,6 +109,9 @@ card's badge, a chat's video card and the page's bar all follow one render.
 
 ## Videos and the detail
 
+The `studio_videos` response includes video rows and [series outlines](./studio.md#a-series-keeps-its-parts-in-order).
+`listVideosAndSeries` exposes both. The grid reads the video rows through `listVideos`.
+
 The grid (`MediaGrid`, `MediaTile`) shows each video's thumbnail
 (`studio_thumbnail`, 16:9, a portrait one letterboxed rather than cropped),
 title (video.json's `title`, else its title card's, else the slug spelled

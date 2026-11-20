@@ -80,7 +80,7 @@ fn the_list_has_titles_threads_and_the_newest_first() {
         },
     )]);
 
-    let rows = list_in(&videos, None, &links).unwrap();
+    let rows = list_in(&videos, None, &links).unwrap().videos;
     let slugs: Vec<&str> = rows.iter().map(|r| r.slug.as_str()).collect();
     assert_eq!(slugs, ["new-one", "old-one"]);
     assert_eq!(rows[0].title, "New one");
@@ -92,6 +92,61 @@ fn the_list_has_titles_threads_and_the_newest_first() {
     assert_eq!(json["threadId"], 7);
     assert!(json["subject"].is_null() && json["problem"].is_null());
     assert_eq!(json["scenes"], 1);
+}
+
+#[test]
+fn series_parts_have_a_video_once_rendered_and_keep_their_place_after_deletion() {
+    use crate::studio::series::{self, Outline, Part};
+    use crate::studio::videos::{create_in, NewVideo};
+    let root = Scratch::new("series-rows");
+    let videos = root.join("videos");
+    let slug = "motion";
+    series::create(
+        &videos,
+        slug,
+        &Outline {
+            title: "Motion".into(),
+            subject: Some("PHYS".into()),
+            theme: "default".into(),
+            parts: vec![Part {
+                slug: slug.into(),
+                title: "Position".into(),
+                question: "Where is it?".into(),
+            }],
+        },
+    )
+    .unwrap();
+    let list =
+        || serde_json::to_value(list_in(&videos, Some("PHYS"), &HashMap::new()).unwrap()).unwrap();
+    let part = || list()["series"][0]["parts"][0].clone();
+    assert!(list()["videos"].as_array().unwrap().is_empty());
+    assert_eq!(part()["exists"], false);
+    let dir = create_in(&videos, &NewVideo::from_part(&videos, slug, slug).unwrap()).unwrap();
+    std::fs::create_dir(dir.join("renders")).unwrap();
+    std::fs::write(dir.join("renders/draft.vtt"), b"captions").unwrap();
+    let unmade = part();
+    assert_eq!(unmade["exists"], true);
+    assert_eq!(unmade["made"], false);
+    assert!(unmade["video"].is_null());
+    std::fs::write(dir.join("renders/draft.mp4"), b"render").unwrap();
+    let made = part();
+    assert_eq!(made["made"], true);
+    assert_eq!(made["video"], list()["videos"][0]);
+    assert_eq!(made["video"]["series"], slug);
+    assert_eq!(made["video"]["part"], 1);
+    assert_eq!(made["video"]["title"], "Position");
+    assert!(list_in(&videos, Some("OTHER"), &HashMap::new())
+        .unwrap()
+        .series
+        .is_empty());
+    std::fs::remove_dir_all(&dir).unwrap();
+    let deleted = part();
+    assert_eq!(deleted["number"], 1);
+    assert_eq!(deleted["slug"], slug);
+    assert_eq!(deleted["made"], false);
+    assert!(deleted["video"].is_null());
+    scaffold(&videos, slug, "Unrelated");
+    assert!(!series::show(&videos, slug).unwrap().parts[0].exists);
 }
 
 #[test]

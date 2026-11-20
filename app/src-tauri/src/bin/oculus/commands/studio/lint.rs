@@ -40,6 +40,10 @@ impl Ctx {
             None => project.lint(),
         }
         .map_err(studio_error)?;
+        report.issues.extend(app_lib::studio::series::lint(
+            &project,
+            &app_lib::studio::videos::videos_dir(),
+        ));
         let mut spoken = voice_lint(&project);
         if let Some(i) = scope {
             spoken.issues.retain(|x| x.scene.is_none_or(|s| s == i));

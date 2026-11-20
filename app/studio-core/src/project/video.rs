@@ -14,6 +14,8 @@ pub struct Video {
     /// the app names a video by its title card, then its slug.
     #[serde(default)]
     pub title: Option<String>,
+    /// The outline in Studio’s series directory owns the part number.
+    pub series: Option<String>,
     pub size: Size,
     /// Frames per second, one of `FRAME_RATES`. Every scene's length rounds
     /// up to whole frames at this rate (`Timeline`).
