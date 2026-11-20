@@ -58,21 +58,23 @@ export function CopyAction({ text }: { text: string }) {
   );
 }
 
-/** The row under a message: its time, then its actions. Its height is always
- *  taken and only the contents fade in on hover, so the thread never jumps.
- *  `will-change` keeps it on its own layer: WebKit otherwise drops and re-adds
- *  the layer around each fade, re-snapping the icons half a pixel at a
- *  fractional page zoom. */
+/** The row under a message: its time, then its actions. An answer's row is
+ *  always shown (`shown`); a question's takes its height but its contents
+ *  fade in on hover, so the thread never jumps. `will-change` keeps it on its
+ *  own layer: WebKit otherwise drops and re-adds the layer around each fade,
+ *  re-snapping the icons half a pixel at a fractional page zoom. */
 export function MessageActions({
   when,
   at,
   side,
+  shown = false,
   children,
 }: {
   when?: string;
   /** The playhead second a dock question was asked at. */
   at?: number | null;
   side: "left" | "right";
+  shown?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -82,7 +84,8 @@ export function MessageActions({
       // as them bolding and unbolding.
       data-copy-skip
       className={cn(
-        "-mt-0.5 flex select-none h-8 items-center gap-1 text-[11px] text-muted-foreground opacity-0 transition-opacity will-change-[opacity] focus-within:opacity-100 group-hover/msg:opacity-100",
+        "-mt-0.5 flex select-none h-8 items-center gap-1 text-[11px] text-muted-foreground",
+        !shown && "opacity-0 transition-opacity will-change-[opacity] focus-within:opacity-100 group-hover/msg:opacity-100",
         side === "right" ? "justify-end" : "pl-1",
       )}
     >

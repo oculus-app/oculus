@@ -7,6 +7,7 @@ import { runWaitingOn, WAITING_LABEL } from "@/lib/harness";
 import { chooseFold, foldChoice } from "@/stores/chat/runFolds";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { Bundle, Item } from "./ItemRows";
+import { useFoldMotion } from "./useFoldMotion";
 import { Working } from "./Working";
 import { foldFindText, foldLabel, foldMatches, foldOpens, foldRows, type WorkFold } from "./rows";
 
@@ -16,9 +17,10 @@ import { foldFindText, foldLabel, foldMatches, foldOpens, foldRows, type WorkFol
  * (`cut`: closed, "Worked for", or "Restarted after" for an attempt a restart
  * superseded). Open while the run works and after a stop or failure;
  * closed once it completes, unless the student chose otherwise
- * (`runFolds.ts`). Its rows read as one flat list under a ruled header. A
+ * (`runFolds.ts`). Its rows read as one flat list under its header. A
  * find that matches a folded reply opens it until the query stops matching. Widget fences are drawn outside (`ArtifactRow`); here
- * a folded reply shows where they went.
+ * a folded reply shows where they went. A click eases the rows open or shut
+ * (`useFoldMotion`); a find opens them at once.
  */
 export const RunWorkGroup = memo(
   function RunWorkGroup({ fold }: { fold: WorkFold }) {
@@ -29,6 +31,7 @@ export const RunWorkGroup = memo(
     const [found, setFound] = useState(false);
     const open = found || (chosen ?? foldOpens(fold.state));
     const ref = useRef<HTMLDivElement>(null);
+    const motion = useFoldMotion(open);
     const text = useMemo(() => foldFindText(fold.items), [fold.items]);
     const latest = useRef({ text, found });
     useLayoutEffect(() => {
@@ -47,17 +50,16 @@ export const RunWorkGroup = memo(
       });
     }, []);
 
-    const rows = useMemo(() => (open ? foldRows(fold.items, live) : []), [open, fold.items, live]);
+    const rows = useMemo(() => (motion.mounted ? foldRows(fold.items, live) : []), [motion.mounted, fold.items, live]);
     const toggle = () => {
+      motion.animateNext(!open);
       setFound(false);
       setChosen(!open);
       chooseFold(fold.thread, fold.id, !open);
     };
     return (
       <div ref={ref} {...{ [EXPANDABLE]: "" }} className="min-w-0">
-        {/* A hairline under the header, open or closed, sets the work apart
-            from the answer below it. */}
-        <div className="border-b border-border/60 pb-1">
+        <div className="pb-1">
           <button
             type="button"
             aria-expanded={open}
@@ -80,15 +82,17 @@ export const RunWorkGroup = memo(
             />
           </button>
         </div>
-        {open && (
-          <div className="flex flex-col gap-1 pt-1.5">
-            {rows.map((r) =>
-              r.kind === "bundle" ? (
-                <Bundle key={r.id} items={r.items} dim={false} />
-              ) : r.kind === "item" ? (
-                <Item key={r.item.id} item={r.item} dim={false} running={live} folded />
-              ) : null,
-            )}
+        {motion.mounted && (
+          <div ref={motion.body} inert={!open} className="will-change-[opacity,transform]">
+            <div className="flex flex-col gap-1 pt-1.5">
+              {rows.map((r) =>
+                r.kind === "bundle" ? (
+                  <Bundle key={r.id} items={r.items} dim={false} />
+                ) : r.kind === "item" ? (
+                  <Item key={r.item.id} item={r.item} dim={false} running={live} folded />
+                ) : null,
+              )}
+            </div>
           </div>
         )}
       </div>

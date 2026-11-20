@@ -1810,6 +1810,11 @@ carries its run's question (`asked`), which Retry sends again.
 | Failed | "Failed after 23s", open | "Partial response", then the error or sign-in card |
 | Ended with no stored interval | "Work details" | as its status says |
 
+An answer's row of time, model, Copy and Retry is always shown; a
+question's actions appear on hover. Clicking a fold's header eases its rows
+open or shut (`useFoldMotion.ts`: height, a fade and a 4px drop, about
+200 ms); a find opens a fold at once.
+
 A run the student steered splits its work at each steer
 ([Steering from the composer](#steering-from-the-composer)): native steers
 keep one fold per stretch; restart steers keep one per superseded attempt,
@@ -1829,9 +1834,8 @@ started at the question's envelope), never a sum of tool or thought times.
 The working clock is its own component, so the second hand re-renders one
 line. A student's open or close of a fold is kept per thread and run in
 `stores/chat/runFolds.ts`, so it survives the row leaving the window and the
-run settling, and a rewind forgets the thread's choices. The header carries a
-full-width hairline under it, open or closed; the fold's rows sit flush
-beneath it as one list. Inside an open fold, two or more tool or reasoning
+run settling, and a rewind forgets the thread's choices. The header has no
+rule under it; the fold's rows sit flush beneath it as one list. Inside an open fold, two or more tool or reasoning
 rows in a row fold into one bundle, drawn at full strength (a bundle outside
 a fold fades until hovered).
 
