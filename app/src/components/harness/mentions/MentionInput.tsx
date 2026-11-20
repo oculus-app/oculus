@@ -73,7 +73,7 @@ export function MentionInput({
   autoFocus?: boolean;
   /** `masked` is `text` with each picked skill's characters masked, for
    *  finding a `/` trigger without matching a chip. */
-  onEdit: (text: string, caret: number, masked: string) => void;
+  onEdit: (text: string, caret: number, masked: string, skills: string[]) => void;
   /** Pasted pictures, PDFs and text files; the caller writes them and puts
    *  their chips back through `insertAttachments`. */
   onFiles?: (files: File[]) => void;
@@ -124,7 +124,7 @@ export function MentionInput({
     const r = readEditor(el, point(el));
     setBlank(isBlank(r.text));
     if (r.text !== chunksText(chunks)) touched.current = true;
-    onEdit(r.text, r.caret ?? r.text.length, maskedText(r.chunks));
+    onEdit(r.text, r.caret ?? r.text.length, maskedText(r.chunks), r.chunks.flatMap((c) => c.kind === "skill" ? [c.name] : []));
   }
 
   /** Redraws the links when an edit made or unmade one. The message text does
@@ -159,7 +159,7 @@ export function MentionInput({
     setVersion((v) => v + 1);
     const text = chunksText(norm);
     setBlank(isBlank(text));
-    onEdit(text, caret, maskedText(norm));
+    onEdit(text, caret, maskedText(norm), norm.flatMap((c) => c.kind === "skill" ? [c.name] : []));
   }
 
   // The catalogue landed after mount: chip the loaded text's skills, unless

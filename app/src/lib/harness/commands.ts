@@ -27,6 +27,8 @@ export interface SendOptions {
   /** The skills the student picked as chips in this message, by name. Rust
    *  names each to the agent in the prompt, never in the stored row. */
   skills?: string[];
+  /** Video choices saved as user-row meta.studio and carried through queued sends. */
+  studioStyle?: import("@/components/studio/style/style").StudioStyle;
   /** Only read on creation: the permission mode the new chat starts with,
    *  picked before it had a thread (`useNewChatMode`). */
   startMode?: PermissionMode;

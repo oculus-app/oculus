@@ -124,8 +124,16 @@ pub async fn begin(tx: &mut SqliteConnection, send: &SendIntent) -> Result<RunSt
             "user",
             "student",
             "send",
-            send.at
-                .map(|at| serde_json::json!({ "at": at }).to_string()),
+            {
+                let mut meta = serde_json::Map::new();
+                if let Some(at) = send.at { meta.insert("at".into(), at.into()); }
+                if let Some(style) = send.options.as_deref()
+                    .and_then(|s| serde_json::from_str::<crate::harness::SendOptions>(s).ok())
+                    .and_then(|o| o.studio_style) {
+                    meta.insert("studio".into(), serde_json::to_value(style).map_err(|e| e.to_string())?);
+                }
+                (!meta.is_empty()).then(|| serde_json::Value::Object(meta).to_string())
+            },
         ),
     };
     let item_id = sqlx::query(

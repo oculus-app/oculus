@@ -131,14 +131,22 @@ Video progress:
 - [ ] 10. Render the final when the student is happy or asked for it
 ```
 
-**Step 1.** Pick a slug (lowercase letters, digits, `-`) and run:
+**Step 1.** Run `oculus studio new` only when the student's request is for a
+video. Selecting this skill while asking about themes, components or Studio
+is not itself a request to create one. If the brief already has "The video
+being made", use that folder and skip creation. Otherwise pick a slug
+(lowercase letters, digits, `-`) and run:
 
 ```bash
 oculus studio new shor-breaks-rsa --subject MULT20015 --title "How Shor breaks R S A"
 ```
 
-It refuses a slug that exists (`oculus studio list` shows them). `--portrait`
-only when asked for a vertical video. It writes one silent `TitleCard`
+It refuses a slug that exists (`oculus studio list` shows them). `--theme NAME`
+selects the requested theme; without it the subject's default is used. Pass
+the theme and format from the message's Video style context when provided.
+`--portrait` is for Reels or a requested vertical video. The command refuses
+when narration has no configured voice; ask the student to fix Settings →
+Studio → Narration. It writes one silent `TitleCard`
 scene; keep or replace it.
 
 **Step 2.** Map the source cheaply: `oculus list -l CODE` for the recording,

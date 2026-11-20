@@ -333,6 +333,11 @@ async fn apply_rows(
                 .get::<Option<String>, _>("meta")
                 .and_then(|m| serde_json::from_str(&m).ok())
                 .unwrap_or_default();
+            if *ok {
+                if let (Some(name), Some(input)) = (&meta.name, &meta.input) {
+                    super::studio::link_created(conn, thread_id, item_id, name, input, output, &crate::studio::videos::videos_dir()).await?;
+                }
+            }
             meta.ok = Some(*ok);
             meta.output = Some(output.clone());
             // A title learned on completion replaces the row's; absent or empty keeps it.

@@ -1881,6 +1881,9 @@ Arguments:
           The video's name: lowercase letters, digits and `-`
 
 Options:
+      --theme <NAME>
+          Theme name; omitted uses the subject's default
+
       --subject <CODE>
           The course the video belongs to; its library is read before the global one
 

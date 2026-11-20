@@ -54,6 +54,16 @@ pub struct SendOptions {
     /// before the prompt (`app/skills.rs`), never in the stored row.
     #[serde(default)]
     pub skills: Vec<String>,
+    /// Video choices carried by this message, persisted as user-row meta.studio.
+    pub studio_style: Option<StudioStyle>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioStyle {
+    pub theme: Option<String>,
+    pub format: String,
+    pub length_secs: Option<u32>,
 }
 
 /// A new Chat thread's scope as the composer sends it: `"general"` or a

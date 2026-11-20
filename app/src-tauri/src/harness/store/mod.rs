@@ -8,6 +8,7 @@ mod items;
 mod naming;
 pub mod queue;
 mod runs;
+mod studio;
 #[cfg(test)]
 mod search_tests;
 pub mod steer;

@@ -1,4 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref, type ReactNode, type RefObject } from "react";
+import { useStudioStyle } from "./useStudioStyle";
+import type { SendOptions } from "@/lib/harness";
 import { SendControls } from "@/components/harness/composer/SendControls";
 import { MentionInput, type MentionInputHandle } from "@/components/harness/mentions/MentionInput";
 import { ComposerMenu } from "@/components/harness/mentions/ComposerMenu";
@@ -105,6 +107,7 @@ export function Composer({
   placeholder,
   threadId = null,
   compact = false,
+  studioStyle = false,
 }: {
   ref?: Ref<ComposerHandle>;
   /** Whose draft this box shows (`draftKey` in `stores/chat/draftStore.ts`). */
@@ -139,7 +142,7 @@ export function Composer({
   onModel: (m: string | null) => void;
   onReasoning: (level: string | null) => void;
   /** `mode`: how the message enters a running turn; none on an idle chat. */
-  onSend: (text: string, mode?: DeliveryMode) => void;
+  onSend: (text: string, mode?: DeliveryMode, extra?: SendOptions) => void;
   /** Stop the run the box showed (null: a turn the CLI started itself). */
   onStop: (runId: number | null) => Promise<void> | void;
   /** Lift the hold on the open thread's queue; without it the box never
@@ -161,6 +164,7 @@ export function Composer({
   /** One bar with a settings menu in place of the control row (the subject
    *  Overview's ask bar). */
   compact?: boolean;
+  studioStyle?: boolean;
 }) {
   /** The serialized message (chips as paths); emptiness checks read this. */
   const text = useDraftStore((s) => s.drafts[draftKey] ?? "");
@@ -172,6 +176,10 @@ export function Composer({
   const dictation = useDictation(draftKey, (transcript) => (answerRef.current ?? ref.current)?.append(transcript));
   const tools = useComposerTools({ subjectId, input: ref });
   const mentions = tools.menu;
+  const [picked, setPicked] = useState<string[]>([]);
+  useEffect(() => { setPicked(ref.current?.pickedSkills() ?? []); }, [draftKey, tools.skillNames]);
+  const studio = useStudioStyle(studioStyle, threadId, subjects.find((s) => s.id === subjectId)?.code ?? null, picked);
+  const sending = useRef(false);
   useImperativeHandle(composerHandle, () => ({
     insertSkill(name) {
       if (tools.skillNames?.has(name)) ref.current?.insertSkill(null, name);
@@ -240,15 +248,21 @@ export function Composer({
    *  follow-up behaviour); while a file is still being written the box is
    *  kept as is. */
   const send = async (flip: boolean) => {
-    if (dictation.busy || unscoped) return;
+    if (dictation.busy || unscoped || sending.current) return;
+    sending.current = true;
+    try {
+    const skills = ref.current?.pickedSkills() ?? [];
+    const extra = await studio.prepare(skills);
+    if (extra == null) return;
     const message = await att.prepare(text);
     if (message == null) return;
 
-    notePickedSkills(message, ref.current?.pickedSkills() ?? []);
+    notePickedSkills(message, skills);
     ref.current?.clear();
     mentions.close();
     // Rust re-checks the mode against the turn as it is when the send lands.
-    onSend(message, mode.modeFor(flip));
+    onSend(message, mode.modeFor(flip), { ...extra, skills });
+    } finally { sending.current = false; }
   };
 
   const strip = (
@@ -275,7 +289,8 @@ export function Composer({
       initialText={text}
       skills={tools.skillNames}
       autoFocus={autoFocus}
-      onEdit={(next, caret, masked) => {
+      onEdit={(next, caret, masked, skills) => {
+        setPicked(skills);
         setDraft(draftKey, next);
         mentions.track(next, caret, masked);
       }}
@@ -319,7 +334,7 @@ export function Composer({
 
   return (
     <div ref={wrapRef} className="flex flex-col gap-1.5">
-      {((!subjectLocked && onSubject) || leading || stash.menu.entries.length > 0) && (
+      {((!subjectLocked && onSubject) || leading || studio.leading || stash.menu.entries.length > 0) && (
         <div className="flex items-center gap-1.5 px-0.5">
           {!subjectLocked && onSubject && (
             <SubjectPicker
@@ -329,6 +344,7 @@ export function Composer({
             />
           )}
           {leading}
+          {studio.leading}
           <div className="ml-auto">
             <StashMenu {...stash.menu} />
           </div>
@@ -457,6 +473,7 @@ export function Composer({
           )}
         </div>
       )}
+      {studio.feedback}
     </div>
   );
 }

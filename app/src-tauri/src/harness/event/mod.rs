@@ -6,6 +6,7 @@
 
 pub mod answer;
 mod classify;
+pub(crate) mod studio_command;
 mod turn;
 
 pub use classify::{cap_output, classify, MAX_TOOL_OUTPUT};

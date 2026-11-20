@@ -33,5 +33,6 @@ mod snapshot;
 mod steering;
 mod steps;
 mod stop;
+mod studio;
 mod switching;
 mod upgrade;

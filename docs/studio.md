@@ -192,7 +192,7 @@ Everything Studio keeps is under `<app data>/studio/`
 one folder besides `agents/` and the database an agent thread may write
 ([harness.md](./harness.md#every-thread-runs-from-agents-it-writes-there-and-in-the-students-own-files)).
 
-- `oculus studio new <slug> [--subject CODE] [--title T] [--portrait]`
+- `oculus studio new <slug> [--subject CODE] [--title T] [--theme NAME] [--portrait]`
   (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` at
   1920x1080 (1080x1920 with `--portrait`), 30 fps, the default theme, the
   subject, `"captions": true`, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
@@ -2027,27 +2027,24 @@ on disk now; nothing is cached but thumbnails.
 
 ### A video has a thread
 
-A video made in the app is made by an ordinary harness thread, so it is also
-in Chat. `studio_videos(slug PK, thread_id, length_secs, created_at)`
-(migration 46) links them; `thread_id` references `harness_threads` `ON
-DELETE SET NULL` (deleting the thread keeps the video), is unique, and the
-row is written only by `db::store::link_studio_video`. It lives in the
-database, not in video.json, which is `deny_unknown_fields` and writable by
-the agent.
+A video is made from an ordinary Chat thread. The agent runs `oculus studio
+new` only for a video request; choosing the skill while asking a question
+makes no folder. The successful shell completion links its printed folder
+under `studio/videos/` to the thread, including a request without a chip or
+one made mid-thread. `studio_videos(slug PK, thread_id, length_secs,
+created_at)` keeps one video per thread. Deleting the thread keeps the video.
 
-`harness_send` takes `SendOptions.studio` (`{slug, lengthSecs?}`, no `lengthSecs` for an Auto length; the TS
-`format` is not read, since the brief takes the format from video.json's
-size). When the send creates the thread it checks the folder exists
-(`video_in`), creates the thread, then links it; a link that fails deletes
-the thread again. Every send reads the link back (`StudioBrief::read`) and
-the thread's brief gets a "The video being made" section, rebuilt like the
-lecture's: the folder (absolute) and that the app made it, the format
-(landscape or portrait, from the size), the theme, the subject and its
-library, the length target when there is one, and the instruction to direct the video with
-this skill (its step 1, the folder, done), render a draft and say it is
-ready, and ask before the final. The agent is told not to run `oculus
-studio new`. See
-[harness.md](./harness.md#a-studio-thread-carries-its-video).
+The link is committed with the tool completion, using the tool's originating
+run to read `meta.studio.lengthSecs` from the user row. A second creation
+stays unlinked. The folder must pass `video_in`; an existing link to another
+thread is never taken. No migration is needed for these links.
+
+Every send reads the link (`StudioBrief::read`) into "The video being made":
+the absolute folder, format, theme, subject library and optional length
+request. The agent uses that folder, renders a draft, and asks before the
+final. Chat's style choices ride prompt context and user-row metadata.
+See [harness.md](./harness.md#a-studio-thread-carries-its-video).
+
 
 ### The playground's commands
 

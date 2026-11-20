@@ -13,7 +13,7 @@ export function SkillChip({ name }: { name: string }) {
       className="mx-px inline whitespace-nowrap rounded-sm bg-brand/10 px-1 text-brand"
     >
       <Lightning size="1.05em" weight="fill" aria-hidden className="mr-[0.2em] inline align-[-0.15em]" />
-      {name}
+      {name === "oculus-studio" ? "make a video" : name}
     </span>
   );
 }

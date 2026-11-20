@@ -32,7 +32,7 @@ agent queries and plans through. Flags are in
 | `memory` | Agents' notes in `agents/memories/` | Files, not rows, because the thread writing them cannot open the database. A bucket keeps 12; `append` and `fold` keep it to pages ([harness.md](./harness.md)) |
 | `lecture chapters`, `lecture end` | Derived rows, regenerable from the recording | They spend model quota, so an existing result is kept unless `--force` |
 | `transcribe` | `<video>.vtt` beside a library video, nothing in the database | Tries the engines in the order set in Settings → Transcription (Groq, local Whisper, on-device speech by default); Groq spends the free-tier audio allowance, the other two run on this Mac. An existing `.vtt` is kept unless `--force` ([viewers.md](./viewers.md#videos-without-captions-are-transcribed)) |
-| `studio new` | A video folder, `<app data>/studio/videos/<slug>/` | Refuses a slug that exists ([studio.md](./studio.md#videos-live-in-the-data-directory)) |
+| `studio new` | A video folder, `<app data>/studio/videos/<slug>/` | Takes `--theme NAME`, otherwise the subject default; refuses an existing slug or unconfigured narration ([studio.md](./studio.md#videos-live-in-the-data-directory)) |
 | `studio list` | Nothing | Reads each video's folder |
 | `studio agents` | Nothing | Reads the `job_models` settings row: each agent's Studio subagent models and the call that starts one ([harness.md](./harness.md#subagents)) |
 | `studio frame`, `studio strip`, `studio gallery` | PNGs, in the video folder's `out/` unless `-o`/`--out` says elsewhere | Read the video and the libraries: no database, no network ([studio.md](./studio.md)) |

@@ -238,6 +238,9 @@ impl StudioAction {
 ///     oculus studio new gradient-descent --subject COMP30027 --title "Gradient descent"
 #[derive(Args)]
 pub(crate) struct StudioNewArgs {
+    /// Theme name; omitted uses the subject's default
+    #[arg(long, value_name = "NAME")]
+    pub(crate) theme: Option<String>,
     /// The video's name: lowercase letters, digits and `-`
     #[arg(value_name = "SLUG")]
     pub(crate) slug: String,

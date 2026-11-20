@@ -36,9 +36,11 @@ import {
   scopeSubject,
   type ChatScope,
   type DeliveryMode,
+  type SendOptions,
 } from "@/lib/harness";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
 import { draftKey, useDraftStore } from "@/stores/chat/draftStore";
+import { useVideosStore } from "@/stores/studio/videosStore";
 import { WARP_NAME } from "@/lib/ui/warp";
 
 /**
@@ -106,6 +108,7 @@ export default function ChatPage() {
   const rateLimits = useRateLimits(activeProvider);
 
   useEffect(() => {
+    void useVideosStore.getState().reload();
     store.getState().loadThreads();
     store.getState().loadSubjects();
   }, [store]);
@@ -180,14 +183,14 @@ export default function ChatPage() {
     },
   });
   const send = useCallback(
-    (text: string, mode?: DeliveryMode) =>
+    (text: string, mode?: DeliveryMode, extra: SendOptions = {}) =>
       sendTurn(
         text,
         () => {
-          if (activeRef.current != null) return {};
+          if (activeRef.current != null) return extra;
           const chosen = useDraftStore.getState().scopeFor(newKey, store.getState().subjects);
           // None chosen: the composer holds the send, and Rust refuses one anyway.
-          return chosen == null ? {} : { chatScope: chosen };
+          return chosen == null ? extra : { ...extra, chatScope: chosen };
         },
         mode,
       ),
@@ -272,6 +275,7 @@ export default function ChatPage() {
   const composer = (
     <Composer
       ref={composerHandle}
+      studioStyle
       draftKey={draftKey(activeId, "chat")}
       provider={activeProvider}
       model={selection.model}

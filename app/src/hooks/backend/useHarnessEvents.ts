@@ -1,3 +1,4 @@
+import { useVideosStore } from "@/stores/studio/videosStore";
 import { useRef } from "react";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import type { HarnessEnvelope } from "@/lib/harness";
@@ -15,24 +16,28 @@ export function useHarnessEvents() {
   // remembered from `tool_started`; `tool_finished` has no command). Match
   // the command text, not `kind === "oculus_cli"`: `is_oculus_cli`
   // (`harness/event/classify.rs`) misses `cd … && oculus task add`.
+  const studioCalls = useRef(new Set<string>()).current;
   const revisionCalls = useRef(new Set<string>()).current;
   const planningCalls = useRef(new Set<string>()).current;
   useTauriEvent<HarnessEnvelope>("harness-event", (e) => {
     useHarnessStore.getState().apply(e.payload);
     const ev = e.payload.event;
     if (ev.type === "tool_started") {
+      if (/\boculus(?:\.exe)?\s+(?:--json\s+)?studio\b/.test(ev.title)) studioCalls.add(`${e.payload.threadId}:${ev.id}`);
       // `title` is the whole command for a Bash-shaped tool.
       if (/\boculus\s+(cheat|quiz|artifact|topic)\b/.test(ev.title)) revisionCalls.add(`${e.payload.threadId}:${ev.id}`);
       if (WRITES_PLANNING.test(ev.title)) {
         planningCalls.add(`${e.payload.threadId}:${ev.id}`);
       }
     } else if (ev.type === "tool_finished") {
+      if (studioCalls.delete(`${e.payload.threadId}:${ev.id}`)) void useVideosStore.getState().reload();
       if (revisionCalls.delete(`${e.payload.threadId}:${ev.id}`)) window.dispatchEvent(new CustomEvent("oculus:revision-updated"));
       // Regardless of `ok`: a timed-out command may still have landed.
       if (planningCalls.delete(`${e.payload.threadId}:${ev.id}`)) {
         notifyProjectsUpdated();
       }
     } else if (ev.type === "turn_finished") {
+      void useVideosStore.getState().reload();
       void reconcileAfterTurn(e.payload.threadId);
     }
   });

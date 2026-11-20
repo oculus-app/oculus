@@ -3328,8 +3328,8 @@ open the `.notebook` file itself ([drawing-whiteboard.md](./drawing-whiteboard.m
 ## A Studio thread carries its video
 
 A thread that makes a Studio video is linked to its folder by a
-`studio_videos` row, written when `harness_send` creates the thread with
-`SendOptions.studio` ([studio.md](./studio.md#a-video-has-a-thread)). Like the
+`studio_videos` row, written when a successful `oculus studio new` tool
+completion prints its folder under the video root ([studio.md](./studio.md#a-video-has-a-thread)). Like the
 lecture, the link is read back on every send and before any spawn
 (`studio_brief` in `harness/app/send.rs`, a rewind's included), and
 `instructions()` / `thread_sections()` append the "The video being made"
@@ -3550,3 +3550,13 @@ Recent threads. `SkillPills` under the box inserts `oculus-studio` through
 the installed catalogue and never inserts a duplicate. Make a widget and
 Learn are disabled with Coming soon tooltips. Pills have no selected state;
 removing the chip removes the skill from the next send.
+
+While that chip is present and the thread has no linked video, the style
+chip carries theme, Video/Reels and length. The local narration setup check
+runs before clearing the draft, with missing settings linked under the box.
+`studioStyle` travels with queued sends and becomes user-row `meta.studio`;
+its context rides the provider prompt. `harness/store/studio.rs` recognises
+all four shell dialects, validates the printed folder with `video_in`, and
+links it atomically with the successful tool completion. It reads length
+from that tool's run's initiating message; another creation never replaces
+a thread's video or takes a video from another thread.

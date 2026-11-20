@@ -53,9 +53,8 @@ pub fn section(video: &StudioBrief) -> String {
     } = video;
     let mut s = format!(
         "\n## The video being made\n\n\
-         This conversation is making the Studio video **{slug}**. The app made its \
-         folder, `{}/`, with a `video.json` holding one title scene, an empty `script.md` \
-         and empty `components/` and `assets/`. Edit those; do not run `oculus studio \
+         This conversation is making the Studio video **{slug}**. Its folder is \
+         `{}/`; edit its `video.json`, `script.md`, `components/` and `assets/`; do not run `oculus studio \
          new`. Every `oculus studio` command takes `{slug}` where it says DIR.\n\n",
         dir.display()
     );
@@ -84,7 +83,7 @@ pub fn section(video: &StudioBrief) -> String {
     s.push_str(&format!(
         "\nUse the `oculus-studio` skill as its director; the folder is its step 1, done. \
          Render the draft with `oculus studio render {slug}` and say it is ready: the \
-         app plays `renders/draft.mp4` beside this conversation. Ask before rendering \
+         app plays `renders/draft.mp4` inline in this conversation. Ask before rendering \
          the final with `--final`.\n"
     ));
     s

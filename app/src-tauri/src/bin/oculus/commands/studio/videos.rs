@@ -9,7 +9,12 @@ use app_lib::studio::videos::{self, NewVideo, VideoRow};
 impl Ctx {
     pub(crate) fn studio_new(&self, args: &StudioNewArgs) -> Result<(), String> {
         let library = libraries(false).map_err(|e| e.to_string())?;
-        let theme = default_theme(&library, args.subject.as_deref())?;
+        let voice = app_lib::studio::voice::VoiceOverrides::default();
+        app_lib::studio::voice::resolve(&voice, &voice, &app_lib::studio::voice::settings())?;
+        let theme = match &args.theme {
+            Some(theme) => theme.clone(),
+            None => default_theme(&library, args.subject.as_deref())?,
+        };
         let dir = videos::create_in(
             &videos::videos_dir(),
             &NewVideo {
@@ -21,6 +26,10 @@ impl Ctx {
                 ..NewVideo::default()
             },
         )?;
+        if let Err(e) = studio_core::Project::load_with(&dir, &library) {
+            std::fs::remove_dir_all(&dir).ok();
+            return Err(e.to_string());
+        }
         if self.json {
             return self.emit(&serde_json::json!({
                 "dir": dir.to_string_lossy(),
