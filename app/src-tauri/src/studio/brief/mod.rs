@@ -2,8 +2,9 @@
 //! never opens the whole storyboard or the narration manifest: the scene,
 //! what its neighbours hand on and expect, its storyboard entry
 //! (`storyboard`), the notes it names, its words at the times `word()`
-//! returns, and the commands that check it (`text` prints it;
-//! docs/studio.md, "`oculus studio` renders and lints from the terminal").
+//! returns, and the commands that check it. `--json` gives all of it;
+//! `text` prints it less what the agent wrote itself (docs/studio.md,
+//! "`oculus studio` renders and lints from the terminal").
 
 mod storyboard;
 #[cfg(test)]

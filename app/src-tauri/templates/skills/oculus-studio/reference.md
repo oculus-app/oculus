@@ -802,9 +802,13 @@ Each issue has a level:
   `type.code` without `Code` at the start or end of its name ("monospace
   outside code": use the body face, and `tabular-nums` for numbers).
 
-Text output prints errors one a line in full; several warnings or notes of
-one kind in a scene share a line with a count and the first three.
-`--json` prints every issue in full as `{ level, scene, id, component,
+Text output prints errors first, then warnings, then notes, one problem a
+line (where, what, the fix), cut to 120 characters with long quotes cut
+first; a fix that repeats prints on its first line only, and several notes
+of one kind in a scene share a line with a count and the first three. At
+most 15 lines print, then one line counting what was left out (`… and 4
+errors, 7 warnings not shown`); fix those first, then lint again, or run
+`--all` for every problem in full. `--json` prints every issue in full as `{ level, scene, id, component,
 example, kind, message, loc }` (`[]` when there is nothing), and each
 guessed word as `{ level: "note", scene, id, line, kind: "guessed",
 message, word, phonemes, guessed, review }`, `review` being `null` or the
@@ -900,29 +904,50 @@ Each command prints the PNG's absolute path.
   have settled. `--t S` picks another moment inside that length.
 
 `oculus studio brief <slug> --scene <id|N>` prints one scene's whole input:
-its index, component and props; what the scenes either side carry in and
-hand on, and whether their components exist yet; its storyboard entry; the
-notes it names; its words at the times `word()` returns, each pause as
-`4.10 [pause 1.0 s]` after its word at the time `pause()` returns; and its exact
-`lint`, `beats`, `strip`, `frame` and `gallery` calls. Read it instead of
-`storyboard.md` or the manifest.
-
-`oculus studio beats <slug> --scene <id|N>` prints what changes on screen,
-as text, with the words said then:
+its index, component and props; the scenes either side and whether their
+components exist yet; the notes its storyboard entry names; its narration,
+one line per sentence from the sentence's start, with the time `word()`
+returns after each word but a function word and the time `pause()` returns
+after each pause:
 
 ```
-  0.20  appear   d0-d15  (centre (960,540))  "Fifteen is …"
+3.95 The states(4.08) are names(4.64) for configurations(5.21).
+10.89 Each transition(11.11) row(11.77) lists(12.04) the destination(12.49) for every(13.45) command(13.73). [pause 1.0 s](14.47)
+```
+
+and its exact `lint`, `beats`, `strip`, `frame` and `gallery` calls. It
+leaves out what you wrote yourself (the storyboard entry, the neighbours'
+hand-offs, the script text); `--json` has them. Read it instead of the
+manifest.
+
+`oculus studio beats <slug> --scene <id|N>` prints what changes on screen,
+as text, with the words said then: a summary of at most 20 lines, one per
+moment (the beats that start together; when there are more, the closest
+merge into a span), each event with the keys it moves (`+3` for the ones
+cut), and a lone beat with where it lands:
+
+```
+scene 5 `code` (ToyDfaCode), 37.60 s, 190 beats in 20 lines; scene seconds
+  0.20  appear d0-d15, eq  "Fifteen is …"
   5.10  vanish   d15  "… loses a corner"
-  6.20  move     d12-d14  → (1180,420)…(1180,660) over 0.8 s  "… stands up"
+  6.20-6.80  move d12-d14, eq; recolour d0 +2  "… stands up"
   7.10  pause    1.0 s  "… stands up."
+--key K prints every beat of one key; --json every beat
+```
+
+`--key <key>` prints every beat of one key and the keys under it (`toy`
+takes `toy/left`), each with its detail:
+
+```
+  6.20  move     d12-d14  → (1180,420)…(1180,660) over 0.8 s  "… stands up"
   7.40  move+resize+rewrite eq  (1248,349) → (1346,349); 390x66 → 577x65; +lap +plus -add over 0.8 s  "… one whole lap …"
 ```
 
-Each line is a key (or a Math under its key, or `Box:12` for nodes with no
+Each beat is a key (or a Math under its key, or `Box:12` for nodes with no
 key, by TSX line): `appear`, `vanish`, `move`, `resize`, `recolour`,
 `rewrite`, and `pause` for each `[pause]` (its length and the words before
-it). Check the beat table against it before you look at a strip, and
-spend strips on how it looks.
+it). Check the beat table against the summary, then `--key` the keys you
+changed, before you look at a strip, and spend strips on how it looks.
 
 `frame` and `strip` stop when any narrated scene's narration is stale, even
 with `--scene` on another scene; lint lists it. A missing component in

@@ -13,6 +13,8 @@ pub(super) struct Line {
     pub event: String,
     pub who: String,
     pub detail: String,
+    /// The entities on the line, in `who`'s order.
+    pub members: Vec<String>,
 }
 
 /// A group: its sample, its first member's rank, its event and stem.
@@ -39,7 +41,8 @@ pub(super) fn group(changes: Vec<Change>, order: &[String]) -> Vec<Line> {
         .map(|((start, _, event, _), mut members)| {
             members.sort_by_key(|c| (numbered(&c.name).1, rank(&c.name)));
             let end = members.iter().map(|c| c.end).max().unwrap_or(start);
-            let who = ranges(&members.iter().map(|c| c.name.as_str()).collect::<Vec<_>>());
+            let names: Vec<String> = members.iter().map(|c| c.name.clone()).collect();
+            let who = ranges(&names.iter().map(String::as_str).collect::<Vec<_>>());
             let detail = members[0]
                 .events
                 .iter()
@@ -53,6 +56,7 @@ pub(super) fn group(changes: Vec<Change>, order: &[String]) -> Vec<Line> {
                 event,
                 who,
                 detail,
+                members: names,
             }
         })
         .collect()

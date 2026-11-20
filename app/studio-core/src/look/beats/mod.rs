@@ -6,6 +6,7 @@
 //! (`group`). Each `[pause]` is a line of its own at its start.
 
 mod group;
+mod summary;
 
 use super::entities::{Entity, entities};
 use super::limits::{MOVE_PX, SIZE_PX};
@@ -32,6 +33,10 @@ pub struct Beat {
     pub detail: String,
     /// A few words said at `t`, quoted, or empty.
     pub words: String,
+    /// The entities `who` names, one each (none for a pause); what
+    /// `--key` matches.
+    #[serde(skip)]
+    pub members: Vec<String>,
 }
 
 impl Beat {
@@ -97,6 +102,7 @@ impl SceneLook {
                      event,
                      who,
                      mut detail,
+                     members,
                  }| {
                     let (t, until) = (times[start], times[end]);
                     if until - t >= 0.3 {
@@ -112,6 +118,7 @@ impl SceneLook {
                             who,
                             detail,
                             words: words::at(&self.words, t),
+                            members,
                         },
                     )
                 },
@@ -139,6 +146,7 @@ impl SceneLook {
             who: format!("{:.1} s", p.end - p.start),
             detail: String::new(),
             words: before,
+            members: Vec::new(),
         }
     }
 }

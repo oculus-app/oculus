@@ -174,11 +174,13 @@ fn a_brief_has_the_scene_its_neighbours_entry_notes_words_and_commands() {
     );
     // The theme's 0.25 s lead is in every time.
     assert!(
-        text.contains("\n0.53 Fifteen  0.96 is  1.05 odd.\n1.45 Is  1.55 it?\n"),
+        text.contains("\n0.53 Fifteen is odd(1.05).\n1.45 Is it?\n"),
         "{text}"
     );
+    assert!(text.contains("Next: outro (2), component Outro (not written yet)\n\n"));
     assert!(
-        text.contains("Next: outro (2), component Outro (not written yet)\n  no storyboard entry")
+        !text.contains("See notes/") && !text.contains("Carries in") && !text.contains("Hands on"),
+        "the text leaves out what the agent wrote: {text}"
     );
     let out = dir.join("out");
     assert!(text.contains(&format!(
@@ -217,6 +219,7 @@ fn a_brief_has_the_scene_its_neighbours_entry_notes_words_and_commands() {
     };
     assert!(error.contains("older text"), "{error}");
     assert_eq!(script.as_deref(), Some("Bye now."));
+    assert!(!stale.to_string().contains("Bye now."), "no script text");
     assert_eq!(
         stale.storyboard_missing.as_deref(),
         Some("storyboard.md has no `### outro` entry")
@@ -261,14 +264,9 @@ fn a_brief_lists_each_pause_after_its_word() {
     .unwrap();
     let project = Project::load(&dir).unwrap();
     let text = build(&project, 1, &dir, "counting").to_string();
+    assert!(text.contains("[pause](t) when pause() returns"), "{text}");
     assert!(
-        text.contains("each [pause] at the time pause() returns"),
-        "{text}"
-    );
-    assert!(
-        text.contains(
-            "\n0.53 Fifteen  0.96 is  1.05 odd.  1.35 [pause 1.0 s]\n2.45 Is  2.55 it?\n"
-        ),
+        text.contains("\n0.53 Fifteen is odd(1.05). [pause 1.0 s](1.35)\n2.45 Is it?\n"),
         "{text}"
     );
 }

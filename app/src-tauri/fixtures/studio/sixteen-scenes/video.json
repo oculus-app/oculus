@@ -1,0 +1,157 @@
+{
+  "size": {
+    "width": 320,
+    "height": 180
+  },
+  "fps": 24,
+  "theme": "default",
+  "motion": {
+    "motionBlur": "off"
+  },
+  "scenes": [
+    {
+      "id": "s00",
+      "component": "Dots",
+      "props": {
+        "n": 12,
+        "title": "Row 0",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s01",
+      "component": "Dots",
+      "props": {
+        "n": 13,
+        "title": "Row 1",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s02",
+      "component": "Dots",
+      "props": {
+        "n": 14,
+        "title": "Row 2",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s03",
+      "component": "Dots",
+      "props": {
+        "n": 15,
+        "title": "Row 3",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s04",
+      "component": "Dots",
+      "props": {
+        "n": 16,
+        "title": "Row 4",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s05",
+      "component": "Dots",
+      "props": {
+        "n": 17,
+        "title": "Row 5",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s06",
+      "component": "Dots",
+      "props": {
+        "n": 18,
+        "title": "Row 6",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s07",
+      "component": "Dots",
+      "props": {
+        "n": 19,
+        "title": "Row 7",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s08",
+      "component": "Dots",
+      "props": {
+        "n": 20,
+        "title": "Row 8",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s09",
+      "component": "Dots",
+      "props": {
+        "n": 21,
+        "title": "Row 9",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s10",
+      "component": "Dots",
+      "props": {
+        "n": 22,
+        "title": "Row 10",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s11",
+      "component": "Dots",
+      "props": {
+        "n": 23,
+        "title": "Row 11",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s12",
+      "component": "Dots",
+      "props": {
+        "n": 24,
+        "title": "Row 12",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s13",
+      "component": "Dots",
+      "props": {
+        "n": 25,
+        "title": "Row 13",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s14",
+      "component": "Dots",
+      "props": {
+        "n": 26,
+        "title": "Row 14",
+        "narrated": true
+      }
+    },
+    {
+      "id": "s15",
+      "component": "Dots",
+      "props": {
+        "n": 27,
+        "title": "Row 15",
+        "narrated": true
+      }
+    }
+  ]
+}

@@ -559,10 +559,12 @@ pub(crate) struct StudioStripArgs {
 ///
 /// Three levels: `error` (exits 1, so it can gate a render), `warning`
 /// and `note` (a word the aligner was unsure of, a word Kokoro's guesser
-/// read); warnings and notes never change the exit code. Errors print one
-/// a line in full; repeats of a warning or note in one scene print as one
-/// line with a count and the first few. `--json` gives one entry per
-/// issue with its `level`.
+/// read); warnings and notes never change the exit code. Errors print
+/// first, then warnings, then notes, one problem a line (where, what, the
+/// fix), a scene's repeats of one note kind on one line with a count and
+/// the first few. At most 15 lines print, each cut to 120 characters and
+/// a fix that repeats said once, then one line counting what was left
+/// out; `--all` prints every problem in full. `--json` gives one entry per issue with its `level`.
 ///
 /// See `oculus studio frame --help` for what a video folder holds.
 ///
@@ -576,6 +578,9 @@ pub(crate) struct StudioLintArgs {
     /// 0), with its component and the video settings it renders with
     #[arg(long, value_name = "ID|N")]
     pub(crate) scene: Option<String>,
+    /// Print every problem in full, not the first 15 lines cut short
+    #[arg(long)]
+    pub(crate) all: bool,
 }
 
 /// Print what changes on screen in one scene, as a timeline
@@ -585,13 +590,18 @@ pub(crate) struct StudioLintArgs {
 /// near them), when it appears, vanishes, moves (centre more than 8 px),
 /// resizes, recolours or is rewritten, each with the words said then, and
 /// each `[pause]` with its length.
-/// Numbered keys doing the same thing at the same moment share a line
+/// Numbered keys doing the same thing at the same moment share a beat
 /// (`d12-d14`). A builder checks a beat table against it as text instead
-/// of reading a strip. At most 80 lines print; `--json` gives every beat
-/// as `{index, id, component, length, beats: [{t, end, event, who,
-/// detail, words}]}`.
+/// of reading a strip. It prints a summary of at most 20 lines: one per
+/// moment (the beats that start together, the closest moments merged into
+/// a span when there are more), each event with the keys it moves. `--key`
+/// prints every beat of one key, and of the keys under it (`toy` takes
+/// `toy/left`), with where it lands; `--json` gives every beat as `{index,
+/// id, component, length, beats: [{t, end, event, who, detail, words}]}`.
 ///
 ///     oculus studio beats shor --scene squares
+///
+///     oculus studio beats shor --scene squares --key eq
 #[derive(Args)]
 pub(crate) struct StudioBeatsArgs {
     /// The video folder, the one holding `video.json` (or its slug)
@@ -600,21 +610,25 @@ pub(crate) struct StudioBeatsArgs {
     /// The scene: its id in video.json, or its index counting from 0
     #[arg(long, value_name = "ID|N")]
     pub(crate) scene: String,
+    /// Every beat of this key (and the keys under it), not the summary
+    #[arg(long, value_name = "K")]
+    pub(crate) key: Option<String>,
 }
 
 /// Print one scene builder's whole input
 ///
 /// For one scene: its index, component and props; the scenes before and
-/// after it, whether their components exist yet, and what their
-/// storyboard entries say under `Carries in:` and `Hands on:`; its own
-/// `storyboard.md` entry verbatim (from its `### <id>` heading to the next
-/// heading or `---`); the `notes/` files the entry names, else every file
-/// in `notes/`; its narration, one line per sentence, each word with the
-/// time `word()` returns for it (scene seconds, the theme's lead included)
-/// and each pause after its word at the time `pause()` returns; and the
-/// exact `strip`, `frame` and `gallery` calls that check it, `-o` paths
-/// absolute. Stale or missing narration prints its error and the
-/// script text instead. Reads only the folder.
+/// after it and whether their components exist yet; the `notes/` files
+/// its `storyboard.md` entry names, else every file in `notes/`; its
+/// narration, one line per sentence from the sentence's start, each word
+/// but a function word followed by the time `word()` returns for it, as
+/// `gradient(1.36)` (scene seconds, the theme's lead included), and each
+/// pause after its word with the time `pause()` returns, as `[pause 1.0
+/// s](14.47)`; and the exact `lint`, `beats`, `strip`, `frame` and
+/// `gallery` calls that check it, `-o` paths absolute. Stale or missing
+/// narration prints its error instead. The text leaves out what the agent
+/// wrote itself (the storyboard entry, the neighbours' `Carries in:` and
+/// `Hands on:`, the script); `--json` has them. Reads only the folder.
 ///
 ///     oculus studio brief shor --scene squares
 ///
@@ -920,6 +934,11 @@ pub(crate) struct StudioThemesPromoteArgs {
 /// Render never narrates: run `oculus studio narrate` first, or it stops
 /// with the stale narration's scene. A frame that fails stops the render,
 /// naming its time and scene; an ffmpeg failure quotes ffmpeg.
+///
+/// In a terminal it prints the plan, a frame progress line about every two
+/// seconds, each scene rendered or cached, the files written and a
+/// summary. Piped (as an agent runs it) it prints only the plan, one line
+/// per scene rendered and the mp4 written.
 ///
 ///     oculus studio render lectures/week-4
 ///
