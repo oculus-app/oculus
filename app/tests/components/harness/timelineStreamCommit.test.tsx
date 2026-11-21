@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import Database from "@tauri-apps/plugin-sql";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { parseHTML } from "linkedom";
 import { act } from "react";
@@ -49,6 +50,8 @@ const WIDGET_REPLY = [
   "```",
 ].join("\n");
 
+let dbLoad: { mockRestore(): void } | undefined;
+
 beforeAll(async () => {
   Object.assign(globalThis, globals);
   Object.assign(dom.window, {
@@ -58,6 +61,8 @@ beforeAll(async () => {
     IntersectionObserver: noopObserver,
     ResizeObserver: noopObserver,
   });
+  // A failed load leaves `getDb` uncached, so later test files open their own database.
+  dbLoad = spyOn(Database, "load").mockRejectedValue(new Error("no database in this test"));
   mockIPC((cmd) => {
     if (cmd === "harness_capabilities") return [];
     if (cmd === "harness_provider_models") return [];
@@ -104,6 +109,7 @@ afterEach(async () => {
 });
 
 afterAll(() => {
+  dbLoad?.mockRestore();
   for (const s of spies.splice(0)) s.mockRestore();
   clearMocks();
   for (const key of Object.keys(globals)) {

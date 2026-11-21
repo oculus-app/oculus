@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import Database from "@tauri-apps/plugin-sql";
 import { parseHTML } from "linkedom";
 import { act, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -49,6 +50,8 @@ let TooltipProvider: typeof import("@/components/ui/tooltip").TooltipProvider;
 let useHarnessStore: typeof import("@/stores/chat/harnessStore").useHarnessStore;
 let itemsFor: typeof import("@/stores/chat/harnessStore").itemsFor;
 
+let dbLoad: { mockRestore(): void } | undefined;
+
 beforeAll(async () => {
   Object.assign(globalThis, globals);
   Object.assign(dom.window, {
@@ -60,6 +63,8 @@ beforeAll(async () => {
     requestAnimationFrame: globals.requestAnimationFrame,
     cancelAnimationFrame: globals.cancelAnimationFrame,
   });
+  // A failed load leaves `getDb` uncached, so later test files open their own database.
+  dbLoad = spyOn(Database, "load").mockRejectedValue(new Error("no database in this test"));
   mockIPC((cmd) => {
     if (cmd === "harness_capabilities") return [];
     if (cmd === "harness_provider_models") return [];
@@ -78,6 +83,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  dbLoad?.mockRestore();
   clearMocks();
   for (const key of Object.keys(globals)) {
     const descriptor = previous[key as keyof typeof globalThis];

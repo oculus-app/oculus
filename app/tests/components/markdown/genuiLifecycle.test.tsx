@@ -185,8 +185,10 @@ describe("finding 3: chart host ownership transitions", () => {
       await act(async () => {
         root.render(<GenUIFence source={source} closed />);
       });
-      expect(mount.querySelector("span[data-chart]")?.querySelector("svg")).toBeNull();
-      expect(mount.querySelector("svg g[data-chart]")?.children.length).toBe(0);
+      expect(mount.querySelector("span[data-chart]")).toBeNull();
+      expect(mount.querySelector("svg g[data-chart]")).toBeNull();
+      expect(mount.querySelector("span")?.querySelector("svg")).toBeNull();
+      expect(mount.querySelector("svg g")?.children.length).toBe(0);
       expect(mount.querySelector("div[data-chart]")?.querySelectorAll("svg rect").length).toBe(2);
     } finally {
       await act(async () => {

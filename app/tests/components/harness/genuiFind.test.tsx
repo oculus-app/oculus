@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import Database from "@tauri-apps/plugin-sql";
 import { parseHTML } from "linkedom";
 import { act, useRef } from "react";
 import type { Root } from "react-dom/client";
@@ -123,6 +124,8 @@ let origSetAttr: typeof Element.prototype.setAttribute;
 let origRemoveAttr: typeof Element.prototype.removeAttribute;
 let origToggleAttr: typeof Element.prototype.toggleAttribute;
 
+let dbLoad: { mockRestore(): void } | undefined;
+
 beforeAll(async () => {
   Object.assign(globalThis, globals);
   Object.assign(dom.window, {
@@ -160,6 +163,8 @@ beforeAll(async () => {
     return res;
   };
 
+  // A failed load leaves `getDb` uncached, so later test files open their own database.
+  dbLoad = spyOn(Database, "load").mockRejectedValue(new Error("no database in this test"));
   mockIPC((cmd) => {
     if (cmd === "harness_capabilities") return [];
     if (cmd === "harness_provider_models") return [];
@@ -176,6 +181,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  dbLoad?.mockRestore();
   const proto = dom.window.Element.prototype;
   proto.setAttribute = origSetAttr;
   proto.removeAttribute = origRemoveAttr;

@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import Database from "@tauri-apps/plugin-sql";
 import { parseHTML } from "linkedom";
 import { act } from "react";
 import type { Root } from "react-dom/client";
@@ -80,6 +81,8 @@ function visibleShows(root: Element): string[] {
   return Array.from(root.querySelectorAll("[data-show]:not([data-off])")).map((e) => e.getAttribute("data-show")!);
 }
 
+let dbLoad: { mockRestore(): void } | undefined;
+
 beforeAll(async () => {
   Object.assign(globalThis, globals);
   Object.assign(dom.window, {
@@ -91,6 +94,8 @@ beforeAll(async () => {
     requestAnimationFrame: globals.requestAnimationFrame,
     cancelAnimationFrame: globals.cancelAnimationFrame,
   });
+  // A failed load leaves `getDb` uncached, so later test files open their own database.
+  dbLoad = spyOn(Database, "load").mockRejectedValue(new Error("no database in this test"));
   mockIPC((cmd) => {
     if (cmd === "harness_capabilities") return [];
     if (cmd === "harness_provider_models") return [];
@@ -112,6 +117,7 @@ afterEach(() => {
 });
 
 afterAll(() => {
+  dbLoad?.mockRestore();
   clearMocks();
   for (const key of Object.keys(globals)) {
     const descriptor = previous[key as keyof typeof globalThis];
