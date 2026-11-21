@@ -71,11 +71,19 @@ test("a run's divider joins its switch and its handoff in one line", () => {
   const before = run(1, "claude", "claude-opus-5-5", "high");
   const switched: HarnessRun = { ...run(2, "codex", "gpt-6.1-sol", "high"), handoff: { kind: "full", status: "inline", from: "claude", omitted: 0 } };
   expect(runDivider(before, switched, name)).toEqual({
-    label: "Claude Code · Opus 5.5 → Codex · GPT-6.1 Sol", detail: "Context handoff", tone: "neutral", title: "Codex · gpt-6.1-sol", switched: true,
+    label: "Context handoff", tone: "neutral", title: "Codex · gpt-6.1-sol", switched: true,
+    agents: { providers: ["claude", "codex"], sides: ["Opus 5.5", "GPT-6.1 Sol"], handoff: true },
   });
   // A handoff that was never delivered is drawn in the danger tone, with what was left out.
   const failed: HarnessRun = { ...switched, handoff: { kind: "full", status: "failed", from: "claude", omitted: 3 } };
-  expect(runDivider(before, failed, name)).toMatchObject({ detail: "Context handoff, 3 earlier messages left out", tone: "danger" });
+  expect(runDivider(before, failed, name)).toMatchObject({ label: "Context handoff", detail: "3 earlier messages left out", tone: "danger" });
+  // A switch of agent with no handoff names both sides in full.
+  expect(runDivider(before, run(2, "codex", "gpt-6.1-sol", "high"), name)).toMatchObject({
+    label: "Claude Code · Opus 5.5 → Codex · GPT-6.1 Sol", agents: { handoff: false },
+  });
+  // A switch within one agent joins its handoff into the detail.
+  const model: HarnessRun = { ...run(2, "claude", "claude-sonnet-5-5", "high"), handoff: { kind: "full", status: "inline", from: "claude", omitted: 0 } };
+  expect(runDivider(before, model, name)).toMatchObject({ label: "Opus 5.5 → Sonnet 5.5", detail: "Context handoff" });
   // A handoff within one provider (a session that had to start over) has no switch.
   const fresh: HarnessRun = { ...run(2, "claude", "claude-opus-5-5", "high"), handoff: { kind: "full", status: "pending", from: null, omitted: 1 } };
   expect(runDivider(before, fresh, name)).toMatchObject({ label: "Context handoff pending", detail: "1 earlier message left out", switched: false });

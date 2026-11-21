@@ -121,7 +121,9 @@ export function handoffOmitted(handoff: RunHandoff): string | null {
 }
 
 /** The divider above a run: the switch from the run before, its handoff, or
- *  both in one line; null for neither. */
+ *  both in one line; null for neither. A switch of agent leads with its
+ *  handoff and keeps its sides apart (`agents`), for the row to mark with
+ *  logos. */
 export interface RunDivider {
   label: string;
   detail?: string;
@@ -129,6 +131,10 @@ export interface RunDivider {
   /** On hover: the provider and model the run was sent to. */
   title?: string;
   switched: boolean;
+  /** A switch of agent: the two providers and each side without the
+   *  agent's name. `label` is the handoff's words when there was one, else
+   *  the switch in full; `detail` is what the handoff left out. */
+  agents?: { providers: [Provider, Provider]; sides: [string, string]; handoff: boolean };
 }
 
 export function runDivider(before: HarnessRun | undefined, run: HarnessRun, name: ModelName): RunDivider | null {
@@ -140,9 +146,17 @@ export function runDivider(before: HarnessRun | undefined, run: HarnessRun, name
   if (!change) {
     return { label: handoff!.label, ...(omitted && { detail: omitted }), tone: handoff!.tone, title, switched: false };
   }
-  const [from, to] = switchSides(change, name, [before!.provider!, run.provider!]);
+  const owners: [Provider, Provider] = [before!.provider!, run.provider!];
+  const [from, to] = switchSides(change, name, owners);
+  const tone = handoff?.tone ?? "neutral";
+  if (change.provider) {
+    const sides = switchSides({ ...change, provider: undefined }, name, owners);
+    const agents = { providers: change.provider, sides, handoff: !!handoff };
+    if (!handoff) return { label: `${from} → ${to}`, tone, title, switched: true, agents };
+    return { label: handoff.label, ...(omitted && { detail: omitted }), tone, title, switched: true, agents };
+  }
   const detail = handoff ? [handoff.label, omitted].filter(Boolean).join(", ") : undefined;
-  return { label: `${from} → ${to}`, ...(detail && { detail }), tone: handoff?.tone ?? "neutral", title, switched: true };
+  return { label: `${from} → ${to}`, ...(detail && { detail }), tone, title, switched: true };
 }
 
 /** An answer footer's model: its run's (`runModel`), named by the catalogue

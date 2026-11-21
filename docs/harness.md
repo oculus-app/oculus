@@ -2774,7 +2774,11 @@ The decisions are pure functions in `lib/harness/switching.ts`, tested in
   changed, the model, the level, "High reasoning → Max reasoning" when the
   level is all that changed), then "Context handoff" or "Context handoff
   pending" (`handoffLabel`) and how many earlier messages were left out,
-  in the danger tone when the handoff failed. A handoff with no switch (a
+  in the danger tone when the handoff failed. A switch of agent leads with
+  the handoff instead, then each side marked with its agent's logo
+  (`ProviderMark`) in place of the agent's name, which the logo carries on
+  hover: "⇆ Context handoff · [mark] Opus 5.5 · Medium → [mark] Gemini 4
+  Neon · High". A handoff with no switch (a
   session that started over) is the handoff alone. A level is compared only
   where both runs recorded one, so a chat's first run after levels were
   stored draws nothing.

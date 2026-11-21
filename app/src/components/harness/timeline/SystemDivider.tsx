@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import type { Icon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,8 +35,9 @@ export const SystemDivider = memo(function SystemDivider({
   action,
 }: {
   icon?: Icon;
-  label: string;
-  detail?: string;
+  /** Text, or a row's own inline marks and text (`RunDividerRow`). */
+  label: ReactNode;
+  detail?: ReactNode;
   tone?: DividerTone;
   action?: DividerAction;
 }) {
@@ -49,7 +50,9 @@ export const SystemDivider = memo(function SystemDivider({
           {IconC && <IconC size={12} className="shrink-0" aria-hidden />}
           <span className="min-w-0">{label}</span>
         </span>
-        {detail && <span className={t.detail}>· {detail}</span>}
+        {detail && (
+          <span className={cn("inline-flex flex-wrap items-center justify-center gap-x-1.5", t.detail)}>· {detail}</span>
+        )}
         {action && <DividerButton action={action} />}
       </span>
       <span aria-hidden className={cn("h-px min-w-4 flex-1", t.rule)} />
