@@ -7,7 +7,38 @@ import { library } from "./library";
  * are markdown, and a widget is one fenced block inside one.
  */
 
-const PREAMBLE = `Oculus draws a fenced code block tagged \`openui\` in your reply as a live study widget or a proposal the student reviews and confirms. Explain inline with OpenUI: charts, stats, tables, sliders and check-your-intuition reveals, as well as recall and worked steps. Use several small fences, each right after the sentence it illustrates. A picture with its own rules (geometry, physics, algorithm steps) belongs in an inline widget; something to play or work in belongs in a windowed widget. Always use a proposal before creating, changing or deleting the student's tasks, projects, tags, calendar events or notes, or starting a long or billed job. Nothing is written until the student clicks. Everything else in the reply stays ordinary markdown. Keep each explanation close to its picture. Each proposal or job needs its own fence; study widgets may share a Stack. The UI draws while the fence streams. Write root first, then $variables, then child components in reading order, then leaf data so the shell appears before its content. Follow the grammar below exactly; a malformed final program shows a failure card.
+export const OCULUS_UI_SKILL_FRONTMATTER = `---
+name: oculus-ui
+description: Draws interactive study cards, live student-data views and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for formula sliders (Explorer), live Query summaries, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, and confirming sync, parse, transcription, lecture or download jobs.
+---`;
+
+/** Registered in `library.ts` so stored fences still validate and render,
+ *  but omitted from the prompt because inline explanation uses ```ui fences. */
+export const UNTAUGHT_COMPONENTS = [
+  "Chart",
+  "Bar",
+  "Histogram",
+  "Line",
+  "Scatter",
+  "Series",
+  "Donut",
+  "Distribution",
+  "Panel",
+  "Columns",
+  "Tabs",
+  "Tab",
+  "Table",
+  "List",
+  "Stat",
+  "Progress",
+  "Badge",
+  "Callout",
+] as const;
+
+const TAUGHT_EXPLORER_ITEMS = "Text | Slider | Value | Toggle | Select | Input | Button";
+const UNTAUGHT_SIGNATURE_LINE = new RegExp(`\\n(?:${UNTAUGHT_COMPONENTS.join("|")})\\([^\\n]*`, "g");
+
+const PREAMBLE = `Oculus draws a fenced code block tagged \`openui\` in your reply as a card: a proposal or app job the student reviews and confirms, live student data (\`Query\` and live components), recall and worked practice (\`Flashcards\`, \`Quiz\`, \`Question\`, \`Steps\`), or a formula explorer (\`Explorer\` with bound controls and seeded functions). Inline explanation — figures, comparisons, data plots and derivations — belongs in a \`ui\` fence (see the brief); 3D, simulations and typed-input programs belong in a \`widget\` fence (\`oculus-widgets\`). Always use a proposal before creating, changing or deleting the student's tasks, projects, tags, calendar events or notes, or starting a long or billed job. Nothing is written until the student clicks. Everything else in the reply stays ordinary markdown. Each proposal or job needs its own fence; study widgets may share a Stack. The UI draws while the fence streams. Write root first, then $variables, then child components in reading order, then leaf data so the shell appears before its content. Follow the grammar below exactly; a malformed final program shows a failure card.
 
 The block holds a program in OpenUI Lang:`;
 
@@ -15,7 +46,7 @@ const RULES = [
   "Start with `root = Stack([...])`, referencing every widget. Define $variables next, then children in top-down reading order, then their leaf data. Prefer forward references so the shell draws before the content.",
   "Strings are double-quoted on one line; write a newline as \\n and a double quote as \\\". Maths goes in $…$ inside strings, e.g. \"$\\\\frac{a}{b}$\" (backslashes doubled).",
   "Take facts from the student's own library when you can, and point to the page with PageRef using the same path you would cite in prose.",
-  "$variables have literal defaults: number for Slider, boolean for Toggle, string for Select, string or number for Input. Bind the first argument; charts and readouts compute from them.",
+  "$variables have literal defaults: number for Slider, boolean for Toggle, string for Select, string or number for Input. Bind the first argument; Values, Text and Query arguments compute from them.",
   "Ask buttons are optional follow-ups the student may want next, phrased as the student (\"Quiz me on the ones I missed\"). At most two.",
   "Task(number) reads a live existing task; Task(string, ...) describes a new task inside a proposal. Read ids with task list, lecture list and studio list; never guess. After explaining a concept, offer condensed CheatEntry items in NewCheatNotes, never the entire reply or task/sync chatter.",
   "Never use a component or @function not listed here.",
@@ -43,37 +74,16 @@ work = Steps("Solve $3x - 4 = 11$", [Step("Add 4 to both sides", "$3x = 15$"), S
 const EXPLORER = `root = Stack([ex])
 $m = 2
 $v = 3
-ex = Explorer("Kinetic energy", [Text("$E_k = \\\\tfrac{1}{2} m v^2$"), Slider($m, "Mass", 0.5, 10, 0.5, "kg"), Slider($v, "Speed", 0, 20, 0.5, "m/s"), Value("Kinetic energy", 0.5 * $m * @Pow($v, 2), "J", 1), Line("Energy by speed", curve, "Speed (m/s)", "Energy (J)")])
-curve = @Each(@Range(0, 20), "s", {x: s, y: 0.5 * $m * @Pow(s, 2)})`;
+ex = Explorer("Kinetic energy", [Text("$E_k = \\\\tfrac{1}{2} m v^2$"), Slider($m, "Mass", 0.5, 10, 0.5, "kg"), Slider($v, "Speed", 0, 20, 0.5, "m/s"), Value("Kinetic energy", 0.5 * $m * @Pow($v, 2), "J", 1)])`;
 
-const POPULATION = `root = Stack([plot])
-plot = Histogram("A skewed population", values, 20, "Wait (min)", true)
-values = @Sample(@Exponential(), {}, 400, 42)`;
-const CLT = `root = Stack([lesson])
+const SIMULATION = `root = Stack([ex])
 $n = 10
-lesson = Panel("Averages of skewed samples", [Slider($n, "Sample size", 1, 100, 1), plot])
-plot = Histogram("Distribution of sample means", bins, null, "Sample mean (min)", true)
-bins = @Bins(@Means(@Exponential(), {}, $n, 400, 42), 20)`;
+$seed = 42
+ex = Explorer("Averages of skewed samples", [Slider($n, "Sample size", 1, 100, 1), Value("Mean of sample means", @Mean(means), "min", 3), Value("Standard error", @StdDev(means), "min", 3), Button("Resample", @Set($seed, $seed + 1))])
+means = @Means(@Exponential(), {}, $n, 400, $seed)`;
+
 const REVEAL = `root = Stack([check])
 check = Question("What changes as sample size grows?", [Option("The mean grows"), Option("The spread shrinks")], "The mean stays near 1 minute; the standard error shrinks as one over the square root of n.")`;
-
-export const CLT_LESSON = `Individual waits are skewed: most are short, with a long right tail.
-
-\`\`\`openui
-${POPULATION}
-\`\`\`
-
-Average several waits and the spread shrinks. Drag sample size; the fixed seed keeps the comparison reproducible.
-
-\`\`\`openui
-${CLT}
-\`\`\`
-
-Check your intuition before moving on.
-
-\`\`\`openui
-${REVEAL}
-\`\`\``;
 
 const NEW_TASKS = `root = Stack([NewTasks(12, [Task("Read the specification", "2026-10-27", 30), Task("Implement the parser", "2026-10-28", 120, null, [Task("Handle malformed input")])])])`;
 const CHANGES = `root = Stack([TaskChanges([Change(42, {due: "2026-10-27"}, {due: "2026-10-30"})])])`;
@@ -87,7 +97,9 @@ export const PROMPT_OPTIONS: PromptOptions = {
   examples: [
     `Flashcards with a follow-up:\n\n\`\`\`openui\n${FLASHCARDS}\n\`\`\``,
     `A quiz with a source page:\n\n\`\`\`openui\n${QUIZ}\n\`\`\``,
-    `A lesson uses prose between small fences, not one big widget:\n\n${CLT_LESSON}`,
+    `A formula explorer with sliders:\n\n\`\`\`openui\n${EXPLORER}\n\`\`\``,
+    `A seeded simulation explorer with resampling:\n\n\`\`\`openui\n${SIMULATION}\n\`\`\``,
+    `A standalone intuition check:\n\n\`\`\`openui\n${REVEAL}\n\`\`\``,
     `Tasks to review and create:\n\n\`\`\`openui\n${NEW_TASKS}\n\`\`\``,
     `A guarded date change:\n\n\`\`\`openui\n${CHANGES}\n\`\`\``,
     `A study session on the calendar:\n\n\`\`\`openui\n${NEW_EVENTS}\n\`\`\``,
@@ -96,23 +108,29 @@ export const PROMPT_OPTIONS: PromptOptions = {
 };
 
 /** The example programs, for tests: each must parse. */
-export const PROMPT_EXAMPLES = { FLASHCARDS, QUIZ, STEPS, EXPLORER, POPULATION, CLT, REVEAL, NEW_TASKS, CHANGES, NEW_EVENTS, SYNC_THEN };
+export const PROMPT_EXAMPLES = { FLASHCARDS, QUIZ, STEPS, EXPLORER, SIMULATION, REVEAL, NEW_TASKS, CHANGES, NEW_EVENTS, SYNC_THEN };
 
-/** The 1.0.1 printer loses a lazy recursive ref and treats nullable required
- * slots as omittable. Runtime validation enforces these exact signatures. */
+/** The 1.0.1 printer loses a lazy recursive ref, treats nullable required
+ * slots as omittable, and prints every registered component. Runtime
+ * validation enforces the exact signatures while untaught layout and chart
+ * components are stripped from the prompt. */
 export function generateOculusUiPrompt(): string {
   return library.prompt(PROMPT_OPTIONS)
     .replace("NewTasks(project?: number,", "NewTasks(project: number | null,")
     .replace("NewProject(name: string, subject?: string,", "NewProject(name: string, subject: string | null,")
     .replace("subtasks?: any[]", "subtasks?: Task[]")
     .replace("Value(label: string, value?: number,", "Value(label: string, value: number | null,")
-    .replace(/y\?: number/g, "y: number | null")
+    .replace("Explorer(title: string, items: (Chart | Block)[])", `Explorer(title: string, items: (${TAUGHT_EXPLORER_ITEMS})[])`)
+    .replace("| Block | Panel | Columns | Tabs |", `| ${TAUGHT_EXPLORER_ITEMS} |`)
     .replace(/## Action — Button Behavior[\s\S]*?(?=## Hoisting)/, `## Actions
 
 Button accepts only @ToAssistant("message"), @Set($variable, value), or @Run(query). Chain these with Action([...]). No @Reset, @OpenUrl, custom actions or Mutation. Without an action, Button sends its label. Buttons and bound controls are disabled while streaming.
 
 `)
-    .replace(/\nChart\(points:.*?(?=\n|$)/g, "")
+    .replace(UNTAUGHT_SIGNATURE_LINE, "")
     .replace(/### Other\s*(?=## Built-in)/, "")
+    .replace("for KPIs/chart values", "for live counts")
+    .replace("→ use with @Sum, @Avg, charts, tables.", "→ use with @Sum, @Avg, @Mean, @StdDev.")
+    .replace(/## Important Rules\n- Choose components that best represent the content[^\n]*\n\n/, "")
     .replace("(@ToAssistant, @OpenUrl, @Set, @Reset)", "(@ToAssistant, @Set, @Run)");
 }

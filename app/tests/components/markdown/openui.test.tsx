@@ -21,7 +21,7 @@ const { PROMPT_EXAMPLES } = await import("@/components/markdown/openui/prompt");
 const { repairTex } = await import("@/components/markdown/openui/components/Frame");
 const { MD_COMPONENTS } = await import("@/components/markdown/MdComponents");
 const { remarkWidgets } = await import("@/components/markdown/openui/remarkWidgets");
-const { generateOculusUiPrompt } = await import("@/components/markdown/openui/prompt");
+const { generateOculusUiPrompt, OCULUS_UI_SKILL_FRONTMATTER, UNTAUGHT_COMPONENTS } = await import("@/components/markdown/openui/prompt");
 const { includeChange, conflicts, effectiveChanges, initialProposal, validateProposal } = await import("@/components/markdown/openui/proposals/model");
 const { viewRows, replaceAt } = await import("@/components/markdown/openui/proposals/ProposalRows");
 const { DateTimeField } = await import("@/components/projects/fields/DateTimeField");
@@ -165,7 +165,6 @@ describe("proposal signatures", () => {
     expect(prompt).toContain("NewTasks(project: number | null, items: (Task | Under)[], amends?: string, then?: string)");
     expect(prompt).toContain("NewProject(name: string, subject: string | null,");
     expect(prompt).toContain("Value(label: string, value: number | null,");
-    expect(prompt).toContain("y: number | null");
   });
   for (const source of [
     `TaskChanges([Change(1, {due: "2026-10-27"}, {title: "Other"})])`,
@@ -308,7 +307,36 @@ describe("streaming OpenUI", () => {
 });
 
 
-test("the oculus-ui skill matches its generated prompt", async () => {
+test("the oculus-ui skill matches its generated prompt and teaches no layout or static chart", async () => {
   const skill = await Bun.file(new URL("../../../src-tauri/templates/skills/oculus-ui/SKILL.md", import.meta.url)).text();
-  expect(skill.split("# Chat widgets and proposal cards\n\n")[1]).toBe(generateOculusUiPrompt() + "\n");
+  const prompt = generateOculusUiPrompt();
+  expect(skill).toBe(`${OCULUS_UI_SKILL_FRONTMATTER}\n\n# Chat widgets and proposal cards\n\n${prompt}\n`);
+
+  for (const untaught of UNTAUGHT_COMPONENTS) {
+    expect(skill).not.toMatch(new RegExp(`\\b${untaught}\\s*\\(`));
+    expect(skill).not.toMatch(new RegExp(`(?:[|(,]\\s*)${untaught}\\b|\\b${untaught}(?:\\s*[|),\\[])`));
+    if (untaught !== "Distribution") expect(skill).not.toMatch(new RegExp(`\\b${untaught}\\b`));
+  }
+  expect(skill).not.toContain("### Charts");
+  expect(skill).not.toContain("### Layout");
+  expect(skill).not.toContain("### Other");
+
+  const keptComponents = [
+    "Stack", "Text",
+    "Flashcards", "Card", "Quiz", "Question", "Option",
+    "Steps", "Step",
+    "Explorer", "Slider", "Value", "Toggle", "Select", "Input", "Button",
+    "TaskList", "Deadline", "Upcoming", "Lecture", "StudioVideo", "CheatNote", "ReviewDue",
+    "PageRef", "Ask",
+    "NewTasks", "NewProject", "Task", "Under", "NewEvents", "Event", "NewNote", "NewCheatNotes", "CheatEntry",
+    "Change", "TaskChanges", "ProjectChanges", "EventChanges", "TagChanges", "NewTag", "DeleteTag", "DeleteTasks", "DeleteEvents", "EditItems", "Edit",
+    "Sync", "Reparse", "Transcribe", "LectureChapters", "LectureEnd", "Download",
+  ];
+  for (const kept of keptComponents) {
+    expect(prompt).toContain(`${kept}(`);
+  }
+  expect(prompt).toContain("Query(");
+  for (const fn of ["@Pow", "@Sqrt", "@Log", "@Range", "@Sample", "@Means", "@Bins", "@Normal", "@Binomial", "@Uniform", "@Exponential", "@Mean", "@StdDev"]) {
+    expect(prompt).toContain(`${fn}(`);
+  }
 });

@@ -44,7 +44,7 @@ const MAX_POINTS = 400;
 export const Range = defineFunction({
   name: "Range",
   description:
-    "Numbers from start to end inclusive, stepping by step (default 1), e.g. @Range(0, 10) for a chart's x values; at most 400",
+    "Numbers from start to end inclusive, stepping by step (default 1), e.g. @Range(0, 10); at most 400",
   params: z.object({ start: z.number(), end: z.number(), step: z.number().optional() }),
   returns: z.array(z.number()),
   fn: ({ start, end, step }) => {

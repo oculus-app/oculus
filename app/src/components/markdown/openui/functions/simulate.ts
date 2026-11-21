@@ -46,7 +46,7 @@ export const Means = pure("Means", "Seeded sample means: @Means(@Exponential(), 
     });
   });
 
-export const Bins = pure("Bins", "Histogram {x:bin centre, y:count} points for Chart(..., ..., ..., \"bar\"). @Bins(values, 20); count capped at 400; values at most 400. Includes the maximum in the last bin; constant values use a unit-wide domain; empty input returns [].",
+export const Bins = pure("Bins", "Bins values into {x: bin centre, y: count} buckets. @Bins(values, 20); count capped at 400; values at most 400. Includes the maximum in the last bin; constant values use a unit-wide domain; empty input returns [].",
   z.object({ values: numbers, count: positiveInt }), points, ({ values, count }) => {
     if (!values.length) return [];
     const min = Math.min(...values), max = Math.max(...values);

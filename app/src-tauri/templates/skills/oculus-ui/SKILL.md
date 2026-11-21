@@ -1,11 +1,11 @@
 ---
 name: oculus-ui
-description: Draws interactive study widgets and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for inline charts, tables, live Query summaries, sliders, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, and confirming sync, parse, transcription, lecture or download jobs.
+description: Draws interactive study cards, live student-data views and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for formula sliders (Explorer), live Query summaries, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, and confirming sync, parse, transcription, lecture or download jobs.
 ---
 
 # Chat widgets and proposal cards
 
-Oculus draws a fenced code block tagged `openui` in your reply as a live study widget or a proposal the student reviews and confirms. Explain inline with OpenUI: charts, stats, tables, sliders and check-your-intuition reveals, as well as recall and worked steps. Use several small fences, each right after the sentence it illustrates. A picture with its own rules (geometry, physics, algorithm steps) belongs in an inline widget; something to play or work in belongs in a windowed widget. Always use a proposal before creating, changing or deleting the student's tasks, projects, tags, calendar events or notes, or starting a long or billed job. Nothing is written until the student clicks. Everything else in the reply stays ordinary markdown. Keep each explanation close to its picture. Each proposal or job needs its own fence; study widgets may share a Stack. The UI draws while the fence streams. Write root first, then $variables, then child components in reading order, then leaf data so the shell appears before its content. Follow the grammar below exactly; a malformed final program shows a failure card.
+Oculus draws a fenced code block tagged `openui` in your reply as a card: a proposal or app job the student reviews and confirms, live student data (`Query` and live components), recall and worked practice (`Flashcards`, `Quiz`, `Question`, `Steps`), or a formula explorer (`Explorer` with bound controls and seeded functions). Inline explanation — figures, comparisons, data plots and derivations — belongs in a `ui` fence (see the brief); 3D, simulations and typed-input programs belong in a `widget` fence (`oculus-widgets`). Always use a proposal before creating, changing or deleting the student's tasks, projects, tags, calendar events or notes, or starting a long or billed job. Nothing is written until the student clicks. Everything else in the reply stays ordinary markdown. Each proposal or job needs its own fence; study widgets may share a Stack. The UI draws while the fence streams. Write root first, then $variables, then child components in reading order, then leaf data so the shell appears before its content. Follow the grammar below exactly; a malformed final program shows a failure card.
 
 The block holds a program in OpenUI Lang:
 
@@ -36,7 +36,7 @@ Props typed `ActionExpression` accept one @step, or Action([@steps...]) for seve
 Props marked `$binding<type>` accept a `$variable` reference for two-way binding.
 
 ### Root
-Stack(items: (Task | TaskList | Deadline | Upcoming | Lecture | StudioVideo | CheatNote | ReviewDue | NewCheatNotes | EditItems | Flashcards | Quiz | Question | Steps | Explorer | Block | Panel | Columns | Tabs | PageRef | Ask | NewTasks | NewProject | NewEvents | NewNote | TaskChanges | ProjectChanges | EventChanges | TagChanges | DeleteTasks | DeleteEvents | Sync | Reparse | Transcribe | LectureChapters | LectureEnd | Download)[]) — The root: items top to bottom. Ask and PageRef items line up in a row.
+Stack(items: (Task | TaskList | Deadline | Upcoming | Lecture | StudioVideo | CheatNote | ReviewDue | NewCheatNotes | EditItems | Flashcards | Quiz | Question | Steps | Explorer | Text | Slider | Value | Toggle | Select | Input | Button | PageRef | Ask | NewTasks | NewProject | NewEvents | NewNote | TaskChanges | ProjectChanges | EventChanges | TagChanges | DeleteTasks | DeleteEvents | Sync | Reparse | Transcribe | LectureChapters | LectureEnd | Download)[]) — The root: items top to bottom. Ask and PageRef items line up in a row.
 Text(text: string, tone?: "normal" | "muted") — A short line of markdown; $…$ for maths. Strings may be built with + from $variables.
 
 ### Recall
@@ -53,41 +53,15 @@ Steps(problem: string, steps: Step[], answer?: string) — A worked problem reve
 Step(title: string, work?: string) — One step of a worked solution. Only inside Steps.
 
 ### Explore
-Explorer(title: string, items: (Chart | Block)[]) — A card of Sliders bound to $variables, with Values and charts computed from them, plus Text for the formula.
+Explorer(title: string, items: (Text | Slider | Value | Toggle | Select | Input | Button)[]) — A card of bound controls (Slider, Toggle, Select, Input, Button) over $variables, with computed Values and Text.
 Slider(value: $binding<number>, label: string, min: number, max: number, step?: number, unit?: string) — Drags a $variable between min and max; unit like "%", "$" or "yr" formats the readout.
 Value(label: string, value: number | null, unit?: string, decimals?: number) — A computed number shown large, e.g. Value("Balance", $p * @Pow(1 + $r / 100, $n), "$", 2).
-- A Slider's first argument is a $variable declared with a literal default; Values and charts compute from those $variables.
-- There is no ^ operator: write @Pow(base, exponent).
-
-### Charts
-Bar(title: string, labels: string[], values: number[], yLabel?: string, unit?: string) — Bars comparing categories: labels[i] with values[i]; unit formats values, e.g. Bar("Hours this week", ["Mon", "Tue"], [2, 3.5], null, "h").
-Histogram(title: string, values: (number | {x: number, y: number | null})[], bins?: number, xLabel?: string, mean?: boolean) — How values are spread: raw numbers are binned (bins defaults to √n), or pass {x, y} bin centres and counts. mean marks the average.
-Line(title: string, series: (number | {x: number, y: number | null} | Series)[], xLabel?: string, yLabel?: string, area?: boolean) — A line chart over x; several Series get a legend. area fills under the series.
-Scatter(title: string, series: (number | {x: number, y: number | null} | Series)[], xLabel?: string, yLabel?: string, trend?: boolean) — Points against two measures; several Series get a legend. trend draws each series' best-fit line.
-Series(label: string, points: (number | {x: number, y: number | null})[]) — One named series of numbers or {x, y} points, e.g. Series("n = 30", @Each(...)). Only inside Line or Scatter.
-Donut(title: string, labels: string[], values: number[], center?: string, unit?: string) — Parts of one whole: labels[i] with values[i], at most 5 parts (the rest fold into Other). center replaces the total in the middle.
-Distribution(title: string, points: {x: number, y: number | null}[], shade?: {from: number, to: number}[], xLabel?: string, mean?: boolean) — A density curve of {x, y} points with shaded {from, to} regions; the shaded share of the area is shown. mean marks the curve's mean.
-- Pick by the question: categories → Bar, a spread of values → Histogram, change over x → Line, two measures → Scatter, parts of a whole → Donut, a probability as an area → Distribution. One number is a Stat, not a chart.
-- The title names what is plotted; units go in axis labels, e.g. "Wait (min)". Data is plain arrays: @Each(@Range(...), "t", {x: t, y: ...}) builds points.
-
-### Layout
-Panel(title: string, items: (Block)[]) — A titled card of Blocks; "" for no title.
-Columns(items: (Panel | Block)[]) — Panels or Blocks side by side; they stack when the reply is narrow.
-Tabs(tabs: Tab[]) — A card with a tab strip; one Tab shows at a time.
-Tab(label: string, items: (Panel | Columns | Block)[]) — One tab's label and content. Only inside Tabs.
-Table(columns: string[], rows: (string | number | boolean)[][]) — Columns and rows of cells (strings, numbers, booleans or null), e.g. Table(["Task", "Due"], [["Report", "Fri"]]). At most 50 rows show.
-List(items: string[], ordered?: boolean) — Short markdown items as bullets; ordered=true numbers the steps.
-Stat(label: string, value?: number | string, unit?: string, note?: string) — One figure with its label, e.g. Stat("Due this week", 4, null, "2 overdue"). Consecutive Stats share a row.
-Progress(label: string, value?: number, max?: number, unit?: string) — A labelled bar towards max (default 100), e.g. Progress("Lectures watched", 7, 12).
-Badge(text: string, tone?: "neutral" | "brand" | "success" | "warning" | "danger") — A small labelled pill, e.g. Badge("Overdue", "danger"). Consecutive Badges and Buttons share a row.
-Callout(text: string, tone?: "note" | "tip" | "warning", title?: string) — A boxed remark beside the content: tone note (default), tip or warning, with an optional bold title.
-Button(label: string, action?: ActionExpression, tone?: "primary" | "outline") — A pill that runs @ToAssistant, @Set or @Run steps, e.g. Button("Resample", @Set($seed, $seed + 1)). Without an action it sends its label.
 Toggle(value: $binding<boolean>, label: string) — A switch bound to a boolean $variable, e.g. $done = false then Toggle($done, "Read chapter 3").
 Select(value: $binding<string>, label: string, options: string[]) — A dropdown bound to a string $variable; the options are the values, e.g. Select($dist, "Population", ["Uniform", "Skewed"]).
 Input(value: $binding<string | number>, label: string, placeholder?: string) — A text field bound to a $variable; a number default keeps it numeric, e.g. $guess = 0 then Input($guess, "Your estimate").
-- Block is Text, a chart, Stat, Table, List, Progress, Badge, Callout, Button, Toggle, Select, Input, Slider or Value.
-- Panel is the layout card (Card is a flashcard). Columns wraps side by side. Consecutive Stats or pills share rows; List supplies short reading-order items. Blocks directly in Stack share a card when needed.
-- Toggle, Select and Input bind a $variable declared with a literal default, like Slider.
+Button(label: string, action?: ActionExpression, tone?: "primary" | "outline") — A pill that runs @ToAssistant, @Set or @Run steps, e.g. Button("Resample", @Set($seed, $seed + 1)). Without an action it sends its label.
+- Slider, Toggle, Select and Input bind a $variable declared with a literal default; Values, Text and Query arguments compute from those $variables.
+- There is no ^ operator: write @Pow(base, exponent).
 
 ### Live
 TaskList(projectId: number) — Live tasks in an existing project; read the project id from the CLI.
@@ -101,7 +75,7 @@ ReviewDue(subject?: string | number) — Due review count for a subject code or 
 ### Data
 - Live read-only rows: Use Query for live student data, with array defaults: rows = Query("tasks", {project:12}, []). Inspect CLI JSON and IDs first. Never Mutation; writes go through proposals.
 - Tools: "tasks" (oculus task list --json), "projects" (project list), "calendar" / "upcoming" (calendar), "deadlines" (calendar --due), "lectures" (lecture list), "revision due" (quiz list --due), "cheat notes" (cheat list), "subjects" (list). Use array defaults; reads refresh after edits; failures offer Retry.
-- Distribution functions return names, not densities. Keep a fixed seed while a Slider changes sample size. Use @Bins(@Means(@Exponential(), {}, $n, 400, 42), 20) for a CLT histogram.
+- Distribution functions return names, not densities. Keep a fixed seed while a Slider changes sample size, e.g. means = @Means(@Exponential(), {}, $n, 400, 42) with @Mean(means) and @StdDev(means).
 - All tools accept limit (default 100, capped at 400). tasks: project, unfiled, column (needs project), due_before (ISO), tag. projects: subject, personal, archived. calendar/upcoming/deadlines: subject, days (0–365, default 14), past, due. lectures: subject. revision due/cheat notes: subject, topic. subjects: limit only. No other args.
 - subject is an id or code; omit for all. A single-subject read requires an unambiguous code; calendar also accepts a code prefix spanning terms. Revision also accepts "general". Local data refreshes after edits; @Run(rows) reads again. Query args may depend on $variables.
 
@@ -171,10 +145,10 @@ Use @-prefixed built-in functions (@Count, @Sum, @Avg, @Min, @Max, @Round) on da
 @Pow(base: number, exponent: number) → number — base raised to exponent, e.g. @Pow(1.05, 10)
 @Sqrt(number: number) → number — Square root; null for a negative number
 @Log(number: number) → number — Natural logarithm; null for zero or less
-@Range(start: number, end: number, step?: number) → number[] — Numbers from start to end inclusive, stepping by step (default 1), e.g. @Range(0, 10) for a chart's x values; at most 400
+@Range(start: number, end: number, step?: number) → number[] — Numbers from start to end inclusive, stepping by step (default 1), e.g. @Range(0, 10); at most 400
 @Sample(dist: "normal" | "binomial" | "uniform" | "exponential", params: Record<string, number>, n: number, seed?: number) → number[] — Seeded draws: @Sample(@Exponential(), {rate:1}, 400, 42). dist may also be a distribution name string; at most 400 points; seed defaults to 0. Invalid parameters return null.
 @Means(dist: "normal" | "binomial" | "uniform" | "exponential", params: Record<string, number>, n: number, trials: number, seed?: number) → number[] — Seeded sample means: @Means(@Exponential(), {}, $n, 400, 42). At most 400 trials; trials × n <= 200000 (also capped at 200000 Bernoulli draws for Binomial); over-budget/invalid inputs return null. Seed defaults to 0.
-@Bins(values: number[], count: number) → {x: number, y: number}[] — Histogram {x:bin centre, y:count} points for Chart(..., ..., ..., "bar"). @Bins(values, 20); count capped at 400; values at most 400. Includes the maximum in the last bin; constant values use a unit-wide domain; empty input returns [].
+@Bins(values: number[], count: number) → {x: number, y: number}[] — Bins values into {x: bin centre, y: count} buckets. @Bins(values, 20); count capped at 400; values at most 400. Includes the maximum in the last bin; constant values use a unit-wide domain; empty input returns [].
 @Normal() → "normal" | "binomial" | "uniform" | "exponential" — Distribution name "normal" for @Sample/@Means, not a density. params {mean:0, sd:1}; sd >= 0. Omitted parameter keys use these defaults.
 @Binomial() → "normal" | "binomial" | "uniform" | "exponential" — Distribution name "binomial" for @Sample/@Means, not a density. params {trials:1, p:0.5}; integer trials 0–400, probability 0–1. Omitted parameter keys use these defaults.
 @Uniform() → "normal" | "binomial" | "uniform" | "exponential" — Distribution name "uniform" for @Sample/@Means, not a density. params {min:0, max:1}; max >= min. Omitted parameter keys use these defaults.
@@ -183,8 +157,8 @@ Use @-prefixed built-in functions (@Count, @Sum, @Avg, @Min, @Max, @Round) on da
 @StdDev(values: number[]) → number — Population standard deviation of 1–400 finite numbers (divisor N); one value gives 0; empty or invalid input returns null.
 
 Builtins compose — output of one is input to the next:
-`@Count(@Filter(data.rows, "field", "==", "val"))` for KPIs/chart values, `@Round(@Avg(data.rows.score), 1)`, `@Each(data.rows, "item", Comp(item.field))` for per-item rendering.
-Array pluck: `data.rows.field` extracts a field from every row → use with @Sum, @Avg, charts, tables.
+`@Count(@Filter(data.rows, "field", "==", "val"))` for live counts, `@Round(@Avg(data.rows.score), 1)`, `@Each(data.rows, "item", Comp(item.field))` for per-item rendering.
+Array pluck: `data.rows.field` extracts a field from every row → use with @Sum, @Avg, @Mean, @StdDev.
 
 IMPORTANT @Each rule: The loop variable (e.g. "item") is ONLY available inside the @Each template expression. Always inline the template — do NOT extract it to a separate statement.
 CORRECT: `list = @Each(rows, "t", Comp(t.name))`
@@ -229,27 +203,26 @@ q1 = Question("Worst case of quicksort with a first-element pivot?", [Option("$O
 q2 = Question("Which sort is stable?", [Option("Heapsort"), Option("Merge sort", true), Option("Quicksort")])
 ```
 
-A lesson uses prose between small fences, not one big widget:
-
-Individual waits are skewed: most are short, with a long right tail.
+A formula explorer with sliders:
 
 ```openui
-root = Stack([plot])
-plot = Histogram("A skewed population", values, 20, "Wait (min)", true)
-values = @Sample(@Exponential(), {}, 400, 42)
+root = Stack([ex])
+$m = 2
+$v = 3
+ex = Explorer("Kinetic energy", [Text("$E_k = \\tfrac{1}{2} m v^2$"), Slider($m, "Mass", 0.5, 10, 0.5, "kg"), Slider($v, "Speed", 0, 20, 0.5, "m/s"), Value("Kinetic energy", 0.5 * $m * @Pow($v, 2), "J", 1)])
 ```
 
-Average several waits and the spread shrinks. Drag sample size; the fixed seed keeps the comparison reproducible.
+A seeded simulation explorer with resampling:
 
 ```openui
-root = Stack([lesson])
+root = Stack([ex])
 $n = 10
-lesson = Panel("Averages of skewed samples", [Slider($n, "Sample size", 1, 100, 1), plot])
-plot = Histogram("Distribution of sample means", bins, null, "Sample mean (min)", true)
-bins = @Bins(@Means(@Exponential(), {}, $n, 400, 42), 20)
+$seed = 42
+ex = Explorer("Averages of skewed samples", [Slider($n, "Sample size", 1, 100, 1), Value("Mean of sample means", @Mean(means), "min", 3), Value("Standard error", @StdDev(means), "min", 3), Button("Resample", @Set($seed, $seed + 1))])
+means = @Means(@Exponential(), {}, $n, 400, $seed)
 ```
 
-Check your intuition before moving on.
+A standalone intuition check:
 
 ```openui
 root = Stack([check])
@@ -280,9 +253,6 @@ A sync, then a follow-up once it finishes:
 root = Stack([Sync(["COMP30026"], null, "Check the new Ed threads for extension posts")])
 ```
 
-## Important Rules
-- Choose components that best represent the content (tables for comparisons, charts for trends, forms for input, etc.)
-
 ## Final Verification
 Before finishing, walk your output and verify:
 1. root = Stack(...) is the FIRST line (for optimal streaming).
@@ -292,7 +262,7 @@ Before finishing, walk your output and verify:
 - Start with `root = Stack([...])`, referencing every widget. Define $variables next, then children in top-down reading order, then their leaf data. Prefer forward references so the shell draws before the content.
 - Strings are double-quoted on one line; write a newline as \n and a double quote as \". Maths goes in $…$ inside strings, e.g. "$\\frac{a}{b}$" (backslashes doubled).
 - Take facts from the student's own library when you can, and point to the page with PageRef using the same path you would cite in prose.
-- $variables have literal defaults: number for Slider, boolean for Toggle, string for Select, string or number for Input. Bind the first argument; charts and readouts compute from them.
+- $variables have literal defaults: number for Slider, boolean for Toggle, string for Select, string or number for Input. Bind the first argument; Values, Text and Query arguments compute from them.
 - Ask buttons are optional follow-ups the student may want next, phrased as the student ("Quiz me on the ones I missed"). At most two.
 - Task(number) reads a live existing task; Task(string, ...) describes a new task inside a proposal. Read ids with task list, lecture list and studio list; never guess. After explaining a concept, offer condensed CheatEntry items in NewCheatNotes, never the entire reply or task/sync chatter.
 - Never use a component or @function not listed here.

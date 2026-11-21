@@ -634,9 +634,11 @@ animation frame without re-keying `Renderer`, so its store survives the
 stream. `remarkWidgets` records whether the closing fence has arrived;
 `isStreaming` stays true until both the fence closes and its reply commits.
 
-The library in `app/src/components/markdown/openui/library.ts` admits
-Flashcards, Quiz, reveal Questions, Steps, Explorer, the explain chart and
-layout kits, PageRef and Ask, with Stack and Text for composition.
+The library in `app/src/components/markdown/openui/library.ts` registers
+proposals and jobs, live student-data components, Flashcards, Quiz, reveal
+Questions, Steps, Explorer (with Slider, Toggle, Select, Input, Button and
+Value), PageRef and Ask, with Stack and Text for composition, alongside layout
+and chart components for stored replies.
 `streamVerdict` tolerates incomplete
 props and unresolved references; components show More coming rows as their
 children arrive. Runtime errors are held while streaming. Once streaming
@@ -682,36 +684,32 @@ skill), formula sliders, quizzes, flashcards, live student data and proposals
 to ` ```openui `, and saved pictures or standalone pages to `outputs/`. Widget primitives follow the
 [UI tokens](./ui.md#study-widgets-use-the-replys-primitives-and-semantic-tokens).
 
-## The explain kit fits between paragraphs
+## The card grammar teaches cards, recall, explorers and live reads
 
-The agent writes several small OpenUI fences, each immediately after the
-sentence it illustrates: prose, a population histogram, prose, a slider that
-resamples means, then a standalone Question reveal. Each program writes root
-first, variables next, then children in reading order and leaf data last.
-`prompt.ts` in `app/src/components/markdown/openui/` owns this guidance and
-`bun run docs:widgets` regenerates the shared `oculus-ui` skill from it.
+`prompt.ts` in `app/src/components/markdown/openui/` generates the shared
+`oculus-ui` skill (`bun run docs:widgets`). It teaches proposals and jobs,
+`Query` and live components, `Flashcards`, `Quiz`, standalone reveal
+`Question`s, `Steps`, and `Explorer` with bound controls (`Slider`, `Toggle`,
+`Select`, `Input`, `Button`), `Value` and seeded functions. Each program writes
+`root` first, `$variables` next, then children in reading order and leaf data
+last.
 
-`app/src/components/markdown/openui/components/charts/` draws Bar, Histogram, multi-series Line (with an
-optional area fill), Scatter, Donut (a ring), and Distribution with shaded
-ranges and an optional mean. Charts accept numbers or `{x,y}` points;
-named Series compare up to five lines or point sets. Histogram accepts raw
-values or `@Bins` output. Axis labels carry units; one series has no legend. Horizontal category
-bars and ring labels include values; other plots provide hover readouts. Density ranges merge before their
-area is calculated. SVG marks use chart tokens, starting with indigo, and
-enter only during streaming, respecting reduced motion. Accessible tables
-carry the plotted data. `Chart(points, xLabel, yLabel, kind)` remains registered
-for stored fences; new prompts teach the family.
-
-`app/src/components/markdown/openui/components/layout/` uses the reply's primitives: Panel, Columns, List, Table,
-Stat, Badge, Progress, Tabs/Tab, Callout, Button, Toggle, Select and Input.
-Panel supplies the titled card because Card names a flashcard. Consecutive
-stats and pills share rows, avoiding a separate Row signature. Columns wrap
-through CSS grid without measuring the viewport; tables scroll horizontally.
 Bound controls use literal `$variable` defaults and preserve runtime state;
-Input also reflects programmatic changes. Button allows only `@ToAssistant`,
-`@Set` and `@Run` (or chains of them), and controls are disabled while streaming.
-Unresolved content uses the shared shimmer states in `Streaming.tsx`.
-Live components keep their existing reads and compact entity-specific views.
+`Input` also reflects programmatic changes. `Button` allows only
+`@ToAssistant`, `@Set` and `@Run` (or chains of them), and controls are disabled
+while streaming. Unresolved content uses the shared shimmer states in
+`Streaming.tsx`. Live components keep their compact entity-specific views.
+
+Layout components (`Panel`, `Columns`, `List`, `Table`, `Stat`, `Badge`,
+`Progress`, `Tabs`/`Tab`, `Callout` in
+`app/src/components/markdown/openui/components/layout/`) and chart components
+(`Bar`, `Histogram`, `Line`, `Scatter`/`Series`, `Donut`, `Distribution`,
+`Chart` in `app/src/components/markdown/openui/components/charts/`) stay
+registered in `library.ts` so stored fences validate and draw, and are filtered
+out of `oculus-ui` by `prompt.ts` because inline explanation uses ` ```ui `
+fences ([generative-ui.md](./generative-ui.md)). The chart components draw SVG
+marks on semantic chart tokens (starting with indigo, with hover readouts and
+accessible data tables) and are shared with `ui` blocks' `[data-chart]` hosts.
 
 ## OpenUI queries read local rows and refresh after edits
 
