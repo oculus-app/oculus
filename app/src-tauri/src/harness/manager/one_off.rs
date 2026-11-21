@@ -277,6 +277,11 @@ fn drain_turn(
         };
         on_event(&ev);
         match ev {
+            // Headless runs have nobody to answer approvals or questions;
+            // decline via the route so the provider never waits forever.
+            HarnessEvent::RequestAsked {
+                route: Some(route), ..
+            } => route.0.withdraw(),
             HarnessEvent::Error { message, .. } => failed = Some(message),
             HarnessEvent::TurnFinished { status, .. } => {
                 if status == "failed" {
@@ -319,5 +324,44 @@ mod tests {
     fn a_clean_reply_is_its_text_and_an_empty_one_fails() {
         assert_eq!(reply("Hello.", None).answered().unwrap(), "Hello.");
         assert!(reply("  ", None).answered().is_err());
+    }
+
+    #[test]
+    fn drain_turn_withdraws_unanswerable_requests() {
+        use crate::harness::requests::{
+            Action, LiveRoute, NewRequest, Reply, RequestOption, Route,
+        };
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        struct Spy(Arc<AtomicBool>);
+        impl Route for Spy {
+            fn reply(&self, _: &RequestOption) -> Reply {
+                Reply::Acknowledged
+            }
+            fn withdraw(&self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let withdrawn = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = mpsc::channel();
+        tx.send(HarnessEvent::RequestAsked {
+            request: NewRequest {
+                action: Action::Command,
+                payload: serde_json::json!({"command": "pwd"}),
+                options: Vec::new(),
+                native_ref: "1".into(),
+                paths: Vec::new(),
+            },
+            route: Some(LiveRoute(Arc::new(Spy(withdrawn.clone())))),
+        })
+        .unwrap();
+        tx.send(HarnessEvent::TurnFinished {
+            status: "completed".into(),
+            turn: None,
+        })
+        .unwrap();
+        assert!(drain_turn(&rx, None, "testing", |_| {}).is_none());
+        assert!(withdrawn.load(Ordering::SeqCst));
     }
 }

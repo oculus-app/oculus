@@ -146,7 +146,9 @@ display policy: no thinking flags or summary setting, with
 - **`run_once` is the headless shape** — no thread, no rows; its jobs
   ([chapters.md](./chapters.md)) keep the turn's selected answer
   (`lecture_jobs::reply`, see [One answer per run](#one-answer-per-run)) and
-  do their own database write in Rust.
+  do their own database write in Rust. Nobody can answer a headless turn, so
+  `drain_turn` declines every `RequestAsked` through its route
+  (`Route::withdraw`) and the turn carries on.
 - Chat's old tables (`llm_usage`, `chats`, `chat_messages`) have no readers.
 
 ## Every thread runs from `agents/`; it writes there and in the student's own files
