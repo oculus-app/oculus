@@ -16,8 +16,9 @@ video starts that chat. The renderer, the commands and the thread link are
 | Pages | `app/src/pages/studio/` (`VideosPage`, `VideoPage`, `VideoRedirect`, `ComponentsPage`, `ThemesPage`) |
 | New video: a new Chat thread with the skill chip in its box | `app/src/hooks/studio/useNewVideoChat.ts` |
 | Series grouping, outline navigation and shared part requests | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
+| A series' part on the video page and in the chat card: the series bar, the Parts outline, the frame of a part not made, and what each decides (`seriesView.ts`) | `app/src/components/studio/series/` (`SeriesBar.tsx`, `PartsOutline.tsx`, `UnmadePart.tsx`), `app/src/lib/studio/seriesView.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
-| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts` |
+| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
 | The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
 | Render state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
@@ -32,7 +33,7 @@ video starts that chat. The renderer, the commands and the thread link are
 ## Six routes under one nav column
 
 `/studio` opens the grid at `/studio/videos`, `/studio/videos/:slug` is a
-video's detail, `/studio/components` and `/studio/components/:name` the
+video's detail (a series' part's too, made or not), `/studio/components` and `/studio/components/:name` the
 playground, and `/studio/themes` and `/studio/themes/:name` the Themes page.
 A saved tab on a path below a video's opens the video (`VideoRedirect`), and
 any other Studio path the grid. `StudioLayout` owns the nav column's panel (`useResizablePanel`, ⌘⌥B and
@@ -142,7 +143,7 @@ rather than cropped) with its length on the bottom right (`seconds`, none
 until every scene has one), its title (video.json's `title`, else its title
 card's, else the slug spelled out:
 [studio.md](./studio.md#videos-live-in-the-data-directory)) and a fact line:
-the subject (`SubjectIcon` and display code), scene count and age. A video
+the subject (`SubjectIcon` and display code, through `useSubjectCode`), scene count and age. A video
 that is rendering carries a badge with its percentage and a bar. One whose
 video.json will not load shows the problem in place of its facts. Pills over
 the grid narrow by subject (shown when two or more subjects have a video or
@@ -183,6 +184,8 @@ change) and again whenever the grid's width changes.
 
 The detail (`VideoDetailStage`) is the player with a dock, and under it a row
 of the facts (subject, theme, voice, length, shape) beside the render bar.
+The subject's pill is its icon and display code (`SubjectIcon`, keyed by the
+course's current subject, `subjectCodeFor`).
 Opened beside the chat that makes it (the video card's title or expand
 button, [harness.md](./harness.md#a-studio-thread-carries-its-video)), it
 reads the video again when that thread's turn ends or the folder's modified
@@ -256,6 +259,39 @@ any render of the folder runs), and **Export** once it has one.
   the files made the other way show "out of date". With the switch on the
   player has no CC button, since the words are in the frames; with it off the
   CC button shows the render's `.vtt`. A failed write shows under the switch.
+
+**A series' part** has the same page with three additions. The header is the
+part's title with "Part 2/5" beside it (`StudioHeader`'s `meta`). Over the
+picture, `SeriesBar` names the series (Phosphor `Queue`) and holds Previous
+and Next, which skip parts not made (`partNav`); an off button's tooltip
+names the part next to it ("Part 3 isn't made yet"), and they work from a
+part not made too. Under the facts, the **Parts outline** (`PartsOutline`,
+at most seven rows, never a scroller) lists every part's number, title and
+question: a made part its length, the part on screen lit ("Watching"), a
+part not made a dashed number. Only the next part not made offers **Make
+this part** (`partRowKind`), and only while no part is being made; a row
+opens that part's page.
+
+A part is **being made** while it is the requested part
+(`useMakeSeriesPart`) or, while the series' thread runs, its folder exists
+without a render (`partBeingMade`). Its row then says "Making…".
+
+**A part not made** opens at the usual route with no folder behind it.
+`videoPageView` decides from the list (`seriesPartForSlug`) before a failed
+detail read counts as an error, and shows the skeleton, not an error, while
+the list loads; the detail is read only once the folder exists. The frame
+(`UnmadePart`) holds the part's number, its question and Make this part
+(any part not made offers it on its own page, `partPageOffer`; while another
+part is being made the button is off and its tooltip says which). The press
+sends "Make part N" through `useMakeSeriesPart`. While the part is being
+made the frame says "Making “question”", the status (`partStatus`:
+"Sending", "Starting" or "Asked for" until its folder exists, then its
+video's progress line) and **Open the chat**, which opens the series'
+thread; nothing opens on its own. A failed request shows its sentence under
+the button, never as a toast. There is no dock, no facts and no Export.
+The list is re-read whenever a Studio call finishes or a turn ends
+(`useHarnessEvents`), so when the part's folder and then its render appear
+the same page becomes its player.
 
 ## The Components playground
 

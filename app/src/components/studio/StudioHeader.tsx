@@ -7,14 +7,17 @@ import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useStudioPanel } from "@/layouts/StudioLayout";
 
 /** A Studio page's 48px header row: the nav column's toggle (none in the
- *  side panel, which has no nav column), an optional way back, the title,
- *  and the page's actions at the end. */
+ *  side panel, which has no nav column), an optional way back, the title
+ *  with a muted note beside it, and the page's actions at the end. */
 export function StudioHeader({
   title,
+  meta,
   back,
   actions,
 }: {
   title: string;
+  /** Muted beside the title: a series part's "Part 2/5". */
+  meta?: string | null;
   /** Where the arrow before the title goes. */
   back?: string;
   actions?: ReactNode;
@@ -37,7 +40,10 @@ export function StudioHeader({
         </button>
       )}
       <PaneTrail>
-        <PaneTitle>{title}</PaneTitle>
+        <PaneTitle>
+          {title}
+          {meta && <span className="ml-2 font-normal text-muted-foreground tabular-nums">{meta}</span>}
+        </PaneTitle>
       </PaneTrail>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </PageHeader>
