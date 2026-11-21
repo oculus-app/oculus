@@ -112,7 +112,14 @@ pub fn detail_in(
         .and_then(|v| v.voice.clone())
         .or_else(|| settings_voice.map(str::to_owned));
     Ok(VideoDetail {
-        row: VideoView::of(row, links),
+        row: VideoView::of(
+            row,
+            links,
+            timeline.as_ref().and_then(|t| {
+                let last = project.video.scenes.len().checked_sub(1)?;
+                Some(t.start(last) + t.scene_length(last)?)
+            }),
+        ),
         fps: project.video.fps,
         width: project.video.size.width,
         height: project.video.size.height,

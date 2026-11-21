@@ -5,27 +5,30 @@ import { registerWorkKind, type WorkRow } from "@/components/harness/threadInfo/
 import { useThreadVideo } from "@/hooks/studio/useThreadVideo";
 import { videoHref } from "@/lib/studio/routes";
 
-/** Thread info's Work row for the video a thread is making: its title and
- *  the card's status line, opening the video beside the chat. */
+/** Thread info's Work row for the video a thread is making, as its card
+ *  draws it: the title (a series' for a series), the status line, and the
+ *  page of the part the card follows, opened beside the chat. */
 registerWorkKind({
   id: "studio-video",
   useRows: (thread) => {
-    const { row, progress } = useThreadVideo(thread.id);
+    const { row, status, series } = useThreadVideo(thread.id);
+    const page = row ?? series?.part ?? null;
+    const title = series?.series.title ?? row?.title ?? "";
     return useMemo<WorkRow[]>(
       () =>
-        row
+        page
           ? [
               {
-                key: `video:${row.slug}`,
+                key: `video:${page.slug}`,
                 icon: FilmSlate,
-                title: row.title,
-                status: progress.label,
-                tone: progress.tone,
-                href: videoHref(row.slug, row.title),
+                title,
+                status: status.label,
+                tone: status.tone,
+                href: videoHref(page.slug, page.title),
               },
             ]
           : [],
-      [row, progress.label, progress.tone],
+      [page, title, status.label, status.tone],
     );
   },
 });

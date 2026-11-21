@@ -87,7 +87,46 @@ impl Project {
     }
 
     pub fn load_unnarrated_with(dir: impl AsRef<Path>, library: &Library) -> Result<Project> {
-        let dir = dir.as_ref().to_path_buf();
+        let mut project = Self::load_timing_inputs(dir.as_ref(), library)?;
+        let dir = &project.dir;
+        let subject = library
+            .subject
+            .clone()
+            .or_else(|| project.video.subject.clone());
+        let subject_dir = match (&subject, &library.subjects) {
+            (Some(s), Some(subjects)) => Some(subjects.join(s)),
+            _ => None,
+        };
+        let mut sources: Vec<(String, Arc<dyn ComponentSource>)> = vec![(
+            "project".to_owned(),
+            Arc::new(FolderComponents::new(dir.join("components"))),
+        )];
+        if let (Some(s), Some(sub)) = (&subject, &subject_dir) {
+            sources.push((
+                format!("subject {s}"),
+                Arc::new(FolderComponents::new(sub.join("components"))),
+            ));
+        }
+        if let Some(global) = &library.global {
+            sources.push((
+                "global".to_owned(),
+                Arc::new(FolderComponents::new(global.join("components"))),
+            ));
+        }
+        project.components = Arc::new(CascadeComponents::new(sources));
+        Ok(project)
+    }
+
+    /// Read timing without component sources or assets. Script freshness and
+    /// the resolved theme's narration tokens use the same rules as rendering.
+    pub fn read_timeline_with(dir: impl AsRef<Path>, library: &Library) -> Result<Timeline> {
+        let mut project = Self::load_timing_inputs(dir.as_ref(), library)?;
+        project.manifest = Manifest::read(&project.dir)?;
+        project.timeline()
+    }
+
+    fn load_timing_inputs(dir: &Path, library: &Library) -> Result<Project> {
+        let dir = dir.to_path_buf();
         let path = dir.join("video.json");
         let json = std::fs::read_to_string(&path).map_err(|e| StudioError::io(&path, e))?;
         let script = read_script(&dir)?;
@@ -113,27 +152,11 @@ impl Project {
         };
         let name = library.theme.as_deref().unwrap_or(&video.theme);
         let theme = resolve_theme(&dir, name, subject_dir.as_deref(), library)?;
-        let mut sources: Vec<(String, Arc<dyn ComponentSource>)> = vec![(
-            "project".to_owned(),
-            Arc::new(FolderComponents::new(dir.join("components"))),
-        )];
-        if let (Some(s), Some(sub)) = (&subject, &subject_dir) {
-            sources.push((
-                format!("subject {s}"),
-                Arc::new(FolderComponents::new(sub.join("components"))),
-            ));
-        }
-        if let Some(global) = &library.global {
-            sources.push((
-                "global".to_owned(),
-                Arc::new(FolderComponents::new(global.join("components"))),
-            ));
-        }
         Ok(Project {
             dir,
             video,
             theme,
-            components: Arc::new(CascadeComponents::new(sources)),
+            components: Arc::new(CascadeComponents::new(Vec::new())),
             script,
             manifest: None,
         })

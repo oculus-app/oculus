@@ -6,19 +6,14 @@ import { displayCode } from "@/lib/format/format";
 import { chatHref } from "@/lib/harness";
 import { newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 
-/**
- * Studio's New video: a new chat of its own whose box holds the
- * `oculus-studio` skill chip (a stored `/name` becomes a chip as the box
- * loads), in the subject Studio is showing when it names one. The returned
- * call takes the subject at the moment of the press: a video's course code
- * without its term, as Studio files them, or null.
- */
+/** Opens a new chat in the subject's current (else newest) term, or General.
+ * The optional text is an unsent draft; by default it holds the Studio skill chip. */
 export function useNewVideoChat() {
   const navigate = useNavigate();
-  return useCallback(async (subject: string | null) => {
+  return useCallback(async (subject: string | null, text = "/oculus-studio ") => {
     const drafts = useDraftStore.getState();
     const draft = drafts.openNewChat();
-    drafts.setDraft(newChatKey(draft), "/oculus-studio ");
+    drafts.setDraft(newChatKey(draft), text);
     let id: number | undefined;
     if (subject) {
       const matches = (await getSubjects().catch(() => [])).filter((s) => displayCode(s.code) === subject);

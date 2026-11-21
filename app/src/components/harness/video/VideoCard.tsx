@@ -9,7 +9,8 @@ import { openVideoBeside } from "@/lib/studio/openVideo";
 import { videoHref } from "@/lib/studio/routes";
 import { videoSeconds } from "@/lib/studio/videos";
 import { cn } from "@/lib/utils";
-import { InlineVideo, type PlayRequest } from "./InlineVideo";
+import { CardPlayer, type CardPlay } from "./CardPlayer";
+import { SeriesCardParts } from "./SeriesCardParts";
 import { Storyboard } from "./Storyboard";
 import { VideoProgress } from "./VideoProgress";
 import { VideoStatus } from "./VideoStatus";
@@ -57,46 +58,51 @@ function CardButton({
  * status line; the eye opens the storyboard, the chevron the progress
  * timeline, and Play grows the player in place. The title, and the expand
  * buttons on the card and its player, open the video's page beside the chat
- * (⌘-click: a new tab). Drawn by the app from the
- * thread's link, the video's folder and `renderStore`; the agent never
- * writes it. Nothing is drawn for a thread with no video.
+ * (⌘-click: a new tab). A thread making a series takes the series' title,
+ * follows one part (`useThreadVideo`) and always shows the Parts outline,
+ * whose made rows play in this card. Drawn by the app from the thread's
+ * link, the folders and `renderStore`; the agent never writes it.
  */
 export function VideoCard({ threadId }: { threadId: number }) {
-  const { row, detail, progress } = useThreadVideo(threadId);
+  const { row, detail, progress, status, series } = useThreadVideo(threadId);
   const [timeline, setTimeline] = useState(false);
   const [board, setBoard] = useState(false);
-  const [play, setPlay] = useState<PlayRequest | null>(null);
+  const [play, setPlay] = useState<CardPlay | null>(null);
   useOneInlinePlayer(play != null, useCallback(() => setPlay(null), []));
-  if (!row) return null;
+  if (!row && !series) return null;
 
   const playable = !!detail && playableRenders(detail.renders).length > 0;
   const seconds = detail ? videoSeconds(detail) : null;
-  const ready = progress.tone === "ok" && seconds != null ? fmtClockSecs(seconds) : null;
-  const playFrom = (at: number) => setPlay((p) => ({ at, n: (p?.n ?? 0) + 1 }));
-  const beside = () => openVideoBeside(row.slug, row.title);
+  const ready = status.tone === "ok" && seconds != null ? fmtClockSecs(seconds) : null;
+  const playFrom = (slug: string, at: number) => setPlay((p) => ({ slug, at, n: (p?.n ?? 0) + 1 }));
+  // The card's own part, or for a series with no folder yet the part asked for.
+  const page = row ?? series?.part ?? null;
+  const title = series?.series.title ?? row?.title ?? "";
+  const href = page ? videoHref(page.slug, page.title) : undefined;
+  const beside = () => page && openVideoBeside(page.slug, page.title);
 
   return (
-    <section aria-label={`Video: ${row.title}`} className="mb-4 overflow-hidden rounded-[14px] border border-border bg-card">
+    <section aria-label={`Video: ${title}`} className="mb-4 overflow-hidden rounded-[14px] border border-border bg-card">
       <div className="relative flex items-center gap-1 py-2 pr-2 pl-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              data-tab-href={videoHref(row.slug, row.title)}
+              data-tab-href={href}
               onClick={beside}
               className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg text-left"
             >
-              <VideoThumb slug={row.slug} modified={detail?.row.modified ?? row.modified} className="w-16" />
+              <VideoThumb slug={row?.slug ?? null} modified={detail?.row.modified ?? row?.modified ?? null} className="w-16" />
               <span className="flex min-w-0 flex-col">
-                <span className="truncate font-display text-[14px] font-semibold hover:underline">{row.title}</span>
-                <VideoStatus progress={progress} suffix={ready} />
+                <span className="truncate font-display text-[14px] font-semibold hover:underline">{title}</span>
+                <VideoStatus progress={status} suffix={ready} />
               </span>
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="start">Open beside the chat</TooltipContent>
         </Tooltip>
-        {playable && (
-          <CardButton label={play ? "Close the player" : "Play"} open={!!play} onClick={() => (play ? setPlay(null) : playFrom(0))}>
+        {playable && row && (
+          <CardButton label={play ? "Close the player" : "Play"} open={!!play} onClick={() => (play ? setPlay(null) : playFrom(row.slug, 0))}>
             {play ? <X size={15} /> : <Play size={15} weight="fill" />}
           </CardButton>
         )}
@@ -106,7 +112,7 @@ export function VideoCard({ threadId }: { threadId: number }) {
         <CardButton label="Progress" open={timeline} onClick={() => setTimeline((t) => !t)}>
           <CaretDown size={16} className={cn("transition-transform will-change-transform", timeline && "rotate-180")} />
         </CardButton>
-        <CardButton label="Open beside the chat" onClick={beside} href={videoHref(row.slug, row.title)}>
+        <CardButton label="Open beside the chat" onClick={beside} href={href}>
           <SidebarSimple size={16} className="scale-x-[-1]" />
         </CardButton>
         {(progress.fraction != null || progress.sweeping) && (
@@ -119,9 +125,9 @@ export function VideoCard({ threadId }: { threadId: number }) {
           </span>
         )}
       </div>
-      {play && detail && playable && (
+      {play && (
         <div className="border-t border-border-subtle p-3">
-          <InlineVideo detail={detail} request={play} onOpenBeside={beside} />
+          <CardPlayer play={play} />
         </div>
       )}
       {timeline && (
@@ -129,9 +135,20 @@ export function VideoCard({ threadId }: { threadId: number }) {
           <VideoProgress steps={progress.steps} />
         </div>
       )}
-      {board && detail && (
+      {board && detail && row && (
         <div className="border-t border-border-subtle p-4">
-          <Storyboard detail={detail} playable={playable} onPlay={playFrom} />
+          <Storyboard detail={detail} playable={playable} onPlay={(at) => playFrom(row.slug, at)} />
+        </div>
+      )}
+      {series && (
+        <div className="border-t border-border-subtle px-3 pt-3 pb-2.5">
+          <SeriesCardParts
+            inSeries={series}
+            playing={play ? play.slug : null}
+            onPlay={(slug) => {
+              if (play?.slug !== slug) playFrom(slug, 0);
+            }}
+          />
         </div>
       )}
     </section>

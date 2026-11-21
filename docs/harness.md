@@ -38,7 +38,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
 | Unsent text per thread (and per new chat), each new chat's chosen scope, and the new chats waiting as rows, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts`, `app/src/components/harness/threads/list/DraftRows.tsx` |
 | Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
-| The video a thread makes: its card above the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/activity.ts` |
+| The video a thread makes: its card above the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/hooks/studio/useVideoProgress.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/seriesView.ts`, `app/src/lib/studio/activity.ts` |
 | Proposal dispatch context and confirmed jobs | `app/src-tauri/src/harness/app/proposal_context.rs`, `app/src-tauri/src/harness/app/proposal_jobs/` |
 | Local OpenUI Query tools and event refresh | `app/src/components/markdown/openui/query/` |
 | Seeded simulation and maths functions | `app/src/components/markdown/openui/functions/` |
@@ -951,7 +951,8 @@ calls `registerWorkKind({ id, useRows })` at module load, and `useRows` is a
 hook that returns that kind's rows for the thread (glyph, title, status in
 words, the route it opens); with no rows the group draws nothing. The one
 kind is the video the thread is making (`components/harness/video/workKind.ts`):
-its title and its card's status line, opening the video's page
+its card's title and status line, opening the page of the video (a
+series' part) the card follows
 ([A Studio thread carries its video](#a-studio-thread-carries-its-video)).
 
 **Read** and **Made** are projected from the thread's rows by
@@ -3378,8 +3379,26 @@ opens it on its own, not a render's end nor a turn's. Its other buttons:
   and Final, each with when it finished or what it is doing; Final, until
   it exists, points at Export on the video's page. A failure keeps its sentence there.
 
-`videoProgress` (`lib/studio/progress.ts`) is the one derivation the card and
-the Work row share, a pure function of the detail, the thread's running
+**A series' card.** A thread that makes a series (`seriesForThread`; the
+thread is linked to one part's folder) draws the same card for one part at a
+time (`useThreadVideo`): the part being made (`partBeingMade`: the part
+asked for, or a folder without a render while the thread runs), else the
+part whose folder changed last (`cardPartNumber`). The title is the
+series'; the thumbnail, storyboard, progress and bar are that part's, and
+the status line names it ("Part 1/5 ready · 1:48", "Part 2/5 · Narrating";
+"Sending", "Starting" or "Asked for" before the part's folder exists,
+`partStatus`, `seriesStatusLabel`). Under the card's player the series'
+Parts outline is always shown (`SeriesCardParts` over Studio's
+`PartsOutline`, [studio-page.md](./studio-page.md#videos-and-the-detail)):
+a made row plays that part in the card's player (`CardPlayer`, lit
+"Playing") without changing which part the status is about, never beside,
+and **Make this part** on the next part not made sends "Make part N" to the
+thread as an ordinary message (`useMakeSeriesPart`). The open-beside
+buttons open the page of the part the card follows, or, on the player's
+control bar, of the part playing. Thread info's Work row follows the card.
+
+`videoProgress` (`lib/studio/progress.ts`) is the one derivation the card,
+the Work row and a part's page share (`useVideoProgress`), a pure function of the detail, the thread's running
 state, the app's render and the thread's latest Studio call on the video
 (`lastStudioAction`, `lib/studio/activity.ts`, which reads the command in any
 provider's spelling, Codex's `zsh -lc` included). Files say what is done:
@@ -3398,7 +3417,7 @@ preset), since while it runs the agent is still dealing with it. A detail
 that will not read says "Can't read the video" and names no step, and
 reloads the video list: a folder deleted (in Finder, say) leaves the list,
 and the card with it.
-`useThreadVideo` re-reads the detail whenever a tool call finishes, the
+`useVideoProgress` re-reads the detail whenever a tool call finishes, the
 turn ends or the folder's modified time moves. Every view of a video shares
 one read per slug (`useVideoDetail`): the card, its Work row and the page
 beside it asking in the same task make one `studio_video_detail` call.

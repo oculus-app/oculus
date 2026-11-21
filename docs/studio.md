@@ -2076,7 +2076,7 @@ The list reads both the video folders and the series outlines. Commands on one v
 
 | Command | Does |
 | --- | --- |
-| `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series` and `part`. Each series has its ordered outline, with a nullable video row per part and `exists` and `made` flags. |
+| `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series`, `part` and nullable `seconds`. Each series has its ordered outline, `threadId` (first non-null part link in outline order), `modified` (newest outline or matching part time), and a nullable video row per part with `exists` and `made` flags. A matching folder has a row before it has a render; `made` means it has an MP4. |
 | `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
 | `studio_render_captions(slug, preset)` | the WebVTT text beside that preset's render (`renders/<preset>.vtt`), for the player's CC |
 | `studio_set_captions(slug, on)` | sets video.json's `captions`: the `true`/`false` literal is replaced in the text, or the key is added before `scenes` on a line of its own, so the rest of the file keeps its formatting (`videos::set_captions`) |
@@ -2085,6 +2085,12 @@ The list reads both the video folders and the series outlines. Commands on one v
 | `studio_thumbnail(slug)` | the video's cached thumbnail PNG |
 | `studio_render`, `studio_render_cancel`, `studio_exports` | see "Rendering a video"; they take a slug or a video's folder and refuse any other |
 
+- **List lengths** use `Project::read_timeline_with`: video.json, script.md,
+  the narration manifest and the resolved theme's narration tokens, with no
+  component or asset lookup. Script freshness, silent holds and frame
+  rounding share the renderer's timing rules. The last scene's start plus
+  duration is `seconds`, null when any scene's timing is unavailable; the
+  detail's row derives it from the timeline it already loaded.
 - **The detail's voice** is video.json's `voice.voice`, else Settings ->
   Voice's voice, else null. **Scenes** are `{id, component, start, duration,
   text}`; `text` is the scene's `## id` section of `script.md` (null when it

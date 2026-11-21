@@ -95,7 +95,7 @@ fn the_list_has_titles_threads_and_the_newest_first() {
 }
 
 #[test]
-fn series_parts_have_a_video_once_rendered_and_keep_their_place_after_deletion() {
+fn series_parts_have_a_video_when_the_folder_exists_and_keep_their_place_after_deletion() {
     use crate::studio::series::{self, Outline, Part};
     use crate::studio::videos::{create_in, NewVideo};
     let root = Scratch::new("series-rows");
@@ -127,7 +127,7 @@ fn series_parts_have_a_video_once_rendered_and_keep_their_place_after_deletion()
     let unmade = part();
     assert_eq!(unmade["exists"], true);
     assert_eq!(unmade["made"], false);
-    assert!(unmade["video"].is_null());
+    assert_eq!(unmade["video"], list()["videos"][0]);
     std::fs::write(dir.join("renders/draft.mp4"), b"render").unwrap();
     let made = part();
     assert_eq!(made["made"], true);
@@ -147,6 +147,15 @@ fn series_parts_have_a_video_once_rendered_and_keep_their_place_after_deletion()
     assert!(deleted["video"].is_null());
     scaffold(&videos, slug, "Unrelated");
     assert!(!series::show(&videos, slug).unwrap().parts[0].exists);
+    assert!(part()["video"].is_null());
+    let path = videos.join(slug).join("video.json");
+    let mut other: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    other["series"] = "another-series".into();
+    std::fs::write(path, other.to_string()).unwrap();
+    assert!(part()["video"].is_null());
+    assert_eq!(part()["exists"], false);
+    assert_eq!(part()["made"], false);
 }
 
 #[test]
@@ -383,4 +392,142 @@ fn an_unnarrated_video_gets_a_silent_thumbnail_and_a_failure_says_so() {
     .unwrap();
     let err = thumbnail_in(&videos, &Library::default(), "narrated").unwrap_err();
     assert!(err.starts_with("no thumbnail for `narrated`:"), "{err}");
+}
+
+#[test]
+fn list_lengths_match_detail_without_reading_components_and_reject_stale_narration() {
+    let root = Scratch::new("list-seconds");
+    let videos = root.join("videos");
+    let dir = narrated(&videos);
+    let library = libraries_at(&root.join("library"), &root.join("subjects"), false).unwrap();
+    let theme_path = root.join("library/themes/default.json");
+    let mut theme: serde_json::Value =
+        serde_json::from_str(studio_core::Theme::bundled_text("default").unwrap()).unwrap();
+    theme["narration"]["lead"] = 0.73.into();
+    theme["narration"]["tail"] = 1.17.into();
+    std::fs::write(theme_path, theme.to_string()).unwrap();
+    let length = || {
+        list_in(&videos, None, &HashMap::new())
+            .unwrap()
+            .videos
+            .into_iter()
+            .find(|v| v.slug == "narrated")
+            .unwrap()
+            .seconds
+    };
+    let detail = detail_in(&videos, &library, &HashMap::new(), None, "narrated").unwrap();
+    let last = detail.scenes.last().unwrap();
+    assert_eq!(length(), Some(last.start.unwrap() + last.duration.unwrap()));
+    assert_eq!(length(), detail.row.seconds);
+    std::fs::remove_dir_all(dir.join("components")).unwrap();
+    std::fs::write(dir.join("components"), "not a directory").unwrap();
+    assert_eq!(length(), detail.row.seconds);
+    std::fs::write(dir.join("script.md"), "## intro\n\nChanged words.\n").unwrap();
+    assert_eq!(length(), None);
+    std::fs::remove_file(dir.join("narration/manifest.json")).unwrap();
+    assert_eq!(length(), None);
+    std::fs::write(dir.join("video.json"), "unfinished JSON").unwrap();
+    assert_eq!(length(), None);
+
+    scaffold(&videos, "silent", "Silent");
+    let detail = detail_in(&videos, &library, &HashMap::new(), None, "silent").unwrap();
+    let row = list_in(&videos, None, &HashMap::new())
+        .unwrap()
+        .videos
+        .into_iter()
+        .find(|v| v.slug == "silent")
+        .unwrap();
+    assert!(row.seconds.is_some());
+    assert_eq!(row.seconds, detail.row.seconds);
+}
+
+#[test]
+fn a_series_uses_the_first_live_link_and_the_newest_outline_or_part_time() {
+    use crate::studio::series::{self, Outline, Part};
+    use crate::studio::videos::{create_in, NewVideo};
+    let root = Scratch::new("series-link-time");
+    let videos = root.join("videos");
+    series::create(
+        &videos,
+        "motion",
+        &Outline {
+            title: "Motion".into(),
+            subject: None,
+            theme: "default".into(),
+            parts: ["position", "speed", "force"]
+                .into_iter()
+                .map(|slug| Part {
+                    slug: slug.into(),
+                    title: slug.into(),
+                    question: "Why?".into(),
+                })
+                .collect(),
+        },
+    )
+    .unwrap();
+    for slug in ["position", "speed", "force"] {
+        create_in(
+            &videos,
+            &NewVideo::from_part(&videos, "motion", slug).unwrap(),
+        )
+        .unwrap();
+    }
+    let mut links = HashMap::from([
+        (
+            "position".into(),
+            StudioLink {
+                slug: "position".into(),
+                thread_id: None,
+                length_secs: None,
+            },
+        ),
+        (
+            "speed".into(),
+            StudioLink {
+                slug: "speed".into(),
+                thread_id: Some(7),
+                length_secs: None,
+            },
+        ),
+        (
+            "force".into(),
+            StudioLink {
+                slug: "force".into(),
+                thread_id: Some(8),
+                length_secs: None,
+            },
+        ),
+    ]);
+    let list = list_in(&videos, None, &links).unwrap();
+    let series = &list.series[0];
+    assert_eq!(series.thread_id, Some(7));
+    let own = root.join("series/motion/series.json");
+    let newest = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+    std::fs::File::options()
+        .write(true)
+        .open(&own)
+        .unwrap()
+        .set_modified(newest)
+        .unwrap();
+    let stamp = newest
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert_eq!(
+        list_in(&videos, None, &links).unwrap().series[0].modified,
+        Some(stamp)
+    );
+    std::fs::File::options()
+        .write(true)
+        .open(videos.join("force/video.json"))
+        .unwrap()
+        .set_modified(newest + std::time::Duration::from_secs(60))
+        .unwrap();
+    let json = serde_json::to_value(list_in(&videos, None, &links).unwrap()).unwrap();
+    assert_eq!(json["series"][0]["modified"], stamp + 60);
+    assert_eq!(json["series"][0]["threadId"], 7);
+    links.remove("speed");
+    links.remove("force");
+    let json = serde_json::to_value(list_in(&videos, None, &links).unwrap()).unwrap();
+    assert!(json["series"][0]["threadId"].is_null());
 }

@@ -5,7 +5,7 @@ import type { RenderPreset } from "@/lib/studio/render";
 // Studio's videos under `<data>/studio/videos/<slug>/`
 // (`app/src-tauri/src/studio/commands/videos/`). A slug is `[a-z0-9-]+`.
 
-/** Mirrors `videos::VideoRow` plus the thread link. */
+/** Mirrors the app command's `VideoView`. */
 export interface VideoRow {
   slug: string;
   /** Absolute folder. */
@@ -28,6 +28,8 @@ export interface VideoRow {
   problem: string | null;
   /** The harness thread that made it, if any. */
   threadId: number | null;
+  /** Length once every scene has valid timing, including silent holds. */
+  seconds: number | null;
 }
 
 export interface SeriesPart {
@@ -37,7 +39,7 @@ export interface SeriesPart {
   number: number;
   exists: boolean;
   made: boolean;
-  /** Populated once the part has a render. */
+  /** Populated when the folder exists and its video names this series. */
   video: VideoRow | null;
 }
 
@@ -47,6 +49,10 @@ export interface StudioSeries {
   subject: string | null;
   theme: string;
   parts: SeriesPart[];
+  /** First linked thread in outline order, skipping deleted threads. */
+  threadId: number | null;
+  /** Newest outline or matching part modification, in epoch seconds. */
+  modified: number | null;
 }
 
 export interface VideoList {
@@ -64,7 +70,7 @@ export function listVideos(subject?: string | null): Promise<VideoRow[]> {
 }
 
 /** One scene of a video, in order. Times are seconds and null until the
- *  video is narrated. */
+ *  whole video has valid timing (holds or current narration). */
 export interface SceneInfo {
   id: string | null;
   component: string;
