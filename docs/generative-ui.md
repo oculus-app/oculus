@@ -17,7 +17,8 @@ script, no external styles and no iframe.
 | Inert sanitiser and allow-list | `app/src/components/markdown/genui/sanitize.ts`, `app/src/components/markdown/genui/allow.ts` |
 | In-place DOM morph | `app/src/components/markdown/genui/morph.ts` |
 | Inline and display `$…$` maths | `app/src/components/markdown/genui/maths.ts` |
-| Closing-fence detection | `app/src/components/markdown/genui/remarkUi.ts` |
+| Closing-fence detection and reply index | `app/src/components/markdown/genui/remarkUi.ts` |
+| Interactive runtime and control styles | `app/src/components/markdown/genui/runtime.ts`, `app/src/components/markdown/genui/controls.css`, `app/src/stores/chat/widgetStore.ts` |
 | Vocabulary stylesheet | `app/src/components/markdown/genui/genui.css` |
 | Markdown routing and folded-reply pointer | `app/src/components/markdown/MdComponents.tsx` (`pre`, `widget-pointer`) |
 | Streamed row promotion, folding and find | `app/src/components/harness/timeline/Timeline.tsx`, `app/src/components/harness/timeline/rows.ts`, `app/src/components/harness/timeline/Messages.tsx`, `app/src/components/markdown/openui/remarkWidgets.ts` |
@@ -92,6 +93,51 @@ nothing.
   (`RUNTIME`: `data-on`, `data-off`, `aria-checked`, `aria-valuenow`,
   `aria-valuetext`, `tabindex`, `role`, `hidden`) are stripped from agent
   markup and never overwritten by `morph`.
+
+## Three attributes drive state without agent script
+
+`GenUIFence` attaches one `BlockRuntime` (`app/src/components/markdown/genui/runtime.ts`)
+to the block's root element with a single delegated listener set and calls
+`apply()` after every `morph` pass. State lives in the runtime's map rather than
+the DOM, so later streamed deltas and the reply commit keep active picks and
+pointer-captured drags intact.
+
+- **Choice (`data-choice`, `data-value`, `data-option`).** A group carries
+  `data-choice="<name>"` (and optional default `data-value`) around
+  `data-option="<val>"` items. The runtime marks the group `role="radiogroup"`
+  and each option `role="radio"`, `aria-checked`, `data-on` and roving
+  `tabindex` (`0` on the active option, `-1` on siblings). Clicks, `Enter`,
+  `Space`, arrow keys, `Home` and `End` change the pick; arrow keys move focus
+  only when focus is already inside the block so a hidden pane never steals the
+  keyboard.
+- **Show-when (`data-show`).** `data-show="f=balanced s=2|3"` keeps an element
+  visible only while every named choice holds one of the pipe-separated values
+  and sets `data-off` (`display: none !important` in `controls.css`) otherwise.
+  An unknown choice name or empty condition hides the element silently without
+  logging.
+- **Discrete scrub (`data-scrub`, `data-options`, `data-edges`).** Maps
+  horizontal pointer drags (using pointer capture, never HTML drag and drop)
+  and keyboard steps (`ArrowLeft`/`ArrowRight`/`ArrowUp`/`ArrowDown`, `Home`,
+  `End`) across percent breakpoints (`data-edges`, or equal divisions when
+  omitted) to the values in `data-options`, writing `role="slider"`,
+  `aria-valuemin`, `aria-valuemax`, `aria-valuenow` and `aria-valuetext`.
+  Pointer position is measured as a fraction of the element's box width so page
+  zoom does not skew hit regions.
+
+While a fence is still open (`!closed`), `BlockRuntime` sets `inert` on every
+choice group, option and scrub, ignores input events and shows the declared
+default state (first `data-value`, else first `data-option` or `data-options`
+entry). Once the fence closes, `inert` clears and controls go live. Control
+styles live in `app/src/components/markdown/genui/controls.css` on semantic
+tokens only and disable transitions under `prefers-reduced-motion: reduce`.
+
+Committed picks persist in `app/src/stores/chat/widgetStore.ts` under
+`genuiKey(thread, row, blockIndex)` (`${thread}:${row}:ui:${block}`), where
+`blockIndex` is assigned in syntax order by `remarkUi` (`data-ui-index`) without
+touching `remarkWidgets`'s counter. Changed block source starts fresh via
+`entryState`, picks made after a fence closes but before commit flush when
+`WidgetRow` arrives, and `widgetStore.prune` clears saved picks on thread delete
+and rewind alongside cards and widgets.
 
 ## Maths and tables follow the reply's rules
 

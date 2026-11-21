@@ -2,10 +2,11 @@ import type { Root } from "mdast";
 import type { VFile } from "vfile";
 import { visit } from "unist-util-visit";
 
-/** Marks each ```ui fence with whether its closing fence has arrived, read
- *  from the source as `remarkWidgets` does for widget fences. */
+/** Marks each ```ui fence with its reply-local index and whether its closing
+ *  fence has arrived, without advancing `remarkWidgets`'s widget counter. */
 export function remarkUi() {
   return (tree: Root, file: VFile) => {
+    let index = 0;
     visit(tree, "code", (node) => {
       if (node.lang !== "ui") return;
       const raw = String(file.value).slice(node.position?.start.offset, node.position?.end.offset);
@@ -15,7 +16,11 @@ export function remarkUi() {
       const closed =
         lines.length > 1 && !!opening && !!closing && opening[0] === closing[0] && closing.length >= opening.length;
       node.data ??= {};
-      node.data.hProperties = { ...node.data.hProperties, "data-fence-closed": closed };
+      node.data.hProperties = {
+        ...node.data.hProperties,
+        "data-ui-index": index++,
+        "data-fence-closed": closed,
+      };
     });
   };
 }

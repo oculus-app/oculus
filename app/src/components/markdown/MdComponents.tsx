@@ -244,7 +244,8 @@ export const MD_COMPONENTS: Components = {
     // A ```ui fence is generative UI: sanitised markup drawn in place (`genui/`).
     if (isFence(el, UI_LANG)) {
       const closed = (el.props as Record<string, unknown>)["data-fence-closed"] === true;
-      return <GenUIFence source={fenceSource(children, UI_LANG) ?? ""} closed={closed} />;
+      const uiIndex = isValidElement(el) ? Number((el.props as Record<string, unknown>)["data-ui-index"] ?? 0) : 0;
+      return <GenUIFence source={fenceSource(children, UI_LANG) ?? ""} closed={closed} blockIndex={uiIndex} />;
     }
     return block;
   },

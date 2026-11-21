@@ -11,6 +11,10 @@ type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 
 export const widgetKey = (thread: number, row: number, block: number) => `${thread}:${row}:${block}`;
 
+/** Key for a ```ui fence's persisted picks; shares the `thread:row:` prefix so
+ *  `prune` removes it on thread delete and rewind without colliding with `widgetKey`. */
+export const genuiKey = (thread: number, row: number, block: number) => `${thread}:${row}:ui:${block}`;
+
 /** A saved widget on the Artifacts page. Chat keys start with a thread
  *  number and this can't, so `prune` never reaches it. */
 export const artifactWidgetKey = (id: number) => `artifact:${id}`;

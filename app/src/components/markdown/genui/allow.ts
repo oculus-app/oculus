@@ -26,7 +26,8 @@ export const DROP = new Set([
 /** Attributes the host writes at runtime; agent copies are dropped and the
  *  morph never resets them. */
 export const RUNTIME = new Set([
-  "data-on", "data-off", "aria-checked", "aria-valuenow", "aria-valuetext", "tabindex", "role", "hidden",
+  "data-on", "data-off", "aria-checked", "aria-valuemin", "aria-valuemax", "aria-valuenow", "aria-valuetext",
+  "tabindex", "role", "hidden", "inert",
 ]);
 
 /** Data attributes reserved for interactive behaviours and chart hosts. */
