@@ -1,0 +1,77 @@
+/* Interactive controls for ```ui fences: choice groups, show-when panes and
+ * discrete figure scrubs. Scoped under `.genui` on semantic tokens only. */
+.genui [data-show][data-off] {
+  display: none !important;
+}
+
+.genui .g-ctl {
+  margin-bottom: 10px;
+}
+
+.genui [data-option] {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.genui .g-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.genui .g-seg [data-option] {
+  font: inherit;
+  border: 0;
+  background: transparent;
+  padding: 3px 12px;
+  border-radius: 999px;
+  color: var(--color-muted-foreground);
+  transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.genui .g-seg [data-option]:not([data-on]):not([inert]):hover {
+  color: var(--color-foreground);
+}
+
+.genui .g-seg [data-option][data-on] {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  box-shadow: 0 0 0 1px var(--color-border);
+}
+
+.genui [data-option]:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 1px;
+}
+
+.genui [data-scrub] {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: ew-resize;
+  border-radius: 8px;
+}
+
+.genui [data-scrub]:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+.genui [data-choice][inert],
+.genui [data-option][inert],
+.genui [data-scrub][inert] {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .genui [data-option],
+  .genui [data-scrub],
+  .genui [data-show] {
+    transition: none !important;
+    animation: none !important;
+  }
+}

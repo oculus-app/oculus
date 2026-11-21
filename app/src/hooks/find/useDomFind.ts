@@ -32,7 +32,7 @@ function shared(name: string, priority = 0): Highlight | null {
 const MAX_MATCHES = 5000;
 const RESEARCH_MS = 150;
 const SKIP =
-  "script, style, noscript, template, textarea, input, select, [data-find-skip], .sr-only, .katex-mathml";
+  "script, style, noscript, template, textarea, input, select, [data-find-skip], [data-show][data-off], .sr-only, .katex-mathml";
 
 function findRoot(root: HTMLElement): HTMLElement {
   return root.querySelector<HTMLElement>("[data-dom-find-content]") ?? root;
@@ -350,7 +350,7 @@ export function useDomFind(rootRef: RefObject<HTMLElement | null>): DomFind {
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["open", "hidden"],
+      attributeFilter: ["open", "hidden", "data-off"],
     });
     return () => {
       observer.disconnect();

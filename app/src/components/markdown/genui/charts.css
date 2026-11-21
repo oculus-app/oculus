@@ -1,0 +1,38 @@
+/* Chart hosts inside ```ui blocks: reserve height in rem from the moment a
+ * supported opening tag enters the DOM, and revert genui.css's unlayered svg
+ * and table rules inside charts so the shared chart components' utilities apply. */
+.genui [data-chart] {
+  display: flow-root;
+  margin: 12px 0;
+}
+.genui [data-chart="bar"]:empty,
+.genui [data-chart="line"]:empty,
+.genui [data-chart="scatter"]:empty {
+  min-height: 15.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-card);
+}
+.genui [data-chart="donut"]:empty {
+  min-height: 13.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-card);
+}
+.genui [data-chart="line"][data-x-label]:empty,
+.genui [data-chart="scatter"][data-x-label]:empty {
+  min-height: 17.25rem;
+}
+.genui [data-chart="line"][data-series*=";"][data-x-label]:empty,
+.genui [data-chart="scatter"][data-series*=";"][data-x-label]:empty {
+  min-height: 19.4rem;
+}
+.genui [data-chart] > section {
+  margin: 0;
+}
+.genui [data-chart] svg {
+  height: revert-layer;
+}
+.genui [data-chart] table.sr-only {
+  width: revert-layer;
+}

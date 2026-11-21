@@ -73,10 +73,39 @@ describe("explain kit", () => {
     expect(allowedPlan({ steps: [{ type: "set" }, { type: "run" }, { type: "continue_conversation" }] })?.steps).toHaveLength(3);
     for (const type of ["open_url", "reset", "custom"]) expect(allowedPlan({ steps: [{ type: "set" }, { type }] })).toBeUndefined();
   });
-  test("the prompt teaches only the supported action path and explains inline", async () => {
+  test("stored reply combining Panel, Stat, Histogram and every other untaught component validates and renders", () => {
+    const combined = `root = Stack([panel, cols, list, table, badge, progress, tabs, callout, bar, line, scatter, donut, dist, legacy])
+panel = Panel("Wait summary", [Stat("Mean wait", 1.03, "min", "400 trials"), Histogram("Spread", [0.2, 0.5, 0.8, 1.1, 1.4, 2.0], 5, "Wait (min)", true)])
+cols = Columns([Panel("A", [Text("Left")]), Panel("B", [Text("Right")])])
+list = List(["First", "Second"], true)
+table = Table(["Col", "Val"], [["A", 1]])
+badge = Badge("Ready", "success")
+progress = Progress("Done", 3, 5)
+tabs = Tabs([Tab("One", [Text("Tab one")])])
+callout = Callout("Remember units.", "tip", "Note")
+bar = Bar("Hours", ["Mon", "Tue"], [2, 3], "Time (h)", "h")
+line = Line("Trend", [Series("S1", [{x:0,y:1},{x:1,y:2}])], "x", "y")
+scatter = Scatter("Pairs", [{x:1,y:2},{x:2,y:4}], "x", "y", true)
+donut = Donut("Mix", ["A", "B"], [3, 1], null, "h")
+dist = Distribution("Density", [{x:0,y:0},{x:1,y:1},{x:2,y:0}], [{from:0.5,to:1.5}], "x", true)
+legacy = Chart([{x:0,y:1},{x:1,y:3}], "x", "y", "bar")`;
+    const verdict = parseProgram(combined);
+    if (!verdict.ok) throw new Error(verdict.errors.join("; "));
+    const html = render(combined);
+    expect(html).toContain("Wait summary");
+    expect(html).toContain("Mean wait");
+    expect(html).toContain("Spread");
+    expect(html).toContain("Remember units.");
+    expect(html).toContain("<table");
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("Couldn't draw");
+  });
+  test("the prompt teaches only the supported action path, scopes charts to computed Explorers, and points fixed charts to ui", async () => {
     const { generateOculusUiPrompt } = await import("@/components/markdown/openui/prompt");
     const prompt = generateOculusUiPrompt();
-    expect(prompt).toContain("each right after the sentence it illustrates");
+    expect(prompt).toContain("belongs in a `ui` fence");
+    expect(prompt).toContain("belong only inside an Explorer to plot values computed from its $variables");
+    expect(prompt).toContain("`data-chart` in a `ui` fence, never `openui`");
     expect(prompt).toContain("@Run(query)");
     expect(prompt).not.toContain('Button("View", @OpenUrl');
     expect(prompt).not.toContain("Chart(points:");

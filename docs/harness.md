@@ -43,6 +43,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Local OpenUI Query tools and event refresh | `app/src/components/markdown/openui/query/` |
 | Seeded simulation and maths functions | `app/src/components/markdown/openui/functions/` |
 | Interactive reply fences, study widgets and their persisted progress | `app/src/components/markdown/openui/`, `app/src/stores/chat/widgetStore.ts` |
+| Generative UI (` ```ui ` fences: repair, sanitise, morph, maths, vocabulary CSS) | `app/src/components/markdown/genui/` |
 | Model picker and its catalogue hook | `app/src/components/harness/composer/ModelPicker.tsx`, `app/src/components/harness/composer/model/` (the menu, its rows, `modelSummary`), `app/src/hooks/agents/useProviderModels.ts` |
 | Settings → opencode: the provider and model tables, the connect flow, the offered-model gate | `app/src/pages/settings/integrations/OpencodePage.tsx`, `app/src/components/settings/agents/opencode/`, `app/src/components/settings/agents/OpencodeConnectDialog.tsx`, `app/src/lib/harness/opencodeCatalogue.ts` |
 | Per-job models | `app/src-tauri/src/harness/jobs.rs`, `JOBS` in `app/src/lib/db/jobModels.ts`, `app/src/components/settings/jobs/`, `app/src/hooks/agents/useJobAudit.ts` |
@@ -108,8 +109,9 @@ Completed frames' `narration_block_indexes` identify narration, with a
 defensive signature-kind fallback when that metadata is absent: narration is
 assistant text in block order, ordinary thinking is reasoning, and empty
 narration is a `DeliveryGap` (see [Each send is a run](#each-send-is-a-run)), never text. Summaries do not guarantee verbatim prose or rendered
-fences, so `HARNESS.template.md`'s Output section says a card belongs in text
-written after the last tool call; it prescribes no other ordering.
+fences, so `HARNESS.template.md`'s Output section says a `ui` block, card or
+widget belongs in text written after the last tool call; it prescribes no other
+ordering.
 Tool-less one-off jobs (including thread naming and lecture-end) retain their
 display policy: no thinking flags or summary setting, with
 `CLAUDE_CODE_THINKING_DISPLAY_UPDATES=0`.
@@ -322,11 +324,12 @@ its [Project instructions setting](https://code.claude.com/docs/en/memory#agents
 with `CLAUDE.md` taking precedence in the default fallback mode. The explicit
 read instruction also covers sessions without native loading.
 
-`HARNESS.template.md` holds only app context, sandbox rules and output:
-rendered fence placement, maths, citations, attachments and visual selection.
-Skills hold domain workflows and syntax: `oculus-ui` owns OpenUI signatures,
-`oculus-plan` owns planning and amendments, `oculus-revision` owns study
-content and filing, and `oculus-widgets` owns TSX widgets and validation.
+`HARNESS.template.md` holds app context, sandbox rules and output: rendered
+fence placement, maths, citations, attachments, visual selection and the
+` ```ui ` fence grammar (inline so the agent needs no skill read before writing
+a block). Skills hold domain workflows and syntax: `oculus-ui` owns OpenUI
+signatures, `oculus-plan` owns planning and amendments, `oculus-revision` owns
+study content and filing, and `oculus-widgets` owns TSX widgets and validation.
 `TASTE.template.md` owns standing preference promotion. A skill references
 these owners rather than restating their rules. The generated subject section
 in `manager/instructions.rs` supplies only the subject and its guidance path.
@@ -458,14 +461,18 @@ thread, so each Chat tab and the lecture dock hold their own. Retry links retain
 their original question row object, and work bundles compare their constituent
 row identities; appending a row leaves earlier rows memoised. `LiveTail` reads
 only running, thinking and assistant text, so tool output updates its tool row.
-A reply streaming a ` ```widget ` fence is the one exception: `Timeline` draws
+A reply streaming a ` ```widget ` or ` ```ui ` fence is the one exception: `Timeline` draws
 its text as the row it will become, a `Reply` with `stream` under the key the
-committed answer takes (`replyKey`, `streamingReply` in `rows.ts`), and that
+committed answer takes (`replyKey`, `streamingReply` in `rows.ts`) and with
+the committed item row's two-child shape (`[null, Item]` to match
+`[RunDividerRow, Item]`, so React keeps the subtree instead of remounting it on
+commit), and that
 row reads the text per delta in place of `LiveTail`, which keeps the reasoning
 and "Working for 8s". The commit swaps the row's item in the same render, so the
-widget's frame survives it
-([widgets.md](./widgets.md#a-widget-draws-while-it-streams)). `Timeline`
-subscribes only to whether the text holds a widget fence, which flips once a
+widget's frame or the `ui` block's DOM nodes survive it
+([widgets.md](./widgets.md#a-widget-draws-while-it-streams),
+[generative-ui.md](./generative-ui.md#a-ui-fence-draws-while-it-streams-and-survives-commit)). `Timeline`
+subscribes only to whether the text holds a `widget` or `ui` fence, which flips once a
 reply.
 When the turn is running with neither text nor reasoning, `LiveTail` in
 `app/src/components/harness/timeline/Pending.tsx` shows a steady muted
@@ -591,9 +598,9 @@ still update the picker.
   stops at 100,000 CSS px (about 178 screens at 560 px), a last stop for
   nonlinear runaway layout; an isolated long report below that gets its full
   height. Expand keeps the page's normal full-window layout and scrolling;
-  Open externally opens the original file. The brief asks for one screen of
-  content, no viewport sizing, and several pictures or a widget on `Pages`
-  for longer material.
+  Open externally opens the original file. The brief asks for a short page,
+  no viewport sizing, and several pictures or a widget for long or interactive
+  material.
 - **Codex web search** completes with no `status` — absent means it ran — and
   `ToolFinished`'s optional `title` fills in the query `item/started` lacked.
 - **Copy/drag out is markdown** (`lib/markdown/selection.ts`).
@@ -633,9 +640,12 @@ animation frame without re-keying `Renderer`, so its store survives the
 stream. `remarkWidgets` records whether the closing fence has arrived;
 `isStreaming` stays true until both the fence closes and its reply commits.
 
-The library in `app/src/components/markdown/openui/library.ts` admits
-Flashcards, Quiz, reveal Questions, Steps, Explorer, the explain chart and
-layout kits, PageRef and Ask, with Stack and Text for composition.
+The library in `app/src/components/markdown/openui/library.ts` registers
+proposals and jobs, live student-data components, Flashcards, Quiz, reveal
+Questions, Steps, Explorer (with Slider, Toggle, Select, Input, Button, Value
+and computed charts: Line, Bar, Histogram, Scatter with Series, Distribution),
+PageRef and Ask, with Stack and Text for composition, alongside layout
+components, Donut and legacy Chart for stored replies.
 `streamVerdict` tolerates incomplete
 props and unresolved references; components show More coming rows as their
 children arrive. Runtime errors are held while streaming. Once streaming
@@ -670,44 +680,48 @@ does not persist progress. Both kinds offer Save to Revision after streaming end
 `Timeline` supplies `AssistantSend` from its follow-up action, so an Ask
 button's `@ToAssistant` uses the same thread in Chat, Studio and the lecture
 dock. Ask is hidden while running and outside a conversation. `PageRef` uses
-the ordinary citation chips and file-opening path. The agent learns the fence
-grammar from `app/src-tauri/templates/skills/oculus-ui/SKILL.md`, registered in
+the ordinary citation chips and file-opening path. The agent learns the OpenUI fence grammar from
+`app/src-tauri/templates/skills/oculus-ui/SKILL.md`, registered in
 `app/src-tauri/src/agents/docs.rs` and named in the harness brief, whose
-"Showing a picture or a page" sends recall, the student's data and changes
-and inline explanations to ` ```openui `, a picture with its own rules to ` ```widget `
-(the `oculus-widgets` skill) and a static picture or page to `outputs/`. Widget primitives follow the
+"Showing a picture or a page" keeps prose as the default and routes shapes,
+comparisons, charts, discrete step-through states and derivations to ` ```ui `
+(taught inline in the brief, [generative-ui.md](./generative-ui.md#the-agent-brief-teaches-the-grammar-directly)),
+3D, simulations and typed-input programs to ` ```widget ` (the `oculus-widgets`
+skill), formula sliders, quizzes, flashcards, live student data and proposals
+to ` ```openui `, and saved pictures or standalone pages to `outputs/`. Widget primitives follow the
 [UI tokens](./ui.md#study-widgets-use-the-replys-primitives-and-semantic-tokens).
 
-## The explain kit fits between paragraphs
+## The card grammar teaches cards, recall, explorers and live reads
 
-The agent writes several small OpenUI fences, each immediately after the
-sentence it illustrates: prose, a population histogram, prose, a slider that
-resamples means, then a standalone Question reveal. Each program writes root
-first, variables next, then children in reading order and leaf data last.
-`prompt.ts` in `app/src/components/markdown/openui/` owns this guidance and
-`bun run docs:widgets` regenerates the shared `oculus-ui` skill from it.
+`prompt.ts` in `app/src/components/markdown/openui/` generates the shared
+`oculus-ui` skill (`bun run docs:widgets`). It teaches proposals and jobs,
+`Query` and live components, `Flashcards`, `Quiz`, standalone reveal
+`Question`s, `Steps`, and `Explorer` with bound controls (`Slider`, `Toggle`,
+`Select`, `Input`, `Button`), `Value`, computed charts (`Line`, `Bar`,
+`Histogram`, `Scatter`/`Series`, `Distribution`) and seeded functions. Charts in
+`oculus-ui` are taught only as children of `Explorer` plotting values computed
+from `$variables` or seeded functions; fixed-data charts use `[data-chart]` in a
+` ```ui ` fence ([generative-ui.md](./generative-ui.md)). Each program writes
+`root` first, `$variables` next, then children in reading order and leaf data
+last.
 
-`app/src/components/markdown/openui/components/charts/` draws Bar, Histogram, multi-series Line (with an
-optional area fill), Scatter, Donut (a ring), and Distribution with shaded
-ranges and an optional mean. Charts accept numbers or `{x,y}` points;
-named Series compare up to five lines or point sets. Histogram accepts raw
-values or `@Bins` output. Axis labels carry units; one series has no legend. Horizontal category
-bars and ring labels include values; other plots provide hover readouts. Density ranges merge before their
-area is calculated. SVG marks use chart tokens, starting with indigo, and
-enter only during streaming, respecting reduced motion. Accessible tables
-carry the plotted data. `Chart(points, xLabel, yLabel, kind)` remains registered
-for stored fences; new prompts teach the family.
-
-`app/src/components/markdown/openui/components/layout/` uses the reply's primitives: Panel, Columns, List, Table,
-Stat, Badge, Progress, Tabs/Tab, Callout, Button, Toggle, Select and Input.
-Panel supplies the titled card because Card names a flashcard. Consecutive
-stats and pills share rows, avoiding a separate Row signature. Columns wrap
-through CSS grid without measuring the viewport; tables scroll horizontally.
 Bound controls use literal `$variable` defaults and preserve runtime state;
-Input also reflects programmatic changes. Button allows only `@ToAssistant`,
-`@Set` and `@Run` (or chains of them), and controls are disabled while streaming.
-Unresolved content uses the shared shimmer states in `Streaming.tsx`.
-Live components keep their existing reads and compact entity-specific views.
+`Input` also reflects programmatic changes. `Button` allows only
+`@ToAssistant`, `@Set` and `@Run` (or chains of them), and controls are disabled
+while streaming. Unresolved content uses the shared shimmer states in
+`Streaming.tsx`. Live components keep their compact entity-specific views.
+
+Layout components (`Panel`, `Columns`, `List`, `Table`, `Stat`, `Badge`,
+`Progress`, `Tabs`/`Tab`, `Callout` in
+`app/src/components/markdown/openui/components/layout/`), `Donut`
+(`app/src/components/markdown/openui/components/charts/Donut.tsx`) and legacy
+`Chart` (`app/src/components/markdown/openui/components/Chart.tsx`) stay
+registered in `library.ts` so stored fences validate and draw, and are filtered
+out of `oculus-ui` by `prompt.ts` because inline explanation and fixed-data
+charts use ` ```ui ` fences ([generative-ui.md](./generative-ui.md)). The chart
+components in `app/src/components/markdown/openui/components/charts/` draw SVG
+marks on semantic chart tokens (starting with indigo, with hover readouts and
+accessible data tables) and are shared with `ui` blocks' `[data-chart]` hosts.
 
 ## OpenUI queries read local rows and refresh after edits
 
@@ -755,7 +769,7 @@ distribution. Defaults are normal `{mean:0, sd:1}`, binomial
 Omitted seed is 0. Samples and means return at most 400 values; Means refuses
 more than 200,000 draws, including underlying Bernoulli draws for binomial.
 `@Bins(values, count)` returns at most 400 `{x:centre, y:count}` points for
-Chart bars, including the upper edge. Empty bins input returns an empty
+`Histogram` bars, including the upper edge. Empty bins input returns an empty
 array; constant input uses a unit-wide domain. `@Mean` and population
 `@StdDev` take 1–400 values. Invalid inputs return null. Fixed seeds make a
 slider change the sample size reproducibly, without consuming ambient
@@ -1851,14 +1865,14 @@ rule under it; the fold's rows sit flush beneath it as one list. Inside an open 
 rows in a row fold into one bundle, drawn at full strength (a bundle outside
 a fold fades until hovered).
 
-**Widget fences never fold.** A folded reply that may hold an `openui` or
-`widget` fence (`mayHoldWidget`, a superset test, so uncertainty shows rather
+**Widget and `ui` fences never fold.** A folded reply that may hold an `openui`,
+`widget` or `ui` fence (`mayHoldWidget`, a superset test, so uncertainty shows rather
 than hides) gets an `ArtifactRow` after the fold: the same reply through the
 same markdown pipeline with `remarkFenceSplit("artifacts")` after
-`remarkWidgets`, which keeps only the numbered fences. Inside the fold the
+`remarkWidgets` and `remarkUi`, which keeps only those fences. Inside the fold the
 reply renders with `remarkFenceSplit("prose")`, each fence replaced by
-"Card shown below" / "Widget shown below". Both parse the whole reply, so a
-fence keeps its original index and `WidgetRow` keeps the originating row:
+"Card shown below" / "Widget shown below" / "Visual shown below". Both parse the whole reply, so `openui` and `widget`
+fences keep their original index and `WidgetRow` keeps the originating row:
 `widgetKey`, the proposal id (`row.block`) and Undo are those the unfolded
 reply had, and the card mounts once whether the fold is open or not. Nothing
 is reserialised or evaluated to split; an invalid fence falls back to its

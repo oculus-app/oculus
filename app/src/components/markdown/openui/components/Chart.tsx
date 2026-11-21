@@ -2,6 +2,7 @@ import { defineComponent } from "@openuidev/react-lang";
 import { z } from "zod/v4";
 import { BinChart } from "./charts/Histogram";
 import { LineChart } from "./charts/Line";
+import { OpenUIChart } from "./charts/OpenUIChart";
 import { binsFromPoints, points } from "./charts/data";
 import { point } from "./charts/Series";
 
@@ -21,7 +22,7 @@ export const Chart = defineComponent({
   }),
   component: function ChartView({ props }) {
     const data = points(props.points);
-    if (props.kind === "bar") return <BinChart bins={binsFromPoints(data)} xLabel={props.xLabel} yLabel={props.yLabel} />;
-    return <LineChart series={[{ label: typeof props.yLabel === "string" ? props.yLabel : "y", points: data }]} xLabel={props.xLabel} yLabel={props.yLabel} />;
+    if (props.kind === "bar") return <OpenUIChart><BinChart bins={binsFromPoints(data)} xLabel={props.xLabel} yLabel={props.yLabel} /></OpenUIChart>;
+    return <OpenUIChart><LineChart series={[{ label: typeof props.yLabel === "string" ? props.yLabel : "y", points: data }]} xLabel={props.xLabel} yLabel={props.yLabel} /></OpenUIChart>;
   },
 });

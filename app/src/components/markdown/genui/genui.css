@@ -1,0 +1,257 @@
+/* The vocabulary a ```ui fence's markup may use (`allow.ts` lists the class
+ * names), on the app's semantic tokens so blocks follow light, dark and every
+ * theme. Scoped under `.genui`; layout and paint containment keep markup inside
+ * the block while the 4px padding/margin gutter keeps focus rings unclipped. */
+.genui {
+  contain: layout paint;
+  margin: -4px;
+  padding: 4px;
+  min-width: 0;
+  color: var(--color-foreground);
+}
+.genui[data-empty] {
+  display: none;
+}
+
+/* Layout, stat rows and result cards. */
+.genui .g {
+  margin: 12px 0;
+}
+.genui .g.box {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.genui .g-cap {
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  margin-top: 8px;
+}
+.genui .g-label {
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  margin: 10px 0 5px;
+}
+.genui .g-label:first-child {
+  margin-top: 0;
+}
+.genui .g-row {
+  display: flex;
+  gap: 10px;
+}
+.genui .g-row > * {
+  flex: 1;
+  min-width: 0;
+}
+.genui .g-stat {
+  background: var(--color-surface);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.genui .g-stat small {
+  display: block;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+}
+.genui .g-stat b {
+  display: block;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.genui .g-out {
+  background: var(--color-surface);
+  border-radius: 10px;
+  padding: 14px 10px 12px;
+  text-align: center;
+}
+.genui .g-out .bits {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 8px 0;
+}
+.genui .g-out .bits i {
+  font-style: normal;
+  width: 34px;
+  height: 44px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--color-ink-50);
+  font-size: 20px;
+  font-weight: 600;
+  background: var(--color-success);
+}
+.genui .g-out.alt .bits i {
+  color: var(--color-brand-foreground);
+  background: var(--color-brand);
+}
+.genui .g-out small {
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+}
+
+/* Inline SVG and circuit figures. */
+.genui svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.genui .cir {
+  width: 100%;
+}
+.genui .cir .w {
+  stroke: var(--color-muted-foreground);
+  stroke-width: 1.5;
+}
+.genui .cir .gate {
+  fill: var(--color-surface);
+  stroke: var(--color-ink-500);
+  stroke-width: 1.2;
+}
+.genui .cir .orc {
+  fill: var(--color-brand-muted);
+  stroke: var(--color-brand);
+  stroke-width: 1.5;
+}
+.genui .cir .mes {
+  fill: var(--color-tag-green-soft);
+  stroke: var(--color-success);
+  stroke-width: 1.2;
+}
+.genui .cir .mes-i {
+  fill: none;
+  stroke: var(--color-success);
+  stroke-width: 1.5;
+}
+.genui .cir text {
+  font: 500 13px var(--font-sans);
+  fill: var(--color-foreground);
+}
+.genui .cir .st {
+  font-size: 11.5px;
+  fill: var(--color-muted-foreground);
+  font-weight: 400;
+}
+.genui .cir .brand {
+  fill: var(--color-brand);
+}
+.genui .cir .ph line {
+  stroke: var(--color-brand);
+  stroke-width: 2;
+}
+.genui .cir .ph rect,
+.genui .cir .ph circle {
+  fill: var(--color-brand);
+}
+
+/* Amplitude bars. */
+.genui .amps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+.genui .amp {
+  text-align: center;
+}
+.genui .trk {
+  height: 96px;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface);
+  border-radius: 8px;
+}
+.genui .trk::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  border-top: 1px solid var(--color-border);
+}
+.genui .trk b {
+  position: absolute;
+  left: 24%;
+  right: 24%;
+  border-radius: 3px;
+  height: calc(var(--v, 0) * 44px);
+}
+.genui .trk b.pos {
+  bottom: 50%;
+  background: var(--color-brand);
+}
+.genui .trk b.neg {
+  top: 50%;
+  background: var(--color-chart-3);
+}
+.genui .amp span {
+  display: block;
+  margin-top: 5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.genui .amp em {
+  display: block;
+  font-style: normal;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.genui .read {
+  margin: 10px 0 0;
+}
+
+/* Tables and inline code (horizontal scroll only for wide tables). */
+.genui .g-table {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 12px 0;
+}
+.genui .g .g-table {
+  margin: 8px 0 0;
+}
+.genui table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.genui th {
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  background: var(--color-surface-raised);
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-foreground);
+}
+.genui td {
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  color: var(--color-foreground);
+}
+.genui code,
+.genui kbd {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--color-surface-raised);
+}
+
+/* Semantic tones and display maths. */
+.genui .muted { color: var(--color-muted-foreground); }
+.genui .brand { color: var(--color-brand); }
+.genui .success { color: var(--color-success); }
+.genui .warn { color: var(--color-warning); }
+.genui .c1 { color: var(--color-chart-1); }
+.genui .c2 { color: var(--color-chart-2); }
+.genui .c3 { color: var(--color-chart-3); }
+.genui .c4 { color: var(--color-chart-4); }
+.genui .c5 { color: var(--color-chart-5); }
+.genui .genui-math-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

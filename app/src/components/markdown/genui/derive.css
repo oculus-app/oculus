@@ -1,0 +1,120 @@
+/* Derivation blocks: aligned on the equals sign in wide panes and stacked
+ * under a container query in narrow panes so reasons drop without overflow. */
+.genui {
+  container: genui / inline-size;
+}
+
+.genui .g-derive {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+}
+.genui .g-derive .r {
+  display: table-row;
+}
+.genui .g-derive .r > * {
+  display: table-cell;
+  vertical-align: middle;
+  padding: 9px 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.genui .g-derive .r:first-child > * {
+  border-top: 0;
+}
+.genui .g-derive .n {
+  color: var(--color-muted-foreground);
+  font-size: 11px;
+  padding-right: 12px;
+  width: 1%;
+  font-variant-numeric: tabular-nums;
+}
+.genui .g-derive .l {
+  text-align: right;
+  padding-right: 5px;
+  width: 1%;
+  white-space: nowrap;
+}
+.genui .g-derive .l:empty {
+  padding-right: 0;
+}
+.genui .g-derive .why {
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  padding-left: 16px;
+  width: 36%;
+}
+
+/* Tinted changed term and brand-framed final result. Empty spans stay hidden
+ * while their streamed formula is still held back. */
+.genui .hl {
+  background: var(--color-brand-muted);
+  border-radius: 4px;
+  padding: 1px 3px;
+}
+.genui .fin {
+  display: inline-block;
+  border: 1.2px solid var(--color-brand);
+  border-radius: 8px;
+  padding: 5px 9px;
+}
+.genui .hl:empty,
+.genui .fin:empty {
+  display: none;
+}
+
+/* Narrow panes drop each reason under its equation while subgrid keeps the
+ * step numbers and equals signs lined up across rows. */
+@container genui (width < 28rem) {
+  .genui .g-derive {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+  .genui .g-derive .r {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: center;
+    padding: 9px 0;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+  .genui .g-derive .r:first-child {
+    border-top: 0;
+  }
+  .genui .g-derive .r > * {
+    display: block;
+    padding: 0;
+    border-top: 0;
+  }
+  .genui .g-derive .n {
+    grid-column: 1;
+    grid-row: 1;
+    padding-right: 10px;
+    width: auto;
+  }
+  .genui .g-derive .l {
+    grid-column: 2;
+    grid-row: 1;
+    padding-right: 5px;
+    width: auto;
+  }
+  .genui .g-derive .l:empty {
+    padding-right: 0;
+  }
+  .genui .g-derive .r > :not(.n):not(.l):not(.why) {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 0;
+    padding: 2px 0;
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .genui .g-derive .why {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    width: auto;
+    min-width: 0;
+    padding: 4px 0 0;
+    overflow-wrap: break-word;
+  }
+}
