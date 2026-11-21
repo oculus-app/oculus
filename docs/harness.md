@@ -636,9 +636,10 @@ stream. `remarkWidgets` records whether the closing fence has arrived;
 
 The library in `app/src/components/markdown/openui/library.ts` registers
 proposals and jobs, live student-data components, Flashcards, Quiz, reveal
-Questions, Steps, Explorer (with Slider, Toggle, Select, Input, Button and
-Value), PageRef and Ask, with Stack and Text for composition, alongside layout
-and chart components for stored replies.
+Questions, Steps, Explorer (with Slider, Toggle, Select, Input, Button, Value
+and computed charts: Line, Bar, Histogram, Scatter with Series, Distribution),
+PageRef and Ask, with Stack and Text for composition, alongside layout
+components, Donut and legacy Chart for stored replies.
 `streamVerdict` tolerates incomplete
 props and unresolved references; components show More coming rows as their
 children arrive. Runtime errors are held while streaming. Once streaming
@@ -690,7 +691,11 @@ to ` ```openui `, and saved pictures or standalone pages to `outputs/`. Widget p
 `oculus-ui` skill (`bun run docs:widgets`). It teaches proposals and jobs,
 `Query` and live components, `Flashcards`, `Quiz`, standalone reveal
 `Question`s, `Steps`, and `Explorer` with bound controls (`Slider`, `Toggle`,
-`Select`, `Input`, `Button`), `Value` and seeded functions. Each program writes
+`Select`, `Input`, `Button`), `Value`, computed charts (`Line`, `Bar`,
+`Histogram`, `Scatter`/`Series`, `Distribution`) and seeded functions. Charts in
+`oculus-ui` are taught only as children of `Explorer` plotting values computed
+from `$variables` or seeded functions; fixed-data charts use `[data-chart]` in a
+` ```ui ` fence ([generative-ui.md](./generative-ui.md)). Each program writes
 `root` first, `$variables` next, then children in reading order and leaf data
 last.
 
@@ -702,12 +707,13 @@ while streaming. Unresolved content uses the shared shimmer states in
 
 Layout components (`Panel`, `Columns`, `List`, `Table`, `Stat`, `Badge`,
 `Progress`, `Tabs`/`Tab`, `Callout` in
-`app/src/components/markdown/openui/components/layout/`) and chart components
-(`Bar`, `Histogram`, `Line`, `Scatter`/`Series`, `Donut`, `Distribution`,
-`Chart` in `app/src/components/markdown/openui/components/charts/`) stay
+`app/src/components/markdown/openui/components/layout/`), `Donut`
+(`app/src/components/markdown/openui/components/charts/Donut.tsx`) and legacy
+`Chart` (`app/src/components/markdown/openui/components/Chart.tsx`) stay
 registered in `library.ts` so stored fences validate and draw, and are filtered
-out of `oculus-ui` by `prompt.ts` because inline explanation uses ` ```ui `
-fences ([generative-ui.md](./generative-ui.md)). The chart components draw SVG
+out of `oculus-ui` by `prompt.ts` because inline explanation and fixed-data
+charts use ` ```ui ` fences ([generative-ui.md](./generative-ui.md)). The chart
+components in `app/src/components/markdown/openui/components/charts/` draw SVG
 marks on semantic chart tokens (starting with indigo, with hover readouts and
 accessible data tables) and are shared with `ui` blocks' `[data-chart]` hosts.
 
@@ -757,7 +763,7 @@ distribution. Defaults are normal `{mean:0, sd:1}`, binomial
 Omitted seed is 0. Samples and means return at most 400 values; Means refuses
 more than 200,000 draws, including underlying Bernoulli draws for binomial.
 `@Bins(values, count)` returns at most 400 `{x:centre, y:count}` points for
-Chart bars, including the upper edge. Empty bins input returns an empty
+`Histogram` bars, including the upper edge. Empty bins input returns an empty
 array; constant input uses a unit-wide domain. `@Mean` and population
 `@StdDev` take 1–400 values. Invalid inputs return null. Fixed seeds make a
 slider change the sample size reproducibly, without consuming ambient

@@ -40,8 +40,9 @@ OpenUI widgets use the same inline markdown and maths engine as replies,
 `Frame` supplies a rounded card with a hairline border, a wrapping title and
 counter, and a footer of small pill controls. Quiz choices are ordinary
 keyboard-focusable toggle buttons. Charts in
-`app/src/components/markdown/openui/components/charts/` (shared with ` ```ui `
-`[data-chart]` hosts) draw SVG marks with semantic
+`app/src/components/markdown/openui/components/charts/` (used for computed
+`Explorer` charts and shared with ` ```ui ` `[data-chart]` hosts) draw SVG marks
+with semantic
 chart, border and muted-text tokens; controls use primary, brand, success and
 destructive tokens. Nothing inside the widget sets a fixed pixel width, so
 the cards reflow with the chat pane and page zoom. The runtime and its state

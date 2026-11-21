@@ -8,7 +8,7 @@ export { BarChart };
 
 export const Bar = defineComponent({
   name: "Bar",
-  description: "Bars comparing categories: labels[i] with values[i]; unit formats values, e.g. Bar(\"Hours this week\", [\"Mon\", \"Tue\"], [2, 3.5], null, \"h\").",
+  description: "Bars comparing categories computed from $variables: labels[i] with values[i]; unit formats values.",
   props: z.object({
     title: z.string(),
     labels: z.array(z.string()),

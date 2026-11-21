@@ -13,16 +13,12 @@ description: Draws interactive study cards, live student-data views and editable
 ---`;
 
 /** Registered in `library.ts` so stored fences still validate and render,
- *  but omitted from the prompt because inline explanation uses ```ui fences. */
+ *  but omitted from the prompt. Inline explanation and fixed-data charts use
+ *  ```ui fences; computed Explorer charts use Line, Bar, Histogram,
+ *  Scatter/Series and Distribution. */
 export const UNTAUGHT_COMPONENTS = [
   "Chart",
-  "Bar",
-  "Histogram",
-  "Line",
-  "Scatter",
-  "Series",
   "Donut",
-  "Distribution",
   "Panel",
   "Columns",
   "Tabs",
@@ -35,10 +31,11 @@ export const UNTAUGHT_COMPONENTS = [
   "Callout",
 ] as const;
 
-const TAUGHT_EXPLORER_ITEMS = "Text | Slider | Value | Toggle | Select | Input | Button";
+const TAUGHT_STACK_BLOCKS = "Text | Slider | Value | Toggle | Select | Input | Button";
+const TAUGHT_EXPLORER_ITEMS = `${TAUGHT_STACK_BLOCKS} | Line | Bar | Histogram | Scatter | Distribution`;
 const UNTAUGHT_SIGNATURE_LINE = new RegExp(`\\n(?:${UNTAUGHT_COMPONENTS.join("|")})\\([^\\n]*`, "g");
 
-const PREAMBLE = `Oculus draws a fenced code block tagged \`openui\` in your reply as a card: a proposal or app job the student reviews and confirms, live student data (\`Query\` and live components), recall and worked practice (\`Flashcards\`, \`Quiz\`, \`Question\`, \`Steps\`), or a formula explorer (\`Explorer\` with bound controls and seeded functions). Inline explanation — figures, comparisons, data plots and derivations — belongs in a \`ui\` fence (see the brief); 3D, simulations and typed-input programs belong in a \`widget\` fence (\`oculus-widgets\`). Always use a proposal before creating, changing or deleting the student's tasks, projects, tags, calendar events or notes, or starting a long or billed job. Nothing is written until the student clicks. Everything else in the reply stays ordinary markdown. Each proposal or job needs its own fence; study widgets may share a Stack. The UI draws while the fence streams. Write root first, then $variables, then child components in reading order, then leaf data so the shell appears before its content. Follow the grammar below exactly; a malformed final program shows a failure card.
+const PREAMBLE = `Oculus draws a fenced code block tagged \`openui\` in your reply as a card: a proposal or app job the student reviews and confirms, live student data (\`Query\` and live components), recall and worked practice (\`Flashcards\`, \`Quiz\`, \`Question\`, \`Steps\`), or a formula explorer (\`Explorer\` with bound controls, computed charts and seeded functions). Inline explanation — figures, comparisons, fixed-data charts and derivations — belongs in a \`ui\` fence (see the brief); 3D, simulations and typed-input programs belong in a \`widget\` fence (\`oculus-widgets\`). Always use a proposal before creating, changing or deleting the student's tasks, projects, tags, calendar events or notes, or starting a long or billed job. Nothing is written until the student clicks. Everything else in the reply stays ordinary markdown. Each proposal or job needs its own fence; study widgets may share a Stack. The UI draws while the fence streams. Write root first, then $variables, then child components in reading order, then leaf data so the shell appears before its content. Follow the grammar below exactly; a malformed final program shows a failure card.
 
 The block holds a program in OpenUI Lang:`;
 
@@ -46,7 +43,7 @@ const RULES = [
   "Start with `root = Stack([...])`, referencing every widget. Define $variables next, then children in top-down reading order, then their leaf data. Prefer forward references so the shell draws before the content.",
   "Strings are double-quoted on one line; write a newline as \\n and a double quote as \\\". Maths goes in $…$ inside strings, e.g. \"$\\\\frac{a}{b}$\" (backslashes doubled).",
   "Take facts from the student's own library when you can, and point to the page with PageRef using the same path you would cite in prose.",
-  "$variables have literal defaults: number for Slider, boolean for Toggle, string for Select, string or number for Input. Bind the first argument; Values, Text and Query arguments compute from them.",
+  "$variables have literal defaults: number for Slider, boolean for Toggle, string for Select, string or number for Input. Bind the first argument; Values, Explorer charts, Text and Query arguments compute from them.",
   "Ask buttons are optional follow-ups the student may want next, phrased as the student (\"Quiz me on the ones I missed\"). At most two.",
   "Task(number) reads a live existing task; Task(string, ...) describes a new task inside a proposal. Read ids with task list, lecture list and studio list; never guess. After explaining a concept, offer condensed CheatEntry items in NewCheatNotes, never the entire reply or task/sync chatter.",
   "Never use a component or @function not listed here.",
@@ -74,12 +71,13 @@ work = Steps("Solve $3x - 4 = 11$", [Step("Add 4 to both sides", "$3x = 15$"), S
 const EXPLORER = `root = Stack([ex])
 $m = 2
 $v = 3
-ex = Explorer("Kinetic energy", [Text("$E_k = \\\\tfrac{1}{2} m v^2$"), Slider($m, "Mass", 0.5, 10, 0.5, "kg"), Slider($v, "Speed", 0, 20, 0.5, "m/s"), Value("Kinetic energy", 0.5 * $m * @Pow($v, 2), "J", 1)])`;
+ex = Explorer("Kinetic energy", [Text("$E_k = \\\\tfrac{1}{2} m v^2$"), Slider($m, "Mass", 0.5, 10, 0.5, "kg"), Slider($v, "Speed", 0, 20, 0.5, "m/s"), Value("Kinetic energy", 0.5 * $m * @Pow($v, 2), "J", 1), Line("Energy by speed", curve, "Speed (m/s)", "Energy (J)")])
+curve = @Each(@Range(0, 20), "s", {x: s, y: 0.5 * $m * @Pow(s, 2)})`;
 
 const SIMULATION = `root = Stack([ex])
 $n = 10
 $seed = 42
-ex = Explorer("Averages of skewed samples", [Slider($n, "Sample size", 1, 100, 1), Value("Mean of sample means", @Mean(means), "min", 3), Value("Standard error", @StdDev(means), "min", 3), Button("Resample", @Set($seed, $seed + 1))])
+ex = Explorer("Averages of skewed samples", [Slider($n, "Sample size", 1, 100, 1), Histogram("Sample means", @Bins(means, 20), null, "Sample mean (min)", true), Value("Standard error", @StdDev(means), "min", 3), Button("Resample", @Set($seed, $seed + 1))])
 means = @Means(@Exponential(), {}, $n, 400, $seed)`;
 
 const REVEAL = `root = Stack([check])
@@ -112,16 +110,17 @@ export const PROMPT_EXAMPLES = { FLASHCARDS, QUIZ, STEPS, EXPLORER, SIMULATION, 
 
 /** The 1.0.1 printer loses a lazy recursive ref, treats nullable required
  * slots as omittable, and prints every registered component. Runtime
- * validation enforces the exact signatures while untaught layout and chart
- * components are stripped from the prompt. */
+ * validation enforces the exact signatures while untaught layout components,
+ * Donut and legacy Chart are stripped from the prompt. */
 export function generateOculusUiPrompt(): string {
   return library.prompt(PROMPT_OPTIONS)
     .replace("NewTasks(project?: number,", "NewTasks(project: number | null,")
     .replace("NewProject(name: string, subject?: string,", "NewProject(name: string, subject: string | null,")
     .replace("subtasks?: any[]", "subtasks?: Task[]")
     .replace("Value(label: string, value?: number,", "Value(label: string, value: number | null,")
+    .replace(/y\?: number/g, "y: number | null")
     .replace("Explorer(title: string, items: (Chart | Block)[])", `Explorer(title: string, items: (${TAUGHT_EXPLORER_ITEMS})[])`)
-    .replace("| Block | Panel | Columns | Tabs |", `| ${TAUGHT_EXPLORER_ITEMS} |`)
+    .replace("| Block | Panel | Columns | Tabs |", `| ${TAUGHT_STACK_BLOCKS} |`)
     .replace(/## Action — Button Behavior[\s\S]*?(?=## Hoisting)/, `## Actions
 
 Button accepts only @ToAssistant("message"), @Set($variable, value), or @Run(query). Chain these with Action([...]). No @Reset, @OpenUrl, custom actions or Mutation. Without an action, Button sends its label. Buttons and bound controls are disabled while streaming.

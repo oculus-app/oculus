@@ -37,11 +37,11 @@ import { proposalComponents, jobComponents } from "./proposals/definitions";
 
 /**
  * The components registered for ```openui fences: recall widgets, formula
- * explorers, live student-data cards, proposals and jobs, plus layout and
- * chart components kept registered so stored fences continue to validate and
- * render. Groups and their notes become sections of the generated prompt
- * (`prompt.ts`); untaught components stay out of `componentGroups` and are
- * filtered out by `prompt.ts`.
+ * explorers (with charts computed from `$variables`), live student-data cards,
+ * proposals and jobs, plus layout components, `Donut` and legacy `Chart` kept
+ * registered so stored fences continue to validate and render. Groups and
+ * their notes become sections of the generated prompt (`prompt.ts`); untaught
+ * components stay out of `componentGroups` and are filtered out by `prompt.ts`.
  */
 export const library = createLibrary({
   root: "Stack",
@@ -60,9 +60,10 @@ export const library = createLibrary({
     { name: "Working", components: ["Steps", "Step"] },
     {
       name: "Explore",
-      components: ["Explorer", "Slider", "Value", "Toggle", "Select", "Input", "Button"],
+      components: ["Explorer", "Slider", "Value", "Toggle", "Select", "Input", "Button", "Line", "Bar", "Histogram", "Scatter", "Series", "Distribution"],
       notes: [
-        "- Slider, Toggle, Select and Input bind a $variable declared with a literal default; Values, Text and Query arguments compute from those $variables.",
+        "- Slider, Toggle, Select and Input bind a $variable declared with a literal default; Values, charts, Text and Query arguments compute from those $variables.",
+        "- Charts (Line, Bar, Histogram, Scatter with Series, Distribution) belong only inside an Explorer to plot values computed from its $variables or seeded functions — e.g. @Each(@Range(...), \"x\", {x: x, y: ...}). Include a computed chart beside readouts when sliders reshape a curve or distribution. A chart of fixed numbers is a `data-chart` in a `ui` fence, never `openui`.",
         "- There is no ^ operator: write @Pow(base, exponent).",
       ],
     },
@@ -71,7 +72,7 @@ export const library = createLibrary({
       name: "Data", components: [], notes: [
         '- Live read-only rows: Use Query for live student data, with array defaults: rows = Query("tasks", {project:12}, []). Inspect CLI JSON and IDs first. Never Mutation; writes go through proposals.',
         '- Tools: "tasks" (oculus task list --json), "projects" (project list), "calendar" / "upcoming" (calendar), "deadlines" (calendar --due), "lectures" (lecture list), "revision due" (quiz list --due), "cheat notes" (cheat list), "subjects" (list). Use array defaults; reads refresh after edits; failures offer Retry.',
-        '- Distribution functions return names, not densities. Keep a fixed seed while a Slider changes sample size, e.g. means = @Means(@Exponential(), {}, $n, 400, 42) with @Mean(means) and @StdDev(means).',
+        '- Distribution functions return names, not densities. Keep a fixed seed while a Slider changes sample size; e.g. @Bins(@Means(@Exponential(), {}, $n, 400, 42), 20) feeds a CLT Histogram inside an Explorer.',
         '- All tools accept limit (default 100, capped at 400). tasks: project, unfiled, column (needs project), due_before (ISO), tag. projects: subject, personal, archived. calendar/upcoming/deadlines: subject, days (0–365, default 14), past, due. lectures: subject. revision due/cheat notes: subject, topic. subjects: limit only. No other args.',
         '- subject is an id or code; omit for all. A single-subject read requires an unambiguous code; calendar also accepts a code prefix spanning terms. Revision also accepts "general". Local data refreshes after edits; @Run(rows) reads again. Query args may depend on $variables.',
       ],

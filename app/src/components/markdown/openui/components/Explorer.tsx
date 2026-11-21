@@ -9,11 +9,11 @@ import { InCard } from "./layout/inCard";
 
 export { Slider, Value } from "./Slider";
 
-/** A formula explorer: bound controls over `$variables`, with computed
- *  readouts and text so the student sees what each input does. */
+/** A formula explorer: bound controls over `$variables`, with values and
+ *  charts computed from them so the student sees what each input does. */
 export const Explorer = defineComponent({
   name: "Explorer",
-  description: "A card of bound controls (Slider, Toggle, Select, Input, Button) over $variables, with computed Values and Text.",
+  description: "A card of bound controls (Slider, Toggle, Select, Input, Button) over $variables, with computed Values, charts and Text.",
   props: z.object({
     title: z.string(),
     items: z.array(z.union([Chart.ref, Block])),

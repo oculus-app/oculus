@@ -100,10 +100,12 @@ legacy = Chart([{x:0,y:1},{x:1,y:3}], "x", "y", "bar")`;
     expect(html).toContain("<svg");
     expect(html).not.toContain("Couldn't draw");
   });
-  test("the prompt teaches only the supported action path and points inline explanation to ui", async () => {
+  test("the prompt teaches only the supported action path, scopes charts to computed Explorers, and points fixed charts to ui", async () => {
     const { generateOculusUiPrompt } = await import("@/components/markdown/openui/prompt");
     const prompt = generateOculusUiPrompt();
     expect(prompt).toContain("belongs in a `ui` fence");
+    expect(prompt).toContain("belong only inside an Explorer to plot values computed from its $variables");
+    expect(prompt).toContain("`data-chart` in a `ui` fence, never `openui`");
     expect(prompt).toContain("@Run(query)");
     expect(prompt).not.toContain('Button("View", @OpenUrl');
     expect(prompt).not.toContain("Chart(points:");
