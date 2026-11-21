@@ -9,6 +9,7 @@ import { captionText, captionWords, paceStats, readStudio, voiceStats } from "./
 import { dataDir, videoDir } from "./paths";
 import { fill, motion, pictureStats } from "./picture";
 import { sheet } from "./sheet";
+import { findAntigravitySessions, readAntigravitySession, type AntigravityScan } from "./tokens/antigravity";
 import { findClaudeSessions, readClaudeSession, sessionUsage, type ClaudeSession } from "./tokens/claude";
 import { codexContext, findCodexThreads, readRollout, scanCodex, type CodexScan } from "./tokens/codex";
 import { fmtCounter, k, M, merge, type Counter } from "./tokens/common";
@@ -25,9 +26,11 @@ const HELP = `bun scripts/studio-eval <command>
       A contact sheet: one frame every --step seconds from --start.
   tokens claude [<session.jsonl> ...] [--since <iso> [--until <iso>] [--cwd <dir>] [--all]] [--json]
   tokens codex  [<rollout.jsonl[.zst]> ...] [--since <iso> [--until <iso>] [--cwd <dir>] [--all]] [--context] [--json]
+  tokens antigravity [<transcript.jsonl|thread.ndjson> ...] [--since <iso> [--until <iso>] [--all]] [--json]
       Token use of agent sessions. --cwd defaults to the app's agents folder,
       where chat threads run; without --all only sessions that ran
-      \`oculus studio\` are listed.
+      \`oculus studio\` are listed. An Antigravity transcript is cut to the
+      window, so --since/--until also measure one stretch of a named file.
 
   Everywhere: --data <dir> (the app's data folder), --ffmpeg <path>.`;
 
@@ -200,6 +203,47 @@ function codex(files: string[]) {
   if (!threads.length) console.log("no threads");
 }
 
+function antigravity(files: string[]) {
+  const window = {
+    from: flags.since ? Date.parse(flags.since) : -Infinity,
+    to: flags.until ? Date.parse(flags.until) : Infinity,
+  };
+  const sessions: AntigravityScan[] = files.length
+    ? files.map((f) => readAntigravitySession(f, window))
+    : flags.since
+      ? findAntigravitySessions(dataDir(flags.data), flags.since, flags.until, flags.all)
+      : fail("tokens antigravity: pass transcript/ndjson files or --since <iso time>");
+  if (flags.json) return console.log(JSON.stringify(sessions, null, 1));
+  for (const s of sessions) {
+    const span = s.start ? `${s.start} -> ${s.end}` : s.format;
+    console.log(`\n${span}  ${s.id} (${s.format})`);
+    console.log(`  commands: ${fmtCounter(s.commands)}; images viewed ${s.images}; subagents: ${fmtCounter(s.agents)}`);
+    if (s.context.length) {
+      const sorted = [...s.context].sort((a, b) => a - b);
+      const med = sorted[sorted.length >> 1] ?? 0;
+      const peak = Math.max(...s.context);
+      const win = s.contextWindow ? ` / ${M(s.contextWindow)}` : "";
+      console.log(`  context: first ${k(s.context[0])}, median ${k(med)}, last ${k(s.context.at(-1)!)}, peak ${k(peak)}${win}`);
+    }
+    const total = { calls: 0, input: 0, cachedRead: 0, cachedWrite: 0, output: 0, thought: 0 };
+    for (const [model, u] of Object.entries(s.usage).sort()) {
+      const totalIn = u.input + u.cachedRead + u.cachedWrite;
+      const thought = u.thought ? `  thought ${k(u.thought)}` : "";
+      console.log(
+        `  ${model.padEnd(28)} ${s.format === "acp" ? "turns" : "calls"} ${String(u.calls).padStart(4)}  in ${M(totalIn)} (fresh ${k(u.input)}, cached ${M(u.cachedRead)})  out ${k(u.output)}${thought}`,
+      );
+      for (const f of Object.keys(total) as (keyof typeof total)[]) total[f] += u[f];
+    }
+    if (Object.keys(s.usage).length > 1) {
+      const totalIn = total.input + total.cachedRead + total.cachedWrite;
+      console.log(
+        `  ${"TOTAL".padEnd(28)} ${s.format === "acp" ? "turns" : "calls"} ${String(total.calls).padStart(4)}  in ${M(totalIn)} (fresh ${k(total.input)}, cached ${M(total.cachedRead)})  out ${k(total.output)}`,
+      );
+    }
+  }
+  if (!sessions.length) console.log("no sessions");
+}
+
 async function main() {
   if (flags.help || !command || command === "help") return console.log(HELP);
   if (command === "video") return args[0] ? video(args[0]) : fail(HELP);
@@ -213,6 +257,7 @@ async function main() {
   }
   if (command === "tokens" && args[0] === "claude") return claude(args.slice(1));
   if (command === "tokens" && args[0] === "codex") return codex(args.slice(1));
+  if (command === "tokens" && args[0] === "antigravity") return antigravity(args.slice(1));
   fail(HELP);
 }
 

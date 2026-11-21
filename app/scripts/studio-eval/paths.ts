@@ -25,3 +25,13 @@ export const claudeProjectFolder = (cwd: string) => cwd.replace(/[^a-zA-Z0-9]/g,
 
 /** Codex's rollouts, one `YYYY/MM/DD` folder per day. */
 export const codexSessions = () => join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions");
+
+/** Antigravity's conversation brain directory (each `<id>/.system_generated/logs/transcript.jsonl`). */
+export const antigravityBrain = () =>
+  join(
+    process.env.ANTIGRAVITY_APP_DATA_DIR || join(process.env.GEMINI_HOME || join(homedir(), ".gemini"), "antigravity-cli"),
+    "brain",
+  );
+
+/** Oculus's raw per-thread CLI stdout logs (`<data>/agents/threads/<id>.ndjson`). */
+export const oculusThreads = (data: string) => join(data, "agents", "threads");

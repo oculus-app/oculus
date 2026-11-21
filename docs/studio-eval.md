@@ -15,7 +15,7 @@ tool run with bun, not part of the app.
 | Contact sheet | `app/scripts/studio-eval/sheet.ts` |
 | Finding ffmpeg, probing, raw frames | `app/scripts/studio-eval/ffmpeg.ts` |
 | The data folder and the CLIs' session folders | `app/scripts/studio-eval/paths.ts` |
-| Claude Code and Codex token use | `app/scripts/studio-eval/tokens/` |
+| Claude Code, Codex and Antigravity token use | `app/scripts/studio-eval/tokens/` |
 | Tests of the pure maths | `app/tests/scripts/studioEval.test.ts` |
 
 ## Commands
@@ -28,6 +28,7 @@ bun scripts/studio-eval motion <mp4> [out.txt]
 bun scripts/studio-eval sheet <mp4> <out.jpg> [--start 0] [--step 10] [--cols 4] [--rows 4]
 bun scripts/studio-eval tokens claude [<session.jsonl> ...] [--since <iso> [--until <iso>] [--cwd <dir>] [--all]]
 bun scripts/studio-eval tokens codex [<rollout.jsonl[.zst]> ...] [--since <iso> [--until <iso>] [--cwd <dir>] [--all]] [--context]
+bun scripts/studio-eval tokens antigravity [<transcript.jsonl|thread.ndjson> ...] [--since <iso> [--until <iso>] [--all]]
 ```
 
 `--data <dir>` names the app's data folder (default: where the app keeps it,
@@ -126,3 +127,13 @@ not counted.
   (`IN`) and their output (`OUT`) by kind: `studio <command>`,
   `apply_patch`, `view_image`, `read <file kind>` or `other shell`. Output
   arrays are measured as compact JSON with inline images replaced.
+- **`antigravity`** reads Antigravity's native transcripts
+  (`~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl`,
+  or `$ANTIGRAVITY_APP_DATA_DIR/brain/...`) and Oculus's raw ACP thread logs
+  (`<data>/agents/threads/<id>.ndjson`). Per model (or `acp` for raw ACP
+  logs): calls/turns, total input tokens (fresh + cached read), output and
+  thought tokens, context progression (first, median, last, peak), PNGs
+  viewed, subagents started, and `oculus studio` commands. A transcript's
+  steps are timed, so `--since`/`--until` count only the calls inside the
+  window, for a found transcript and a named one alike; an ACP log has no
+  times and is taken whole when its file was last written inside the window.

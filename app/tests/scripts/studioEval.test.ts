@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { captionText, captionWords, paceStats, spokenScript, studioWords, voiceStats } from "../../scripts/studio-eval/narration";
 import { inkOf, median, pictureStats } from "../../scripts/studio-eval/picture";
+import { findAntigravitySessions, scanAntigravity } from "../../scripts/studio-eval/tokens/antigravity";
 import { studioCommands } from "../../scripts/studio-eval/tokens/common";
 
 test("still runs, holds, motion events and big changes come from the 5 fps series", () => {
@@ -68,4 +72,103 @@ test("studio commands count runs, not prose that names them", () => {
   const c = studioCommands("oculus studio lint x && ~/bin/oculus studio render y\ncat <<EOF\nthen run `oculus studio narrate`\nEOF", {});
   expect(c).toEqual({ lint: 1, render: 1 });
   expect(studioCommands('tools.exec_command({cmd:"oculus studio strip v"})', {})).toEqual({ strip: 1 });
+});
+
+test("antigravity token reader handles native transcripts and Oculus ACP thread logs", () => {
+  const transcript = [
+    JSON.stringify({ step_index: 0, type: "USER_INPUT", created_at: "2026-11-21T03:00:00Z", content: "make a video" }),
+    JSON.stringify({
+      step_index: 1,
+      type: "PLANNER_RESPONSE",
+      created_at: "2026-11-21T03:00:05Z",
+      model: "gemini-4-neon-high",
+      input_tokens: 10000,
+      cache_read_tokens: 0,
+      output_tokens: 400,
+      tool_calls: [
+        { name: "run_command", args: { CommandLine: '"oculus studio series new demo --title \\"Demo\\""' } },
+        { name: "run_command", args: { CommandLine: '"oculus studio narrate demo-1"' } },
+      ],
+    }),
+    JSON.stringify({
+      step_index: 2,
+      type: "PLANNER_RESPONSE",
+      created_at: "2026-11-21T03:00:20Z",
+      model: "gemini-4-neon-high",
+      input_tokens: 2000,
+      cache_read_tokens: 10000,
+      output_tokens: 300,
+      tool_calls: [{ name: "read_file", args: { Path: '"/lib/studio/videos/demo-1/out/strip.png"' } }],
+    }),
+  ].join("\n");
+  const t = scanAntigravity(transcript, "conv-1");
+  expect(t.format).toBe("transcript");
+  expect(t.usage["gemini-4-neon-high"]).toEqual({
+    calls: 2, input: 12000, cachedRead: 10000, cachedWrite: 0, output: 700, thought: 0,
+  });
+  expect(t.context).toEqual([10000, 12000]);
+  expect(t.images).toBe(1);
+  expect(t.commands).toEqual({ series: 1, narrate: 1, READ_PNG: 1 });
+
+  const late = scanAntigravity(transcript, "conv-1", "", {
+    from: Date.parse("2026-11-21T03:00:10Z"),
+    to: Date.parse("2026-11-21T03:01:00Z"),
+  });
+  expect(late.usage["gemini-4-neon-high"].calls).toBe(1);
+  expect(late.usage["gemini-4-neon-high"].cachedRead).toBe(10000);
+  expect(late.start).toBe("2026-11-21T03:00:20Z");
+  expect(late.commands).toEqual({ READ_PNG: 1 });
+
+  const acp = [
+    JSON.stringify({ jsonrpc: "2.0", method: "session/update", params: { update: { sessionUpdate: "usage_update", used: 9724, size: 1048576 } } }),
+    JSON.stringify({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: { update: { sessionUpdate: "tool_call", toolCallId: "c1", name: "run_command", rawInput: { CommandLine: "oculus studio render demo-1" } } },
+    }),
+    JSON.stringify({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: { update: { sessionUpdate: "tool_call_update", toolCallId: "c1", name: "run_command", status: "completed", rawInput: { CommandLine: "oculus studio render demo-1" } } },
+    }),
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: 4,
+      result: { stopReason: "end_turn", usage: { inputTokens: 18417, cachedReadTokens: 31375, cachedWriteTokens: 0, outputTokens: 459, thoughtTokens: 297, totalTokens: 50251 } },
+    }),
+  ].join("\n");
+  const a = scanAntigravity(acp, "12");
+  expect(a.format).toBe("acp");
+  expect(a.usage.acp).toEqual({
+    calls: 1, input: 18417, cachedRead: 31375, cachedWrite: 0, output: 459, thought: 297,
+  });
+  expect(a.context).toEqual([9724]);
+  expect(a.contextWindow).toBe(1048576);
+  expect(a.commands).toEqual({ render: 1 });
+});
+
+test("an Oculus ACP thread log is found behind its long initialize reply, and other providers' logs are not", () => {
+  const data = mkdtempSync(join(tmpdir(), "studio-eval-"));
+  const threads = join(data, "agents", "threads");
+  mkdirSync(threads, { recursive: true });
+  const initialize = JSON.stringify({ jsonrpc: "2.0", id: 1, result: { agentInfo: { name: "agy" }, pad: "x".repeat(600) } });
+  const call = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "session/update",
+    params: { update: { sessionUpdate: "tool_call", toolCallId: "c1", name: "run_command", rawInput: { CommandLine: "oculus studio lint demo" } } },
+  });
+  const reply = JSON.stringify({ jsonrpc: "2.0", id: 4, result: { stopReason: "end_turn", usage: { inputTokens: 5, cachedReadTokens: 7, outputTokens: 2 } } });
+  writeFileSync(join(threads, "7.ndjson"), [initialize, call, reply].join("\n") + "\n");
+  writeFileSync(join(threads, "8.ndjson"), JSON.stringify({ type: "assistant", message: { usage: { input_tokens: 9 } } }) + "\n");
+  const env = process.env.ANTIGRAVITY_APP_DATA_DIR;
+  process.env.ANTIGRAVITY_APP_DATA_DIR = join(data, "no-profile");
+  try {
+    const found = findAntigravitySessions(data, "2020-01-01T00:00:00Z");
+    expect(found.map((s) => s.id)).toEqual(["7"]);
+    expect(found[0].usage.acp).toEqual({ calls: 1, input: 5, cachedRead: 7, cachedWrite: 0, output: 2, thought: 0 });
+    expect(found[0].commands).toEqual({ lint: 1 });
+  } finally {
+    if (env === undefined) delete process.env.ANTIGRAVITY_APP_DATA_DIR;
+    else process.env.ANTIGRAVITY_APP_DATA_DIR = env;
+  }
 });
