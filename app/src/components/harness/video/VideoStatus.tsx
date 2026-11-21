@@ -5,7 +5,15 @@ import { cn } from "@/lib/utils";
 
 /** The video's one status line: a spinner while the agent works, a check
  *  once a render is ready, red when a step failed. */
-export function VideoStatus({ progress, suffix, className }: { progress: VideoProgress; suffix?: string | null; className?: string }) {
+export function VideoStatus({
+  progress,
+  suffix,
+  className,
+}: {
+  progress: Pick<VideoProgress, "label" | "tone">;
+  suffix?: string | null;
+  className?: string;
+}) {
   const { tone, label } = progress;
   return (
     <span

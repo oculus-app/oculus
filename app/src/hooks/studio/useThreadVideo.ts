@@ -1,60 +1,52 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
-import { parseToolMeta } from "@/lib/harness";
-import { failedStep, lastStudioAction, touchesVideo } from "@/lib/studio/activity";
-import { videoProgress } from "@/lib/studio/progress";
-import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
-import { useRenderStore } from "@/stores/studio/renderStore";
+import { seriesForThread } from "@/lib/studio/series";
+import { cardPartNumber, partBeingMade, partStatus, seriesStatusLabel, type PartStatus } from "@/lib/studio/seriesView";
+import type { SeriesPart, StudioSeries, VideoRow } from "@/lib/studio/videos";
+import { useHarnessStore } from "@/stores/chat/harnessStore";
+import { useSeriesMakeStore } from "@/stores/studio/seriesMakeStore";
 import { useVideosStore } from "@/stores/studio/videosStore";
-import { useVideoDetail } from "./useVideoDetail";
+import { useVideoProgress } from "./useVideoProgress";
+
+/** A thread that makes a series: the card follows one part (`cardPartNumber`). */
+export interface ThreadSeries {
+  series: StudioSeries;
+  part: SeriesPart;
+  /** The part being made, if any (`partBeingMade`). */
+  making: number | null;
+}
 
 /**
- * The video a chat thread is making (`VideoRow.threadId`), its detail and
- * where it is (`videoProgress`). The detail is read again whenever a tool
- * call finishes or the turn ends, the moments its files can have changed,
- * and when a render the app ran ends (`useVideoDetail`). A video whose
- * folder is gone leaves the list, and the thread has no video.
+ * The video a chat thread is making and where it is. A thread that makes a
+ * series (`seriesForThread`) follows the part being made, else the part
+ * whose folder changed last; its status line names the part. Any other
+ * thread has the video linked to it (`VideoRow.threadId`), if any. A video
+ * whose folder is gone leaves the list, and the thread has no video.
  */
 export function useThreadVideo(threadId: number | null) {
-  const row = useVideosStore((s) => (threadId == null ? null : (s.videos.find((v) => v.threadId === threadId) ?? null)));
+  const series = useVideosStore((s) => seriesForThread(s.series, threadId));
+  const single = useVideosStore((s) =>
+    threadId == null || seriesForThread(s.series, threadId) ? null : (s.videos.find((v) => v.threadId === threadId) ?? null),
+  );
+  const requested = useSeriesMakeStore((s) => (series ? (s.requests[series.slug]?.requestedPart ?? null) : null));
+  const sending = useSeriesMakeStore((s) => (series ? (s.requests[series.slug]?.sending ?? false) : false));
   const running = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.running);
-  const items = useHarnessStore((s) => itemsFor(threadId, s.items));
-  const slug = row?.slug ?? "";
-  const { detail, error, reload } = useVideoDetail(slug);
-  const render = useRenderStore((s) => (row ? s.active[row.dir] : undefined));
-  const renderError = useRenderStore((s) => (row ? s.errors[row.dir] : undefined));
-  const failedPreset = useRenderStore((s) => (row ? s.failedPresets[row.dir] : undefined));
 
-  const last = useMemo(() => (slug ? lastStudioAction(items, slug, running) : null), [items, slug, running]);
-  const failed = useMemo(() => (slug ? failedStep(items, slug) : null), [items, slug]);
-  const working = useMemo(() => running && !!slug && touchesVideo(items, slug), [items, slug, running]);
-  const finished = useMemo(
-    () => items.reduce((n, i) => (i.kind === "tool" && parseToolMeta(i).ok != null ? n + 1 : n), 0),
-    [items],
+  const making = series ? partBeingMade(series, requested, running) : null;
+  const partNumber = series ? cardPartNumber(series, making) : null;
+  const part = series?.parts.find((p) => p.number === partNumber) ?? null;
+  const row: VideoRow | null = series ? (part?.video ?? null) : single;
+  const { detail, progress } = useVideoProgress(row, threadId);
+
+  const status = useMemo<PartStatus>(() => {
+    if (!series || !part) return { label: progress.label, tone: progress.tone };
+    const s = partStatus({ part, making: making === part.number, sending, running, progress });
+    return { label: seriesStatusLabel(part, series.parts.length, s), tone: s.tone };
+  }, [series, part, making, sending, running, progress]);
+
+  const inSeries = useMemo<ThreadSeries | null>(
+    () => (series && part ? { series, part, making } : null),
+    [series, part, making],
   );
-  useEffect(() => {
-    if (slug) void reload();
-  }, [slug, running, finished, row?.modified, reload]);
-
-  // A read that fails may mean the folder was deleted (in Finder, say): the
-  // list then drops the row, and the card with it.
-  useEffect(() => {
-    if (error) void useVideosStore.getState().reload();
-  }, [error]);
-
-  const progress = useMemo(
-    () =>
-      videoProgress({
-        detail,
-        running,
-        working,
-        render,
-        readError: error,
-        renderFailure: renderError && failedPreset ? { message: renderError, preset: failedPreset } : null,
-        last,
-        failed,
-      }),
-    [detail, running, working, render, error, renderError, failedPreset, last, failed],
-  );
-  return { row, detail, progress };
+  return { row, detail, progress, status, series: inSeries };
 }
