@@ -48,6 +48,7 @@ const ANTIGRAVITY: &[&str] = &[
     "sign in to antigravity",
     "not signed in",
     "no credentials found in keyring",
+    "authentication required",
     "reauthenticate",
 ];
 
