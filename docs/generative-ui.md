@@ -19,6 +19,8 @@ script, no external styles and no iframe.
 | Inline and display `$…$` maths | `app/src/components/markdown/genui/maths.ts` |
 | Closing-fence detection and reply index | `app/src/components/markdown/genui/remarkUi.ts` |
 | Interactive runtime and control styles | `app/src/components/markdown/genui/runtime.ts`, `app/src/components/markdown/genui/controls.css`, `app/src/stores/chat/widgetStore.ts` |
+| Declarative charts (`data-chart`) and height reservation | `app/src/components/markdown/genui/ChartHost.tsx`, `app/src/components/markdown/genui/chartData.ts`, `app/src/components/markdown/genui/charts.css` |
+| Shared chart components and streaming context | `app/src/components/markdown/openui/components/charts/` (`Figure.tsx`, `BarChart.tsx`, `LineChart.tsx`, `DonutChart.tsx`, `ScatterChart.tsx`, `OpenUIChart.tsx`) |
 | Vocabulary stylesheet | `app/src/components/markdown/genui/genui.css` |
 | Markdown routing and folded-reply pointer | `app/src/components/markdown/MdComponents.tsx` (`pre`, `widget-pointer`) |
 | Streamed row promotion, folding and find | `app/src/components/harness/timeline/Timeline.tsx`, `app/src/components/harness/timeline/rows.ts`, `app/src/components/harness/timeline/Messages.tsx`, `app/src/components/markdown/openui/remarkWidgets.ts` |
@@ -154,6 +156,41 @@ Every bare `<table>` is wrapped once in `<div class="g-table">` by `sanitize`,
 matching markdown tables in `MdComponents.tsx`. `.genui .g-table` scrolls
 horizontally only (`overflow-x: auto; overflow-y: hidden`), so wide tables never
 widen the chat column and nothing inside a `ui` block scrolls vertically.
+
+## Charts draw from data attributes with the app's chart components
+
+A `[data-chart]` element inside a `ui` block carries only its numbers; the app
+draws it with the same chart components used by ` ```openui ` fences
+(`BarChart`, `LineChart`, `DonutChart`, `ScatterChart` in
+`app/src/components/markdown/openui/components/charts/`), so hover readouts,
+accessible `sr-only` data tables and chart token colours (`chart-1`–`chart-5`
+and `chart-other`, in order, never chosen by the agent) match every other chart
+in Oculus.
+
+`Figure.tsx` reads streaming state from `ChartStreaming` rather than OpenUI's
+hook: OpenUI's `defineComponent` wrappers feed `ChartStreaming` through
+`OpenUIChart` (`useIsStreaming`), while `ChartHost` mounts the pure chart
+components directly with `ChartStreaming` set to `false` and without importing
+`@openuidev/react-lang`. After each `morph` pass, `GenUIFence` portals a
+`ChartHost` into every `[data-chart]` host (flushed before paint on streaming
+frames via `flushSync`, and synchronously in `useLayoutEffect` once closed).
+`sanitize` strips any child nodes inside `[data-chart]` so React owns the host's
+subtree, and `charts.css` reserves host height in `rem` on `:empty` and reverts
+`genui.css`'s unlayered `svg` and `table` rules inside chart hosts.
+
+| `data-chart` | Data attributes | Optional attributes |
+| --- | --- | --- |
+| `bar` | `data-labels="A\|B"`, `data-values="1 2"` | `data-title`, `data-y-label`, `data-unit` |
+| `line` | `data-series="Name: x,y x,y; Name2: …"` | `data-title`, `data-x-label`, `data-y-label`, `data-area` |
+| `donut` | `data-labels="A\|B"`, `data-values="1 2"` | `data-title`, `data-center`, `data-unit` |
+| `scatter` | `data-series="Name: x,y x,y; Name2: …"` | `data-title`, `data-x-label`, `data-y-label`, `data-trend` |
+
+`parseChartAttrs` (`chartData.ts`) validates every number strictly (finite
+numbers only; at least one positive value and no negatives for `donut`; at least
+two points per drawn series for `line`; up to five series and 400 points per
+series). Missing or unparseable numbers render the chart's title and a muted
+"No data" line instead of a broken plot; unsupported `data-chart` values draw
+nothing.
 
 ## Vocabulary styling uses semantic tokens only
 

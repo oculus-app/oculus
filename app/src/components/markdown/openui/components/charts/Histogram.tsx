@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { cn } from "@/lib/utils";
 import { binValues, binsFromPoints, finite, mean, numbers, points, type Bin } from "./data";
 import { ChartEmpty, ChartFigure, DataTable, Marker, Plot, axisTicks } from "./Figure";
+import { OpenUIChart } from "./OpenUIChart";
 import { fraction, niceAxis, valueLabel } from "./scale";
 import { point } from "./Series";
 
@@ -59,7 +60,7 @@ export const Histogram = defineComponent({
     const bins = values.length >= pts.length ? binValues(values, props.bins) : binsFromPoints(pts);
     const total = pts.reduce((s, p) => s + p.y, 0);
     const avg = values.length >= pts.length ? mean(values) : pts.reduce((s, p) => s + p.x * p.y, 0) / total;
-    return <BinChart title={props.title} bins={bins} xLabel={props.xLabel} yLabel="Count"
-      meanAt={props.mean === true && finite(avg) ? avg : undefined} />;
+    return <OpenUIChart><BinChart title={props.title} bins={bins} xLabel={props.xLabel} yLabel="Count"
+      meanAt={props.mean === true && finite(avg) ? avg : undefined} /></OpenUIChart>;
   },
 });

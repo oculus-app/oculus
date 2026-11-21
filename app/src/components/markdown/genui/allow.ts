@@ -33,7 +33,7 @@ export const RUNTIME = new Set([
 /** Data attributes reserved for interactive behaviours and chart hosts. */
 const DATA = new Set([
   "data-choice", "data-value", "data-option", "data-show", "data-scrub", "data-options", "data-edges",
-  "data-chart", "data-title", "data-labels", "data-values", "data-series", "data-unit", "data-x-label", "data-y-label", "data-area",
+  "data-chart", "data-title", "data-labels", "data-values", "data-series", "data-unit", "data-x-label", "data-y-label", "data-area", "data-center", "data-trend",
 ]);
 
 const GLOBAL = new Set(["class", "id", "style", "title", "lang", "dir"]);

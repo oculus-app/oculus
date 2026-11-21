@@ -3,6 +3,7 @@ import { defineComponent } from "@openuidev/react-lang";
 import { z } from "zod/v4";
 import { area, densityMean, finite, points, type Point } from "./data";
 import { ChartEmpty, ChartFigure, DataTable, Dot, HitBands, Marker, Plot, axisTicks } from "./Figure";
+import { OpenUIChart } from "./OpenUIChart";
 import { fraction, niceAxis, valueLabel } from "./scale";
 import { point } from "./Series";
 
@@ -54,7 +55,7 @@ export const Distribution = defineComponent({
   component: function DistributionView({ props }) {
     const [active, setActive] = useState<number | null>(null);
     const pts = points(props.points).filter((p) => p.y >= 0).sort((a, b) => a.x - b.x);
-    if (pts.length < 2) return <ChartFigure title={props.title}><ChartEmpty /></ChartFigure>;
+    if (pts.length < 2) return <OpenUIChart><ChartFigure title={props.title}><ChartEmpty /></ChartFigure></OpenUIChart>;
     const lo = pts[0].x;
     const hi = pts[pts.length - 1].x;
     const xAxis = { ...niceAxis(lo, hi, 5), lo, hi };
@@ -67,7 +68,7 @@ export const Distribution = defineComponent({
     const share = total > 0 && shaded.length ? shaded.reduce((s, r) => s + area(pts, r.from, r.to), 0) / total : null;
     const meanAt = densityMean(pts);
     const hovered = active !== null ? pts[active] : null;
-    return <ChartFigure title={props.title}>
+    return <OpenUIChart><ChartFigure title={props.title}>
       <Plot yTicks={axisTicks(yAxis)} xTicks={axisTicks(xAxis)} xLabel={props.xLabel} yLabel="Density" onLeave={() => setActive(null)}
         readout={hovered ? <>{valueLabel(hovered.x)}<span className="ml-2 text-muted-foreground">density </span>{valueLabel(hovered.y)}</>
           : share !== null && <><span className="text-muted-foreground">shaded </span>{valueLabel(share * 100, "%")}</>}>
@@ -82,6 +83,6 @@ export const Distribution = defineComponent({
         <HitBands at={pts.map((p) => sx(p.x) / 100)} onHover={setActive} />
       </Plot>
       <DataTable head={["x", "density"]} rows={pts.filter((_, i) => i % Math.ceil(pts.length / 40) === 0).map((p) => [valueLabel(p.x), valueLabel(p.y)])} />
-    </ChartFigure>;
+    </ChartFigure></OpenUIChart>;
   },
 });

@@ -4,6 +4,7 @@ import { mathify } from "./maths";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const NO_MATHS = new Set(["code", "kbd"]);
+const BOOLEAN_DATA = new Set(["data-area", "data-trend"]);
 
 /**
  * Parses markup into an inert fragment (a `<template>`'s content runs no
@@ -45,6 +46,10 @@ function clean(parent: Node, prefix: string, svg: boolean, code: boolean) {
     }
     attrs(el, prefix, inSvg);
     if (name === "button") el.setAttribute("type", "button");
+    if (!inSvg && el.hasAttribute("data-chart")) {
+      el.replaceChildren();
+      continue;
+    }
     clean(el, prefix, inSvg, code || NO_MATHS.has(name));
     // A wide table scrolls horizontally inside the block without widening the column.
     if (!inSvg && name === "table" && !el.parentElement?.classList.contains("g-table")) {
@@ -71,7 +76,7 @@ function attrs(el: Element, prefix: string, svg: boolean) {
       const local = /^url\(\s*#([\w-]+)\s*\)$/.exec(value.trim());
       value = local ? `url(#${prefix}-${local[1]})` : "";
     }
-    if (!value && name !== "data-area") el.removeAttribute(attr.name);
+    if (!value && !BOOLEAN_DATA.has(name)) el.removeAttribute(attr.name);
     else if (value !== attr.value) el.setAttribute(attr.name, value);
   }
 }

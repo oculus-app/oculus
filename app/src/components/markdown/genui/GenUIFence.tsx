@@ -1,7 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { useMathsReady } from "@/lib/maths";
 import { useWidgetRow } from "@/components/markdown/openui/state";
 import { entryState, genuiKey, useWidgetStore } from "@/stores/chat/widgetStore";
+import { ChartHost, type ChartAttrs } from "./ChartHost";
 import { morph } from "./morph";
 import { repairPrefix } from "./repair";
 import { BlockRuntime } from "./runtime";
@@ -11,6 +13,15 @@ import "./controls.css";
 
 /** The language tag of a generative-UI fence. */
 export const UI_LANG = /(^|\s)language-ui(\s|$)/;
+
+type Chart = { el: Element; key: string; attrs: ChartAttrs };
+
+function sameAttrs(a: ChartAttrs, b: ChartAttrs): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const k of keys) if (a[k] !== b[k]) return false;
+  return true;
+}
 
 /**
  * A ```ui fence: sanitised markup drawn into the reply's own DOM, updated
@@ -31,8 +42,11 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
   const hydrated = useRef<string | null>(null);
   const prevKey = useRef<string | null>(null);
   const frame = useRef<number | null>(null);
+  const [charts, setCharts] = useState<Chart[]>([]);
+  const chartKeys = useRef(new WeakMap<Element, string>());
+  const nextChartKey = useRef(0);
 
-  const draw = () => {
+  const draw = (inEffect: boolean) => {
     frame.current = null;
     const el = root.current;
     if (!el) return;
@@ -45,6 +59,20 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
     morph(el, next);
     runtime.current?.apply();
     el.toggleAttribute("data-empty", !el.firstElementChild && !el.textContent?.trim());
+    const hosts = Array.from(el.querySelectorAll("[data-chart]"));
+    const syncCharts = () =>
+      setCharts((prev) => {
+        const now = hosts.map((h) => {
+          let key = chartKeys.current.get(h);
+          if (!key) chartKeys.current.set(h, (key = `c${++nextChartKey.current}`));
+          return { el: h, key, attrs: Object.fromEntries(Array.from(h.attributes).map((a) => [a.name, a.value])) };
+        });
+        const same = now.length === prev.length && now.every((c, i) => c.el === prev[i].el && sameAttrs(c.attrs, prev[i].attrs));
+        return same ? prev : now;
+      });
+    // Flush portals before the frame paints so a newly arrived chart never flashes empty.
+    if (inEffect) syncCharts();
+    else flushSync(syncCharts);
   };
 
   useLayoutEffect(() => {
@@ -86,9 +114,9 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
   useLayoutEffect(() => {
     if (closed) {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
-      draw();
+      draw(true);
     } else if (frame.current === null) {
-      frame.current = requestAnimationFrame(draw);
+      frame.current = requestAnimationFrame(() => draw(false));
     }
   });
   useEffect(
@@ -99,12 +127,15 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
   );
 
   return (
-    <div
-      ref={root}
-      className="genui"
-      data-md={source ? `\`\`\`ui\n${source}\n\`\`\`` : undefined}
-      data-streaming={closed ? undefined : ""}
-      data-ready={ready ? "" : undefined}
-    />
+    <>
+      <div
+        ref={root}
+        className="genui"
+        data-md={source ? `\`\`\`ui\n${source}\n\`\`\`` : undefined}
+        data-streaming={closed ? undefined : ""}
+        data-ready={ready ? "" : undefined}
+      />
+      {charts.map((c) => createPortal(<ChartHost attrs={c.attrs} />, c.el, c.key))}
+    </>
   );
 }

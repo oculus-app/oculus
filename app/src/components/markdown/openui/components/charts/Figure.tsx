@@ -1,16 +1,19 @@
 import "./motion.css";
-import { useContext, type ReactNode } from "react";
-import { useIsStreaming } from "@openuidev/react-lang";
+import { createContext, useContext, type ReactNode } from "react";
 import { MoreComing, StreamingStatus } from "../../Streaming";
 import { cn } from "@/lib/utils";
 import { Frame, Rich } from "../Frame";
 import { InCard } from "../layout/inCard";
 import { fraction, tickLabel, type Axis } from "./scale";
 
+/** Whether the chart's source is still streaming; OpenUI wrappers feed this
+ *  from `useIsStreaming`, while `ui` blocks supply their own value. */
+export const ChartStreaming = createContext(false);
+
 /** A chart's own card at the top level, or a captioned figure inside one. */
 export function ChartFigure({ title, children }: { title: unknown; children: ReactNode }) {
   const inCard = useContext(InCard);
-  const streaming = useIsStreaming();
+  const streaming = useContext(ChartStreaming);
   const name = typeof title === "string" && title ? title : undefined;
   const body = <figure aria-label={name} className="m-0 min-w-0 tabular-nums">{children}</figure>;
   if (!inCard) return <Frame title={name} footer={streaming ? <StreamingStatus /> : undefined}>{body}</Frame>;
@@ -22,10 +25,10 @@ export function ChartFigure({ title, children }: { title: unknown; children: Rea
 
 /** A plot-sized shimmer for a chart whose data has not arrived yet; settled
  *  with no data it says so instead. */
-export function ChartEmpty() {
-  const streaming = useIsStreaming();
+export function ChartEmpty({ message = "Not enough data to draw." }: { message?: string }) {
+  const streaming = useContext(ChartStreaming);
   if (streaming) return <div className="min-h-40"><MoreComing /></div>;
-  return <p className="my-2 text-xs text-muted-foreground">Not enough data to draw.</p>;
+  return <p className="my-2 text-xs text-muted-foreground">{message}</p>;
 }
 
 export type LegendEntry = { label: string; swatch: string; line?: boolean };
