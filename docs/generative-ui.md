@@ -22,6 +22,7 @@ script, no external styles and no iframe.
 | Declarative charts (`data-chart`) and height reservation | `app/src/components/markdown/genui/ChartHost.tsx`, `app/src/components/markdown/genui/chartData.ts`, `app/src/components/markdown/genui/charts.css` |
 | Shared chart components and streaming context | `app/src/components/markdown/openui/components/charts/` (`Figure.tsx`, `BarChart.tsx`, `LineChart.tsx`, `DonutChart.tsx`, `ScatterChart.tsx`, `OpenUIChart.tsx`) |
 | Vocabulary stylesheet | `app/src/components/markdown/genui/genui.css` |
+| Agent brief grammar and visual routing | `app/src-tauri/templates/HARNESS.template.md` |
 | Markdown routing and folded-reply pointer | `app/src/components/markdown/MdComponents.tsx` (`pre`, `widget-pointer`) |
 | Streamed row promotion, folding and find | `app/src/components/harness/timeline/Timeline.tsx`, `app/src/components/harness/timeline/rows.ts`, `app/src/components/harness/timeline/Messages.tsx`, `app/src/components/markdown/openui/remarkWidgets.ts` |
 
@@ -251,6 +252,24 @@ holds back an unclosed `$…$` formula during streaming.
   `openui` and `widget` so collapsed work folds do not open for text already
   visible in `ArtifactRow`; live DOM find (`useDomFind`) searches text inside
   rendered `.genui` blocks directly.
+
+## The agent brief teaches the grammar directly
+
+The ` ```ui ` fence grammar and visual routing live in
+`app/src-tauri/templates/HARNESS.template.md` rather than a skill, so every
+provider sees the exact closed vocabulary, three behaviours, chart attributes,
+derivation markup and two short examples without opening a skill first
+([harness.md](./harness.md#the-brief-is-appended-except-on-opencode)).
+
+"Showing a picture or a page" makes prose the default and routes shapes,
+comparisons, charts, discrete step-through states and derivations to ` ```ui `,
+3D, simulations and typed-input programs to ` ```widget `, and formula sliders,
+quizzes, flashcards, live student data and proposals to ` ```openui `. A reply
+never opens with a block, places each block right after the sentence it
+illustrates and follows it with a sentence that reads it, uses one `.g-derive`
+block alone for a derivation, adds interactivity only when there is something
+worth changing, and writes blocks after the last tool call so providers whose
+pre-tool text is summarised do not drop them.
 
 ## Gotchas
 

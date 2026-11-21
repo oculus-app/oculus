@@ -110,8 +110,9 @@ Completed frames' `narration_block_indexes` identify narration, with a
 defensive signature-kind fallback when that metadata is absent: narration is
 assistant text in block order, ordinary thinking is reasoning, and empty
 narration is a `DeliveryGap` (see [Each send is a run](#each-send-is-a-run)), never text. Summaries do not guarantee verbatim prose or rendered
-fences, so `HARNESS.template.md`'s Output section says a card belongs in text
-written after the last tool call; it prescribes no other ordering.
+fences, so `HARNESS.template.md`'s Output section says a `ui` block, card or
+widget belongs in text written after the last tool call; it prescribes no other
+ordering.
 Tool-less one-off jobs (including thread naming and lecture-end) retain their
 display policy: no thinking flags or summary setting, with
 `CLAUDE_CODE_THINKING_DISPLAY_UPDATES=0`.
@@ -317,11 +318,12 @@ its [Project instructions setting](https://code.claude.com/docs/en/memory#agents
 with `CLAUDE.md` taking precedence in the default fallback mode. The explicit
 read instruction also covers sessions without native loading.
 
-`HARNESS.template.md` holds only app context, sandbox rules and output:
-rendered fence placement, maths, citations, attachments and visual selection.
-Skills hold domain workflows and syntax: `oculus-ui` owns OpenUI signatures,
-`oculus-plan` owns planning and amendments, `oculus-revision` owns study
-content and filing, and `oculus-widgets` owns TSX widgets and validation.
+`HARNESS.template.md` holds app context, sandbox rules and output: rendered
+fence placement, maths, citations, attachments, visual selection and the
+` ```ui ` fence grammar (inline so the agent needs no skill read before writing
+a block). Skills hold domain workflows and syntax: `oculus-ui` owns OpenUI
+signatures, `oculus-plan` owns planning and amendments, `oculus-revision` owns
+study content and filing, and `oculus-widgets` owns TSX widgets and validation.
 `TASTE.template.md` owns standing preference promotion. A skill references
 these owners rather than restating their rules. The generated subject section
 in `manager/instructions.rs` supplies only the subject and its guidance path.
@@ -669,12 +671,15 @@ does not persist progress. Both kinds offer Save to Revision after streaming end
 `Timeline` supplies `AssistantSend` from its follow-up action, so an Ask
 button's `@ToAssistant` uses the same thread in Chat, Studio and the lecture
 dock. Ask is hidden while running and outside a conversation. `PageRef` uses
-the ordinary citation chips and file-opening path. The agent learns the fence
-grammar from `app/src-tauri/templates/skills/oculus-ui/SKILL.md`, registered in
+the ordinary citation chips and file-opening path. The agent learns the OpenUI fence grammar from
+`app/src-tauri/templates/skills/oculus-ui/SKILL.md`, registered in
 `app/src-tauri/src/agents/docs.rs` and named in the harness brief, whose
-"Showing a picture or a page" sends recall, the student's data and changes
-and inline explanations to ` ```openui `, a picture with its own rules to ` ```widget `
-(the `oculus-widgets` skill) and a static picture or page to `outputs/`. Widget primitives follow the
+"Showing a picture or a page" keeps prose as the default and routes shapes,
+comparisons, charts, discrete step-through states and derivations to ` ```ui `
+(taught inline in the brief, [generative-ui.md](./generative-ui.md#the-agent-brief-teaches-the-grammar-directly)),
+3D, simulations and typed-input programs to ` ```widget ` (the `oculus-widgets`
+skill), formula sliders, quizzes, flashcards, live student data and proposals
+to ` ```openui `, and saved pictures or standalone pages to `outputs/`. Widget primitives follow the
 [UI tokens](./ui.md#study-widgets-use-the-replys-primitives-and-semantic-tokens).
 
 ## The explain kit fits between paragraphs

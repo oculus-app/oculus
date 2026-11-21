@@ -560,13 +560,14 @@ the value: `$.steps[2].tex: expected string`, `$["a b"]: expected number`.
 ## The agent learns widgets from `oculus-widgets`
 
 The brief's "Showing a picture or a page" (`HARNESS.template.md`) routes by
-what the answer needs: ` ```openui ` for inline explanations, recall, live data and
-changes, ` ```widget ` for geometry, physics or algorithm illustrations, and
-`outputs/` for a static picture or page. It names the skill and stops there,
-since every CLI reads the brief into every thread. Its "Diagrams" section
-sends "how does X work" about a mechanism, and a cycle, to a widget rather
-than mermaid: the route is decided in the brief, and an agent that never
-opens the skill never sees the skill's own routing table. `oculus-ui` and
+what the answer needs: prose by default, ` ```ui ` for shapes, comparisons,
+charts, discrete step-through states and derivations (taught inline in the
+brief), ` ```widget ` for 3D, simulations and typed-input programs,
+` ```openui ` for formula sliders, quizzes, flashcards, live student data and
+proposals, and `outputs/` for a saved picture or standalone page. For widgets
+and OpenUI cards it names the skill and stops there, since every CLI reads the
+brief into every thread; the route is decided in the brief because an agent that
+never opens a skill never sees the skill's own routing table. `oculus-ui` and
 `oculus-revision` point at the same split.
 
 `oculus-widgets` is one skill for every CLI (the skills folder,
