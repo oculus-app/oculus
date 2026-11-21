@@ -304,7 +304,90 @@ export function foldLabel(fold: Pick<WorkFold, "state" | "startedMs" | "endedMs"
   return fold.state === "failed" ? `Failed after ${t}` : `Worked for ${t}`;
 }
 
-const WIDGET_FENCE = /(`{3,}|~{3,})[ \t]*(?:openui|widget|ui)\b[\s\S]*?(?:\n[ \t]*\1|$)/g;
+export interface FenceSpan {
+  lang: string;
+  start: number;
+  end: number;
+}
+
+const FOLD_SKIP_FENCE = /^(?:openui(?:-lang)?|widget|ui)$/;
+const STREAMED_FENCE_LANG = /^(?:widget|ui)$/;
+
+function peelQuotes(line: string, max = Infinity): { depth: number; rest: string } {
+  let depth = 0;
+  let pos = 0;
+  while (depth < max) {
+    const m = /^[ ]{0,3}>(?:[ ]|\t)?/.exec(line.slice(pos));
+    if (!m) break;
+    pos += m[0].length;
+    depth++;
+  }
+  return { depth, rest: line.slice(pos) };
+}
+
+/** Finds top-level fenced code blocks using CommonMark rules: up to 3 spaces
+ *  of indentation, optional blockquote markers, backtick or tilde fences, and
+ *  closing fences at least as long as the opening one. */
+export function scanMarkdownFences(text: string): FenceSpan[] {
+  if (!text.includes("```") && !text.includes("~~~")) return [];
+  const fences: FenceSpan[] = [];
+  let open: { char: string; len: number; quoteDepth: number; lang: string; start: number } | null = null;
+  let pos = 0;
+  while (pos <= text.length) {
+    const nl = text.indexOf("\n", pos);
+    const lineEnd = nl < 0 ? text.length : nl;
+    const rawLine = text.slice(pos, lineEnd).replace(/\r$/, "");
+    const nextPos = nl < 0 ? text.length + 1 : nl + 1;
+
+    if (open) {
+      const { depth, rest } = peelQuotes(rawLine, open.quoteDepth);
+      if (depth < open.quoteDepth) {
+        fences.push({ lang: open.lang, start: open.start, end: pos });
+        open = null;
+      } else {
+        const close = /^[ ]{0,3}(`{3,}|~{3,})[ \t]*$/.exec(rest);
+        if (close && close[1][0] === open.char && close[1].length >= open.len) {
+          fences.push({ lang: open.lang, start: open.start, end: nl < 0 ? text.length : nl + 1 });
+          open = null;
+        }
+        pos = nextPos;
+        continue;
+      }
+    }
+
+    const { depth, rest } = peelQuotes(rawLine);
+    const opener = /^[ ]{0,3}(`{3,}|~{3,})(.*)$/.exec(rest);
+    if (opener) {
+      const marker = opener[1];
+      const info = opener[2];
+      if (marker[0] !== "`" || !info.includes("`")) {
+        const lang = info.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+        open = { char: marker[0], len: marker.length, quoteDepth: depth, lang, start: pos };
+      }
+    }
+    pos = nextPos;
+  }
+  if (open) fences.push({ lang: open.lang, start: open.start, end: text.length });
+  return fences;
+}
+
+/** Whether streamed markdown opens a `widget` or `ui` fence, including inside blockquotes. */
+export function hasStreamedFence(text: string): boolean {
+  return scanMarkdownFences(text).some((f) => STREAMED_FENCE_LANG.test(f.lang));
+}
+
+function stripFoldFences(text: string): string {
+  const fences = scanMarkdownFences(text).filter((f) => FOLD_SKIP_FENCE.test(f.lang));
+  if (!fences.length) return text;
+  let out = "";
+  let at = 0;
+  for (const f of fences) {
+    out += text.slice(at, f.start) + " ";
+    at = f.end;
+  }
+  return out + text.slice(at);
+}
+
 const squash = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 
 /** A fold's replies as find reads them once it opens: prose, without widget
@@ -313,7 +396,7 @@ const squash = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 export function foldFindText(items: HarnessItem[]): string {
   return items
     .filter((i) => i.kind === "assistant")
-    .map((i) => squash((i.content ?? "").replace(WIDGET_FENCE, " ").replace(/[*_`#>~|]+/g, "")))
+    .map((i) => squash(stripFoldFences(i.content ?? "").replace(/[*_`#>~|]+/g, "")))
     .join("\n");
 }
 

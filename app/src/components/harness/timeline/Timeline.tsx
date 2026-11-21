@@ -9,7 +9,7 @@ import { Bundle, Item } from "./ItemRows";
 import { ArtifactRow, ContextDrift } from "./Messages";
 import { RunWorkGroup } from "./RunWorkGroup";
 import { LiveTail, Pending } from "./Pending";
-import { buildRows, replyKey, streamingReply } from "./rows";
+import { buildRows, hasStreamedFence, replyKey, streamingReply } from "./rows";
 import type { PendingActions, QuestionActions } from "./types";
 import { useRowWindow } from "./useRowWindow";
 import { useRowVisibility } from "./useRowVisibility";
@@ -20,9 +20,6 @@ import { ThreadAnnouncer } from "./ThreadAnnouncer";
 import { AssistantSend } from "@/components/markdown/openui/assistant";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { useThreadViewed } from "@/hooks/agents/useThreadViewed";
-
-/** A ```widget or ```ui fence opening in streamed text. */
-const STREAMED_FENCE = /(^|\n)[ \t]*(`{3,}|~{3,})[ \t]*(?:widget|ui)\b/;
 
 /** A committed row: an anchor for `useStickToBottom`, with off-screen layout
  *  skipped by `useRowVisibility`. Padding on all edges preserves focus rings. */
@@ -68,7 +65,7 @@ export const Timeline = memo(function Timeline({
   const streaming = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.streaming);
   // A reply with a widget or ui fence streams as the row it will become, so its
   // frame or DOM nodes survive the commit. Flips once a reply.
-  const streamsWidget = useHarnessStore((s) => threadId != null && STREAMED_FENCE.test(s.live[threadId]?.streaming ?? ""));
+  const streamsWidget = useHarnessStore((s) => threadId != null && hasStreamedFence(s.live[threadId]?.streaming ?? ""));
   const streamRow = useMemo(() => {
     if (!streamsWidget || threadId == null) return null;
     const at = streamingReply(items);

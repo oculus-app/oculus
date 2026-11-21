@@ -29,8 +29,11 @@ script, no external styles and no iframe.
 ## A `ui` fence draws while it streams and survives commit
 
 `Timeline` (`app/src/components/harness/timeline/Timeline.tsx`) subscribes to
-whether the live stream contains an opening `widget` or `ui` fence
-(`STREAMED_FENCE`), which flips once per reply. Once matched, the streaming
+whether the live stream contains an opening `widget` or `ui` fence via
+`hasStreamedFence` (`app/src/components/harness/timeline/rows.ts`), which uses
+CommonMark fence rules (up to three spaces of indentation, optional blockquote
+prefixes, backtick or tilde fences, and closing fences at least as long as the
+opening delimiter) and flips once per reply. Once matched, the streaming
 reply renders as the committed `Reply` row it will become under `replyKey` with
 the committed row's `[null, Item]` child shape
 ([harness.md](./harness.md#the-timeline-never-re-renders-per-token)). When the
@@ -48,18 +51,25 @@ synchronously in the same commit.
 Each pass runs three steps in order:
 
 1. **Repair (`repairPrefix`).** While open, strips a half-arrived closing fence
-   (trailing backticks or tildes on the last line), an unclosed HTML comment, an
-   unclosed `<…` tag, a truncated HTML entity (`&am`, `&#x20`) and an unclosed
-   trailing `$…$` / `$$…$$` formula. Open ancestor tags are left for the HTML
-   parser to close, so half-built rows (such as a stat tile with only its label)
-   appear as they arrive without shifting content above the block.
+   (trailing backticks or tildes on the last line), then scans once through
+   text, HTML comments, tags, quoted attribute values, entities and
+   `$…$`/`$$…$$` runs in maths-eligible text (outside `<svg>`, `<code>` and
+   `<kbd>`), cutting before any unclosed construct. `<` and `>` inside a
+   formula stay maths rather than markup, and `$` inside `<code>`, `<kbd>` and
+   `<svg>` stays literal. Open ancestor tags are left for the HTML parser to
+   close, so half-built rows (such as a stat tile with only its label) appear as
+   they arrive without shifting content above the block.
 2. **Sanitise (`sanitize`).** Parses the markup into an inert `<template>` so
    nothing executes or fetches, walks its `DocumentFragment`, renders maths in
    eligible text nodes, and returns the cleaned fragment.
 3. **Morph (`morph`).** Reconciles the host's live DOM children against the
-   cleaned fragment by index, keeping every node whose `nodeType`, `nodeName`
-   and `namespaceURI` match. Existing elements, SVG figures, text nodes and
-   unchanged formulas keep their identity across every delta and commit.
+   cleaned fragment by index, keeping every node whose `nodeType`, `nodeName`,
+   `namespaceURI` and chart-host status (`isChartHost`: HTML `div[data-chart]`)
+   match. Switching between a chart host and an ordinary element replaces the
+   whole node so the detached host keeps its React portal children until
+   unmount, and `morph` never descends into chart hosts. Existing elements, SVG
+   figures, text nodes and unchanged formulas keep their identity across every
+   delta and commit.
 
 Bad markup degrades silently: whatever survives the sanitiser is drawn, with no
 failure card. When nothing survives (or only whitespace), `GenUIFence` sets
@@ -117,7 +127,10 @@ nothing.
 to the block's root element with a single delegated listener set and calls
 `apply()` after every `morph` pass. State lives in the runtime's map rather than
 the DOM, so later streamed deltas and the reply commit keep active picks and
-pointer-captured drags intact.
+pointer-captured drags intact. After projecting state, `apply()` sweeps
+block-owned elements (skipping React-owned chart host subtrees) and removes any
+`RUNTIME` attribute whose owning behaviour is absent on that
+element.
 
 - **Choice (`data-choice`, `data-value`, `data-option`).** A group carries
   `data-choice="<name>"` (and optional default `data-value`) around
@@ -151,7 +164,10 @@ tokens only and disable transitions under `prefers-reduced-motion: reduce`.
 Committed picks persist in `app/src/stores/chat/widgetStore.ts` under
 `genuiKey(thread, row, blockIndex)` (`${thread}:${row}:ui:${block}`), where
 `blockIndex` is assigned in syntax order by `remarkUi` (`data-ui-index`) without
-touching `remarkWidgets`'s counter. Changed block source starts fresh via
+touching `remarkWidgets`'s counter. Each pick merges its single control into
+the latest entry for `(key, source)` (`widgetStore.patch`), and every mounted
+`GenUIFence` subscribes to its store entry so sibling views of the same thread
+(Chat and the lecture dock) stay in sync. Changed block source starts fresh via
 `entryState`, picks made after a fence closes but before commit flush when
 `WidgetRow` arrives, and `widgetStore.prune` clears saved picks on thread delete
 and rewind alongside cards and widgets.
@@ -159,8 +175,12 @@ and rewind alongside cards and widgets.
 ## Maths and tables follow the reply's rules
 
 Text nodes outside `<svg>`, `<code>` and `<kbd>` run through `mathify`
-(`maths.ts`). `splitMaths` follows `remark-math`'s delimiter rules (`$…$` and
-`$$…$$`, skipping `\$`, whitespace-padded dollars and `$` inside TeX braces).
+(`maths.ts`), which joins adjacent text siblings first so inequalities split
+around `<` or `&lt;` stay intact. `splitMaths` follows `remark-math`'s
+delimiter rules (a run of `$` closes on the next run of the exact same length,
+allowing spaces inside `$…$` and trailing digits such as `$x$2`, stripping one
+paired outer space, and keeping escaped `\$` and unclosed `$` literal; two or
+more `$` render in display mode).
 Each formula renders through the app's `renderToString` (`app/src/lib/maths/`),
 strict first and lenient on error, wrapped in `<span class="genui-math"
 data-tex="…">`. Cached fragments are cloned per formula, and `morph` compares
@@ -192,7 +212,7 @@ plus `$…$` maths renderer so chart labels (titles, axis labels, legends, serie
 names and centre text) inside `ui` blocks never parse Markdown, links, images
 or raw HTML, while OpenUI charts leave `RichTextRenderer` unset and keep
 `InlineMd`. After each `morph` pass, `GenUIFence` portals a `ChartHost` into
-every `[data-chart]` host (flushed before paint on streaming frames via
+every HTML `div[data-chart]` host (flushed before paint on streaming frames via
 `flushSync`, and synchronously in `useLayoutEffect` once closed). `sanitize`
 admits `data-chart` and its companions only on HTML `div` elements and strips
 any child nodes inside `[data-chart]` so React owns the host's subtree, and
@@ -268,14 +288,17 @@ holds back an unclosed `$…$` formula during streaming.
   fold while the prose inside the fold renders a `widget-pointer` reading
   "Visual shown below". In runless stretches `isCommentary` (`rows.ts`) keeps a
   `ui`-carrying reply visible.
-- **Copy as markdown.** `GenUIFence` sets `data-md` to the original
-  ` ```ui … ``` ` fence, so selecting across a block copies or drags out its
+- **Copy as markdown.** `GenUIFence` sets `data-md` to the `ui` fence wrapped
+  in a backtick delimiter one longer than the longest backtick run in the body
+  (minimum three), so selecting across a block copies or drags out valid
   markdown source via `selectionMarkdown` (`app/src/lib/markdown/selection.ts`),
   while selecting inside the block copies the selected text or table.
-- **Find in chat.** `foldFindText` (`rows.ts`) strips `ui` fences alongside
-  `openui` and `widget` so collapsed work folds do not open for text already
-  visible in `ArtifactRow`; live DOM find (`useDomFind`) searches text inside
-  rendered `.genui` blocks directly.
+- **Find in chat.** `foldFindText` (`rows.ts`) strips `ui`, `openui` and
+  `widget` fences using the shared CommonMark fence scanner
+  (`scanMarkdownFences`) so collapsed work folds keep surrounding prose (even
+  after blockquoted fences) and do not open for text already visible in
+  `ArtifactRow`; live DOM find (`useDomFind`) searches text inside rendered
+  `.genui` blocks directly and re-searches when `data-off` toggles.
 
 ## The agent brief teaches the grammar directly
 

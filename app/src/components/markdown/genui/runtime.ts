@@ -1,3 +1,6 @@
+import { RUNTIME } from "./allow";
+import { isChartHost } from "./morph";
+
 /**
  * Host-side runtime for a ```ui block's interactive attributes: one delegated
  * listener set per block and no agent-written script. State lives in this map
@@ -17,7 +20,7 @@ export class BlockRuntime {
 
   constructor(
     private root: HTMLElement,
-    private onChange: () => void = () => {},
+    private onChange: (name: string, value: string) => void = () => {},
   ) {
     const on = { signal: this.ac.signal };
     root.addEventListener("click", this.click, on);
@@ -42,10 +45,21 @@ export class BlockRuntime {
 
   /** Restores saved picks for a committed block (empty starts fresh). */
   hydrate(saved: Record<string, unknown>) {
-    this.picked.clear();
+    const next = new Map<string, string>();
     for (const [k, v] of Object.entries(saved)) {
-      if (typeof v === "string") this.picked.set(k, v);
+      if (typeof v === "string") next.set(k, v);
     }
+    let unchanged = next.size === this.picked.size;
+    if (unchanged) {
+      for (const [k, v] of next) {
+        if (this.picked.get(k) !== v) {
+          unchanged = false;
+          break;
+        }
+      }
+    }
+    if (unchanged) return;
+    this.picked = next;
     if (this.root.firstChild) this.apply();
   }
 
@@ -76,51 +90,76 @@ export class BlockRuntime {
     return out;
   }
 
-  /** Projects current state onto runtime-owned attributes after each morph. */
+  /** Projects current state onto runtime-owned attributes after each morph,
+   *  then clears runtime-owned attributes left on reused elements whose
+   *  owning behaviour disappeared. */
   apply() {
     const defaults = this.defaults();
     const value = (name: string) => (this.inert ? defaults.get(name) : (this.picked.get(name) ?? defaults.get(name)));
+    const elements = ownElements(this.root);
+    const owned = new Map<Element, Set<string>>();
+    const own = (el: Element, ...attrs: string[]) => {
+      let setFor = owned.get(el);
+      if (!setFor) owned.set(el, (setFor = new Set()));
+      for (const a of attrs) setFor.add(a);
+    };
 
-    for (const el of this.root.querySelectorAll("svg[aria-label]")) set(el, "role", "img");
+    for (const el of elements) {
+      if (el.localName.toLowerCase() === "svg" && el.hasAttribute("aria-label")) {
+        set(el, "role", "img");
+        own(el, "role");
+      }
 
-    for (const group of this.root.querySelectorAll("[data-choice]")) {
-      const name = group.getAttribute("data-choice")!;
-      set(group, "role", "radiogroup");
-      toggle(group, "inert", this.inert);
-      const current = value(name);
-      const opts = groupOptions(group);
-      const hasSelected = current !== undefined && opts.some((o) => o.getAttribute("data-option") === current);
-      opts.forEach((opt, i) => {
-        const on = current !== undefined && opt.getAttribute("data-option") === current;
-        toggle(opt, "data-on", on);
-        toggle(opt, "inert", this.inert);
-        set(opt, "role", "radio");
-        set(opt, "aria-checked", String(on));
-        set(opt, "tabindex", !this.inert && (on || (!hasSelected && i === 0)) ? "0" : "-1");
-      });
-    }
-
-    for (const el of this.root.querySelectorAll("[data-scrub]")) {
-      const opts = options(el);
-      const v = value(el.getAttribute("data-scrub")!);
-      set(el, "role", "slider");
-      toggle(el, "inert", this.inert);
-      set(el, "tabindex", this.inert ? "-1" : "0");
-      set(el, "aria-valuemin", "0");
-      set(el, "aria-valuemax", String(Math.max(0, opts.length - 1)));
-      set(el, "aria-valuenow", String(Math.max(0, opts.indexOf(v ?? ""))));
-      set(el, "aria-valuetext", v ?? "");
-    }
-
-    for (const el of this.root.querySelectorAll("[data-show]")) {
-      const conds = conditions(el.getAttribute("data-show") ?? "");
-      const shown =
-        conds.length > 0 &&
-        conds.every(([name, vals]) => {
-          const current = value(name);
-          return current !== undefined && vals.includes(current);
+      if (el.hasAttribute("data-choice")) {
+        const name = el.getAttribute("data-choice")!;
+        set(el, "role", "radiogroup");
+        toggle(el, "inert", this.inert);
+        own(el, "role", "inert");
+        const current = value(name);
+        const opts = groupOptions(el);
+        const hasSelected = current !== undefined && opts.some((o) => o.getAttribute("data-option") === current);
+        opts.forEach((opt, i) => {
+          const on = current !== undefined && opt.getAttribute("data-option") === current;
+          toggle(opt, "data-on", on);
+          toggle(opt, "inert", this.inert);
+          set(opt, "role", "radio");
+          set(opt, "aria-checked", String(on));
+          set(opt, "tabindex", !this.inert && (on || (!hasSelected && i === 0)) ? "0" : "-1");
+          own(opt, "data-on", "inert", "role", "aria-checked", "tabindex");
         });
-      toggle(el, "data-off", !shown);
+      }
+
+      if (el.hasAttribute("data-scrub")) {
+        const opts = options(el);
+        const v = value(el.getAttribute("data-scrub")!);
+        set(el, "role", "slider");
+        toggle(el, "inert", this.inert);
+        set(el, "tabindex", this.inert ? "-1" : "0");
+        set(el, "aria-valuemin", "0");
+        set(el, "aria-valuemax", String(Math.max(0, opts.length - 1)));
+        set(el, "aria-valuenow", String(Math.max(0, opts.indexOf(v ?? ""))));
+        set(el, "aria-valuetext", v ?? "");
+        own(el, "role", "inert", "tabindex", "aria-valuemin", "aria-valuemax", "aria-valuenow", "aria-valuetext");
+      }
+
+      if (el.hasAttribute("data-show")) {
+        const conds = conditions(el.getAttribute("data-show") ?? "");
+        const shown =
+          conds.length > 0 &&
+          conds.every(([name, vals]) => {
+            const current = value(name);
+            return current !== undefined && vals.includes(current);
+          });
+        toggle(el, "data-off", !shown);
+        own(el, "data-off");
+      }
+    }
+
+    for (const el of elements) {
+      const keep = owned.get(el);
+      for (const a of Array.from(el.attributes)) {
+        if (RUNTIME.has(a.name) && !keep?.has(a.name)) el.removeAttribute(a.name);
+      }
     }
   }
 
@@ -129,7 +168,7 @@ export class BlockRuntime {
     if (this.picked.get(name) === v) return;
     this.picked.set(name, v);
     this.apply();
-    this.onChange();
+    this.onChange(name, v);
   }
 
   private click = (e: MouseEvent) => {
@@ -245,6 +284,19 @@ export class BlockRuntime {
 }
 
 const options = (el: Element) => (el.getAttribute("data-options") ?? "").split(/\s+/).filter(Boolean);
+
+/** Block-owned descendant elements, skipping children inside React chart hosts. */
+function ownElements(root: Element): Element[] {
+  const out: Element[] = [];
+  const walk = (parent: Element) => {
+    for (let child = parent.firstElementChild; child; child = child.nextElementSibling) {
+      out.push(child);
+      if (!isChartHost(child)) walk(child);
+    }
+  };
+  walk(root);
+  return out;
+}
 
 function groupOptions(group: Element): Element[] {
   return Array.from(group.querySelectorAll("[data-option]")).filter((o) => o.closest("[data-choice]") === group);

@@ -1,10 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useMathsReady } from "@/lib/maths";
 import { useWidgetRow } from "@/components/markdown/openui/state";
 import { entryState, genuiKey, useWidgetStore } from "@/stores/chat/widgetStore";
 import { ChartHost, type ChartAttrs } from "./ChartHost";
-import { morph } from "./morph";
+import { isChartHost, morph } from "./morph";
 import { repairPrefix } from "./repair";
 import { BlockRuntime } from "./runtime";
 import { sanitize } from "./sanitize";
@@ -22,6 +22,16 @@ function sameAttrs(a: ChartAttrs, b: ChartAttrs): boolean {
   if (keys.length !== Object.keys(b).length) return false;
   for (const k of keys) if (a[k] !== b[k]) return false;
   return true;
+}
+
+/** Wraps `source` in a backtick fence one longer than its longest backtick run. */
+function uiFenceMarkdown(source: string): string {
+  let longest = 0;
+  for (const m of source.matchAll(/`+/g)) {
+    if (m[0].length > longest) longest = m[0].length;
+  }
+  const fence = "`".repeat(Math.max(3, longest + 1));
+  return `${fence}ui\n${source}\n${fence}`;
 }
 
 /**
@@ -60,7 +70,7 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
     morph(el, next);
     runtime.current?.apply();
     el.toggleAttribute("data-empty", !el.firstElementChild && !el.textContent?.trim());
-    const hosts = Array.from(el.querySelectorAll("[data-chart]"));
+    const hosts = Array.from(el.querySelectorAll("div[data-chart]")).filter(isChartHost);
     const syncCharts = () =>
       setCharts((prev) => {
         const now = hosts.map((h) => {
@@ -78,12 +88,19 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
 
   useLayoutEffect(() => {
     const el = root.current!;
-    const rt = new BlockRuntime(el, () => {
+    drawn.current = null;
+    hydrated.current = null;
+    prevKey.current = null;
+    const rt = new BlockRuntime(el, (name, value) => {
       const { closed, storeKey, source } = latest.current;
-      if (closed && storeKey) useWidgetStore.getState().save(storeKey, source, rt.state());
+      if (closed && storeKey) useWidgetStore.getState().patch(storeKey, source, { [name]: value });
     });
     runtime.current = rt;
     return () => {
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+        frame.current = null;
+      }
       rt.destroy();
       runtime.current = null;
     };
@@ -99,40 +116,42 @@ export function GenUIFence({ source, closed, blockIndex = 0 }: { source: string;
         const hadLocalPicks = prevKey.current === null && Object.keys(rt.state()).length > 0;
         hydrated.current = sig;
         if (hadLocalPicks) {
-          useWidgetStore.getState().save(storeKey, source, rt.state());
-        } else {
-          rt.hydrate(entryState(useWidgetStore.getState().entries[storeKey], source));
+          useWidgetStore.getState().patch(storeKey, source, rt.state());
         }
+        rt.hydrate(entryState(useWidgetStore.getState().entries[storeKey], source));
       }
-    } else if (!closed) {
-      hydrated.current = null;
+      prevKey.current = storeKey;
+      return useWidgetStore.subscribe((state, prev) => {
+        if (state.entries[storeKey] !== prev.entries[storeKey]) {
+          rt.hydrate(entryState(state.entries[storeKey], source));
+        }
+      });
     }
+    if (!closed) hydrated.current = null;
     prevKey.current = storeKey;
   }, [closed, storeKey, source]);
 
   // A closed fence draws in the commit that closed it; a streaming one waits
   // for the frame, so deltas inside one frame draw once.
   useLayoutEffect(() => {
+    const stamp = `${closed ? 1 : 0}:${ready ? 1 : 0}:${source}`;
     if (closed) {
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+        frame.current = null;
+      }
       draw(true);
-    } else if (frame.current === null) {
+    } else if (frame.current === null && drawn.current !== stamp) {
       frame.current = requestAnimationFrame(() => draw(false));
     }
   });
-  useEffect(
-    () => () => {
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
-    },
-    [],
-  );
 
   return (
     <>
       <div
         ref={root}
         className="genui"
-        data-md={source ? `\`\`\`ui\n${source}\n\`\`\`` : undefined}
+        data-md={source ? uiFenceMarkdown(source) : undefined}
         data-streaming={closed ? undefined : ""}
         data-ready={ready ? "" : undefined}
       />

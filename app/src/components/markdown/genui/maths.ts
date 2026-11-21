@@ -4,11 +4,11 @@ import { mathsReady, renderToString } from "@/lib/maths";
 export type Piece = { text: string } | { tex: string; display: boolean };
 
 /**
- * Splits text on `$$…$$` and `$…$` as remark-math reads a paragraph: an
- * inline formula opens on a `$` not followed by a space and closes on one not
- * preceded by a space nor followed by a digit; `\$` is a dollar. `open` is
- * where an unclosed formula starts (-1 when none), so a streaming tail can
- * hold it back instead of showing half its TeX.
+ * Splits text on `$$…$$` and `$…$` with remark-math's delimiter rules: any
+ * run of `$` closes on the next run of the exact same length, spaces inside
+ * `$…$` and trailing digits (`$x$2`) are allowed, paired single outer spaces
+ * are stripped, and `\$` outside maths is a literal dollar. `open` is the
+ * earliest unclosed delimiter (-1 when none).
  */
 export function splitMaths(text: string): { pieces: Piece[]; open: number } {
   const pieces: Piece[] = [];
@@ -27,41 +27,52 @@ export function splitMaths(text: string): { pieces: Piece[]; open: number } {
       i++;
       continue;
     }
-    const display = text[i + 1] === "$";
-    const start = i + (display ? 2 : 1);
-    const end = display ? text.indexOf("$$", start) : closingDollar(text, start);
-    if (!display && start < text.length && /\s/.test(text[start])) {
-      plain += c;
-      i++;
-      continue;
-    }
+    let size = 0;
+    while (text[i + size] === "$") size++;
+    const start = i + size;
+    const end = closingRun(text, start, size);
     if (end < 0) {
-      open = i;
-      plain += text.slice(i);
-      break;
+      if (open < 0) open = i;
+      plain += text.slice(i, start);
+      i = start;
+      continue;
     }
     if (plain) pieces.push({ text: plain });
     plain = "";
-    pieces.push({ tex: text.slice(start, end), display });
-    i = end + (display ? 2 : 1);
+    pieces.push({ tex: stripPadding(text.slice(start, end)), display: size >= 2 });
+    i = end + size;
   }
   if (plain) pieces.push({ text: plain });
   return { pieces, open };
 }
 
-/** A `$` inside braces is TeX's own (`\colorbox{…}{$x$}`), never the close. */
-function closingDollar(text: string, from: number): number {
-  let depth = 0;
-  for (let i = from; i < text.length; i++) {
-    if (text[i] === "\\") {
+/** Finds the next run of exactly `size` consecutive `$` characters from `from`. */
+function closingRun(text: string, from: number, size: number): number {
+  let i = from;
+  while (i < text.length) {
+    if (text[i] === "$") {
+      const start = i;
+      while (text[i] === "$") i++;
+      if (i - start === size) return start;
+    } else {
       i++;
-      continue;
     }
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}") depth = Math.max(0, depth - 1);
-    else if (depth === 0 && text[i] === "$" && !/\s/.test(text[i - 1]) && !/\d/.test(text[i + 1] ?? "")) return i;
   }
   return -1;
+}
+
+/** Strips one paired outer space/newline when content has non-space data,
+ *  matching micromark-extension-math's `resolveMathText`. */
+function stripPadding(raw: string): string {
+  if (
+    raw.length >= 2 &&
+    (raw[0] === " " || raw[0] === "\n" || raw[0] === "\r") &&
+    (raw[raw.length - 1] === " " || raw[raw.length - 1] === "\n" || raw[raw.length - 1] === "\r") &&
+    /[^ \r\n]/.test(raw)
+  ) {
+    return raw.slice(1, -1);
+  }
+  return raw;
 }
 
 // Parsed renders by mode and source; a hit is cloned, never re-parsed.
@@ -111,8 +122,14 @@ export function formula(tex: string, display: boolean): HTMLElement {
   return wrap;
 }
 
-/** Replaces a text node holding maths with its text and formulas. */
+/** Replaces a text node holding maths with its text and formulas, first
+ *  joining adjacent text siblings (e.g. split around `<` or `&lt;`). */
 export function mathify(node: Text) {
+  if (!node.parentNode) return;
+  while (node.nextSibling?.nodeType === Node.TEXT_NODE) {
+    node.data += (node.nextSibling as Text).data;
+    node.nextSibling.remove();
+  }
   const value = node.data;
   if (!value.includes("$")) return;
   const { pieces } = splitMaths(value);

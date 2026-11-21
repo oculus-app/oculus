@@ -223,12 +223,13 @@ describe("genui sanitize", () => {
     });
   }
 
-  test("renders inline and display maths while keeping escaped dollars and spaced dollars", () => {
-    const html = sanitizeHtml(`<p>Inline $x^2$ and display $$\\sum_i x_i$$ and money \\$5 and $ not maths$.</p>`);
+  test("renders inline and display maths while keeping escaped and unclosed dollars literal", () => {
+    const html = sanitizeHtml(`<p>Inline $x^2$, spaced $ y $, display $$\\sum_i x_i$$, money \\$5 and unclosed $5.</p>`);
     expect(html).toContain(`data-tex="Ix^2"`);
+    expect(html).toContain(`data-tex="Iy"`);
     expect(html).toContain(`data-tex="D\\sum_i x_i"`);
     expect(html).toContain("katex");
-    expect(html).toContain("money $5 and $ not maths$.");
+    expect(html).toContain("money $5 and unclosed $5.");
   });
 
   test("does not run maths inside code or svg text", () => {
