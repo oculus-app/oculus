@@ -225,8 +225,13 @@ impl Translator {
         let usage = reply.as_ref().ok().map(|r| &r["usage"]);
         let n = |k: &str| usage.and_then(|u| u[k].as_u64());
         if usage.is_some_and(|u| u.is_object()) || self.context.is_some() {
+            // ACP separates cached input from `inputTokens`; sum them to match
+            // Claude and Codex's total `input_tokens`.
+            let input = n("inputTokens").unwrap_or(0)
+                + n("cachedReadTokens").unwrap_or(0)
+                + n("cachedWriteTokens").unwrap_or(0);
             out.push(HarnessEvent::Usage {
-                input_tokens: n("inputTokens").unwrap_or(0),
+                input_tokens: input,
                 output_tokens: n("outputTokens").unwrap_or(0),
                 context_tokens: self.context.map(|(used, _)| used),
                 context_window: self.context.map(|(_, size)| size),
