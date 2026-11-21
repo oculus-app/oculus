@@ -1,32 +1,35 @@
 import { create } from "zustand";
 
-import { listVideos, type VideoRow } from "@/lib/studio/videos";
+import { listVideosAndSeries, type StudioSeries, type VideoList, type VideoRow } from "@/lib/studio/videos";
 
 interface VideosState {
   /** Newest first. */
   videos: VideoRow[];
+  series: StudioSeries[];
   loaded: boolean;
   /** The last read's failure, shown in place of the list. */
   error: string | null;
   reload: () => Promise<void>;
 }
 
-/** Latest read wins, so a slow answer never overwrites a newer one. */
-let run = 0;
+/** One atomic video/series read; a slow answer cannot overwrite a newer one. */
+export function createVideosStore(read: () => Promise<VideoList>) {
+  let run = 0;
+  return create<VideosState>((set) => ({
+    videos: [],
+    series: [],
+    loaded: false,
+    error: null,
+    reload: async () => {
+      const mine = ++run;
+      try {
+        const { videos, series } = await read();
+        if (mine === run) set({ videos, series, loaded: true, error: null });
+      } catch (e) {
+        if (mine === run) set({ loaded: true, error: e instanceof Error ? e.message : String(e) });
+      }
+    },
+  }));
+}
 
-/** Every video, for the Videos grid (which filters by subject itself) and
- *  for finding the video a chat thread makes (`VideoRow.threadId`). */
-export const useVideosStore = create<VideosState>((set) => ({
-  videos: [],
-  loaded: false,
-  error: null,
-  reload: async () => {
-    const mine = ++run;
-    try {
-      const videos = await listVideos();
-      if (mine === run) set({ videos, loaded: true, error: null });
-    } catch (e) {
-      if (mine === run) set({ loaded: true, error: e instanceof Error ? e.message : String(e) });
-    }
-  },
-}));
+export const useVideosStore = createVideosStore(listVideosAndSeries);

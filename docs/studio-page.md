@@ -15,6 +15,7 @@ video starts that chat. The renderer, the commands and the thread link are
 | The nav column: New video, Videos, Components, Themes | `app/src/components/studio/nav/` |
 | Pages | `app/src/pages/studio/` (`VideosPage`, `VideoPage`, `VideoRedirect`, `ComponentsPage`, `ThemesPage`) |
 | New video: a new Chat thread with the skill chip in its box | `app/src/hooks/studio/useNewVideoChat.ts` |
+| Series grouping, outline navigation and shared part requests | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
 | Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts` |
 | The Videos grid, its cards and subject pills | `app/src/components/studio/videos/`, `app/src/components/ui/layout/MediaGrid.tsx` |
@@ -110,7 +111,30 @@ card's badge, a chat's video card and the page's bar all follow one render.
 ## Videos and the detail
 
 The `studio_videos` response includes video rows and [series outlines](./studio.md#a-series-keeps-its-parts-in-order).
-`listVideosAndSeries` exposes both. The grid reads the video rows through `listVideos`.
+`listVideosAndSeries` exposes both, and `videosStore` holds `videos` and
+`series` from one read. `listVideos` is a video-only convenience wrapper;
+part rows remain in that array. Rows carry nullable `seconds`; outlines
+carry `threadId`, `modified` and a video row for every matching folder,
+including a part that has no render.
+
+`lib/studio/series.ts` derives grid items sorted by modification time,
+subjects including empty outlines, part membership, made neighbours, the
+next unmade part, made counts and the series belonging to a thread. Only a
+part's actual `video` row claims it from the single-video grid: a missing
+or unreadable outline cannot hide a video. Part lookup also leaves an
+unrelated video at a reserved slug standalone. A series filters by its own subject.
+
+`useMakeSeriesPart` observes a series and exposes the shared requested part,
+sending state, running state and send error. Requests live in a store across
+navigation and clear when the part is made or its turn ends; a queued
+continuation stays pending while the harness keeps the thread running.
+Its `make` uses the composer's `harnessSend`, proposal flush and delivery
+helpers, including Settings → Chat's Enter preference. It uses the thread's
+selection (a pending composer pick takes precedence), never the session's
+model or reasoning fallback. A missing model or reasoning level asks the
+student to choose them in Chat. Threads outside the loaded page are read by
+id. With no thread, `useNewVideoChat` opens an unsent draft with the skill
+chip and the requested series and part slugs, in the series' subject.
 
 The grid (`MediaGrid`, `MediaTile`) shows each video's thumbnail
 (`studio_thumbnail`, 16:9, a portrait one letterboxed rather than cropped),
