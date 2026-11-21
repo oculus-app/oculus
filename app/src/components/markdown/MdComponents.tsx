@@ -15,6 +15,8 @@ import { OPENUI_LANGS, OpenUIFence } from "@/components/markdown/openui/OpenUIFe
 import { remarkFenceSplit, remarkWidgets, type FenceSplit } from "@/components/markdown/openui/remarkWidgets";
 import { WIDGET_LANG } from "@/components/markdown/widget/constants";
 import { WidgetFence } from "@/components/markdown/widget/WidgetFence";
+import { GenUIFence, UI_LANG } from "@/components/markdown/genui/GenUIFence";
+import { remarkUi } from "@/components/markdown/genui/remarkUi";
 import { OutputEmbed, embedKind } from "@/components/markdown/OutputEmbed";
 import { attachmentPath, attachmentSrc } from "@/lib/harness/attachments";
 import { useDataDir } from "@/hooks/backend/useDataDir";
@@ -239,6 +241,11 @@ export const MD_COMPONENTS: Components = {
     }
     // Matched before it has a line, so a fence just opened never shows as code.
     if (isFence(el, WIDGET_LANG)) return <WidgetFence source={fenceSource(children, WIDGET_LANG) ?? ""} blockIndex={index} code={block} />;
+    // A ```ui fence is generative UI: sanitised markup drawn in place (`genui/`).
+    if (isFence(el, UI_LANG)) {
+      const closed = (el.props as Record<string, unknown>)["data-fence-closed"] === true;
+      return <GenUIFence source={fenceSource(children, UI_LANG) ?? ""} closed={closed} />;
+    }
     return block;
   },
   hr: (p: any) => <hr className="my-5 border-border" {...p} />,
@@ -275,7 +282,7 @@ export const MD_COMPONENTS: Components = {
     "widget-pointer": (p: any) => (
       <p className="my-2 flex items-center gap-1.5 text-xs text-muted-foreground">
         <ArrowDown size={12} className="shrink-0" />
-        {p["data-lang"] === "widget" ? "Widget shown below" : "Card shown below"}
+        {p["data-lang"] === "widget" ? "Widget shown below" : p["data-lang"] === "ui" ? "Visual shown below" : "Card shown below"}
       </p>
     ),
   } as Components),
@@ -295,8 +302,8 @@ const isTaskList = (className: unknown) =>
   typeof className === "string" && className.split(" ").includes("contains-task-list");
 
 /** Hoisted for stable array identity across re-renders. */
-const PLAIN = [remarkGfm, remarkProsePaths, remarkWidgets];
-const WITH_MATH = [remarkGfm, remarkMath, remarkProsePaths, remarkWidgets];
+const PLAIN = [remarkGfm, remarkProsePaths, remarkWidgets, remarkUi];
+const WITH_MATH = [remarkGfm, remarkMath, remarkProsePaths, remarkWidgets, remarkUi];
 /** The same pipelines with a reply split around its widget fences, so their
  *  numbering is the whole reply's. */
 const SPLIT: Record<FenceSplit, { plain: typeof PLAIN; math: typeof WITH_MATH }> = {

@@ -62,13 +62,11 @@ export type ViewRow =
   /** A finished `oculus studio render`, drawn as a playable tile under its fold. */
   | { kind: "render"; id: string; item: HarnessItem };
 
-/** A reply carrying an interactive fence stays visible in a runless stretch:
- *  only a run's fold can pin the fence alone. */
-const ARTIFACT = /```(openui|widget)\b/;
-
-/** An earlier reply of a settled run (Rust's `RunSettled`): work, not the answer. */
+/** An earlier reply of a settled run (Rust's `RunSettled`): work, not the answer.
+ *  A reply carrying an interactive or visual fence stays visible in a runless
+ *  stretch: only a run's fold can pin the fence alone. */
 export const isCommentary = (i: HarnessItem) =>
-  i.kind === "assistant" && i.display_role === "commentary" && !ARTIFACT.test(i.content ?? "");
+  i.kind === "assistant" && i.display_role === "commentary" && !mayHoldWidget(i.content);
 
 const isWork = (i: HarnessItem) => i.kind === "tool" || i.kind === "thinking" || isCommentary(i);
 
@@ -306,7 +304,7 @@ export function foldLabel(fold: Pick<WorkFold, "state" | "startedMs" | "endedMs"
   return fold.state === "failed" ? `Failed after ${t}` : `Worked for ${t}`;
 }
 
-const WIDGET_FENCE = /(`{3,}|~{3,})[ \t]*(?:openui|widget)\b[\s\S]*?(?:\n\1|$)/g;
+const WIDGET_FENCE = /(`{3,}|~{3,})[ \t]*(?:openui|widget|ui)\b[\s\S]*?(?:\n[ \t]*\1|$)/g;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 
 /** A fold's replies as find reads them once it opens: prose, without widget

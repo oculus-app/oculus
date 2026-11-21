@@ -43,6 +43,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Local OpenUI Query tools and event refresh | `app/src/components/markdown/openui/query/` |
 | Seeded simulation and maths functions | `app/src/components/markdown/openui/functions/` |
 | Interactive reply fences, study widgets and their persisted progress | `app/src/components/markdown/openui/`, `app/src/stores/chat/widgetStore.ts` |
+| Generative UI (` ```ui ` fences: repair, sanitise, morph, maths, vocabulary CSS) | `app/src/components/markdown/genui/` |
 | Model picker and its catalogue hook | `app/src/components/harness/composer/ModelPicker.tsx`, `app/src/components/harness/composer/model/` (the menu, its rows, `modelSummary`), `app/src/hooks/agents/useProviderModels.ts` |
 | Settings → opencode: the provider and model tables, the connect flow, the offered-model gate | `app/src/pages/settings/integrations/OpencodePage.tsx`, `app/src/components/settings/agents/opencode/`, `app/src/components/settings/agents/OpencodeConnectDialog.tsx`, `app/src/lib/harness/opencodeCatalogue.ts` |
 | Per-job models | `app/src-tauri/src/harness/jobs.rs`, `JOBS` in `app/src/lib/db/jobModels.ts`, `app/src/components/settings/jobs/`, `app/src/hooks/agents/useJobAudit.ts` |
@@ -452,7 +453,7 @@ thread, so each Chat tab and the lecture dock hold their own. Retry links retain
 their original question row object, and work bundles compare their constituent
 row identities; appending a row leaves earlier rows memoised. `LiveTail` reads
 only running, thinking and assistant text, so tool output updates its tool row.
-A reply streaming a ` ```widget ` fence is the one exception: `Timeline` draws
+A reply streaming a ` ```widget ` or ` ```ui ` fence is the one exception: `Timeline` draws
 its text as the row it will become, a `Reply` with `stream` under the key the
 committed answer takes (`replyKey`, `streamingReply` in `rows.ts`) and with
 the committed item row's two-child shape (`[null, Item]` to match
@@ -460,9 +461,10 @@ the committed item row's two-child shape (`[null, Item]` to match
 commit), and that
 row reads the text per delta in place of `LiveTail`, which keeps the reasoning
 and "Working for 8s". The commit swaps the row's item in the same render, so the
-widget's frame survives it
-([widgets.md](./widgets.md#a-widget-draws-while-it-streams)). `Timeline`
-subscribes only to whether the text holds a widget fence, which flips once a
+widget's frame or the `ui` block's DOM nodes survive it
+([widgets.md](./widgets.md#a-widget-draws-while-it-streams),
+[generative-ui.md](./generative-ui.md#a-ui-fence-draws-while-it-streams-and-survives-commit)). `Timeline`
+subscribes only to whether the text holds a `widget` or `ui` fence, which flips once a
 reply.
 When the turn is running with neither text nor reasoning, `LiveTail` in
 `app/src/components/harness/timeline/Pending.tsx` shows a steady muted
@@ -1847,14 +1849,14 @@ rule under it; the fold's rows sit flush beneath it as one list. Inside an open 
 rows in a row fold into one bundle, drawn at full strength (a bundle outside
 a fold fades until hovered).
 
-**Widget fences never fold.** A folded reply that may hold an `openui` or
-`widget` fence (`mayHoldWidget`, a superset test, so uncertainty shows rather
+**Widget and `ui` fences never fold.** A folded reply that may hold an `openui`,
+`widget` or `ui` fence (`mayHoldWidget`, a superset test, so uncertainty shows rather
 than hides) gets an `ArtifactRow` after the fold: the same reply through the
 same markdown pipeline with `remarkFenceSplit("artifacts")` after
-`remarkWidgets`, which keeps only the numbered fences. Inside the fold the
+`remarkWidgets` and `remarkUi`, which keeps only those fences. Inside the fold the
 reply renders with `remarkFenceSplit("prose")`, each fence replaced by
-"Card shown below" / "Widget shown below". Both parse the whole reply, so a
-fence keeps its original index and `WidgetRow` keeps the originating row:
+"Card shown below" / "Widget shown below" / "Visual shown below". Both parse the whole reply, so `openui` and `widget`
+fences keep their original index and `WidgetRow` keeps the originating row:
 `widgetKey`, the proposal id (`row.block`) and Undo are those the unfolded
 reply had, and the card mounts once whether the fold is open or not. Nothing
 is reserialised or evaluated to split; an invalid fence falls back to its

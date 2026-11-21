@@ -2,14 +2,17 @@ import type { Code, Paragraph, Root } from "mdast";
 import type { VFile } from "vfile";
 import { visitParents } from "unist-util-visit-parents";
 
-/** The fences that hold a widget: OpenUI's and the sandboxed ```widget. */
+/** The fences that share the widget counter: OpenUI's and the sandboxed ```widget. */
 const NUMBERED = /^(?:openui(?:-lang)?|widget)$/;
 
-/** Whether `text` may hold a widget fence: a superset of what `remarkWidgets`
- *  numbers (it also matches one inside a longer code block), so a fold that
- *  trusts it never hides one. Cheap enough for every row on every rebuild. */
+/** Fences lifted out of a folded reply into its artifact row (`remarkFenceSplit`). */
+const SPLIT_FENCE = /^(?:openui(?:-lang)?|widget|ui)$/;
+
+/** Whether `text` may hold a widget or generative-UI fence: a superset of what
+ *  `remarkFenceSplit` extracts (it also matches one inside a longer code block),
+ *  so a fold that trusts it never hides one. Cheap enough for every row on every rebuild. */
 export const mayHoldWidget = (text: string | null | undefined) =>
-  !!text && /(?:`{3,}|~{3,})[ \t]*(?:openui|widget)\b/.test(text);
+  !!text && /(?:`{3,}|~{3,})[ \t]*(?:openui|widget|ui)\b/.test(text);
 
 /**
  * Index widget fences in syntax order, independent of React render/StrictMode.
@@ -42,7 +45,7 @@ export function remarkFenceSplit(split: FenceSplit) {
   return (tree: Root) => {
     const fences: Code[] = [];
     visitParents(tree, "code", (node, parents) => {
-      if (!NUMBERED.test(node.lang ?? "")) return;
+      if (!SPLIT_FENCE.test(node.lang ?? "")) return;
       if (split === "artifacts") {
         fences.push(node);
         return;

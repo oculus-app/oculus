@@ -30,6 +30,7 @@ Read this before any UI work.
 | A titled block that folds, its state kept by the caller | `app/src/components/ui/CollapsibleSection.tsx` |
 | Study widgets in markdown replies | `app/src/components/markdown/openui/components/` |
 | Agent-written widgets and the kit they are built from | `app/src/components/markdown/widget/`, `app/widget-kit/` |
+| Generative UI markup (` ```ui ` fences) and its token-backed vocabulary | `app/src/components/markdown/genui/` |
 | Proposal cards, typed editors and result links | `app/src/components/markdown/openui/proposals/` |
 
 ## Study widgets use the reply's primitives and semantic tokens
@@ -61,6 +62,18 @@ components; its kit (`app/widget-kit/kit.css`) redraws the same card, pills
 and controls from the app's tokens, written into the frame for the current
 theme. It never scrolls: the frame is its content's height, and taller content
 is paginated with the kit's `Pages` ([widgets.md](./widgets.md)).
+
+A ` ```ui ` fence draws sanitised markup directly in the reply under `.genui`
+(`app/src/components/markdown/genui/genui.css`,
+[generative-ui.md](./generative-ui.md)). Its class vocabulary uses only the
+app's semantic tokens (`--color-foreground`, `--color-muted-foreground`,
+`--color-surface`, `--color-surface-raised`, `--color-border`, `--color-brand`,
+`--color-brand-muted`, `--color-brand-foreground`, `--color-success`,
+`--color-warning`, `--color-ink-50`, `--color-ink-500`, `--color-tag-green-soft`,
+`--color-chart-1`–`5`, `--font-sans` and `--font-mono` for `code`/`kbd` only)
+with no literal colours. The block carries `contain: layout`, sizes fluidly
+under page zoom without measuring rects, and never scrolls vertically; wide
+tables scroll horizontally inside `.g-table`.
 
 `Rich` repairs JSON's form-feed, tab, backspace and carriage-return escapes
 before a letter, plus newline escapes inside dollar-delimited maths. It cannot
