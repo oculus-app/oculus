@@ -77,21 +77,23 @@ export const allowedClass = (c: string) => CLASSES.has(c);
 // Forbidden in every SVG presentation attribute and every inline style value.
 const UNSAFE_CSS = /[\\@;{}]|\u002f\*|[\u0000-\u001f\u007f]/;
 const UNSAFE_STYLE_BLOCK = /[\\@{}]|\u002f\*|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+// Numeric/list/path/transform SVG attributes admit spaces, tabs and newlines as separators, never other controls.
+const UNSAFE_SVG_GEOM = /[\\@;{}]|\u002f\*|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
 const NUM = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?";
 const NONNEG = "(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?";
 const UNIT = "(?:px|em|rem|pt|%)";
 const LENGTH = new RegExp(`^${NUM}${UNIT}?$`, "i");
 const NONNEG_LENGTH = new RegExp(`^${NONNEG}${UNIT}?$`, "i");
-const LENGTH_LIST = new RegExp(`^${NUM}${UNIT}?(?:(?:\\s*,\\s*|\\s+)${NUM}${UNIT}?)*$`, "i");
+const LENGTH_LIST = new RegExp(`^${NUM}${UNIT}?(?:(?: ?, ?| )${NUM}${UNIT}?)*$`, "i");
 const NONNEG_NUM = new RegExp(`^${NONNEG}$`, "i");
-const VIEWBOX = new RegExp(`^${NUM}(?:(?:\\s*,\\s*|\\s+)${NUM}){3}$`, "i");
-const DASHARRAY = new RegExp(`^(?:none|${NONNEG}${UNIT}?(?:(?:\\s*,\\s*|\\s+)${NONNEG}${UNIT}?)*)$`, "i");
-const PATH_D = /^[MmLlHhVvCcSsQqTtAaZzEe0-9+\-.,\s]+$/;
-const POINTS = /^[0-9eE+\-.,\s]+$/;
+const VIEWBOX = new RegExp(`^${NUM}(?:(?: ?, ?| )${NUM}){3}$`, "i");
+const DASHARRAY = new RegExp(`^(?:none|${NONNEG}${UNIT}?(?:(?: ?, ?| )${NONNEG}${UNIT}?)*)$`, "i");
+const PATH_D = /^[MmLlHhVvCcSsQqTtAaZzEe0-9+\-., ]+$/;
+const POINTS = /^[0-9eE+\-., ]+$/;
 const TRANSFORM_ARG = `${NUM}(?:px|%|deg|rad|turn)?`;
-const TRANSFORM_FN = `(?:translate|scale|rotate|skewX|skewY|matrix)\\(\\s*${TRANSFORM_ARG}(?:(?:\\s*,\\s*|\\s+)${TRANSFORM_ARG}){0,5}\\s*\\)`;
-const TRANSFORM = new RegExp(`^(?:none|${TRANSFORM_FN}(?:(?:\\s*,\\s*|\\s+)${TRANSFORM_FN})*)$`, "i");
+const TRANSFORM_FN = `(?:translate|scale|rotate|skewX|skewY|matrix)\\( ?${TRANSFORM_ARG}(?:(?: ?, ?| )${TRANSFORM_ARG}){0,5} ?\\)`;
+const TRANSFORM = new RegExp(`^(?:none|${TRANSFORM_FN}(?:(?: ?, ?| )${TRANSFORM_FN})*)$`, "i");
 const KEYWORD = /^[a-zA-Z0-9][a-zA-Z0-9 -]*$/;
 const ORIENT = new RegExp(`^(?:auto|auto-start-reverse|${NUM}(?:deg|rad|grad|turn)?)$`, "i");
 const REF_X = new RegExp(`^(?:left|center|right|${NUM}${UNIT}?)$`, "i");
@@ -108,9 +110,10 @@ const VAR_CALL = /^var\(\s*(--[a-zA-Z0-9-]+)(?:\s*,\s*(.+))?\s*\)$/i;
 const SIMPLE_VAR = /^var\(\s*--[a-zA-Z0-9-]+\s*\)$/i;
 const LOCAL_URL = /^url\(\s*#([\w-]+)\s*\)$/i;
 
-const FONT_SIZE = /^(\d+(?:\.\d+)?|\.\d+)(px|pt|rem|em|%)?$/i;
-const FONT_BOUNDS: Record<string, [number, number]> = { px: [8, 40], pt: [6, 30], rem: [0.5, 2.5], em: [0.5, 2.5], "%": [50, 250] };
-const SVG_FONT_BOUNDS: Record<string, [number, number]> = { "": [0.5, 48], px: [4, 48], pt: [3, 36], rem: [0.5, 2.5], em: [0.5, 2.5], "%": [50, 250] };
+// Non-compounding units only, so nested elements cannot multiply past the cap.
+const FONT_SIZE = /^(\d+(?:\.\d+)?|\.\d+)(px|pt|rem)?$/i;
+const FONT_BOUNDS: Record<string, [number, number]> = { px: [8, 40], pt: [6, 30], rem: [0.5, 2.5] };
+const SVG_FONT_BOUNDS: Record<string, [number, number]> = { "": [0.5, 48], px: [4, 48], pt: [3, 36], rem: [0.5, 2.5] };
 const OPACITY = /^(\d+(?:\.\d+)?|\.\d+)(%)?$/;
 const PLAIN_NUM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
 
@@ -161,6 +164,8 @@ function cleanRef(value: string, prefix: string): string {
   return m ? `url(#${prefix}-${m[1]})` : "";
 }
 
+const hasOwn = (obj: object, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
+
 function cleanFontSize(value: string, svgAttr: boolean): string {
   if (UNSAFE_CSS.test(value)) return "";
   const m = FONT_SIZE.exec(value.trim());
@@ -168,8 +173,9 @@ function cleanFontSize(value: string, svgAttr: boolean): string {
   const n = Number(m[1]);
   const unit = (m[2] ?? "").toLowerCase();
   if (!Number.isFinite(n) || n <= 0) return "";
-  const bounds = (svgAttr ? SVG_FONT_BOUNDS : FONT_BOUNDS)[unit];
-  if (!bounds) return "";
+  const table = svgAttr ? SVG_FONT_BOUNDS : FONT_BOUNDS;
+  if (!hasOwn(table, unit)) return "";
+  const bounds = table[unit];
   return `${Math.min(bounds[1], Math.max(bounds[0], n))}${unit}`;
 }
 
@@ -183,8 +189,8 @@ function cleanOpacity(value: string): string {
 }
 
 function cleanCustomProp(prop: string, value: string): string {
+  if (!hasOwn(CUSTOM_PROPS, prop) || UNSAFE_CSS.test(value)) return "";
   const bounds = CUSTOM_PROPS[prop];
-  if (!bounds || UNSAFE_CSS.test(value)) return "";
   const v = value.trim();
   if (!PLAIN_NUM.test(v)) return "";
   const n = Number(v);
@@ -203,7 +209,7 @@ export function cleanStyle(style: string, prefix = ""): string {
     const raw = decl.slice(at + 1).trim();
     if (!raw || UNSAFE_CSS.test(raw)) continue;
     let cleaned = "";
-    if (prop in CUSTOM_PROPS) cleaned = cleanCustomProp(prop, raw);
+    if (hasOwn(CUSTOM_PROPS, prop)) cleaned = cleanCustomProp(prop, raw);
     else if (prop === "font-size") cleaned = cleanFontSize(raw, false);
     else if (prop === "font-weight") cleaned = STYLE_WEIGHT.test(raw) ? raw : "";
     else if (prop === "font-style") cleaned = STYLE_FONT_STYLE.test(raw) ? raw : "";
@@ -218,16 +224,67 @@ export function cleanStyle(style: string, prefix = ""): string {
   return out.join(";");
 }
 
+function canonicalSvgGeom(value: string): string {
+  if (UNSAFE_SVG_GEOM.test(value)) return "";
+  return value.replace(/[ \t\r\n]+/g, " ").trim();
+}
+
 function cleanSvgAttr(name: string, value: string, prefix: string): string {
   if (name === "d") {
-    if (UNSAFE_STYLE_BLOCK.test(value)) return "";
-    const v = value.trim();
-    return PATH_D.test(v) ? v : "";
+    const v = canonicalSvgGeom(value);
+    return v && PATH_D.test(v) ? v : "";
   }
   if (name === "points") {
-    if (UNSAFE_STYLE_BLOCK.test(value)) return "";
-    const v = value.trim();
-    return POINTS.test(v) ? v : "";
+    const v = canonicalSvgGeom(value);
+    return v && POINTS.test(v) ? v : "";
+  }
+  if (name === "viewbox") {
+    const v = canonicalSvgGeom(value);
+    return v && VIEWBOX.test(v) ? v : "";
+  }
+  if (name === "stroke-dasharray") {
+    const v = canonicalSvgGeom(value);
+    return v && DASHARRAY.test(v) ? v : "";
+  }
+  if (name === "transform" || name === "gradienttransform") {
+    const v = canonicalSvgGeom(value);
+    return v && TRANSFORM.test(v) ? v : "";
+  }
+  if (SVG_LENGTH_LISTS.has(name)) {
+    const v = canonicalSvgGeom(value);
+    return v && LENGTH_LIST.test(v) ? v : "";
+  }
+  if (SVG_LENGTHS.has(name)) {
+    const v = canonicalSvgGeom(value);
+    return v && LENGTH.test(v) ? v : "";
+  }
+  if (name === "stroke-width") {
+    const v = canonicalSvgGeom(value);
+    return v && NONNEG_LENGTH.test(v) ? v : "";
+  }
+  if (name === "pathlength") {
+    const v = canonicalSvgGeom(value);
+    return v && NONNEG_NUM.test(v) ? v : "";
+  }
+  if (name === "refx") {
+    const v = canonicalSvgGeom(value);
+    return v && REF_X.test(v) ? v : "";
+  }
+  if (name === "refy") {
+    const v = canonicalSvgGeom(value);
+    return v && REF_Y.test(v) ? v : "";
+  }
+  if (name === "orient") {
+    const v = canonicalSvgGeom(value);
+    return v && ORIENT.test(v) ? v : "";
+  }
+  if (SVG_OPACITIES.has(name)) {
+    const v = canonicalSvgGeom(value);
+    return v ? cleanOpacity(v) : "";
+  }
+  if (name === "font-size") {
+    const v = canonicalSvgGeom(value);
+    return v ? cleanFontSize(v, true) : "";
   }
   if (UNSAFE_CSS.test(value)) return "";
   const v = value.trim();
@@ -235,18 +292,6 @@ function cleanSvgAttr(name: string, value: string, prefix: string): string {
   if (name === "fill" || name === "stroke") return cleanPaint(v, prefix, true);
   if (name === "stop-color") return cleanPaint(v, prefix, false);
   if (SVG_REFS.has(name)) return cleanRef(v, prefix);
-  if (name === "font-size") return cleanFontSize(v, true);
-  if (SVG_OPACITIES.has(name)) return cleanOpacity(v);
-  if (name === "viewbox") return VIEWBOX.test(v) ? v : "";
-  if (name === "stroke-dasharray") return DASHARRAY.test(v) ? v : "";
-  if (name === "transform" || name === "gradienttransform") return TRANSFORM.test(v) ? v : "";
-  if (SVG_LENGTH_LISTS.has(name)) return LENGTH_LIST.test(v) ? v : "";
-  if (SVG_LENGTHS.has(name)) return LENGTH.test(v) ? v : "";
-  if (name === "stroke-width") return NONNEG_LENGTH.test(v) ? v : "";
-  if (name === "pathlength") return NONNEG_NUM.test(v) ? v : "";
-  if (name === "refx") return REF_X.test(v) ? v : "";
-  if (name === "refy") return REF_Y.test(v) ? v : "";
-  if (name === "orient") return ORIENT.test(v) ? v : "";
   if (SVG_KEYWORDS.has(name)) return KEYWORD.test(v) ? v : "";
   if (name === "xmlns") return v === "http://www.w3.org/2000/svg" ? v : "";
   return "";

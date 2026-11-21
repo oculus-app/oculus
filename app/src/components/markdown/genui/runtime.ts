@@ -68,24 +68,30 @@ export class BlockRuntime {
   }
 
   value(name: string): string | undefined {
-    const defaults = this.defaults();
+    const defaults = this.defaults(ownElements(this.root));
     return this.inert ? defaults.get(name) : (this.picked.get(name) ?? defaults.get(name));
   }
 
-  private defaults(): Map<string, string> {
+  private defaults(elements: Element[]): Map<string, string> {
     const out = new Map<string, string>();
-    for (const el of this.root.querySelectorAll("[data-choice][data-value],[data-scrub][data-value]")) {
-      const name = el.getAttribute("data-choice") ?? el.getAttribute("data-scrub")!;
-      if (!out.has(name)) out.set(name, el.getAttribute("data-value")!);
+    for (const el of elements) {
+      if ((el.hasAttribute("data-choice") || el.hasAttribute("data-scrub")) && el.hasAttribute("data-value")) {
+        const name = el.getAttribute("data-choice") ?? el.getAttribute("data-scrub")!;
+        if (!out.has(name)) out.set(name, el.getAttribute("data-value")!);
+      }
     }
-    for (const el of this.root.querySelectorAll("[data-option]")) {
-      const name = el.closest("[data-choice]")?.getAttribute("data-choice");
-      if (name && !out.has(name)) out.set(name, el.getAttribute("data-option")!);
+    for (const el of elements) {
+      if (el.hasAttribute("data-option")) {
+        const name = el.closest("[data-choice]")?.getAttribute("data-choice");
+        if (name && !out.has(name)) out.set(name, el.getAttribute("data-option")!);
+      }
     }
-    for (const el of this.root.querySelectorAll("[data-scrub][data-options]")) {
-      const name = el.getAttribute("data-scrub")!;
-      const first = options(el)[0];
-      if (!out.has(name) && first != null) out.set(name, first);
+    for (const el of elements) {
+      if (el.hasAttribute("data-scrub") && el.hasAttribute("data-options")) {
+        const name = el.getAttribute("data-scrub")!;
+        const first = options(el)[0];
+        if (!out.has(name) && first != null) out.set(name, first);
+      }
     }
     return out;
   }
@@ -94,9 +100,9 @@ export class BlockRuntime {
    *  then clears runtime-owned attributes left on reused elements whose
    *  owning behaviour disappeared. */
   apply() {
-    const defaults = this.defaults();
-    const value = (name: string) => (this.inert ? defaults.get(name) : (this.picked.get(name) ?? defaults.get(name)));
     const elements = ownElements(this.root);
+    const defaults = this.defaults(elements);
+    const value = (name: string) => (this.inert ? defaults.get(name) : (this.picked.get(name) ?? defaults.get(name)));
     const owned = new Map<Element, Set<string>>();
     const own = (el: Element, ...attrs: string[]) => {
       let setFor = owned.get(el);
@@ -285,13 +291,18 @@ export class BlockRuntime {
 
 const options = (el: Element) => (el.getAttribute("data-options") ?? "").split(/\s+/).filter(Boolean);
 
-/** Block-owned descendant elements, skipping children inside React chart hosts. */
+const HTML_NS = "http://www.w3.org/1999/xhtml";
+const isFormula = (el: Element) =>
+  el.namespaceURI === HTML_NS && el.localName.toLowerCase() === "span" && el.hasAttribute("data-tex");
+
+/** Block-owned descendant elements, skipping children inside React chart hosts
+ *  and typeset maths wrappers. */
 function ownElements(root: Element): Element[] {
   const out: Element[] = [];
   const walk = (parent: Element) => {
     for (let child = parent.firstElementChild; child; child = child.nextElementSibling) {
       out.push(child);
-      if (!isChartHost(child)) walk(child);
+      if (!isChartHost(child) && !isFormula(child)) walk(child);
     }
   };
   walk(root);
@@ -299,7 +310,7 @@ function ownElements(root: Element): Element[] {
 }
 
 function groupOptions(group: Element): Element[] {
-  return Array.from(group.querySelectorAll("[data-option]")).filter((o) => o.closest("[data-choice]") === group);
+  return ownElements(group).filter((o) => o.hasAttribute("data-option") && o.closest("[data-choice]") === group);
 }
 
 function conditions(spec: string): [string, string[]][] {

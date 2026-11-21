@@ -84,6 +84,12 @@ describe("Finding 1: chart labels render plain text and maths only inside ui blo
     `<a href="https://example.com">x</a>`,
     "courses/CS101/Course/Files/week-3.pdf",
   ];
+  const SERIES_PAYLOADS = [
+    "[x](/example)",
+    "![x](/a.png)",
+    `<a href="/example">x</a>`,
+    "courses/CS101/Course/Files/week-3.pdf",
+  ];
   const COMBINED = PAYLOADS.join(" ");
 
   test("bar, line, donut, scatter and empty charts never emit a, img or button under the chart host", async () => {
@@ -94,9 +100,9 @@ describe("Finding 1: chart labels render plain text and maths only inside ui blo
       const esc = (s: string) => s.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
       const source = [
         `<div data-chart="bar" data-title="${esc(COMBINED)}" data-y-label="${esc(COMBINED)}" data-labels="${esc(PAYLOADS.join("|"))}" data-values="1 2 3 4"></div>`,
-        `<div data-chart="line" data-title="${esc(COMBINED)}" data-x-label="${esc(COMBINED)}" data-y-label="${esc(COMBINED)}" data-series="${esc(`${PAYLOADS[0]}: 1,2 2,4; ${PAYLOADS[1]}: 1,3 2,5; ${PAYLOADS[2]}: 1,1 2,2; ${PAYLOADS[3]}: 1,4 2,6`)}"></div>`,
+        `<div data-chart="line" data-title="${esc(COMBINED)}" data-x-label="${esc(COMBINED)}" data-y-label="${esc(COMBINED)}" data-series="${esc(`${SERIES_PAYLOADS[0]}: 1,2 2,4; ${SERIES_PAYLOADS[1]}: 1,3 2,5; ${SERIES_PAYLOADS[2]}: 1,1 2,2; ${SERIES_PAYLOADS[3]}: 1,4 2,6`)}"></div>`,
         `<div data-chart="donut" data-title="${esc(COMBINED)}" data-center="${esc(COMBINED)}" data-labels="${esc(PAYLOADS.join("|"))}" data-values="2 3 4 5"></div>`,
-        `<div data-chart="scatter" data-title="${esc(COMBINED)}" data-x-label="${esc(COMBINED)}" data-y-label="${esc(COMBINED)}" data-series="${esc(`${PAYLOADS[0]}: 1,2 2,4; ${PAYLOADS[3]}: 1,3 2,5`)}"></div>`,
+        `<div data-chart="scatter" data-title="${esc(COMBINED)}" data-x-label="${esc(COMBINED)}" data-y-label="${esc(COMBINED)}" data-series="${esc(`${SERIES_PAYLOADS[0]}: 1,2 2,4; ${SERIES_PAYLOADS[3]}: 1,3 2,5`)}"></div>`,
         `<div data-chart="bar" data-title="${esc(COMBINED)}"></div>`,
       ].join("\n");
 
@@ -106,6 +112,22 @@ describe("Finding 1: chart labels render plain text and maths only inside ui blo
 
       const hosts = Array.from(mount.querySelectorAll(".genui [data-chart]"));
       expect(hosts).toHaveLength(5);
+      const [bar, line, donut, scatter] = hosts;
+      expect(bar.querySelectorAll("svg rect")).toHaveLength(4);
+      expect(line.querySelectorAll("svg polyline")).toHaveLength(4);
+      expect(line.textContent).not.toContain("No data");
+      expect(donut.querySelectorAll("svg circle")).toHaveLength(4);
+      expect(scatter.querySelectorAll("svg circle")).toHaveLength(4);
+      expect(scatter.textContent).not.toContain("No data");
+
+      // Exercise hover readouts on line and scatter to verify series names never emit anchors.
+      await act(async () => {
+        line.querySelector("div.absolute.inset-y-0")!.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+        scatter.querySelector("svg circle")!.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      });
+      expect(line.querySelector("[aria-live='polite']")?.textContent).toContain(SERIES_PAYLOADS[0]);
+      expect(scatter.querySelector("[aria-live='polite']")?.textContent).toContain(SERIES_PAYLOADS[0]);
+
       for (const host of hosts) {
         expect(host.querySelectorAll("a, img, button")).toHaveLength(0);
         expect(host.textContent).toContain("[x](https://example.com)");

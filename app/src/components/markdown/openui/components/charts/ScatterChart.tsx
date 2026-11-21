@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { SERIES_FILL, SERIES_STROKE, fitLine, type SeriesData } from "./data";
-import { ChartEmpty, ChartFigure, DataTable, Legend, Plot, axisTicks } from "./Figure";
+import { ChartEmpty, ChartFigure, ChartText, DataTable, Legend, Plot, axisTicks } from "./Figure";
 import { fraction, niceAxis, valueLabel } from "./scale";
 
 /** Points as dots with a surface ring; `trend` adds each series' least-squares line. */
@@ -17,7 +17,7 @@ export function ScatterChart({ title, series, xLabel, yLabel, trend }: { title?:
   const hovered = active ? drawn[active[0]]?.points[active[1]] : null;
   return <ChartFigure title={title}>
     <Plot yTicks={axisTicks(yAxis)} xTicks={axisTicks(xAxis)} xLabel={xLabel} yLabel={yLabel} onLeave={() => setActive(null)}
-      readout={hovered && <>{drawn.length > 1 && <span className="text-muted-foreground">{drawn[active![0]].label} </span>}({valueLabel(hovered.x)}, {valueLabel(hovered.y)})</>}>
+      readout={hovered && <>{drawn.length > 1 && <span className="text-muted-foreground"><ChartText text={drawn[active![0]].label} /> </span>}({valueLabel(hovered.x)}, {valueLabel(hovered.y)})</>}>
       {trend && <svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
         {drawn.map((s, i) => {
           const fit = fitLine(s.points);

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { SERIES_FILL, SERIES_STROKE, SERIES_SVG_FILL, type SeriesData } from "./data";
-import { ChartEmpty, ChartFigure, DataTable, Dot, HitBands, Legend, Plot, axisTicks } from "./Figure";
+import { ChartEmpty, ChartFigure, ChartText, DataTable, Dot, HitBands, Legend, Plot, axisTicks } from "./Figure";
 import { fraction, niceAxis, valueLabel } from "./scale";
 
 /** Up to this many hover bands; a 400-point curve reads out every fourth. */
@@ -33,7 +33,7 @@ export function LineChart({ title, series, xLabel, yLabel, area }: { title?: unk
   const nearest = (s: SeriesData, x: number) => s.points.reduce((best, p) => (Math.abs(p.x - x) < Math.abs(best.x - x) ? p : best));
   const readout = hovered && <>
     {valueLabel(hovered.x)}
-    {drawn.map((s, i) => <span key={i} className="ml-2">{drawn.length > 1 && <span className="text-muted-foreground">{s.label} </span>}{valueLabel(nearest(s, hovered.x).y)}</span>)}
+    {drawn.map((s, i) => <span key={i} className="ml-2">{drawn.length > 1 && <span className="text-muted-foreground"><ChartText text={s.label} /> </span>}{valueLabel(nearest(s, hovered.x).y)}</span>)}
   </>;
   return <ChartFigure title={title}>
     <Plot yTicks={axisTicks(yAxis)} xTicks={axisTicks(xAxis)} xLabel={xLabel} yLabel={yLabel} readout={readout} onLeave={() => setActive(null)}>

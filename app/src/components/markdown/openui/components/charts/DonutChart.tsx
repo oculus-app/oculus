@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Rich } from "../Frame";
 import { MAX_SERIES, SERIES_FILL, SERIES_STROKE, finite } from "./data";
-import { ChartEmpty, ChartFigure, DataTable } from "./Figure";
+import { ChartEmpty, ChartFigure, ChartText, DataTable } from "./Figure";
 import { valueLabel } from "./scale";
 
 const R = 40;
@@ -42,7 +42,7 @@ export function DonutChart({ title, labels, values, center, unit }: { title?: un
           {selected !== null ? <>
             <span className="text-lg font-semibold text-foreground">{valueLabel((parts[selected].value / total) * 100, "%")}</span>
             <Rich text={parts[selected].label} className="max-w-24 truncate text-[11px] text-muted-foreground" />
-          </> : <span className="max-w-24 text-lg font-semibold text-foreground">{typeof center === "string" ? <Rich text={center} /> : valueLabel(total, unit)}</span>}
+          </> : <span className="max-w-24 text-lg font-semibold text-foreground">{typeof center === "string" ? <Rich text={center} /> : <ChartText text={valueLabel(total, unit)} />}</span>}
         </div>
       </div>
       <ul className="flex min-w-0 flex-1 basis-40 flex-col gap-1 text-[13px]">
@@ -50,7 +50,7 @@ export function DonutChart({ title, labels, values, center, unit }: { title?: un
           onPointerEnter={() => setActive(i)}>
           {parts.length > 1 && <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", i === other ? "bg-chart-other" : SERIES_FILL[i])} />}
           <Rich text={p.label} className="min-w-0 flex-1 truncate text-foreground" />
-          <span className="shrink-0 tabular-nums text-muted-foreground">{valueLabel(p.value, unit)} · {valueLabel((p.value / total) * 100, "%")}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground"><ChartText text={valueLabel(p.value, unit)} /> · {valueLabel((p.value / total) * 100, "%")}</span>
         </li>)}
       </ul>
     </div>

@@ -313,65 +313,321 @@ export interface FenceSpan {
 const FOLD_SKIP_FENCE = /^(?:openui(?:-lang)?|widget|ui)$/;
 const STREAMED_FENCE_LANG = /^(?:widget|ui)$/;
 
-function peelQuotes(line: string, max = Infinity): { depth: number; rest: string } {
-  let depth = 0;
-  let pos = 0;
-  while (depth < max) {
-    const m = /^[ ]{0,3}>(?:[ ]|\t)?/.exec(line.slice(pos));
-    if (!m) break;
-    pos += m[0].length;
-    depth++;
+type FenceContainer =
+  | { kind: "quote" }
+  | { kind: "list"; indent: number; empty: boolean; marker: string };
+
+const THEMATIC_BREAK = /^([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+const ATX_HEADING = /^#{1,6}(?:[ \t]|$)/;
+const ORDERED_MARKER = /^(\d{1,9})([.)])(?=[ \t]|$)/;
+
+function listMarkerAt(rest: string): { len: number; marker: string; ordered: boolean; num: number } | null {
+  if (!rest || THEMATIC_BREAK.test(rest)) return null;
+  const ch = rest[0];
+  if ((ch === "-" || ch === "+" || ch === "*") && (rest.length === 1 || rest[1] === " " || rest[1] === "\t")) {
+    return { len: 1, marker: ch, ordered: false, num: 0 };
   }
-  return { depth, rest: line.slice(pos) };
+  const ord = ORDERED_MARKER.exec(rest);
+  if (ord) return { len: ord[0].length, marker: ord[2], ordered: true, num: Number(ord[1]) };
+  return null;
 }
 
-/** Finds top-level fenced code blocks using CommonMark rules: up to 3 spaces
- *  of indentation, optional blockquote markers, backtick or tilde fences, and
- *  closing fences at least as long as the opening one. */
+/** Finds fenced code blocks using CommonMark container rules (blockquotes,
+ *  bullet/ordered list items, up to 3 spaces of indentation, backtick or tilde
+ *  fences, case-sensitive language tags) in a single pass. */
 export function scanMarkdownFences(text: string): FenceSpan[] {
   if (!text.includes("```") && !text.includes("~~~")) return [];
   const fences: FenceSpan[] = [];
-  let open: { char: string; len: number; quoteDepth: number; lang: string; start: number } | null = null;
+  const containers: FenceContainer[] = [];
+  let open: { char: string; len: number; containerCount: number; lang: string; start: number; lastEnd: number } | null = null;
+  let inParagraph = false;
   let pos = 0;
+
   while (pos <= text.length) {
     const nl = text.indexOf("\n", pos);
     const lineEnd = nl < 0 ? text.length : nl;
-    const rawLine = text.slice(pos, lineEnd).replace(/\r$/, "");
+    const hasCr = lineEnd > pos && text[lineEnd - 1] === "\r";
+    const contentEnd = hasCr ? lineEnd - 1 : lineEnd;
+    const rawLine = text.slice(pos, contentEnd);
     const nextPos = nl < 0 ? text.length + 1 : nl + 1;
 
-    if (open) {
-      const { depth, rest } = peelQuotes(rawLine, open.quoteDepth);
-      if (depth < open.quoteDepth) {
-        fences.push({ lang: open.lang, start: open.start, end: pos });
-        open = null;
-      } else {
-        const close = /^[ ]{0,3}(`{3,}|~{3,})[ \t]*$/.exec(rest);
-        if (close && close[1][0] === open.char && close[1].length >= open.len) {
-          fences.push({ lang: open.lang, start: open.start, end: nl < 0 ? text.length : nl + 1 });
-          open = null;
+    let i = 0;
+    let col = 0;
+    let partial = 0;
+
+    const peekSpaces = (): number => {
+      let sp = partial;
+      let c = col + partial;
+      for (let j = i; j < rawLine.length; j++) {
+        const ch = rawLine[j];
+        if (ch === " ") {
+          sp++;
+          c++;
+        } else if (ch === "\t") {
+          const w = 4 - (c % 4);
+          sp += w;
+          c += w;
+        } else break;
+      }
+      return sp;
+    };
+
+    const isBlank = (): boolean => {
+      for (let j = i; j < rawLine.length; j++) {
+        const ch = rawLine[j];
+        if (ch !== " " && ch !== "\t") return false;
+      }
+      return true;
+    };
+
+    const advanceCols = (max: number): void => {
+      let rem = max;
+      if (partial > 0) {
+        const take = Math.min(rem, partial);
+        partial -= take;
+        col += take;
+        rem -= take;
+      }
+      while (rem > 0 && i < rawLine.length) {
+        const ch = rawLine[i];
+        if (ch === " ") {
+          i++;
+          col++;
+          rem--;
+        } else if (ch === "\t") {
+          const w = 4 - (col % 4);
+          i++;
+          if (w <= rem) {
+            col += w;
+            rem -= w;
+          } else {
+            col += rem;
+            partial = w - rem;
+            rem = 0;
+          }
+        } else break;
+      }
+    };
+
+    // Match open block containers (blockquotes and list items) in stack order.
+    let matched = 0;
+    for (let k = 0; k < containers.length; k++) {
+      const c = containers[k];
+      if (c.kind === "quote") {
+        if (isBlank() || peekSpaces() > 3) break;
+        const si = i;
+        const sc = col;
+        const sp = partial;
+        advanceCols(3);
+        if (rawLine[i] !== ">") {
+          i = si;
+          col = sc;
+          partial = sp;
+          break;
         }
+        i++;
+        col++;
+        if (rawLine[i] === " " || rawLine[i] === "\t") advanceCols(1);
+        matched = k + 1;
+      } else {
+        if (isBlank()) {
+          if (c.empty) break;
+          advanceCols(c.indent);
+          matched = k + 1;
+        } else if (peekSpaces() >= c.indent) {
+          advanceCols(c.indent);
+          c.empty = false;
+          matched = k + 1;
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (open) {
+      if (matched < open.containerCount) {
+        let end = open.lastEnd;
+        const closed = containers[matched];
+        if (closed?.kind === "list" && !isBlank() && peekSpaces() <= 3) {
+          const si = i;
+          const sc = col;
+          const sp = partial;
+          advanceCols(3);
+          const nextItem = listMarkerAt(rawLine.slice(i));
+          i = si;
+          col = sc;
+          partial = sp;
+          if (nextItem && nextItem.marker === closed.marker) end = pos;
+        }
+        fences.push({ lang: open.lang, start: open.start, end });
+        open = null;
+        containers.length = matched;
+        inParagraph = false;
+      } else {
+        if (!isBlank() && peekSpaces() <= 3) {
+          const si = i;
+          const sc = col;
+          const sp = partial;
+          advanceCols(3);
+          if (rawLine[i] === open.char) {
+            let closeLen = 0;
+            while (rawLine[i + closeLen] === open.char) closeLen++;
+            let tailBlank = true;
+            for (let j = i + closeLen; j < rawLine.length; j++) {
+              if (rawLine[j] !== " " && rawLine[j] !== "\t") {
+                tailBlank = false;
+                break;
+              }
+            }
+            if (closeLen >= open.len && tailBlank) {
+              fences.push({ lang: open.lang, start: open.start, end: contentEnd });
+              open = null;
+              inParagraph = false;
+              pos = nextPos;
+              continue;
+            }
+          }
+          i = si;
+          col = sc;
+          partial = sp;
+        }
+        open.lastEnd = contentEnd;
         pos = nextPos;
         continue;
       }
     }
 
-    const { depth, rest } = peelQuotes(rawLine);
-    const opener = /^[ ]{0,3}(`{3,}|~{3,})(.*)$/.exec(rest);
-    if (opener) {
-      const marker = opener[1];
-      const info = opener[2];
-      if (marker[0] !== "`" || !info.includes("`")) {
-        const lang = info.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-        open = { char: marker[0], len: marker.length, quoteDepth: depth, lang, start: pos };
+    if (isBlank()) {
+      containers.length = matched;
+      inParagraph = false;
+      pos = nextPos;
+      continue;
+    }
+
+    const startsInterruptingBlock = (): boolean => {
+      if (peekSpaces() > 3) return false;
+      const si = i;
+      const sc = col;
+      const sp = partial;
+      advanceCols(3);
+      const rest = rawLine.slice(i);
+      i = si;
+      col = sc;
+      partial = sp;
+      if (!rest) return false;
+      const ch = rest[0];
+      if (ch === ">") return true;
+      if (THEMATIC_BREAK.test(rest) || ATX_HEADING.test(rest)) return true;
+      if (ch === "`" || ch === "~") {
+        let len = 0;
+        while (rest[len] === ch) len++;
+        if (len >= 3 && (ch === "~" || !rest.slice(len).includes("`"))) return true;
+      }
+      if ((ch === "-" || ch === "+" || ch === "*") && (rest.length === 1 || rest[1] === " " || rest[1] === "\t")) {
+        return rest.slice(1).trim().length > 0;
+      }
+      const ord = ORDERED_MARKER.exec(rest);
+      if (ord) return Number(ord[1]) === 1 && rest.slice(ord[0].length).trim().length > 0;
+      return false;
+    };
+
+    if (matched < containers.length) {
+      if (inParagraph && !startsInterruptingBlock()) {
+        pos = nextPos;
+        continue;
+      }
+      containers.length = matched;
+      inParagraph = false;
+    }
+
+    // Open any new nested blockquotes or list items on this line.
+    while (!isBlank() && peekSpaces() <= 3) {
+      const si = i;
+      const sc = col;
+      const sp = partial;
+      const spacesBefore = peekSpaces();
+      advanceCols(spacesBefore);
+      const ch = rawLine[i];
+      if (ch === ">") {
+        i++;
+        col++;
+        if (rawLine[i] === " " || rawLine[i] === "\t") advanceCols(1);
+        containers.push({ kind: "quote" });
+        inParagraph = false;
+        continue;
+      }
+      const rest = rawLine.slice(i);
+      const lm = listMarkerAt(rest);
+      if (lm) {
+        const blankAfter = rawLine.slice(i + lm.len).trim().length === 0;
+        if (inParagraph && (blankAfter || (lm.ordered && lm.num !== 1))) {
+          i = si;
+          col = sc;
+          partial = sp;
+          break;
+        }
+        i += lm.len;
+        col += lm.len;
+        if (blankAfter) {
+          containers.push({ kind: "list", indent: spacesBefore + lm.len + 1, empty: true, marker: lm.marker });
+          inParagraph = false;
+          break;
+        }
+        const spacesAfter = peekSpaces();
+        if (spacesAfter >= 5) {
+          advanceCols(1);
+          containers.push({ kind: "list", indent: spacesBefore + lm.len + 1, empty: false, marker: lm.marker });
+          inParagraph = false;
+          break;
+        }
+        advanceCols(spacesAfter);
+        containers.push({ kind: "list", indent: spacesBefore + lm.len + spacesAfter, empty: false, marker: lm.marker });
+        inParagraph = false;
+        continue;
+      }
+      i = si;
+      col = sc;
+      partial = sp;
+      break;
+    }
+
+    if (isBlank()) {
+      inParagraph = false;
+      pos = nextPos;
+      continue;
+    }
+    if (peekSpaces() >= 4) {
+      pos = nextPos;
+      continue;
+    }
+
+    advanceCols(peekSpaces());
+    const ch = rawLine[i];
+    if (ch === "`" || ch === "~") {
+      let len = 0;
+      while (rawLine[i + len] === ch) len++;
+      if (len >= 3) {
+        const info = rawLine.slice(i + len);
+        if (ch === "~" || !info.includes("`")) {
+          const lang = info.trim().split(/[ \t]+/)[0] ?? "";
+          open = { char: ch, len, containerCount: containers.length, lang, start: pos + i, lastEnd: contentEnd };
+          inParagraph = false;
+          pos = nextPos;
+          continue;
+        }
       }
     }
+
+    const rest = rawLine.slice(i);
+    inParagraph = !ATX_HEADING.test(rest) && !THEMATIC_BREAK.test(rest);
     pos = nextPos;
   }
+
   if (open) fences.push({ lang: open.lang, start: open.start, end: text.length });
   return fences;
 }
 
-/** Whether streamed markdown opens a `widget` or `ui` fence, including inside blockquotes. */
+/** Whether streamed markdown opens a `widget` or `ui` fence, including inside blockquotes and lists. */
 export function hasStreamedFence(text: string): boolean {
   return scanMarkdownFences(text).some((f) => STREAMED_FENCE_LANG.test(f.lang));
 }

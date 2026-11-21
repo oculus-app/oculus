@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Rich } from "../Frame";
 import { finite } from "./data";
-import { ChartEmpty, ChartFigure, DataTable, Plot, axisTicks } from "./Figure";
+import { ChartEmpty, ChartFigure, ChartText, DataTable, Plot, axisTicks } from "./Figure";
 import { fraction, niceAxis, valueLabel } from "./scale";
 
 /** Columns while the labels are short and few; past that, rows with the
@@ -29,7 +29,7 @@ export function BarChart({ title, labels, values, yLabel, unit }: { title?: unkn
             <svg aria-hidden="true" viewBox="0 0 100 12" preserveAspectRatio="none" className="h-3 min-w-0 flex-1">
               <rect x={Math.min(f, zero) * 100} y={0} width={Math.abs(f - zero) * 100} height={12} rx={1} className="fill-chart-1" />
             </svg>
-            <span className="w-14 shrink-0 tabular-nums text-foreground">{valueLabel(b.value, unit)}</span>
+            <span className="w-14 shrink-0 tabular-nums text-foreground"><ChartText text={valueLabel(b.value, unit)} /></span>
           </div>
         </li>;
       })}
@@ -39,7 +39,7 @@ export function BarChart({ title, labels, values, yLabel, unit }: { title?: unkn
   const hovered = active !== null ? bars[active] : null;
   return <ChartFigure title={title}>
     <Plot yTicks={axisTicks(axis)} xTicks={bars.map((b, i) => ({ at: (i + 0.5) / bars.length, label: b.label }))} yLabel={yLabel} onLeave={() => setActive(null)}
-      readout={hovered && <><span className="text-muted-foreground">{hovered.label} </span>{valueLabel(hovered.value, unit)}</>}
+      readout={hovered && <><span className="text-muted-foreground"><ChartText text={hovered.label} /> </span><ChartText text={valueLabel(hovered.value, unit)} /></>}
 >
       <svg role="img" aria-label="Category bars" viewBox="0 0 320 160" preserveAspectRatio="none" className="absolute inset-0 size-full">
         {bars.map((b, i) => {

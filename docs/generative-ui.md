@@ -31,8 +31,9 @@ script, no external styles and no iframe.
 `Timeline` (`app/src/components/harness/timeline/Timeline.tsx`) subscribes to
 whether the live stream contains an opening `widget` or `ui` fence via
 `hasStreamedFence` (`app/src/components/harness/timeline/rows.ts`), which uses
-CommonMark fence rules (up to three spaces of indentation, optional blockquote
-prefixes, backtick or tilde fences, and closing fences at least as long as the
+CommonMark container and fence rules (up to three spaces of indentation,
+blockquotes, bullet and ordered list items, backtick or tilde fences,
+case-sensitive language tags, and closing fences at least as long as the
 opening delimiter) and flips once per reply. Once matched, the streaming
 reply renders as the committed `Reply` row it will become under `replyKey` with
 the committed row's `[null, Item]` child shape
@@ -103,20 +104,25 @@ nothing.
   admits only colour keywords, `#` hex, `rgb()`/`rgba()`/`hsl()`/`hsla()` of
   numbers and percentages, `var(--name)` (with an optional simple colour
   fallback) and `url(#id)`; reference attributes (`clip-path`, `marker-*`)
-  admit only `none` or `url(#id)`; lengths, lists, `d`, `points`, `transform`,
-  `viewBox`, `stroke-dasharray`, `gradientTransform` and keywords admit only
-  their syntax characters; `font-size` is clamped to a bounded range. `id`
-  values (`[\w-]+`) are prefixed with the block's React `useId` prefix and
-  local `url(#id)` references are rewritten to match. Only `aria-label` and
-  `aria-hidden` are admitted from `aria-*`. Text-valued attributes (`title`,
-  `aria-label`, chart text attributes and behaviour attributes) are rendered as
-  text without URI-scheme filtering.
+  admit only `none` or `url(#id)`; numeric, list, path and transform SVG
+  attributes (`d`, `points`, `viewBox`, `stroke-dasharray`, `transform`,
+  `gradientTransform`, lengths, length lists, opacities, `orient`, `refX`,
+  `refY`, `pathLength` and `font-size`) collapse runs of spaces, tabs and
+  newlines to single ASCII spaces and trim before validation while still
+  rejecting all other control characters, and write the canonical value back;
+  keywords admit only their syntax characters; `font-size` admits only
+  non-compounding units (`px`, `pt` and `rem`, plus unitless numbers on SVG)
+  clamped to bounded ranges. `id` values (`[\w-]+`) are prefixed with the
+  block's React `useId` prefix and local `url(#id)` references are rewritten to
+  match. Only `aria-label` and `aria-hidden` are admitted from `aria-*`.
+  Text-valued attributes (`title`, `aria-label`, chart text attributes and
+  behaviour attributes) are rendered as text without URI-scheme filtering.
 - **Classes and inline styles.** `class` admits only the enumerated names in
   `CLASSES` (styled across `genui.css`, `controls.css` and `derive.css`), so
   agent markup cannot reach Tailwind utilities or arbitrary `g-*` names.
-  `style` validates each declaration against the same closed per-property
-  grammars (`STYLE_PROPS`) and admits only named custom properties the
-  stylesheets read (`--v`, numeric and clamped to `[0, 1]`).
+  `style` (`cleanStyle`) validates each declaration against its per-property
+  grammar and admits only own-key custom properties in `CUSTOM_PROPS` (`--v`,
+  numeric and clamped to `[0, 1]`).
 - **Reserved and runtime-owned attributes.** Attributes for interactive
   behaviours (`data-choice`, `data-value`, `data-option`, `data-show` —
   preserved even when empty so `BlockRuntime` hides the element — `data-scrub`,
@@ -135,9 +141,9 @@ to the block's root element with a single delegated listener set and calls
 `apply()` after every `morph` pass. State lives in the runtime's map rather than
 the DOM, so later streamed deltas and the reply commit keep active picks and
 pointer-captured drags intact. After projecting state, `apply()` sweeps
-block-owned elements (skipping React-owned chart host subtrees) and removes any
-`RUNTIME` attribute whose owning behaviour is absent on that
-element.
+block-owned elements (skipping React-owned chart host subtrees and trusted
+`[data-tex]` maths wrappers' descendants) and removes any `RUNTIME` attribute
+whose owning behaviour is absent on that element.
 
 - **Choice (`data-choice`, `data-value`, `data-option`).** A group carries
   `data-choice="<name>"` (and optional default `data-value`) around
@@ -218,10 +224,13 @@ hook: OpenUI's `defineComponent` wrappers feed `ChartStreaming` through
 components directly with `ChartStreaming` set to `false` and without importing
 `@openuidev/react-lang`. `ChartHost` also provides `RichTextRenderer`
 (`app/src/components/markdown/openui/components/Frame.tsx`) with a plain text
-plus `$…$` maths renderer so chart labels (titles, axis labels, legends, series
-names and centre text) inside `ui` blocks never parse Markdown, links, images
-or raw HTML, while OpenUI charts leave `RichTextRenderer` unset and keep
-`InlineMd`. After each `morph` pass, `GenUIFence` portals a `ChartHost` into
+plus `$…$` maths renderer and `ChartPlainText` (`Figure.tsx`) with its
+plain-text equivalent so every visible chart label (titles, axis labels, tick
+labels, legends, series names, units, donut centre and hover readouts) inside
+`ui` blocks typesets `$…$` maths and never parses Markdown, links, images or
+raw HTML, while the `sr-only` data table and figure `aria-label` receive
+delimiter-free plain text. OpenUI charts leave both contexts unset, keeping
+`InlineMd` on `<Rich>` slots and plain React text everywhere else. After each `morph` pass, `GenUIFence` portals a `ChartHost` into
 every HTML `div[data-chart]` host (flushed before paint on streaming frames via
 `flushSync`, and synchronously in `useLayoutEffect` once closed). `sanitize`
 admits `data-chart` and its companions only on HTML `div` elements and strips
@@ -303,12 +312,13 @@ holds back an unclosed `$…$` formula during streaming.
   (minimum three), so selecting across a block copies or drags out valid
   markdown source via `selectionMarkdown` (`app/src/lib/markdown/selection.ts`),
   while selecting inside the block copies the selected text or table.
-- **Find in chat.** `foldFindText` (`rows.ts`) strips `ui`, `openui` and
-  `widget` fences using the shared CommonMark fence scanner
-  (`scanMarkdownFences`) so collapsed work folds keep surrounding prose (even
-  after blockquoted fences) and do not open for text already visible in
-  `ArtifactRow`; live DOM find (`useDomFind`) searches text inside rendered
-  `.genui` blocks directly and re-searches when `data-off` toggles.
+- **Find in chat.** `foldFindText` (`rows.ts`) strips `ui`, `openui`,
+  `openui-lang` and `widget` fences (matched case-sensitively) using the shared
+  CommonMark fence scanner (`scanMarkdownFences`) so collapsed work folds keep
+  surrounding prose (including after blockquoted or list-item fences) and do not
+  open for text already visible in `ArtifactRow`; live DOM find (`useDomFind`)
+  searches text inside rendered `.genui` blocks directly and re-searches when
+  `data-off` toggles.
 
 ## The agent brief teaches the grammar directly
 

@@ -2,7 +2,7 @@ import "./motion.css";
 import { createContext, useContext, type ReactNode } from "react";
 import { MoreComing, StreamingStatus } from "../../Streaming";
 import { cn } from "@/lib/utils";
-import { Frame, Rich } from "../Frame";
+import { Frame, Rich, RichTextRenderer } from "../Frame";
 import { InCard } from "../layout/inCard";
 import { fraction, tickLabel, type Axis } from "./scale";
 
@@ -10,12 +10,26 @@ import { fraction, tickLabel, type Axis } from "./scale";
  *  from `useIsStreaming`, while `ui` blocks supply their own value. */
 export const ChartStreaming = createContext(false);
 
+/** Optional plain-text equivalent for screen-reader tables and `aria-label`s
+ *  when `RichTextRenderer` is active. OpenUI leaves this null. */
+export const ChartPlainText = createContext<((text: string) => string) | null>(null);
+
+/** Renders a chart text slot with `RichTextRenderer` when overridden (`ui`
+ *  fences), or as plain React text for OpenUI charts. */
+export function ChartText({ text, className }: { text: string; className?: string }) {
+  const Custom = useContext(RichTextRenderer);
+  if (Custom) return <Custom text={text} className={className} />;
+  return className ? <span className={className}>{text}</span> : <>{text}</>;
+}
+
 /** A chart's own card at the top level, or a captioned figure inside one. */
 export function ChartFigure({ title, children }: { title: unknown; children: ReactNode }) {
   const inCard = useContext(InCard);
   const streaming = useContext(ChartStreaming);
+  const plain = useContext(ChartPlainText);
   const name = typeof title === "string" && title ? title : undefined;
-  const body = <figure aria-label={name} className="m-0 min-w-0 tabular-nums">{children}</figure>;
+  const label = name && plain ? plain(name) : name;
+  const body = <figure aria-label={label} className="m-0 min-w-0 tabular-nums">{children}</figure>;
   if (!inCard) return <Frame title={name} footer={streaming ? <StreamingStatus /> : undefined}>{body}</Frame>;
   return <div className="my-2">
     {name && <Rich text={name} className="mb-1 block text-[13px] font-medium text-foreground" />}
@@ -47,9 +61,11 @@ export function Legend({ entries }: { entries: LegendEntry[] }) {
 /** The data behind a chart for screen readers: the table view a picture
  *  can't replace. */
 export function DataTable({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
+  const plain = useContext(ChartPlainText);
+  const text = (v: string | number) => (plain && typeof v === "string" ? plain(v) : v);
   return <table className="sr-only">
-    <thead><tr>{head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
-    <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+    <thead><tr>{head.map((h, i) => <th key={i}>{text(h)}</th>)}</tr></thead>
+    <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{text(c)}</td>)}</tr>)}</tbody>
   </table>;
 }
 
@@ -75,7 +91,8 @@ export function Plot({ yTicks, xTicks, xLabel, yLabel, readout, onLeave, childre
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  const gutter = Math.max(2, ...yTicks.map((t) => t.label.length)) + 1;
+  const plain = useContext(ChartPlainText);
+  const gutter = Math.max(2, ...yTicks.map((t) => (plain ? plain(t.label).length : t.label.length))) + 1;
   return <div className="text-[11px] text-muted-foreground">
     <div className="mb-1 flex min-h-4 items-baseline justify-between gap-3">
       <span className="min-w-0 truncate">{typeof yLabel === "string" && yLabel ? <Rich text={yLabel} /> : null}</span>
@@ -83,7 +100,7 @@ export function Plot({ yTicks, xTicks, xLabel, yLabel, readout, onLeave, childre
     </div>
     <div className="flex">
       <div aria-hidden="true" className="relative shrink-0 tabular-nums" style={{ width: `${gutter}ch` }}>
-        {yTicks.map((t, i) => <span key={i} className="absolute right-1.5 translate-y-1/2 leading-none" style={{ bottom: `${t.at * 100}%` }}>{t.label}</span>)}
+        {yTicks.map((t, i) => <span key={i} className="absolute right-1.5 translate-y-1/2 leading-none" style={{ bottom: `${t.at * 100}%` }}><ChartText text={t.label} /></span>)}
       </div>
       <div className="relative h-40 min-w-0 flex-1 border-b border-border" onPointerLeave={onLeave}>
         {yTicks.map((t, i) => t.at > 0.001 && <div key={i} aria-hidden="true" className="absolute inset-x-0 border-t border-border-subtle" style={{ bottom: `${t.at * 100}%` }} />)}
@@ -91,7 +108,7 @@ export function Plot({ yTicks, xTicks, xLabel, yLabel, readout, onLeave, childre
       </div>
     </div>
     <div aria-hidden="true" className="relative h-4 tabular-nums" style={{ marginLeft: `${gutter}ch` }}>
-      {xTicks.map((t, i) => <span key={i} className="absolute top-1 whitespace-nowrap leading-none" style={{ left: `${t.at * 100}%`, transform: `translateX(${t.at < 0.04 ? 0 : t.at > 0.96 ? -100 : -50}%)` }}>{t.label}</span>)}
+      {xTicks.map((t, i) => <span key={i} className="absolute top-1 whitespace-nowrap leading-none" style={{ left: `${t.at * 100}%`, transform: `translateX(${t.at < 0.04 ? 0 : t.at > 0.96 ? -100 : -50}%)` }}><ChartText text={t.label} /></span>)}
     </div>
     {typeof xLabel === "string" && xLabel && <div className="mt-1 text-center" style={{ marginLeft: `${gutter}ch` }}><Rich text={xLabel} /></div>}
     {footer}
@@ -121,6 +138,6 @@ export function Marker({ fx, label }: { fx: number; label: string }) {
   if (!(fx >= 0 && fx <= 1)) return null;
   return <div aria-hidden="true" className="pointer-events-none absolute inset-y-0" style={{ left: `${fx * 100}%` }}>
     <div className="absolute inset-y-0 -ml-px w-0.5 bg-foreground/60" />
-    <span className={cn("absolute top-0 whitespace-nowrap bg-card px-1 text-[11px] leading-4 text-foreground", fx > 0.75 ? "right-1" : "left-1")}>{label}</span>
+    <span className={cn("absolute top-0 whitespace-nowrap bg-card px-1 text-[11px] leading-4 text-foreground", fx > 0.75 ? "right-1" : "left-1")}><ChartText text={label} /></span>
   </div>;
 }
