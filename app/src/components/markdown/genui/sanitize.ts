@@ -1,5 +1,6 @@
 import { ALLOW_EMPTY, allowedAttr, cleanAttr, DROP, HTML_ELEMENTS, SVG_ELEMENTS } from "./allow";
 import { mathify } from "./maths";
+import { protectMaths } from "./scan";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const HTML_NS = "http://www.w3.org/1999/xhtml";
@@ -14,7 +15,7 @@ const NO_MATHS = new Set(["code", "kbd"]);
  */
 export function sanitize(markup: string, prefix: string): DocumentFragment {
   const t = document.createElement("template");
-  t.innerHTML = markup;
+  t.innerHTML = protectMaths(markup);
   const frag = t.content;
   clean(frag, prefix, false, false);
   return frag;

@@ -416,16 +416,19 @@ describe("finding 9: repairPrefix state machine and remark-math parity", () => {
     expect(repairPrefix("<p>price \\$5")).toBe("<p>price \\$5");
   });
 
-  test("splitMaths matches remark-math on delimiter forms including spaced dollars and trailing digits", () => {
+  test("splitMaths matches remark-math on delimiter forms including spaced dollars, escapes, blank lines and display mode", () => {
     const proc = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkRehype);
-    const remarkFormulas = (input: string): string[] => {
+    const remarkFormulas = (input: string): { tex: string; display: boolean }[] => {
       const norm = hasMath(input) ? normalizeMath(input) : input;
       const hast = proc.runSync(proc.parse(norm));
-      const out: string[] = [];
+      const out: { tex: string; display: boolean }[] = [];
       const walk = (n: { type?: string; properties?: { className?: unknown }; children?: unknown[]; value?: string }) => {
         const cls = Array.isArray(n.properties?.className) ? n.properties.className : [];
         if (n.type === "element" && (cls.includes("math-inline") || cls.includes("math-display"))) {
-          out.push((n.children ?? []).map((c) => (c as { value?: string }).value ?? "").join(""));
+          out.push({
+            tex: (n.children ?? []).map((c) => (c as { value?: string }).value ?? "").join(""),
+            display: cls.includes("math-display"),
+          });
           return;
         }
         for (const ch of n.children ?? []) walk(ch as typeof n);
@@ -441,8 +444,29 @@ describe("finding 9: repairPrefix state machine and remark-math parity", () => {
       "$ not maths$",
       "$x $",
       "$ x$",
+      "\\$5",
+      "$5 and $10",
       "price \\$5 and $x$2 and $ y $",
       "\\$$x$",
+      "\\\\$x$",
+      "\\\\\\$x$",
+      "\\\\\\\\$x$",
+      "word $$x$$ end",
+      "$$x$$",
+      "  $$x$$  ",
+      "$$\nx\n$$",
+      "  $$\n  x\n  $$",
+      "$$\nx\n\ny\n$$",
+      "before\n$$\nx\n$$\nafter",
+      "before\n$$x$$\nafter",
+      "$a\nb$",
+      "$a\n\nb$",
+      "$a\n   \nb$",
+      "word $$a\n\nb$$ end",
+      "word $$\\text{cost $5}$$ end",
+      "$$\\text{cost $5}$$",
+      "$\\text{cost $5}$",
+      "word $$\\text{a {b $ c} d}$$ end",
       "$x > 0$",
       "$x < y$",
       "$$a$b$$",
@@ -452,15 +476,19 @@ describe("finding 9: repairPrefix state machine and remark-math parity", () => {
       "cost $",
       "Inline $x^2$ and $$\\sum_i x_i$$",
     ];
+    expect(inputs.length).toBeGreaterThanOrEqual(30);
     for (const input of inputs) {
-      const ours = splitMaths(input).pieces.filter((p): p is { tex: string; display: boolean } => "tex" in p).map((p) => p.tex);
-      expect(ours).toEqual(remarkFormulas(input));
+      const ours = splitMaths(input)
+        .pieces.filter((p): p is { tex: string; display: boolean } => "tex" in p)
+        .map(({ tex, display }) => ({ tex, display }));
+      expect({ input, ours }).toEqual({ input, ours: remarkFormulas(input) });
     }
   });
 
   test("property check: no prefix of any fixture leaks a raw math $, half tag or half entity", () => {
     const MIXED = `<div class="g" title="a > b"><p>Check $x < y$ and $x > 0$ &amp; &#x20; done.</p><code>$5</code><kbd>$9</kbd><svg viewBox="0 0 10 10"><text>$3</text></svg></div>`;
-    const fixtures = [DJ_BLOCK, LEAST_SQUARES, CHARTS_FIXTURE, MIXED];
+    const REVIEWER_INEQ = `<p>$x<y$ <b>then</b></p>`;
+    const fixtures = [DJ_BLOCK, LEAST_SQUARES, CHARTS_FIXTURE, MIXED, REVIEWER_INEQ];
 
     const mathEligibleText = (root: Node): string => {
       let out = "";
@@ -487,6 +515,20 @@ describe("finding 9: repairPrefix state machine and remark-math parity", () => {
         expect(repaired).not.toMatch(/&#?[a-z0-9]*$/i);
         // Never ends inside an unclosed tag or comment outside completed math.
         expect(text).not.toContain("<");
+      }
+    }
+
+    // Reviewer inputs with literal dollars finalised by closing tags never leak half tags or entities.
+    for (const literalFixture of [`<p>$x</p><span title="$`, `<p>Cost $5</p><p>Result`]) {
+      const closeEnd = literalFixture.indexOf("</p>") + 4;
+      for (let len = 1; len <= literalFixture.length; len++) {
+        const repaired = repairPrefix(literalFixture.slice(0, len));
+        const host = document.createElement("div");
+        host.append(sanitize(repaired, "p1"));
+        const text = mathEligibleText(host);
+        expect(repaired).not.toMatch(/&#?[a-z0-9]*$/i);
+        expect(text).not.toContain("<");
+        if (len < closeEnd) expect(text).not.toContain("$");
       }
     }
   });

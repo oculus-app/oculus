@@ -13,7 +13,7 @@ script, no external styles and no iframe.
 | Piece | Location |
 | --- | --- |
 | Fence host and frame coalescing | `app/src/components/markdown/genui/GenUIFence.tsx` |
-| Streaming prefix repair | `app/src/components/markdown/genui/repair.ts` |
+| Streaming prefix repair and shared markup scanner | `app/src/components/markdown/genui/repair.ts`, `app/src/components/markdown/genui/scan.ts` |
 | Inert sanitiser and allow-list | `app/src/components/markdown/genui/sanitize.ts`, `app/src/components/markdown/genui/allow.ts` |
 | In-place DOM morph | `app/src/components/markdown/genui/morph.ts` |
 | Inline and display `$…$` maths | `app/src/components/markdown/genui/maths.ts` |
@@ -51,15 +51,22 @@ synchronously in the same commit.
 Each pass runs three steps in order:
 
 1. **Repair (`repairPrefix`).** While open, strips a half-arrived closing fence
-   (trailing backticks or tildes on the last line), then scans once through
-   text, HTML comments, tags, quoted attribute values, entities and
-   `$…$`/`$$…$$` runs in maths-eligible text (outside `<svg>`, `<code>` and
-   `<kbd>`), cutting before any unclosed construct. `<` and `>` inside a
-   formula stay maths rather than markup, and `$` inside `<code>`, `<kbd>` and
-   `<svg>` stays literal. Open ancestor tags are left for the HTML parser to
-   close, so half-built rows (such as a stat tile with only its label) appear as
-   they arrive without shifting content above the block.
-2. **Sanitise (`sanitize`).** Parses the markup into an inert `<template>` so
+   (trailing backticks or tildes on the last line), then runs the shared markup
+   scanner (`scanMarkup` in `scan.ts`) across HTML comments, tags, quoted
+   attribute values, `<svg>`/`<code>`/`<kbd>` depth, entities and per-run
+   `$…$`/`$$…$$` formulas in maths-eligible text, cutting before any unclosed
+   trailing construct. A formula opens and closes within one text run: a
+   complete tag or comment ends the run and finalises any unmatched `$` as
+   literal text, so only an unmatched `$` in the last, still-open text run is
+   held back, and `$` inside attributes, comments, `<svg>`, `<code>` and `<kbd>`
+   never opens or closes maths. Open ancestor tags are left for the HTML parser
+   to close, so half-built rows (such as a stat tile with only its label) appear
+   as they arrive without shifting content above the block.
+2. **Sanitise (`sanitize`).** Runs `protectMaths` (`scan.ts`) over the markup
+   first so `<`, `>` and bare `&` inside recognised formulas (without
+   double-escaping existing character references) are entity-escaped before HTML
+   tokenisation on both the streaming and closed paths, leaving `<` in ordinary
+   text to the HTML parser. Parses the result into an inert `<template>` so
    nothing executes or fetches, walks its `DocumentFragment`, renders maths in
    eligible text nodes, and returns the cleaned fragment.
 3. **Morph (`morph`).** Reconciles the host's live DOM children against the
@@ -175,12 +182,15 @@ and rewind alongside cards and widgets.
 ## Maths and tables follow the reply's rules
 
 Text nodes outside `<svg>`, `<code>` and `<kbd>` run through `mathify`
-(`maths.ts`), which joins adjacent text siblings first so inequalities split
-around `<` or `&lt;` stay intact. `splitMaths` follows `remark-math`'s
-delimiter rules (a run of `$` closes on the next run of the exact same length,
-allowing spaces inside `$…$` and trailing digits such as `$x$2`, stripping one
-paired outer space, and keeping escaped `\$` and unclosed `$` literal; two or
-more `$` render in display mode).
+(`maths.ts`), which joins adjacent text siblings first so text split around
+decoded entities stays intact. `scanMaths` / `splitMaths` follows the reply
+pipeline's (`normalizeMath` + `remark-math`) delimiter and mode rules: an odd
+run of backslashes before `$` escapes it while an even run does not; `$$…$$` on
+its own line or fenced `$$\n…\n$$` renders in display mode while `$$…$$` inside
+a line of text is inline; a blank line ends an inline candidate; any inline `$`
+run closes on the next run of the exact same length, allowing spaces inside
+`$…$` and trailing digits such as `$x$2`, stripping one paired outer space or
+line ending, and keeping unclosed `$` literal.
 Each formula renders through the app's `renderToString` (`app/src/lib/maths/`),
 strict first and lenient on error, wrapped in `<span class="genui-math"
 data-tex="…">`. Cached fragments are cloned per formula, and `morph` compares
