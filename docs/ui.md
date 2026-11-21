@@ -381,6 +381,15 @@ themes are opt-in and keep the same structure.
 - **Tables are full-bleed in `GridTable`**, header outside the scroller (or the
   bar runs down it). Alternate views are sibling `ViewTabs`/`PillTabs`, not a
   dropdown, over a fixed-height toolbar so switching never jolts the rows.
+- **Thumbnail grids are `MediaGrid` of `MediaTile`s**
+  (`app/src/components/ui/layout/MediaGrid.tsx`): `auto-fill` columns of
+  240px or more, gaps in `--media-gap-x`/`--media-gap-y`. A tile is one
+  button (picture, title, facts); a badge, a length in the `corner` and a
+  progress bar are plain marks on the picture, and its one control,
+  `action`, is drawn over the picture as the button's sibling. A run of
+  consecutive cells is tinted as one shape with `MediaRunCell` and
+  `gridRunEdges`, the column count read by `useGridColumns`
+  ([studio-page.md](./studio-page.md#videos-and-the-detail)).
 - **Row lists use `ListCard` as a flat divided stack**, without a card border
   around the rows. A page adds a card only when the content itself calls for one.
 - **Filters are pills over popovers** (`FilterPopover`, brand-tinted while

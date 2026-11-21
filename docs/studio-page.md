@@ -18,7 +18,7 @@ video starts that chat. The renderer, the commands and the thread link are
 | Series grouping, outline navigation and shared part requests | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
 | Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts` |
-| The Videos grid, its cards and subject pills | `app/src/components/studio/videos/`, `app/src/components/ui/layout/MediaGrid.tsx` |
+| The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
 | Render state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
 | The Components playground: list, stage, timeline, inspector, source, change box | `app/src/pages/studio/ComponentsPage.tsx`, `app/src/components/studio/components/` (`inspector/` for the props form) |
@@ -49,8 +49,7 @@ toasts or bars ([ui.md](./ui.md)).
 
 ## New video starts a chat
 
-**New video** (the nav column's first row, the Videos header's button and
-the empty grid's offer) opens a new chat of its own whose box already holds the `oculus-studio`
+**New video** (the nav column's first row and the empty grid's offer) opens a new chat of its own whose box already holds the `oculus-studio`
 skill chip (`useNewVideoChat`): it opens a new chat (`openNewChat`), writes
 `/oculus-studio ` into its draft (`newChatKey`), which the box turns into the
 chip once the skill catalogue loads, and opens `/chat?d=<id>&s=<id>` in the
@@ -136,16 +135,51 @@ student to choose them in Chat. Threads outside the loaded page are read by
 id. With no thread, `useNewVideoChat` opens an unsent draft with the skill
 chip and the requested series and part slugs, in the series' subject.
 
-The grid (`MediaGrid`, `MediaTile`) shows each video's thumbnail
-(`studio_thumbnail`, 16:9, a portrait one letterboxed rather than cropped),
-title (video.json's `title`, else its title card's, else the slug spelled
-out: [studio.md](./studio.md#videos-live-in-the-data-directory)) and subject,
-scene count and age. A video that is rendering carries a
-badge with its percentage and a bar. One whose video.json will not load shows
-the problem in place of its facts. Pills over the grid narrow by subject
-(shown when two or more subjects have videos; the choice is remembered in
-`oculus-studio-subject`, which New video also reads). With no video the
-page offers New video.
+The grid (`StudioGrid` over `MediaGrid` and `MediaTile`) shows single videos
+and series folders interleaved newest first (`studioGridItems`). A video's
+card is its thumbnail (`studio_thumbnail`, 16:9, a portrait one letterboxed
+rather than cropped) with its length on the bottom right (`seconds`, none
+until every scene has one), its title (video.json's `title`, else its title
+card's, else the slug spelled out:
+[studio.md](./studio.md#videos-live-in-the-data-directory)) and a fact line:
+the subject (`SubjectIcon` and display code), scene count and age. A video
+that is rendering carries a badge with its percentage and a bar. One whose
+video.json will not load shows the problem in place of its facts. Pills over
+the grid narrow by subject (shown when two or more subjects have a video or
+a series; the choice is remembered in `oculus-studio-subject`, which New
+video also reads). With no video and no series the page offers New video;
+the header has no button.
+
+**A series is a folder card** (`series/FolderCard.tsx`): its frame holds a
+slot per part in order, three to a row, a made part as its still and the
+rest as empty dashed slots (past nine, the last slot counts the rest), and
+its facts read the subject, "2/5 videos" and the outline's age. A press opens
+it in place and a second press closes it (`aria-expanded`). Open, the folder
+stays where it was and its parts follow it as cards (`seriesPartCells`): a
+made part is a video's card with "Part 1" where the subject would be; any
+other is an empty dashed card with its title muted and "Part 3" under it.
+Every part's card opens its page (`videoHref`), made or not. The next part
+not made holds **Make this part** (`useMakeSeriesPart`), a button beside the
+card's own, never inside it; a failed request says why under it. A part is
+being made while it is the one asked for, or while its folder exists without
+a render and the series' thread runs; its frame then reads "Making…" with a
+brand spinner, and no part offers the button meanwhile. Which folders are
+open is remembered (`oculus-studio-open-series`, `useOpenSeries`), and a
+folder whose series leaves a successful read is forgotten.
+
+**An open folder is a tinted run.** The folder and its parts are consecutive
+cells that may start and end mid-row, so the run is a staircase whose shape
+changes with the column count. `gridRunEdges` (`lib/ui/gridRun.ts`) takes the
+column count, the run's first index and its length and gives each cell its
+outer sides, outer corners and inside corners. `MediaRunCell` draws the tint behind its cell
+out to half of each gap (`--media-gap-x`, `--media-gap-y`, set by
+`MediaGrid`) plus half a pixel, so neighbouring cells' tints meet without a
+seam and the gaps keep their size; a dashed brand line marks the outer sides
+and the outer corners round, while inside corners stay square. The tint is
+absolutely placed, so opening a folder moves other cards only by the cells
+its parts take. `useGridColumns` reads the column count from the grid's
+computed `grid-template-columns` (a count of tracks, which page zoom does not
+change) and again whenever the grid's width changes.
 
 The detail (`VideoDetailStage`) is the player with a dock, and under it a row
 of the facts (subject, theme, voice, length, shape) beside the render bar.

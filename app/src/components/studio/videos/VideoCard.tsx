@@ -2,16 +2,18 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CircleNotch, FilmSlate } from "@phosphor-icons/react";
 
+import { FactLine, LengthBadge, SubjectFact } from "@/components/studio/videos/VideoFacts";
 import { MediaTile } from "@/components/ui/layout/MediaGrid";
 import { useStill } from "@/hooks/studio/useStill";
-import { displayCode, fmtAgo } from "@/lib/format/format";
+import { fmtAgo } from "@/lib/format/format";
 import { videoHref } from "@/lib/studio/routes";
 import { studioThumbnail, type VideoRow } from "@/lib/studio/videos";
 import { useRenderStore } from "@/stores/studio/renderStore";
 
-/** A video in the grid, opening its detail: its thumbnail (a still from scene 0), title and
- *  facts; while it renders, a badge and a bar with the percentage. */
-export function VideoCard({ video }: { video: VideoRow }) {
+/** A video in the grid, opening its detail: its thumbnail (a still from
+ *  scene 0) with its length, title and facts; while it renders, a badge and a
+ *  bar with the percentage. A series part reads "Part N" where the subject would. */
+export function VideoCard({ video, part }: { video: VideoRow; part?: number }) {
   const navigate = useNavigate();
   const active = useRenderStore((s) => s.active[video.dir]);
   const still = useStill(`thumb:${video.slug}:${video.modified}`, () => studioThumbnail(video.slug));
@@ -20,18 +22,13 @@ export function VideoCard({ video }: { video: VideoRow }) {
   const href = videoHref(video.slug, video.title);
   const pct = active?.fraction != null ? Math.round(active.fraction * 100) : null;
 
-  const facts = [
-    video.subject ? displayCode(video.subject) : null,
-    video.scenes != null ? `${video.scenes} ${video.scenes === 1 ? "scene" : "scenes"}` : null,
-    video.modified != null ? fmtAgo(video.modified * 1000) : null,
-  ].filter(Boolean);
-
   return (
     <MediaTile
       href={href}
       onOpen={() => navigate(href)}
       title={video.title}
       progress={active ? (active.fraction ?? 0) : null}
+      corner={<LengthBadge seconds={video.seconds} />}
       badge={
         active && (
           <span className="flex items-center gap-1 rounded-full bg-card/95 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm">
@@ -46,7 +43,13 @@ export function VideoCard({ video }: { video: VideoRow }) {
             {video.problem}
           </span>
         ) : (
-          facts.join(" · ")
+          <FactLine
+            facts={[
+              part != null ? `Part ${part}` : video.subject && <SubjectFact code={video.subject} />,
+              video.scenes != null && `${video.scenes} ${video.scenes === 1 ? "scene" : "scenes"}`,
+              video.modified != null && fmtAgo(video.modified * 1000),
+            ]}
+          />
         )
       }
       picture={
