@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
+import { useSubjectCode } from "@/hooks/studio/useSubjectCode";
 import { displayCode } from "@/lib/format/format";
 import { fmtClockSecs } from "@/lib/lectures/media";
 
@@ -20,8 +21,9 @@ export function FactLine({ facts }: { facts: ReactNode[] }) {
 }
 
 /** A subject as the app names it: its icon and display code, the full code
- *  as the tooltip. `code` is a course code; the icon store keys by display code. */
-export function SubjectFact({ code }: { code: string }) {
+ *  as the tooltip. `course` is a video's course code, without its term. */
+export function SubjectFact({ course }: { course: string }) {
+  const code = useSubjectCode(course);
   return (
     <span title={code}>
       <SubjectIcon code={code} size={11} className="mr-1 inline-block align-[-1px]" />

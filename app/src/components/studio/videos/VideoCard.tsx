@@ -45,7 +45,7 @@ export function VideoCard({ video, part }: { video: VideoRow; part?: number }) {
         ) : (
           <FactLine
             facts={[
-              part != null ? `Part ${part}` : video.subject && <SubjectFact code={video.subject} />,
+              part != null ? `Part ${part}` : video.subject && <SubjectFact course={video.subject} />,
               video.scenes != null && `${video.scenes} ${video.scenes === 1 ? "scene" : "scenes"}`,
               video.modified != null && fmtAgo(video.modified * 1000),
             ]}

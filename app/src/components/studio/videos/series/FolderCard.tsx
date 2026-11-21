@@ -18,7 +18,7 @@ export function FolderCard({ series, open, onToggle }: { series: StudioSeries; o
       meta={
         <FactLine
           facts={[
-            series.subject && <SubjectFact code={series.subject} />,
+            series.subject && <SubjectFact course={series.subject} />,
             `${madePartCount(series)}/${series.parts.length} videos`,
             series.modified != null && fmtAgo(series.modified * 1000),
           ]}

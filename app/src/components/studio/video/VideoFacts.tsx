@@ -2,10 +2,9 @@ import { Microphone, Palette, Timer } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
-import { useSubjects } from "@/hooks/data/useSubjects";
+import { useSubjectCode } from "@/hooks/studio/useSubjectCode";
 import { displayCode } from "@/lib/format/format";
 import { fmtClockSecs } from "@/lib/lectures/media";
-import { subjectCodeFor } from "@/lib/studio/subjectCode";
 import type { VideoDetail } from "@/lib/studio/videos";
 
 /** A video's subject, theme, voice, length and shape as quiet pills. */
@@ -29,8 +28,7 @@ export function VideoFacts({ detail }: { detail: VideoDetail }) {
 
 /** The subject as the app names it: its icon and display code. */
 function SubjectFact({ course }: { course: string }) {
-  const { subjects } = useSubjects();
-  const code = subjectCodeFor(subjects, course);
+  const code = useSubjectCode(course);
   return <Fact glyph={<SubjectIcon code={code} size={12} className="shrink-0" />}>{displayCode(code)}</Fact>;
 }
 
