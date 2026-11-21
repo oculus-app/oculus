@@ -1,6 +1,12 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ComponentType, type ReactNode } from "react";
 import { InlineMd } from "@/components/markdown/MdComponents";
 import { cn } from "@/lib/utils";
+
+/** Optional override for `Rich` text inside shared chart components. OpenUI
+ *  leaves this null to render full inline markdown; `ui` fences provide a plain
+ *  text + `$…$` maths renderer so chart labels cannot emit links or images. */
+export type LabelRenderer = ComponentType<{ text: string; className?: string }>;
+export const RichTextRenderer = createContext<LabelRenderer | null>(null);
 
 /** The card every study widget sits in: the reply's raised surface, a
  *  hairline border, an optional title and a footer row for its controls. */
@@ -36,7 +42,9 @@ export function Frame({
  *  engine. `InlineMd` drops block elements, so a stray heading can't break
  *  the card, and it is safe inside a `<button>`. */
 export function Rich({ text, className }: { text: unknown; className?: string }) {
+  const Custom = useContext(RichTextRenderer);
   if (typeof text !== "string" || !text) return null;
+  if (Custom) return <Custom text={text} className={className} />;
   return <InlineMd text={repairTex(text)} className={className} />;
 }
 

@@ -79,23 +79,37 @@ nothing.
   elements, `math`, `dialog` and `portal` together with their subtrees. Any
   other tag (including `<a>`) or misplaced namespace element is unwrapped so
   its text survives without the element.
-- **Attributes.** Event handlers (`on*`), `href`, `src` and values containing
-  `javascript:`, `vbscript:` or `data:` are stripped. `id` values are prefixed
-  with the block's React `useId` prefix and local `url(#id)` references are
-  rewritten to match; external `url(…)` references are dropped.
-- **Classes and inline styles.** `class` admits only names in `CLASSES` and
-  `g-*` vocabulary classes, so agent markup cannot reach Tailwind utilities
-  such as `fixed` or `inset-0`. `style` keeps only custom properties
-  (`--name`) and a short list of text and SVG paint properties (`STYLE_PROPS`),
-  rejecting `url(`, `expression`, `image` and `attr(`.
+- **Attributes.** Event handlers (`on*`), `href` and `src` are stripped. Every
+  SVG attribute and inline `style` value rejects backslashes, `/*`, `@`, `;`,
+  `{`, `}` and control characters, and must match a closed grammar by kind:
+  paint (`fill`, `stroke`, `stop-color`, and `color`/`fill`/`stroke` in `style`)
+  admits only colour keywords, `#` hex, `rgb()`/`rgba()`/`hsl()`/`hsla()` of
+  numbers and percentages, `var(--name)` (with an optional simple colour
+  fallback) and `url(#id)`; reference attributes (`clip-path`, `marker-*`)
+  admit only `none` or `url(#id)`; lengths, lists, `d`, `points`, `transform`,
+  `viewBox`, `stroke-dasharray`, `gradientTransform` and keywords admit only
+  their syntax characters; `font-size` is clamped to a bounded range. `id`
+  values (`[\w-]+`) are prefixed with the block's React `useId` prefix and
+  local `url(#id)` references are rewritten to match. Only `aria-label` and
+  `aria-hidden` are admitted from `aria-*`. Text-valued attributes (`title`,
+  `aria-label`, chart text attributes and behaviour attributes) are rendered as
+  text without URI-scheme filtering.
+- **Classes and inline styles.** `class` admits only the enumerated names in
+  `CLASSES` (styled across `genui.css`, `controls.css` and `derive.css`), so
+  agent markup cannot reach Tailwind utilities or arbitrary `g-*` names.
+  `style` validates each declaration against the same closed per-property
+  grammars (`STYLE_PROPS`) and admits only named custom properties the
+  stylesheets read (`--v`, numeric and clamped to `[0, 1]`).
 - **Reserved and runtime-owned attributes.** Attributes for interactive
-  behaviours (`data-choice`, `data-value`, `data-option`, `data-show`,
-  `data-scrub`, `data-options`, `data-edges`) and chart hosts (`data-chart` and
-  its companions) pass through inertly; `morph` skips descending into
-  `[data-chart]` children so a host can own them. Runtime-owned attributes
-  (`RUNTIME`: `data-on`, `data-off`, `aria-checked`, `aria-valuenow`,
-  `aria-valuetext`, `tabindex`, `role`, `hidden`) are stripped from agent
-  markup and never overwritten by `morph`.
+  behaviours (`data-choice`, `data-value`, `data-option`, `data-show` —
+  preserved even when empty so `BlockRuntime` hides the element — `data-scrub`,
+  `data-options`, `data-edges`) pass through inertly. Chart attributes
+  (`data-chart` and its companions) survive only on HTML `div` elements;
+  `morph` skips descending into `[data-chart]` children so a host can own them.
+  Runtime-owned attributes (`RUNTIME`: `data-on`, `data-off`, `aria-checked`,
+  `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, `aria-valuetext`,
+  `tabindex`, `role`, `hidden`, `inert`) are stripped from agent markup and
+  never overwritten by `morph`.
 
 ## Three attributes drive state without agent script
 
@@ -172,11 +186,17 @@ in Oculus.
 hook: OpenUI's `defineComponent` wrappers feed `ChartStreaming` through
 `OpenUIChart` (`useIsStreaming`), while `ChartHost` mounts the pure chart
 components directly with `ChartStreaming` set to `false` and without importing
-`@openuidev/react-lang`. After each `morph` pass, `GenUIFence` portals a
-`ChartHost` into every `[data-chart]` host (flushed before paint on streaming
-frames via `flushSync`, and synchronously in `useLayoutEffect` once closed).
-`sanitize` strips any child nodes inside `[data-chart]` so React owns the host's
-subtree, and `charts.css` reserves host height in `rem` on `:empty` and reverts
+`@openuidev/react-lang`. `ChartHost` also provides `RichTextRenderer`
+(`app/src/components/markdown/openui/components/Frame.tsx`) with a plain text
+plus `$…$` maths renderer so chart labels (titles, axis labels, legends, series
+names and centre text) inside `ui` blocks never parse Markdown, links, images
+or raw HTML, while OpenUI charts leave `RichTextRenderer` unset and keep
+`InlineMd`. After each `morph` pass, `GenUIFence` portals a `ChartHost` into
+every `[data-chart]` host (flushed before paint on streaming frames via
+`flushSync`, and synchronously in `useLayoutEffect` once closed). `sanitize`
+admits `data-chart` and its companions only on HTML `div` elements and strips
+any child nodes inside `[data-chart]` so React owns the host's subtree, and
+`charts.css` reserves host height in `rem` on `:empty` and reverts
 `genui.css`'s unlayered `svg` and `table` rules inside chart hosts.
 
 | `data-chart` | Data attributes | Optional attributes |
@@ -195,8 +215,12 @@ nothing.
 
 ## Vocabulary styling uses semantic tokens only
 
-`genui.css` scopes every rule under `.genui` with `contain: layout` so
-positioned elements inside a block cannot escape it. The static vocabulary
+`genui.css` scopes every rule under `.genui` with `contain: layout paint` and a
+4px padding/margin gutter (matching `skip-offscreen` in
+`app/src/styles/utilities.css`, since WebKit ignores `overflow-clip-margin`) so
+markup cannot paint over surrounding prose while focus rings on choice buttons
+and scrubs remain unclipped; `.trk` sets `overflow: hidden` to clip amplitude
+bars to their track. The static vocabulary
 covers containers (`.g`, `.g.box`), captions and labels (`.g-cap`, `.g-label`),
 flex rows (`.g-row`), stat tiles (`.g-stat`), bit result cards (`.g-out`,
 `.g-out.alt`, `.bits`), inline SVG and circuit styles (`.cir`, `.w`, `.gate`,
@@ -275,7 +299,7 @@ pre-tool text is summarised do not drop them.
 
 - Never widen `allowedClass` beyond the vocabulary — allowing Tailwind utilities lets markup cover the app (`fixed inset-0`).
 - Never parse agent markup with `innerHTML` on a live element; `<template>` keeps parsing inert so images and event handlers never fire.
-- Never drop `contain: layout` from `.genui` or add vertical overflow inside a block; only `.g-table` and display maths scroll horizontally.
+- Never drop `contain: layout paint` (or its 4px focus-ring gutter) from `.genui` or add vertical overflow inside a block; only `.g-table` and display maths scroll horizontally.
 - Never put literal colours in `genui.css` — every rule must use semantic tokens so light, dark and custom themes stay readable.
 - Keep `RUNTIME` attributes stripped in `allow.ts` and skipped during `syncAttrs` in `morph.ts`, or streamed updates will wipe interactive state.
 - Keep `ui` out of `remarkWidgets`'s `NUMBERED` counter so a reply mixing `ui` with `openui` or `widget` fences keeps stable `widgetKey` indices.

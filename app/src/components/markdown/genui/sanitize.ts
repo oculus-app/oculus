@@ -1,10 +1,9 @@
-import { allowedAttr, allowedClass, cleanStyle, DROP, HTML_ELEMENTS, SVG_ELEMENTS } from "./allow";
+import { ALLOW_EMPTY, allowedAttr, cleanAttr, DROP, HTML_ELEMENTS, SVG_ELEMENTS } from "./allow";
 import { mathify } from "./maths";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const NO_MATHS = new Set(["code", "kbd"]);
-const BOOLEAN_DATA = new Set(["data-area", "data-trend"]);
 
 /**
  * Parses markup into an inert fragment (a `<template>`'s content runs no
@@ -44,7 +43,7 @@ function clean(parent: Node, prefix: string, svg: boolean, code: boolean) {
       el.replaceWith(...Array.from(el.childNodes));
       continue;
     }
-    attrs(el, prefix, inSvg);
+    attrs(el, prefix, inSvg, name);
     if (name === "button") el.setAttribute("type", "button");
     if (!inSvg && el.hasAttribute("data-chart")) {
       el.replaceChildren();
@@ -61,22 +60,15 @@ function clean(parent: Node, prefix: string, svg: boolean, code: boolean) {
   }
 }
 
-function attrs(el: Element, prefix: string, svg: boolean) {
+function attrs(el: Element, prefix: string, svg: boolean, tag: string) {
   for (const attr of Array.from(el.attributes)) {
     const name = attr.name.toLowerCase();
-    let value = attr.value;
-    if (!allowedAttr(name, svg) || /javascript:|vbscript:|data:/i.test(value)) {
+    if (!allowedAttr(name, svg, tag)) {
       el.removeAttribute(attr.name);
       continue;
     }
-    if (name === "id") value = value.trim() ? `${prefix}-${value.trim()}` : "";
-    else if (name === "class") value = value.split(/\s+/).filter(allowedClass).join(" ");
-    else if (name === "style") value = cleanStyle(value);
-    if (/url\s*\(/i.test(value)) {
-      const local = /^url\(\s*#([\w-]+)\s*\)$/.exec(value.trim());
-      value = local ? `url(#${prefix}-${local[1]})` : "";
-    }
-    if (!value && !BOOLEAN_DATA.has(name)) el.removeAttribute(attr.name);
+    const value = cleanAttr(name, attr.value, prefix, svg);
+    if (!value && !ALLOW_EMPTY.has(name)) el.removeAttribute(attr.name);
     else if (value !== attr.value) el.setAttribute(attr.name, value);
   }
 }

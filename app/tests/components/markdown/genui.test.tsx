@@ -190,8 +190,12 @@ describe("genui sanitize", () => {
       out: `<div data-show="f=a">r</div>`,
     },
     dataUri: {
-      in: `<div title="data:text/html,<script>">t</div>`,
-      out: `<div>t</div>`,
+      in: `<svg><rect fill="url(data:image/svg+xml,<svg/>)" width="5" height="5"/></svg>`,
+      check: (host: HTMLElement) => {
+        const rect = host.querySelector("rect");
+        expect(rect?.hasAttribute("fill")).toBe(false);
+        expect(rect?.getAttribute("width")).toBe("5");
+      },
     },
     template: {
       in: `<template><img src=x onerror=x()></template><noscript><p>n</p></noscript>`,

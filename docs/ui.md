@@ -74,7 +74,8 @@ app's semantic tokens (`--color-foreground`, `--color-muted-foreground`,
 `--color-brand-muted`, `--color-brand-foreground`, `--color-success`,
 `--color-warning`, `--color-ink-50`, `--color-ink-500`, `--color-tag-green-soft`,
 `--color-chart-1`–`5`, `--font-sans` and `--font-mono` for `code`/`kbd` only)
-with no literal colours. The block carries `contain: layout`, sizes fluidly
+with no literal colours. The block carries `contain: layout paint` (with a 4px
+padding/margin gutter so focus rings stay unclipped), sizes fluidly
 under page zoom without measuring rects, and never scrolls vertically; wide
 tables scroll horizontally inside `.g-table`.
 
