@@ -4,6 +4,7 @@ mod full;
 mod golden;
 mod heteronym;
 mod lexicon;
+mod mark;
 mod phonemize;
 mod split;
 mod stem;

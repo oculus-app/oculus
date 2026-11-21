@@ -392,9 +392,12 @@ pub(crate) enum StudioEngineArg {
 /// length and its `word()` cues; `frame`, `strip` and `lint` read it. A
 /// section is said and timed whole, then each `[pause]` is spliced in as
 /// exact silence between the words either side of it, and each `[breath]`
-/// tops up the silence after its word to its length.
+/// tops up the silence after its word to its length. A reading
+/// (`[records](verb)`) tells Kokoro how to say that one word; the word is
+/// timed, cued and captioned as it is written, and a server says it as
+/// written.
 ///
-/// A clip's key hashes its text with its pauses and breaths, the engine, the voice and
+/// A clip's key hashes its text with its readings, pauses and breaths, the engine, the voice and
 /// speed, the server and model or Kokoro's model and the text's phonemes,
 /// and the aligner model, so a run only makes scenes whose text, voice or reading
 /// changed (a lexicon edit re-narrates the scenes it changes); the rest
@@ -410,8 +413,10 @@ pub(crate) enum StudioEngineArg {
 /// With Kokoro, every word the guesser read is then a `note: check
 /// pronunciation` with its scene and script.md line, and the state of any
 /// suggestion for it: listen to it, and suggest a reading for a doubtful
-/// one with `oculus studio pronounce suggest`. Notes never change the exit
-/// code.
+/// one with `oculus studio pronounce suggest`. Every unmarked word the
+/// dictionary reads more than one way is a `note: check reading` with the
+/// reading picked and the mark for the other: write the mark in script.md
+/// when the wrong one was picked. Notes never change the exit code.
 ///
 ///     oculus studio narrate lectures/week-4
 ///
@@ -455,10 +460,16 @@ pub(crate) struct StudioTtsArgs {
 /// Show how Kokoro reads text: each word's phonemes and who read it
 ///
 /// Reads `TEXT` as `narrate --engine kokoro` would, without synthesising:
-/// each word with its phonemes and its source, `lexicon` (an entry in a
-/// lexicon.json), `dict` (misaki's US dictionary and its rules), `rule` (a
-/// heteronym's reading picked by its neighbours) or `guess` (the guesser,
-/// worth a listen), then the phoneme string Kokoro is given. The lexicon is
+/// each word with its phonemes and its source, `marked` (a reading written
+/// on it, as `[records](verb)`), `lexicon` (an entry in a lexicon.json),
+/// `dict` (misaki's US dictionary and its rules), `rule` (a heteronym's
+/// reading picked by its neighbours) or `guess` (the guesser, worth a
+/// listen), then the phoneme string Kokoro is given. A word the dictionary
+/// reads more than one way lists its other readings with the mark that
+/// picks each. `TEXT` may hold readings: a part of speech (`noun`, `verb`,
+/// `adjective`, `adverb`) for such a word, `letter` or `article` for `a`,
+/// a respelling in real words (`[softmax](SOFT-max)`) or `/phonemes/`. The
+/// lexicon is
 /// the global library's (`<app data>/studio/library/lexicon.json`) with the
 /// subject's over it (`<app data>/studio/subjects/<CODE>/lexicon.json`):
 /// the subject is `--subject`, else the video's (`--video`, or the current
@@ -600,7 +611,8 @@ pub(crate) struct StudioStripArgs {
 /// and the narration (missing or stale clips, unscripted speech). When the
 /// video narrates with Kokoro it also reads every section as `narrate`
 /// will: a missing `g2p-en-us` pack, a lexicon entry that is not valid, a
-/// word with no phonemes or a sentence too long for Kokoro is an error.
+/// word with no phonemes, a reading its word cannot take or a sentence too
+/// long for Kokoro is an error.
 ///
 /// Each scene that renders is then laid out every 0.2 s and at each cue
 /// word (never painted). The slide look is an error: a Text or Math under

@@ -12,7 +12,7 @@ use std::time::Instant;
 use studio_core::{ManifestGap, ManifestPause, ManifestWord};
 
 use super::breath::{self, FADE_SECONDS};
-use super::{Aligner, Speaker, Timings};
+use super::{Aligner, Said, Speaker, Timings};
 use crate::studio::audio::{encode_wav, resample_to_16k};
 use crate::studio::timing::{Gap, WordTime};
 use crate::studio::tts::Speech;
@@ -27,17 +27,16 @@ pub(super) struct Made {
     pub timings: Timings,
 }
 
-/// The clip of `spoken` with `pauses` and `breaths`, each `(words before
-/// it, seconds)` in script order.
+/// `said`'s clip: its voiced text spoken, its words as written timed, and
+/// its pauses and breaths put in.
 pub(super) fn make(
-    spoken: &str,
-    pauses: &[(usize, f64)],
-    breaths: &[(usize, f64)],
+    said: &Said,
     speaker: &dyn Speaker,
     aligner: &dyn Aligner,
 ) -> Result<Made, String> {
+    let (spoken, pauses, breaths) = (&said.spoken, &said.pauses, &said.breaths);
     let started = Instant::now();
-    let Speech { wav, decoded } = speaker.speak(spoken)?;
+    let Speech { wav, decoded } = speaker.speak(&said.voiced)?;
     let synth_ms = started.elapsed().as_millis() as u64;
     let started = Instant::now();
     let rate = decoded.sample_rate;

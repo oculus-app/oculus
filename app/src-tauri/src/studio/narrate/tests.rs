@@ -751,3 +751,56 @@ fn breaths_move_the_words_after_them_and_are_in_the_key() {
         "a breath's length is in the key"
     );
 }
+
+#[test]
+fn a_reading_goes_to_the_speaker_and_the_words_stay_as_written() {
+    let dir = Scratch::new("narrate-reading");
+    video(
+        &dir,
+        "## a\nThe table [records](verb) it, in [use](noun).\n\n## b\nOne small step.\n",
+    );
+    let speaker = FakeSpeaker::new();
+    run(&dir, &speaker, &Stub::new(), &Options::default());
+    assert_eq!(
+        speaker.spoken()[0],
+        "The table [records](verb) it, in [use](noun)."
+    );
+
+    let m = manifest(&dir);
+    let a = &m.scenes["a"];
+    assert_eq!(a.text, "The table [records](verb) it, in [use](noun).");
+    let words: Vec<&str> = a.words.iter().map(|w| w.text.as_str()).collect();
+    assert_eq!(words, ["The", "table", "records", "it,", "in", "use."]);
+    let project = studio_core::Project::load(&*dir).unwrap();
+    let captions: Vec<String> = project
+        .caption_cues()
+        .unwrap()
+        .into_iter()
+        .flat_map(|c| c.lines)
+        .collect();
+    assert_eq!(
+        captions.join(" "),
+        "The table records it, in use. One small step.",
+        "captions show the words, never a reading"
+    );
+
+    let key = a.key.clone();
+    video(
+        &dir,
+        "## a\nThe table [records](noun) it, in [use](noun).\n\n## b\nOne small step.\n",
+    );
+    let again = run(&dir, &speaker, &Stub::new(), &Options::default());
+    assert_eq!(
+        outcomes(&again),
+        [("a", Outcome::Narrated), ("b", Outcome::Cached)]
+    );
+    assert_ne!(manifest(&dir).scenes["a"].key, key);
+}
+
+#[test]
+fn a_server_is_given_the_words_as_written() {
+    assert_eq!(
+        studio_core::strip_readings("The table [records](verb) it, in [use](noun)."),
+        "The table records it, in use."
+    );
+}

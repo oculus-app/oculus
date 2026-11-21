@@ -499,7 +499,8 @@ We follow the *gradient* downhill, one small step at a time.
 
 - **`script.md`** is one `## <id>` section per narrated scene, written as it
   is said. A section's text is its prose with `*`, `_` and backticks
-  removed, pause and breath markers cut out and whitespace collapsed; nothing else is
+  removed, pause and breath markers cut out, each reading as its word and
+  whitespace collapsed; nothing else is
   interpreted (`#` and `###` lines are prose). Text before the first
   heading, a heading that is not an id, a repeated id and an empty section
   fail `Project::load` with the line. A section no scene's `id` matches is
@@ -531,10 +532,30 @@ We follow the *gradient* downhill, one small step at a time.
   changed breath makes the scene stale, and a malformed one is a lint
   error as a pause's is. One before the first word or after the last does
   nothing.
+- **Readings.** `[records](verb)` says how the voice reads the one word in
+  the brackets, and the text keeps the word: captions, subtitles, word
+  cues, the aligner and the manifest's words all get `records`, never the
+  reading. The reading is a part of speech (`noun`, `verb`, `adjective`,
+  `adverb`, in any case) for a word the dictionary reads more than one
+  way, `letter` or `article` for `a`, a respelling in dictionary words
+  (`[softmax](SOFT-max)`) or `/phonemes/` (`[Cauchy](/kˈOʃi/)`); see
+  "Kokoro reads text through the G2P" for what each does. The brackets
+  hold one whole word with its punctuation outside (`"[use](noun)."`).
+  `ScriptSection::readings` holds each one's word index, the marked
+  word's byte range in that word and the reading as written;
+  `ScriptSection::voiced` is the text with the readings written back,
+  which is what a speaker is given, and `clip_text` is made from it, so a
+  changed reading makes the scene stale. Only the shape is checked here
+  (`project/script/reading.rs`): brackets that hold several words or none,
+  a mark on part of a word (`re[cord](verb)`), a missing `)` and a reading
+  that is neither letters, `-` and `'` nor `/phonemes/` are lint errors,
+  and such a mark keeps its word and loses its reading. A `[...]` that
+  `(` follows is always a reading, `[pause](verb)` included.
 - **The manifest** is `{ version: 1, scenes: { <id>: { key, text, audio,
   duration, words: [{ text, start, end, confidence }], gaps: [{ after,
   start, end, heard }], pauses: [{ after, start, end }] } } }`
-  (`Manifest`). `text` is the section's `clip_text`, `audio` the clip's
+  (`Manifest`). `text` is the section's `clip_text`, each word's `text` the
+  word as the script writes it, `audio` the clip's
   file name in `narration/`, `key` its content
   address (see "Cache" under "Narration is made by `oculus studio
   narrate`"), times are seconds from the clip's start, `confidence` is the
@@ -677,8 +698,11 @@ manifest. Scenes run one at a time, in video order.
   before the first clip; `key(text)` is asked for every scene, cached or
   not, and gives the parts of its cache key, engine first; `speak(text)`
   gives a WAV and its decoded samples, never silent. Both get the
-  section's text without its pauses. `ServerSpeaker` is
-  the TTS client below and has no readiness check of its own;
+  section's `voiced` text: no pauses or breaths, its readings written
+  `[word](reading)`. `ServerSpeaker` is
+  the TTS client below and has no readiness check of its own; a server
+  reads text its own way, so it is sent the words as written
+  (`studio_core::strip_readings`) and a reading changes nothing it says;
   `KokoroSpeaker` runs Kokoro inside the app (see "Kokoro narrates inside
   the app"). A video has one engine: when it fails, the narrate fails and
   says why, with no fallback to the other.
@@ -693,10 +717,12 @@ manifest. Scenes run one at a time, in video order.
   failure, never a pause: Kokoro-FastAPI answers an unknown voice with 200
   and nothing.
 - **Cache.** A clip's `key` is the sha256 hex of `oculus-narration-2`, the
-  section's `clip_text` (its text with each pause at its length), the
+  section's `clip_text` (its text with its readings, and each pause and
+  breath at its length), the
   speaker's key parts and the aligner's `MODEL_ID`, each length-prefixed
-  (`narrate/key.rs`). Without pauses `clip_text` is the text, so a section
-  keeps the key it had before pauses existed and its clip is kept. The server's parts are `server`, the
+  (`narrate/key.rs`). Without readings, pauses or breaths `clip_text` is the
+  text, so such a section keeps the key it had before they existed and its
+  clip is kept. The server's parts are `server`, the
   normalised URL, model, voice and speed. Kokoro's are `kokoro`, its model
   id (`kokoro-82m-v1.0-onnx-int8@1939ad2a`), voice, speed and the text's
   phoneme string, so a lexicon edit re-narrates only the scenes whose
@@ -710,7 +736,8 @@ manifest. Scenes run one at a time, in video order.
 - **A new clip** is saved byte for byte as the speaker made it to
   `narration/<key>.wav`; its duration comes from the decoded samples, and
   it is resampled to 16 kHz and timed against the section's
-  whitespace-separated words, at any length. A section with pauses
+  whitespace-separated words as written (a marked word is timed by its
+  spelling, whatever its reading), at any length. A section with pauses
   (`narrate/clip.rs`) is said and timed the same way, whole, and then each
   pause is spliced in as exact zeros: before the clip for a pause before
   the first word, after it for one after the last, else at the quietest
@@ -748,6 +775,10 @@ manifest. Scenes run one at a time, in video order.
   word's suggestion when one is stored (see "The student reviews the
   agent's suggested readings"). A note never changes the exit code; the
   fix is a suggested reading the student accepts, then another `narrate`.
+- **Words with two readings.** Each unmarked word the dictionary reads
+  more than one way is a note too: ``check reading: "use" is read /jˈuz/
+  here; if that is the wrong one, write `[use](noun)` for /jˈus/ in
+  script.md``. The fix is the mark; a marked word is not noted.
 - **Writes.** The manifest is rewritten atomically after each scene, so a
   failure keeps the scenes before it; the error names the scene and the
   command exits 1. After the last scene, the manifest retains only entries
@@ -761,7 +792,9 @@ manifest. Scenes run one at a time, in video order.
   same gaps, at scene time),
   then the notes. `--json` gives `{ dir, voice, scenes: [{ id, outcome,
   audio, duration, words, pauses, low_confidence, gaps, timings }], notes: [{
-  scene, id, line, word, phonemes, guessed }], dropped, deleted, ms }`,
+  scene, id, line, word, phonemes, guessed, others }], dropped, deleted, ms }`,
+  `others` being a two-reading word's other readings as `[{ mark, phonemes
+  }]` (empty for a guessed word),
   `voice` being `{ engine: "server", server, model, voice, speed }` or `{
   engine: "kokoro", voice, speed }`, and each note also has `review`
   (`null`, or `{ status, reading, note }`).
@@ -853,8 +886,9 @@ the entries they touch). Each word, or each part of a merged word
 (`PyTorch`, `scikit-learn`, of which only the unknown part is guessed), is
 read by the first of:
 
-1. **The lexicon** (`source: lexicon`), below.
-2. **misaki's dictionary** (`dict`): `us_gold.json`, then `us_silver.json`,
+1. **A reading marked on it** (`source: marked`), below.
+2. **The lexicon** (`source: lexicon`), below.
+3. **misaki's dictionary** (`dict`): `us_gold.json`, then `us_silver.json`,
    grown as misaki's `grow_dictionary` does, with its special cases (a, an,
    the, to, I, by, in, used, dotted acronyms), case handling (an unknown
    all-caps word is spelt out), possessives, the `-s`, `-ed` and `-ing`
@@ -862,16 +896,41 @@ read by the first of:
    ("multiplied"), an `-izer` agent noun read as its `-ize` verb + `əɹ`
    ("optimizers"), and the British `-ise` family read as `-ize`
    ("renormalise", "factorisation", "optimisers").
-3. **The heteronym table** (`rule`, `heteronym.rs`): read, lead, live,
+4. **The heteronym table** (`rule`, `heteronym.rs`): read, lead, live,
    content, used, that and close, and the generic verb, noun or adjective
    reading, picked from the neighbouring words without a tagger; `lead`
    also has the metal reading the dictionary lacks.
-4. **The guesser** (`guess`, `guess/`): a 3 MB BART (one encoder and one
+5. **The guesser** (`guess`, `guess/`): a 3 MB BART (one encoder and one
    decoder layer) run as two ONNX sessions, greedy, at most 63 steps.
 
 Stress is applied as misaki does, and `ɾ` and `ʔ` become `T` and `t`. A
 word with a letter in it and no phonemes is an error naming it: a dropped
 word would wreck its neighbours' timing.
+
+A capital `A` is the article when it opens the text or a sentence in it
+(only quotes and brackets between it and a `.`, `!` or `?`), and the
+letter anywhere else; a lower-case `a` is the letter only with no word
+after it. A variable named `a` therefore needs `[a](letter)`.
+
+**A marked reading** (`mark.rs`) is misaki's link syntax, `[word](reading)`,
+read for that one word in place of everything below it; the phonemes
+around it are read as if the word were unmarked. A part of speech
+(`noun`, `verb`, `adjective`, `adverb`) reads the word's own gold entry
+by that tag, so `[records](verb)` is `ɹəkˈɔɹdz` and `[use](noun)` is
+`jˈus`; an entry with no reading under that tag gives its `DEFAULT`, which
+is how `[records](noun)` reads. It is refused for a word whose entry has
+one reading. `letter` and `article` read `a` as `ˈA` or `ɐ`, and are
+refused for any other word. Anything else is a lexicon value, a
+respelling or `/phonemes/`, checked as one. A mark that does not cover
+exactly one word (its punctuation outside), and a reading its word
+cannot take, fail the read naming the mark: `` `[table](verb)`: "table"
+has one reading in the dictionary, so there is no verb to pick; write a
+respelling in real words or /phonemes/ ``. An unmarked word that the
+dictionary or the table read, and whose gold entry has two or more
+different readings (the `None` key aside), carries them in its record's
+`readings`, the one it was read with first: each is `{ mark, phonemes }`,
+the mark a part of speech when only parts of speech key that reading and
+its `/phonemes/` otherwise.
 
 **The lexicon** is a `lexicon.json` object from a word to its reading, in
 two layers, the subject's over the library's:
@@ -897,9 +956,12 @@ the doubtful ones and the student decides (next section); only the scenes
 whose phonemes a decision changed are made again at the next narrate.
 
 `oculus studio g2p "<text>"` prints each word, its phonemes and its
-source, marking guesses, then the phoneme string; `--json` gives `{ text,
-phonemes, subject, lexicon: [<files>], words: [{ word, phonemes, source,
-guessed }] }`. It needs only the `g2p-en-us` pack.
+source, marking guesses and, beside a word with other readings, the mark
+for each (`or [records](verb) /ɹəkˈɔɹdz/`), then the phoneme string;
+`--json` gives `{ text, phonemes, subject, lexicon: [<files>], words: [{
+word, phonemes, source, guessed, readings }] }`. The text may hold
+readings, so a mark can be tried before it goes in a script. It needs
+only the `g2p-en-us` pack.
 
 ## The student reviews the agent's suggested readings
 
@@ -1508,7 +1570,8 @@ shows them, so a builder can check what a frame will look like.
 
 - **Phrases** (`phrase.rs`) come from one scene's words (`cued_words`, the
   script's spelling and punctuation as said, spoken forms such as "thirteen
-  mod twelve" included), never across scenes, so a scene's captions depend
+  mod twelve" included; a word with a reading shows as it is written, never
+  as the reading), never across scenes, so a scene's captions depend
   on its own words and the theme only. A `[pause]`, a silence of 0.6 s or
   more, and a sentence's end (`.`, `!`, `?`, `…`) always end a phrase.
   Longer stretches take as many words as fit the lines, ending at the last
@@ -1829,7 +1892,10 @@ For a narrated video lint also reports, each naming the scene id:
   not a pause; write `[pause]` for the theme's pause or `[pause 1.5]` for
   seconds``, or that a pause is more than 0 and at most 5 seconds; a
   malformed breath marker the same way (``[breath x]` is not a breath``,
-  or that a breath is more than 0 and at most 1 second);
+  or that a breath is more than 0 and at most 1 second); a malformed
+  reading the same way (``[in use](noun)` is not a reading: the brackets
+  hold one word, as it is written``), and a well-formed one is checked as
+  its word;
 - as a note, not an error, each word whose aligner confidence is below
   `LOW_CONFIDENCE` (-8.0, measured on Kokoro, where clean words stayed
   above -4.83; re-check it for another TTS engine), since a mangled word
@@ -1845,14 +1911,17 @@ server engine has nothing to check):
   download it;
 - a lexicon entry that is not valid (kind `lint`, naming the file and the
   key; the student fixes the file);
-- a word with no phonemes, a `$`, or a sentence too long for Kokoro with
-  no comma to cut at (kind `script`, at the section's line).
+- a word with no phonemes, a `$`, a reading its word cannot take, or a
+  sentence too long for Kokoro with no comma to cut at (kind `script`, at
+  the section's line).
 
 All of these but the unsure words are errors: any of them makes `oculus
 studio lint` exit 1. A voice that does not resolve is left to `narrate` to
 report. Each word Kokoro's guesser reads is a note: ``note: scene N `id`:
 script.md:<line>: check pronunciation: ...``, with the state of the word's
-suggestion when one is stored. Notes never change the exit code.
+suggestion when one is stored, and so is each unmarked word with two
+readings (``check reading: ...``; in `--json`, `kind` is `guessed` or
+`reading`, the second with `others`). Notes never change the exit code.
 
 ### The look: the slide look as errors, the rest as warnings
 
@@ -2588,10 +2657,14 @@ the `/v1/models` listing (parsing, 404, non-JSON, unreachable), the Settings
 row's validation (`studio::commands`),
 the voice resolution, the cache key and `narrate` with a stubbed speaker
 and aligner (caching, one-paragraph edits, per-scene writes, pruning,
-failures). `studio::voice::g2p` matches every golden row (1030) on the
-trimmed dictionary; `studio::tts::kokoro` covers chunking, the vocabulary
+failures, and a reading reaching the speaker while the words, cues and
+captions stay as written). `studio::voice::g2p` matches every golden row
+(1030) on the trimmed dictionary and covers marked readings (each kind,
+the refusals, a sentence-opening `A`); `studio::tts::kokoro` covers
+chunking, the vocabulary
 and pad refusals, silence, the WAV and the pack; `studio::voice::lint`
-covers the missing pack, a bad lexicon entry and the notes' lines;
+covers the missing pack, a bad lexicon entry and the notes' lines, a
+two-reading word's included;
 `studio::voice::review` covers the store (replace, list order, wrong,
 decide), the lexicon writer, finding a word and the notes' review state.
 Ignored

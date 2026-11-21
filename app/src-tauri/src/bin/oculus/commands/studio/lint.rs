@@ -403,11 +403,12 @@ fn note_json(note: &Note) -> serde_json::Value {
         "scene": note.scene,
         "id": note.id,
         "line": note.line,
-        "kind": "guessed",
+        "kind": if note.others.is_empty() { "guessed" } else { "reading" },
         "message": note.message(),
         "word": note.word,
         "phonemes": note.phonemes,
         "guessed": note.guessed,
+        "others": note.others,
         "review": note.review,
     })
 }

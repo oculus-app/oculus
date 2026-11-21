@@ -177,7 +177,10 @@ pub fn retokenize(tokens: Vec<Token>) -> Vec<Word> {
         let mut tks: Vec<Token> = if token.phonemes.is_none() {
             subtokenize(&token.text)
                 .iter()
-                .map(|t| Token::new(t, &token.tag, ""))
+                .map(|t| Token {
+                    marked: token.marked,
+                    ..Token::new(t, &token.tag, "")
+                })
                 .collect()
         } else {
             Vec::new()

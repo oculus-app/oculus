@@ -16,6 +16,7 @@ fn read(parts: &[&str]) -> Phonemized {
                 .to_owned(),
             source: Source::Dict,
             guessed: Vec::new(),
+            readings: Vec::new(),
         })
         .collect();
     Phonemized { phonemes, words }

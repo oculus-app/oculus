@@ -265,6 +265,14 @@ measured against Studio's own:
   0.8 at a sentence's end, and 0.3 before the word a sentence was building
   to, comma or not. About one mark every four to six words; `reference.md`
   ("script.md") has the table. The picture does not wait on a breath.
+- **`[word](reading)` on a word with two readings.** "The table records"
+  and "the records" are spelt alike and said differently, and the voice
+  picks by the neighbouring words: about one in fifteen comes out wrong.
+  Say which is meant: `[records](verb)`, `in [use](noun)`, `it
+  [lives](verb) here`, and `[a](letter)` for a variable named a. Only the
+  voice gets the reading; captions and `word()` keep the word as written.
+  Never respell a word in the prose to fix how it sounds: the respelling
+  would show in the captions.
 - **Explain, don't assert.** Every claim gets its reason, shown. Example
   first, then the rule in one sentence, so the example is not a trick.
 - **Link each scene to the last** with an opening clause that picks up
@@ -458,6 +466,15 @@ pronounce suggest <slug> Nesterov NESS-ter-off` (`reference.md`,
 suggested, and that they decide in Settings → Studio → Pronunciation. Do
 not wait: carry on with the video. A suggestion marked wrong comes back in
 the notes with the student's note; suggest again following it.
+
+**Check the words with two readings.** Narrate also ends with a `note: …
+check reading: "use" is read /jˈuz/ here; if that is the wrong one, write
+`[use](noun)` for /jˈus/ in script.md` line for each unmarked word the
+dictionary reads more than one way. This one is yours to settle, not the
+student's: the sentence says which word is meant. Read each note against
+its sentence, write the mark it gives where the wrong reading was picked,
+and narrate again; only that scene is remade. A word that was read right
+needs no mark, and its note stays.
 
 A lint problem naming `lexicon.json` is an entry that does not parse: tell
 the student, who fixes it; never edit it yourself.

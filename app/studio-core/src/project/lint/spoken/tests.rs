@@ -51,3 +51,16 @@ fn pause_markers_pass_and_malformed_ones_are_flagged() {
     assert!(found[1].hints[0].contains("at most 5 seconds"));
     assert_eq!(found[2].line, 1);
 }
+
+#[test]
+fn a_reading_is_checked_as_its_word() {
+    let ok = "The table [records](verb) it, [a](letter) is [live](/lˈIv/) and [soft](SOFT-max).";
+    assert_eq!(scan(ok), vec![]);
+    let found = scan("So [x^2](verb) and [in use](noun), then re[cord](verb) [it](2).");
+    let t: Vec<&str> = found.iter().map(|u| u.token.as_str()).collect();
+    assert_eq!(t, ["[in use](noun)", "[cord](verb)", "[it](2)", "x^2"]);
+    assert!(found[0].marker && found[0].hints[0].contains("hold one word"));
+    assert!(found[1].hints[0].contains("wraps the whole word"));
+    assert!(found[2].hints[0].contains("`[records](verb)`"));
+    assert!(!found[3].marker);
+}

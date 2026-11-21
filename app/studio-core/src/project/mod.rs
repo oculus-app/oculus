@@ -23,7 +23,8 @@ pub use narration::{
     ManifestScene, ManifestWord, WordCues,
 };
 pub use script::{
-    DEFAULT_BREATH, MAX_BREATH, MAX_PAUSE, Script, ScriptBreath, ScriptPause, ScriptSection,
+    DEFAULT_BREATH, MAX_BREATH, MAX_PAUSE, Script, ScriptBreath, ScriptPause, ScriptReading,
+    ScriptSection, strip_readings,
 };
 pub use timeline::Timeline;
 pub use video::valid_subject;

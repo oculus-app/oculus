@@ -46,6 +46,7 @@ fn word(word: &str, source: Source) -> WordRecord {
         } else {
             Vec::new()
         },
+        readings: Vec::new(),
     }
 }
 
@@ -148,6 +149,72 @@ fn each_guessed_word_is_a_note_on_its_own_line() {
     assert_eq!(lines, [(0, "intro", 2), (0, "intro", 3)]);
     assert!(found[0].message().contains("check pronunciation"));
     assert!(found[0].message().contains("/nˈɛstəɹɔv/"));
+}
+
+#[test]
+fn an_unmarked_word_with_two_readings_is_a_note_naming_the_mark() {
+    use crate::studio::voice::g2p::Choice;
+    let dir = Scratch::new("voice-lint-readings");
+    let p = project(
+        &dir,
+        "## intro\nIt is a table\nin use.\n\n## outro\nIt is in [use](noun).\n",
+    );
+    let choice = |mark: &str, phonemes: &str| Choice {
+        mark: mark.into(),
+        phonemes: phonemes.into(),
+    };
+    let intro = Phonemized {
+        phonemes: String::new(),
+        words: vec![
+            word("It", Source::Dict),
+            word("table", Source::Dict),
+            WordRecord {
+                phonemes: "jˈuz".into(),
+                readings: vec![choice("/jˈuz/", "jˈuz"), choice("noun", "jˈus")],
+                ..word("use", Source::Dict)
+            },
+        ],
+    };
+    let outro = Phonemized {
+        phonemes: String::new(),
+        words: vec![word("It", Source::Dict), word("use", Source::Marked)],
+    };
+    let found = notes(&p, |text| match text {
+        "It is a table in use." => Some(intro.clone()),
+        "It is in [use](noun)." => Some(outro.clone()),
+        other => panic!("read {other:?}"),
+    });
+    assert_eq!(found.len(), 1, "{found:?}");
+    let note = &found[0];
+    assert_eq!((note.id.as_str(), note.line), ("intro", 3));
+    assert_eq!(note.others, [choice("noun", "jˈus")]);
+    assert_eq!(
+        note.message(),
+        "check reading: \"use\" is read /jˈuz/ here; if that is the wrong one, write `[use](noun)` for /jˈus/ in script.md"
+    );
+}
+
+/// Through the real G2P: STUDIO_G2P_GUESSER=<g2p-en-us folder> cargo test
+/// --lib studio::voice::lint -- --ignored
+#[test]
+#[ignore = "needs STUDIO_G2P_GUESSER=<g2p-en-us pack folder>"]
+fn a_real_read_takes_readings_and_refuses_one_its_word_cannot_take() {
+    let pack = std::path::PathBuf::from(std::env::var("STUDIO_G2P_GUESSER").unwrap());
+    let dir = Scratch::new("voice-lint-real-readings");
+    let p = project(
+        &dir,
+        "## intro\nThe table [records](verb) what is in use.\n\n## outro\nIt is a [table](verb).\n",
+    );
+    let out = lint(&p, &kokoro(), &pack, &LexiconFiles::default());
+    let words: Vec<&str> = out.notes.iter().map(|n| n.word.as_str()).collect();
+    assert_eq!(words, ["use"]);
+    assert_eq!(out.issues.len(), 1);
+    assert_eq!(out.issues[0].id.as_deref(), Some("outro"));
+    let message = out.issues[0].error.to_string();
+    assert!(
+        message.contains("`[table](verb)`") && message.contains("has one reading"),
+        "{message}"
+    );
 }
 
 /// Through the real G2P: STUDIO_G2P_GUESSER=<g2p-en-us folder> cargo test

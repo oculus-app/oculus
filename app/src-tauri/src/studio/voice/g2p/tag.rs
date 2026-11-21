@@ -2,12 +2,13 @@
 //! chunks with punctuation peeled off each end and dashes split out; the
 //! punctuation gets its Penn tag, `I` is `PRP`, a/an/the `DT`, to `TO`, in
 //! `IN`, and an `a` that is the letter rather than the article (a capital
-//! `A` after the unit's first word, or an `a` with no word after it) is
+//! `A` that does not open a sentence, or an `a` with no word after it) is
 //! `NNP`. A word with more than one dictionary reading, and `lead`, then
-//! takes the heteronym table's tag (or phonemes) instead. Every other word
-//! is untagged.
+//! takes the heteronym table's tag (or phonemes) instead, and a word with
+//! a reading marked on it (`mark.rs`) takes that over all of these. Every
+//! other word is untagged.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -15,10 +16,9 @@ use regex::Regex;
 use super::chars::lower;
 use super::dict::{Dictionary, Entry};
 use super::heteronym::{decide, Decision, SKIP_ADV};
+use super::mark::{force, Forced, Mark};
 use super::token::Token;
 
-/// misaki's markdown link `[text](feature)`: only the text is read.
-static LINK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^\)]*)\)").unwrap());
 static CHUNK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\S+)(\s*)").unwrap());
 
 const LEAD: &[char] = &['"', '“', '('];
@@ -29,12 +29,6 @@ pub struct Tagged {
     pub tokens: Vec<Token>,
     /// Words whose reading a heteronym rule chose, by text.
     pub rules: HashSet<String>,
-}
-
-/// misaki's `preprocess`: leading whitespace dropped, links read as their
-/// text.
-pub fn preprocess(text: &str) -> String {
-    LINK.replace_all(text.trim_start(), "${1}").into_owned()
 }
 
 fn punct_tag(c: char, lead: bool) -> &'static str {
@@ -88,16 +82,37 @@ fn split_chunk(chunk: &str) -> Vec<(String, Option<&'static str>)> {
     out
 }
 
-pub fn tokenize(text: &str, dict: &Dictionary) -> Tagged {
+/// `text`'s tokens, tagged; `marks` are the readings marked on its words
+/// (`mark::preprocess`). A mark that is not on one whole word, or that its
+/// word cannot take, is an error.
+pub fn tokenize(text: &str, dict: &Dictionary, marks: &[Mark]) -> Result<Tagged, String> {
     let mut pieces: Vec<(String, Option<&'static str>, String)> = Vec::new();
+    let mut starts: Vec<usize> = Vec::new();
     for m in CHUNK.captures_iter(text) {
         let ws = &m[2];
+        let mut at = m.get(1).map_or(0, |chunk| chunk.start());
         let parts = split_chunk(&m[1]);
         let n = parts.len();
         for (j, (t, tag)) in parts.into_iter().enumerate() {
             let ws = if j + 1 == n { ws } else { "" };
+            starts.push(at);
+            at += t.len();
             pieces.push((t, tag, ws.to_string()));
         }
+    }
+    let mut forced: HashMap<usize, Forced> = HashMap::new();
+    for mark in marks {
+        let word = &text[mark.start..mark.end];
+        let piece = (0..pieces.len()).find(|&k| {
+            starts[k] == mark.start && pieces[k].0.len() == word.len() && pieces[k].1.is_none()
+        });
+        let Some(k) = piece else {
+            return Err(format!(
+                "`[{word}]({})`: a reading wraps one whole word, its punctuation outside",
+                mark.reading
+            ));
+        };
+        forced.insert(k, force(dict, word, &mark.reading)?);
     }
     let is_word = |k: usize| pieces.get(k).is_some_and(|p| p.1.is_none());
     let words: Vec<usize> = (0..pieces.len()).filter(|&k| is_word(k)).collect();
@@ -119,11 +134,17 @@ pub fn tokenize(text: &str, dict: &Dictionary) -> Tagged {
                     _ => "",
                 }
             };
-            if lw == "a" && (!is_word(k + 1) || (t == "A" && wi > 0)) {
+            if lw == "a" && (!is_word(k + 1) || (t == "A" && !opens_sentence(&pieces, k))) {
                 tag = "NNP";
             }
             let entry = dict.gold(&lw);
-            if matches!(entry, Some(Entry::Tags(_))) || lw == "lead" {
+            if let Some(reading) = forced.remove(&k) {
+                token.marked = true;
+                match reading {
+                    Forced::Tag(t) => tag = t,
+                    Forced::Phonemes(ps) => token.phonemes = Some(ps),
+                }
+            } else if matches!(entry, Some(Entry::Tags(_))) || lw == "lead" {
                 let (l1, l2, r1) = neighbours(&pieces, &words, k, wi);
                 let has_adj = matches!(entry, Some(Entry::Tags(t)) if t.contains_key("ADJ"));
                 match decide(&lw, &l1, &l2, &r1, &sent, has_adj) {
@@ -142,7 +163,18 @@ pub fn tokenize(text: &str, dict: &Dictionary) -> Tagged {
         }
         tokens.push(token);
     }
-    Tagged { tokens, rules }
+    Ok(Tagged { tokens, rules })
+}
+
+/// Whether piece `k` is the first word of the text or of a sentence in
+/// it: nothing but quotes and brackets lie between it and the start or a
+/// `.`, `!` or `?`.
+fn opens_sentence(pieces: &[(String, Option<&'static str>, String)], k: usize) -> bool {
+    let mut j = k;
+    while j > 0 && matches!(pieces[j - 1].1, Some("``" | "''" | "-LRB-" | "-RRB-")) {
+        j -= 1;
+    }
+    j == 0 || pieces[j - 1].1 == Some(".")
 }
 
 /// The two words left of word `k` (the `wi`th word) and the one right of

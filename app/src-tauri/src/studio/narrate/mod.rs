@@ -5,7 +5,8 @@
 //! rewritten after each, so a failure keeps the scenes already done. A
 //! section's `[pause]`s are exact silence spliced into its clip between
 //! the words either side, and its `[breath]`s top up the silence the voice
-//! left (`clip`).
+//! left (`clip`). A reading (`[records](verb)`) goes to the speaker only:
+//! the word is timed and recorded as it is written.
 //! Afterwards entries for ids no longer narrated, and clips nothing
 //! references, are removed. Rules: docs/studio.md, "Narration is made by
 //! `oculus studio narrate`".
@@ -62,9 +63,11 @@ pub trait Speaker {
     fn ready(&self) -> Result<(), String>;
     /// What a clip of `text` is made from besides the text and the aligner,
     /// engine first, for its cache key ([`cache_key`]); asked for every
-    /// scene, cached or not.
+    /// scene, cached or not. `text` is a section's `voiced` text, here and
+    /// in [`Speaker::speak`]: its readings are written `[word](reading)`.
     fn key(&self, text: &str) -> Result<Vec<String>, String>;
-    /// One clip of `text`: a WAV and its decoded samples, never silent.
+    /// One clip of `text`: a WAV and its decoded samples, never silent. A
+    /// speaker that takes no readings says each marked word as written.
     fn speak(&self, text: &str) -> Result<Speech, String>;
 }
 
@@ -81,8 +84,9 @@ impl Speaker for ServerSpeaker<'_> {
         Ok(server_key(self.0))
     }
 
+    /// A server reads text its own way, so it gets the words as written.
     fn speak(&self, text: &str) -> Result<Speech, String> {
-        tts::synthesise(self.0, text)
+        tts::synthesise(self.0, &studio_core::strip_readings(text))
     }
 }
 
@@ -222,23 +226,27 @@ pub fn narrate(
 }
 
 /// A narrated scene as its clip is made: the text its manifest entry
-/// must match (`ScriptSection::clip_text`), the text said, and each pause
-/// and each breath as how many words come before it and its seconds.
+/// must match (`ScriptSection::clip_text`), the words as written, which
+/// are timed, the text the speaker is given (`ScriptSection::voiced`), and
+/// each pause and each breath as how many words come before it and its
+/// seconds.
 #[derive(Debug, Clone)]
 struct Said {
     id: String,
     text: String,
     spoken: String,
+    voiced: String,
     pauses: Vec<(usize, f64)>,
     breaths: Vec<(usize, f64)>,
 }
 
 impl Said {
-    /// The clip's cache key: the text with its pauses and breaths and the
-    /// speaker's parts for the words said. Without either the two texts are
-    /// one, so the key is the one a clip has always had.
+    /// The clip's cache key: the text with its readings, pauses and
+    /// breaths, and the speaker's parts for the text it is given. Without
+    /// any of them the texts are one, so the key is the one a clip has
+    /// always had.
     fn key(&self, speaker: &dyn Speaker) -> Result<String, String> {
-        Ok(cache_key(&self.text, &speaker.key(&self.spoken)?))
+        Ok(cache_key(&self.text, &speaker.key(&self.voiced)?))
     }
 }
 
@@ -251,6 +259,7 @@ fn narrated_scenes(project: &Project) -> Vec<Said> {
             id: s.id.clone(),
             text: s.clip_text(pause),
             spoken: s.text.clone(),
+            voiced: s.voiced(),
             pauses: s
                 .pauses
                 .iter()
@@ -284,8 +293,7 @@ fn make_clip(
     aligner: &dyn Aligner,
 ) -> Result<(ManifestScene, Timings), NarrateError> {
     let fail = |message: String| NarrateError::scene(&said.id, message);
-    let made =
-        clip::make(&said.spoken, &said.pauses, &said.breaths, speaker, aligner).map_err(fail)?;
+    let made = clip::make(said, speaker, aligner).map_err(fail)?;
     let audio = format!("{key}.wav");
     write_clip(&clips.join(&audio), &made.wav).map_err(fail)?;
     let scene = ManifestScene {

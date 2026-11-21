@@ -41,6 +41,7 @@ impl Ctx {
                     "phonemes": w.phonemes,
                     "source": w.source.as_str(),
                     "guessed": w.guessed,
+                    "readings": w.readings,
                 })).collect::<Vec<_>>(),
             }));
         }
@@ -63,8 +64,18 @@ impl Ctx {
                 }
                 other => paint(other.as_str(), DIM),
             };
+            let others: Vec<String> = w
+                .readings
+                .iter()
+                .skip(1)
+                .map(|o| format!("[{}]({}) /{}/", w.word, o.mark, o.phonemes))
+                .collect();
+            let others = match others.is_empty() {
+                true => String::new(),
+                false => paint(&format!("  or {}", others.join(", ")), YELLOW),
+            };
             println!(
-                "{}{}  /{}/  {source}",
+                "{}{}  /{}/  {source}{others}",
                 paint(&w.word, BOLD),
                 " ".repeat(pad),
                 w.phonemes

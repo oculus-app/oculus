@@ -33,7 +33,7 @@ pub fn locate(
     let wanted = fold(word);
     let mut first: Option<Located> = None;
     for (_, section) in sections(project) {
-        let phonemized = read(&section.text)?;
+        let phonemized = read(&section.voiced())?;
         let mut seen = 0;
         for (line, record) in section_words(section, &phonemized) {
             let folded = fold(&record.word);

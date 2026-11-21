@@ -4,10 +4,11 @@
 //! nothing reads is guessed on its own, so `PyTorch` guesses only `Py`.
 
 use super::chars::has_letter;
+use super::mark::{choices, preprocess};
 use super::split::{
     merged_phonemes, merged_tag, merged_text, resolve_tokens, retokenize, Word, SUBTOKEN_JUNKS, UNK,
 };
-use super::tag::{preprocess, tokenize};
+use super::tag::tokenize;
 use super::token::{token_context, Ctx, Token};
 use super::word::{guessable, word_phonemes};
 use super::{Dictionary, Guess, Lexicon, Phonemized, Source, WordRecord};
@@ -99,8 +100,8 @@ pub fn phonemize(
     lexicon: &Lexicon,
     guesser: &mut dyn Guess,
 ) -> Result<Phonemized, String> {
-    let text = preprocess(text);
-    let tagged = tokenize(&text, dict);
+    let (text, marks) = preprocess(text);
+    let tagged = tokenize(&text, dict, &marks)?;
     let mut words = retokenize(tagged.tokens);
     let mut reader = Reader {
         dict,
@@ -130,8 +131,8 @@ pub fn phonemize(
     let mut phonemes = String::new();
     let mut records = Vec::new();
     for (w, ev) in words.into_iter().zip(events) {
-        let (word, ps, whitespace) = match w {
-            Word::One(tk) => (tk.text, tk.phonemes, tk.whitespace),
+        let (word, ps, whitespace, marked) = match w {
+            Word::One(tk) => (tk.text, tk.phonemes, tk.whitespace, tk.marked),
             Word::Parts(parts) => {
                 let whitespace = parts
                     .last()
@@ -141,6 +142,7 @@ pub fn phonemize(
                     merged_text(&parts),
                     Some(merged_phonemes(&parts)),
                     whitespace,
+                    parts.iter().any(|t| t.marked),
                 )
             }
         };
@@ -158,7 +160,9 @@ pub fn phonemize(
         if said.is_empty() || ps.as_deref().is_some_and(|p| p.contains(UNK)) {
             return Err(format!("no phonemes for {word:?} in {text:?}"));
         }
-        let source = if !ev.guessed.is_empty() {
+        let source = if marked {
+            Source::Marked
+        } else if !ev.guessed.is_empty() {
             Source::Guess
         } else if ev.lexicon {
             Source::Lexicon
@@ -167,11 +171,20 @@ pub fn phonemize(
         } else {
             Source::Dict
         };
+        let mut readings = match source {
+            Source::Dict | Source::Rule => choices(dict, &word),
+            _ => Vec::new(),
+        };
+        match readings.iter().position(|c| c.phonemes == said) {
+            Some(read) => readings.swap(0, read),
+            None => readings.clear(),
+        }
         records.push(WordRecord {
             word,
             phonemes: said.to_string(),
             source,
             guessed: ev.guessed,
+            readings,
         });
     }
     Ok(Phonemized {

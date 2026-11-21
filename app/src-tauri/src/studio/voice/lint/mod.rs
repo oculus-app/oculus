@@ -1,9 +1,11 @@
 //! The narration checks that need the voice engine. For Kokoro every
 //! narrated section is read through the G2P and cut into Kokoro's inputs as
 //! `narrate` will: a missing G2P pack, a lexicon entry that is not valid, a
-//! word with no phonemes or a sentence too long for Kokoro is a lint issue,
-//! and each guessed word is a note. Notes never fail a lint. The server
-//! engine reads its own text, so there is nothing to check.
+//! word with no phonemes, a reading its word cannot take or a sentence too
+//! long for Kokoro is a lint issue, and each guessed word, and each
+//! unmarked word the dictionary reads more than one way, is a note. Notes
+//! never fail a lint. The server engine reads its own text, so there is
+//! nothing to check.
 
 #[cfg(test)]
 mod tests;
@@ -12,12 +14,14 @@ use std::path::Path;
 
 use studio_core::{LintIssue, LintLevel, Project, ScriptSection, StudioError};
 
-use super::g2p::{Phonemized, Source, WordRecord};
+use super::g2p::{Choice, Phonemized, Source, WordRecord};
 use super::review::Review;
 use super::Voice;
 use crate::studio::tts::kokoro::{chunks, LexiconFiles, Reader};
 
-/// A guessed word: worth a listen, and a suggested reading if it is wrong.
+/// A word to check: a guessed one is worth a listen and a suggested
+/// reading if it is wrong; one with other dictionary readings (`others`)
+/// is worth a mark in the script if the wrong one was picked.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct Note {
     /// The scene, 0-based, and its id.
@@ -29,6 +33,9 @@ pub struct Note {
     pub phonemes: String,
     /// The parts the guesser read (all of a word, or one sub-token).
     pub guessed: Vec<String>,
+    /// The word's other dictionary readings, each with the mark that picks
+    /// it; empty for a guessed word.
+    pub others: Vec<Choice>,
     /// The suggestion awaiting the student's review for this word, if any
     /// (`review::Store::annotate`).
     pub review: Option<Review>,
@@ -36,6 +43,19 @@ pub struct Note {
 
 impl Note {
     pub fn message(&self) -> String {
+        if !self.others.is_empty() {
+            let others: Vec<String> = self
+                .others
+                .iter()
+                .map(|o| format!("`[{}]({})` for /{}/", self.word, o.mark, o.phonemes))
+                .collect();
+            return format!(
+                "check reading: \"{}\" is read /{}/ here; if that is the wrong one, write {} in script.md",
+                self.word,
+                self.phonemes,
+                others.join(" or ")
+            );
+        }
         let head = format!(
             "check pronunciation: \"{}\" is guessed as /{}/",
             self.word, self.phonemes
@@ -79,7 +99,7 @@ pub fn lint(project: &Project, voice: &Voice, g2p: &Path, lexicon: &LexiconFiles
     };
     for (index, section) in sections(project) {
         let read = reader
-            .read(&section.text)
+            .read(&section.voiced())
             .and_then(|p| chunks(&p).map(|_| p));
         match read {
             Ok(p) => out.notes.extend(section_notes(index, section, &p)),
@@ -100,12 +120,12 @@ pub fn lint(project: &Project, voice: &Voice, g2p: &Path, lexicon: &LexiconFiles
     out
 }
 
-/// The notes for every narrated section `read` knows, in video order: for
-/// `narrate`, whose speaker read the sections it keyed.
+/// The notes for every narrated section `read` knows by its voiced text,
+/// in video order: for `narrate`, whose speaker read the sections it keyed.
 pub fn notes(project: &Project, read: impl Fn(&str) -> Option<Phonemized>) -> Vec<Note> {
     sections(project)
         .filter_map(|(index, section)| {
-            read(&section.text).map(|p| section_notes(index, section, &p))
+            read(&section.voiced()).map(|p| section_notes(index, section, &p))
         })
         .flatten()
         .collect()
@@ -116,10 +136,11 @@ pub(crate) fn sections(project: &Project) -> impl Iterator<Item = (usize, &Scrip
     (0..project.video.scenes.len()).filter_map(|i| project.section(i).map(|s| (i, s)))
 }
 
-/// A note per guessed word in `section`.
+/// A note per guessed word in `section`, and per unmarked word with more
+/// than one dictionary reading.
 fn section_notes(index: usize, section: &ScriptSection, read: &Phonemized) -> Vec<Note> {
     section_words(section, read)
-        .filter(|(_, word)| word.source == Source::Guess)
+        .filter(|(_, word)| word.source == Source::Guess || word.readings.len() > 1)
         .map(|(line, word)| Note {
             scene: index,
             id: section.id.clone(),
@@ -127,6 +148,7 @@ fn section_notes(index: usize, section: &ScriptSection, read: &Phonemized) -> Ve
             word: word.word.clone(),
             phonemes: word.phonemes.clone(),
             guessed: word.guessed.clone(),
+            others: word.readings.iter().skip(1).cloned().collect(),
             review: None,
         })
         .collect()

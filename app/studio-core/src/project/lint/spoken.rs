@@ -1,10 +1,11 @@
 //! Spoken form: narration is read aloud, so the script says notation
 //! instead of writing it. Digits, maths and other symbols, Greek letters
 //! and dotted abbreviations are flagged with what to write instead;
-//! letters, plain punctuation and `[pause]` markers pass, and a malformed
-//! marker is flagged with the forms there are.
+//! letters, plain punctuation, `[pause]` and `[breath]` markers and
+//! readings (`[records](verb)`, checked as their word) pass, and a
+//! malformed marker or reading is flagged with the forms there are.
 
-use crate::project::script::markers;
+use crate::project::script::{markers, readings};
 use std::collections::HashSet;
 
 /// A word of script text that is not spoken form.
@@ -15,7 +16,7 @@ pub struct Unspoken {
     pub token: String,
     /// What to write instead, one entry per problem in the word.
     pub hints: Vec<String>,
-    /// A malformed `[pause]` marker, whose one hint says it all.
+    /// A malformed marker or reading, whose one hint says it all.
     pub marker: bool,
 }
 
@@ -93,10 +94,28 @@ pub fn scan(text: &str) -> Vec<Unspoken> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     for (line, l) in text.lines().enumerate() {
-        let found = markers(l);
-        for m in &found {
-            let token = &l[m.start..m.end];
-            if let Err(hint) = &m.seconds
+        let read = readings(l);
+        let found: Vec<_> = markers(l)
+            .into_iter()
+            .filter(|m| !read.iter().any(|r| r.start <= m.start && m.start < r.end))
+            .collect();
+        let silences = found
+            .iter()
+            .map(|m| (m.start, m.end, " ", m.seconds.as_ref().err()));
+        let words = read.iter().map(|r| {
+            (
+                r.start,
+                r.end,
+                &l[r.word.0..r.word.1],
+                r.reading.as_ref().err(),
+            )
+        });
+        let mut marks: Vec<_> = silences.chain(words).collect();
+        marks.sort_by_key(|m| m.0);
+        let mut said = l.to_owned();
+        for &(start, end, _, error) in &marks {
+            let token = &l[start..end];
+            if let Some(hint) = error
                 && seen.insert(token.to_owned())
             {
                 out.push(Unspoken {
@@ -107,9 +126,8 @@ pub fn scan(text: &str) -> Vec<Unspoken> {
                 });
             }
         }
-        let mut said = l.to_owned();
-        for m in found.iter().rev() {
-            said.replace_range(m.start..m.end, " ");
+        for &(start, end, word, _) in marks.iter().rev() {
+            said.replace_range(start..end, word);
         }
         for word in said.split_whitespace() {
             let abbreviation = abbreviation(word);

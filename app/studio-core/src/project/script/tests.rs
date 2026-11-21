@@ -130,3 +130,75 @@ fn a_malformed_breath_is_named() {
     assert_eq!(s.sections[0].text, "One two");
     assert!(s.sections[0].breaths.is_empty());
 }
+
+#[test]
+fn a_reading_keeps_its_word_in_the_text() {
+    let s = Script::parse(
+        "## a\nThe table [records](verb) each change, and \"[a](letter)\" is *[live](/lˈIv/)*.\nIt [reads](REEDS) on.\n",
+    )
+    .unwrap();
+    let a = &s.sections[0];
+    assert_eq!(
+        a.text,
+        "The table records each change, and \"a\" is live. It reads on."
+    );
+    let at: Vec<(usize, &str, &str)> = a
+        .readings
+        .iter()
+        .map(|r| {
+            let word = a.text.split_whitespace().nth(r.word).unwrap();
+            (r.word, &word[r.start..r.end], r.reading.as_str())
+        })
+        .collect();
+    assert_eq!(
+        at,
+        [
+            (2, "records", "verb"),
+            (6, "a", "letter"),
+            (8, "live", "/lˈIv/"),
+            (10, "reads", "REEDS")
+        ]
+    );
+    assert_eq!(
+        a.voiced(),
+        "The table [records](verb) each change, and \"[a](letter)\" is [live](/lˈIv/). It [reads](REEDS) on."
+    );
+    assert_eq!(a.clip_text(1.0), a.voiced());
+    assert_eq!(strip_readings(&a.voiced()), a.text);
+}
+
+#[test]
+fn readings_sit_with_pauses_and_breaths() {
+    let s = Script::parse("## a\nOne [breath] [record](noun), [pause 2] kept.\n").unwrap();
+    let a = &s.sections[0];
+    assert_eq!(a.text, "One record, kept.");
+    assert_eq!(
+        a.clip_text(1.0),
+        "One [breath 0.3] [record](noun), [pause 2] kept."
+    );
+    assert_eq!((a.pauses.len(), a.breaths.len()), (1, 1));
+    let plain = Script::parse("## a\nOne record, kept.\n").unwrap();
+    assert_eq!(plain.sections[0].clip_text(1.0), "One record, kept.");
+    assert_eq!(plain.sections[0].voiced(), "One record, kept.");
+}
+
+#[test]
+fn a_malformed_reading_keeps_its_words_and_no_reading() {
+    for (written, text) in [
+        ("We [in use](noun) it.", "We in use it."),
+        ("We re[cord](verb) it.", "We record it."),
+        ("We [record](verb)s it.", "We records it."),
+        ("We [record]() it.", "We record it."),
+        ("We [record](two 2) it.", "We record it."),
+        ("We [record](/ɹəkˈɔɹd) it.", "We record it."),
+        ("We [record](verb", "We record"),
+    ] {
+        let s = Script::parse(&format!("## a\n{written}\n")).unwrap();
+        assert_eq!(s.sections[0].text, text, "{written}");
+        assert!(s.sections[0].readings.is_empty(), "{written}");
+    }
+    let s = Script::parse("## a\nA [pause](verb) and a [pause] here.\n").unwrap();
+    assert_eq!(s.sections[0].text, "A pause and a here.");
+    assert_eq!(s.sections[0].readings[0].reading, "verb");
+    assert_eq!(s.sections[0].pauses.len(), 1);
+}

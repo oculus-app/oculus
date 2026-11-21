@@ -8,7 +8,8 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 ## Contents
 
 - video.json: its keys, a scene's keys, how long a scene lasts
-- script.md: sections, pauses, breaths, the spoken-form table, acronyms and fusions
+- script.md: sections, pauses, breaths, readings, the spoken-form table,
+  acronyms and fusions
 - Components: the file's three exports, prop types, flat props
 - Elements: element props, layout, the style keys
 - The theme: token names and type sizes, making a new theme
@@ -98,7 +99,8 @@ A typical step size is zero point zero one.
   each id appears once, and no section is empty: any of these stops every
   command from loading the video, naming the line.
 - `*`, `_` and backticks are dropped; whitespace is collapsed. Everything
-  else is read aloud, except pauses and breaths.
+  else is read aloud, except pauses, breaths and the reading in a
+  `[word](reading)`.
 
 **Pauses.** `[pause]` holds the picture in silence for the theme's pause
 (1 s); `[pause 1.5]` for that many seconds, at most 5. The voice does not
@@ -153,6 +155,52 @@ every four to six words:
 Where an idea lands, the breath gives way to a `[pause]`: write one or the
 other at a place, not both. Changing a breath re-narrates its scene.
 Anything else in brackets starting `breath` is a `script` error.
+
+**Readings.** `[word](reading)` tells the voice how to say that one word.
+The word stays as written everywhere it is shown or matched: captions,
+subtitles and `word("records")` never see the reading. Wrap the whole
+word and leave its punctuation outside: `"[use](noun)."`, not
+`[use.](noun)` or `[in use](noun)`.
+
+```markdown
+## log
+
+The table [records](verb) each change, and a record [lives](verb) on disk
+while it is in [use](noun). Here [a](letter) equals two.
+```
+
+| Reading | For | Example |
+| --- | --- | --- |
+| `noun`, `verb`, `adjective`, `adverb` | A word spelt one way and said two: say which it is here | `[records](verb)`, `[use](noun)`, `[separate](adjective)`, `[live](adjective)` |
+| `letter`, `article` | `a`: the letter's name, or the article | `[a](letter) plus b`, `[A](article) good state` |
+| A respelling in real words, `-` between them, the stressed one in capitals | A word said another way in this one place | `[read](RED)`, `[lead](LED)`, `[wind](WINED)` |
+| `/phonemes/` | The same, exactly; copy symbols from what `g2p` prints | `[live](/lˈIv/)` |
+
+Mark these as you write, without waiting for a note:
+
+- **A word that is a noun or adjective one way and a verb the other**:
+  record, use, live, lives, separate, estimate, approximate, duplicate,
+  alternate, coordinate, present, object, subject, project, content,
+  contrast, conduct, produce, increase, decrease, insert, transform,
+  close, minute, perfect. The noun or adjective usually stresses the
+  first syllable or ends softer (a REcord, in use with an s, a separate
+  case); the verb the second or harder (to reCORD, to use with a z, to
+  separATE).
+- **`read` in the past** is `[read](RED)`; **`lead`** the metal is
+  `[lead](LED)`.
+- **A variable or label named a**: `[a](letter)`. Unmarked, a lower-case
+  `a` before a word is the article, and a capital `A` is the article at
+  the start of a sentence and the letter anywhere else; mark the ones
+  that are the other way.
+
+A part of speech works only on a word the dictionary reads more than one
+way; on any other word, and for a reading its word cannot take, narrate
+and lint fail naming the mark. Try one with `oculus studio g2p "The table
+[records](verb) it"`. A respelling or phonemes in a mark is for one
+place: a name or term that is always said one way goes to the student as
+a suggestion ("Pronunciation"), not into marks. Changing a reading
+re-narrates its scene. With a TTS server instead of Kokoro, readings are
+not sent: the server says each word its own way.
 
 **Spoken form.** Write what the voice should say. Lint flags each of these
 with what to write instead:
@@ -843,8 +891,10 @@ Each issue has a level:
 - `error`: lint exits 1. Fix every one; "lint until no errors" is the bar.
 - `warning`: how the scene looks over time (below). Lint still passes; fix
   it, or know why the scene wants it.
-- `note`: a word the aligner was unsure of, or a word Kokoro guessed (check
-  each as "Pronunciation" says), or a component that reads `font.mono` or
+- `note`: a word the aligner was unsure of, a word Kokoro guessed (check
+  each as "Pronunciation" says), an unmarked word with two readings
+  (`check reading`: mark it in script.md if the wrong one was picked), or
+  a component that reads `font.mono` or
   `type.code` without `Code` at the start or end of its name ("monospace
   outside code": use the body face, and `tabular-nums` for numbers).
 
@@ -858,7 +908,9 @@ errors, 7 warnings not shown`); fix those first, then lint again, or run
 example, kind, message, loc }` (`[]` when there is nothing), and each
 guessed word as `{ level: "note", scene, id, line, kind: "guessed",
 message, word, phonemes, guessed, review }`, `review` being `null` or the
-word's suggestion, `{ status: "pending" | "wrong", reading, note }`. Read
+word's suggestion, `{ status: "pending" | "wrong", reading, note }`. A
+word with two readings is the same with `kind: "reading"` and `others`,
+its other readings as `[{ mark, phonemes }]`. Read
 `message`: it says what is wrong and what is valid.
 
 These errors are what makes a video read as slides. Each names the time
@@ -889,6 +941,8 @@ Warnings name the time span and the words said in it:
 | `script` | Text not in spoken form, with `say … as …` | Write the words it suggests. |
 | `script` | `[pause x]` is not a pause, or longer than 5 seconds | Write `[pause]` or `[pause <seconds>]`. |
 | `script` | `[breath x]` is not a breath, or longer than 1 second | Write `[breath]` or `[breath <seconds>]`; a longer silence is a `[pause]`. |
+| `script` | `[in use](noun)` is not a reading, marks part of a word, or has no closing `)` | Wrap one whole word, punctuation outside, with a part of speech, a respelling or `/phonemes/`. |
+| `script` | Kokoro: a reading its word cannot take (`"table" has one reading`, a respelling part not in the dictionary, a phoneme Kokoro lacks) | Use a reading from the table in "script.md"; `g2p` shows a word's readings. |
 | `component` | A colour, font or spacing literal (`colour #5e6ad2 is a literal; use theme.color.accent`) | Use the token it names. |
 | `component` (note) | "theme.font.mono is used outside a Code component" | Mono is for code; use `theme.font.body` and `fontVariantNumeric: "tabular-nums"`. |
 | `component` | The component threw, or a key is on two nodes | Fix the TSX at `loc`. A bad `word()` phrase names the closest one said. |
@@ -998,17 +1052,22 @@ pronunciation", says what to do).
 The engine is Kokoro, run inside the app, or a TTS server; Settings →
 Voice or the video's `voice` block (`"engine": "kokoro"`) picks it. With
 Kokoro, narrate ends with a `note:` per guessed word, with the state of any
-suggestion for it (`--json`: each note's `review`).
+suggestion for it (`--json`: each note's `review`), and a `note:` per
+unmarked word with two readings, naming the reading picked and the mark
+for the other (`--json`: each note's `others`).
 
 ## Pronunciation
 
-Kokoro reads each word from the lexicon, then its dictionary, then a
+Kokoro reads each word from a reading marked on it in the script
+("script.md", "Readings"), then the lexicon, then its dictionary, then a
 guesser. A guessed word is worth checking. The student decides how a word
 is said; you suggest, and never edit a `lexicon.json`.
 
 - `oculus studio g2p "<text>" --video <slug>` prints each word, its
-  phonemes and who read it: `lexicon`, `dict`, `rule` (a word like "read"
-  or "lead" read by its neighbours) or `guess`. It does not synthesise.
+  phonemes and who read it: `marked`, `lexicon`, `dict`, `rule` (a word
+  like "read" or "lead" read by its neighbours) or `guess`, and beside a
+  word with two readings the mark for the other (`or [records](verb)
+  /ɹəkˈɔɹdz/`). The text may hold readings. It does not synthesise.
 - `oculus studio pronounce suggest <slug> <word> <reading>` puts a reading
   up for review, for a word the video's narration says (any case;
   `Word's` counts as `Word`). It checks the reading, prints the phonemes

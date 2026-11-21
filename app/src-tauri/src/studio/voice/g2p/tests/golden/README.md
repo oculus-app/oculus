@@ -40,7 +40,7 @@ Row: `{id, text, phonemes, words: [{word, phonemes, source, guessed?}], covers?}
 ## Tagging without spaCy (part of the spec)
 
 Punctuation tags (`. , : -LRB- -RRB- `` ''`); `PRP` for `I`; `DT` for a/an/the, `TO` for
-to, `IN` for in; a capital `A` that is not first among the unit's words gets `NNP`;
+to, `IN` for in; a capital `A` that opens neither the unit nor a sentence in it gets `NNP`;
 every other word has no tag unless the heteronym table (`tools/heteronyms.py`) sets
 one. `vs.` and `by` therefore never get misaki's `IN`/`ADV` readings.
 
@@ -49,7 +49,8 @@ one. `vs.` and `by` therefore never get misaki's `IN`/`ADV` readings.
 - misaki's sub-token regex splits `O'Brien` into `O'B` + `rien` and `d'Alembert` into
   `d'A` + `lembert`; both parts are guessed.
 - `x012_vs`: `vs.` is read `vˈiz` and the dot ends a sentence.
-- A sentence-initial `A` is the article (`ɐ`), mid-sentence capital `A` is the letter.
+- A capital `A` opening any sentence of a unit is the article (`ɐ`); a mid-sentence
+  capital `A` is the letter.
 - `Lead pipe` / `of lead` get the metal reading from the table, not the dictionary.
 
 ## ORT note for the guesser

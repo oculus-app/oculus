@@ -46,7 +46,9 @@ fn punctuation_reads_as_itself_and_parts_stay_together() {
         tokenize(
             "He said, \"x-ray\" (now) – yes…",
             &Dictionary::from_json("{}", "{}").unwrap(),
+            &[],
         )
+        .unwrap()
         .tokens,
     );
     let shape: Vec<String> = words

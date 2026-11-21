@@ -254,6 +254,7 @@ fn a_note_says_what_became_of_its_suggestion() {
         word: word.into(),
         phonemes: "nˈɛstəɹɔv".into(),
         guessed: vec![word.into()],
+        others: Vec::new(),
         review: None,
     };
     let mut notes = vec![note("Nesterov"), note("Adam"), note("Nesterov’s")];
@@ -336,6 +337,7 @@ fn fake_read(text: &str, guess_from: usize) -> Phonemized {
                 } else {
                     Vec::new()
                 },
+                readings: Vec::new(),
             }
         })
         .collect();

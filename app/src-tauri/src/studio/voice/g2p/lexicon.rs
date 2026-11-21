@@ -250,6 +250,19 @@ fn all_caps(s: &str) -> bool {
     s.chars().any(is_upper) && !s.chars().any(is_lower)
 }
 
+/// A lexicon value as phonemes, or why it has none, for a reading that is
+/// in no file.
+pub(super) fn respelt(dict: &Dictionary, value: &str) -> Result<String, String> {
+    respell(dict, value).map_err(|bad| match bad {
+        Bad::Phoneme(chars) => {
+            format!("phoneme characters not in Kokoro's vocabulary: {chars:?}")
+        }
+        Bad::Part(part) => format!(
+            "respelling part {part:?} is not in the dictionary; a respelling is real words joined by `-`"
+        ),
+    })
+}
+
 /// A lexicon value as phonemes.
 fn respell(dict: &Dictionary, value: &str) -> Result<String, Bad> {
     if value.starts_with('/') {

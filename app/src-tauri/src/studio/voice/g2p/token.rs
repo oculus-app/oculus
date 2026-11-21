@@ -17,6 +17,8 @@ pub struct Token {
     pub phonemes: Option<String>,
     /// A sub-token joined to the one before by a space.
     pub prespace: bool,
+    /// A reading marked in the text set its tag or its phonemes.
+    pub marked: bool,
 }
 
 impl Token {
@@ -27,6 +29,7 @@ impl Token {
             whitespace: whitespace.to_string(),
             phonemes: None,
             prespace: false,
+            marked: false,
         }
     }
 }

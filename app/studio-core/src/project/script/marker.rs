@@ -83,7 +83,8 @@ pub struct Marker {
 }
 
 /// Every marker in `line`, in order. A `[` whose text starts with `pause`
-/// or `breath` is one, up to the next `]` or the line's end.
+/// or `breath` is one, up to the next `]` or the line's end; one that `(`
+/// follows is a reading of that word (`reading.rs`).
 pub fn markers(line: &str) -> Vec<Marker> {
     let mut out = Vec::new();
     let mut from = 0;
@@ -94,6 +95,10 @@ pub fn markers(line: &str) -> Vec<Marker> {
             continue;
         };
         let close = line[inner_from..].find(']').map(|i| inner_from + i);
+        if close.is_some_and(|c| line[c..].starts_with("](")) {
+            from = inner_from;
+            continue;
+        }
         let end = close.map_or(line.len(), |c| c + 1);
         let written = &line[open..end];
         let seconds = match close {

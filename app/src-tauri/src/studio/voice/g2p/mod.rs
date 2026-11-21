@@ -1,6 +1,7 @@
 //! English (US) text to Kokoro phonemes, without spaCy or espeak: a port of
 //! misaki 0.9.4's dictionary path (`misaki/en.py`) as the oracle in
 //! `data/evals/studio-g2p/tools/a2c.py` runs it. Each word is read by the
+//! reading marked on it in the text (`[records](verb)`, `mark.rs`), else the
 //! user's lexicon, else misaki's gold and silver dictionaries with its
 //! special cases, case handling and stem rules (plus `-ied` and British
 //! `-ise`) and a heteronym's reading picked by a neighbour-word table, else
@@ -15,6 +16,7 @@ mod dict;
 pub mod guess;
 mod heteronym;
 mod lexicon;
+mod mark;
 mod resolve;
 mod special;
 mod split;
@@ -43,6 +45,8 @@ pub enum Source {
     Rule,
     Lexicon,
     Guess,
+    /// A reading marked on the word in the text.
+    Marked,
 }
 
 impl Source {
@@ -52,6 +56,7 @@ impl Source {
             Source::Rule => "rule",
             Source::Lexicon => "lexicon",
             Source::Guess => "guess",
+            Source::Marked => "marked",
         }
     }
 }
@@ -65,6 +70,17 @@ pub struct WordRecord {
     /// The parts the guesser answered, right to left; empty unless `source`
     /// is `Guess`.
     pub guessed: Vec<String>,
+    /// For an unmarked word the dictionary has more than one reading for:
+    /// the one it was read with, then the others. Else empty.
+    pub readings: Vec<Choice>,
+}
+
+/// One of a word's dictionary readings and the mark that picks it
+/// (`verb`, or `/phonemes/`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Choice {
+    pub mark: String,
+    pub phonemes: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
