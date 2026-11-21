@@ -42,6 +42,8 @@ fn each_token_is_reported_once() {
 #[test]
 fn pause_markers_pass_and_malformed_ones_are_flagged() {
     assert_eq!(scan("It lands. [pause] Then [pause 1.5] more."), vec![]);
+    assert_eq!(scan("First, [breath 0.2] we fix n. [breath]"), vec![]);
+    assert_eq!(scan("One [breath 3] two")[0].token, "[breath 3]");
     let found = scan("One [pause x] two [Pause 7]\n[pause 2");
     let t: Vec<&str> = found.iter().map(|u| u.token.as_str()).collect();
     assert_eq!(t, ["[pause x]", "[Pause 7]", "[pause 2"]);

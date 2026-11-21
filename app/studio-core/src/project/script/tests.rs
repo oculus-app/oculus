@@ -101,3 +101,32 @@ fn markers_read_their_seconds() {
     let m = &markers("ab [pause 2] c")[0];
     assert_eq!((m.start, m.end), (3, 12));
 }
+
+#[test]
+fn breaths_are_cut_from_the_text_and_placed_by_word() {
+    let s = Script::parse(
+        "## a\nFirst, [breath 0.2] we fix n. [breath] [pause]\nThen [BREATH .15] we stop.\n",
+    )
+    .unwrap();
+    let a = &s.sections[0];
+    assert_eq!(a.text, "First, we fix n. Then we stop.");
+    let at: Vec<(usize, f64)> = a.breaths.iter().map(|b| (b.words, b.seconds)).collect();
+    assert_eq!(at, [(1, 0.2), (4, DEFAULT_BREATH), (5, 0.15)]);
+    assert_eq!(a.pauses.len(), 1, "a breath is not a pause");
+    assert_eq!(
+        a.clip_text(1.0),
+        "First, [breath 0.2] we fix n. [pause 1] [breath 0.3] Then [breath 0.15] we stop."
+    );
+}
+
+#[test]
+fn a_malformed_breath_is_named() {
+    let bad = |line: &str| markers(line).remove(0).seconds.unwrap_err();
+    assert!(bad("[breath x]").contains("is not a breath; write `[breath]` for 0.3 seconds"));
+    assert!(bad("[breathe]").contains("is not a breath"));
+    assert!(bad("[breath 0]").contains("more than 0 and at most 1 second"));
+    assert!(bad("[breath 1.5]").contains("a longer silence is a `[pause]`"));
+    let s = Script::parse("## a\nOne [breath 2] two\n").unwrap();
+    assert_eq!(s.sections[0].text, "One two");
+    assert!(s.sections[0].breaths.is_empty());
+}

@@ -2717,15 +2717,15 @@ its words are timed against the script with the aligner model (`oculus studio al
 download` fetches it once). The manifest then gives each narrated scene its length and
 its `word()` cues; `frame`, `strip` and `lint` read it. A section is said and timed
 whole, then each `[pause]` is spliced in as exact silence between the words either side
-of it.
+of it, and each `[breath]` tops up the silence after its word to its length.
 
-A clip's key hashes its text with its pauses, the engine, the voice and speed, the
-server and model or Kokoro's model and the text's phonemes, and the aligner model, so a
-run only makes scenes whose text, voice or reading changed (a lexicon edit re-narrates
-the scenes it changes); the rest print `cached`. Scenes run one at a time in video order
-and the manifest is saved after each, so a failure keeps the scenes before it; the
-command then exits 1 naming the failed scene. At the end, entries for scenes no longer
-narrated and clips nothing names are deleted.
+A clip's key hashes its text with its pauses and breaths, the engine, the voice and
+speed, the server and model or Kokoro's model and the text's phonemes, and the aligner
+model, so a run only makes scenes whose text, voice or reading changed (a lexicon edit
+re-narrates the scenes it changes); the rest print `cached`. Scenes run one at a time in
+video order and the manifest is saved after each, so a failure keeps the scenes before
+it; the command then exits 1 naming the failed scene. At the end, entries for scenes no
+longer narrated and clips nothing names are deleted.
 
 Per scene it prints the id, `narrated` or `cached`, the clip's length, its word count
 and pauses, and as warnings the words the aligner was unsure of and any speech the

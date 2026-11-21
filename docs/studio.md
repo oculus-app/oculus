@@ -499,7 +499,7 @@ We follow the *gradient* downhill, one small step at a time.
 
 - **`script.md`** is one `## <id>` section per narrated scene, written as it
   is said. A section's text is its prose with `*`, `_` and backticks
-  removed, pause markers cut out and whitespace collapsed; nothing else is
+  removed, pause and breath markers cut out and whitespace collapsed; nothing else is
   interpreted (`#` and `###` lines are prose). Text before the first
   heading, a heading that is not an id, a repeated id and an empty section
   fail `Project::load` with the line. A section no scene's `id` matches is
@@ -512,12 +512,25 @@ We follow the *gradient* downhill, one small step at a time.
   before it) and length, and at the end of a section it holds the last
   picture before the cut. A bracket opening with `pause` that is neither
   form (`[pause x]`, `[pause 9]`, no `]`) is cut from the text too and is
-  a lint error (`project/script/pause.rs`). `ScriptSection::clip_text`
+  a lint error (`project/script/marker.rs`). `ScriptSection::clip_text`
   writes the pauses back into the text at their lengths (`It lands. [pause
   1] Then it stays.`), a bare one at the theme's; without pauses it is the
   text. That is what a clip is made from and what its manifest entry
   matches, so moving a marker or changing its length, or the theme's,
   makes the scene stale.
+- **Breaths.** `[breath 0.25]` makes the silence after the word before it
+  at least that long, and a bare `[breath]` `DEFAULT_BREATH` (0.3 s): more
+  than 0 and at most `MAX_BREATH` (1 s); `breath` in any case. Kokoro
+  pauses at about one comma in six, so the script marks where a reader
+  would breathe. A breath is cut from the text and splits the words either
+  side as a pause does, but it is not a beat: the picture does not hold,
+  `pause()` and `beats` do not count it, and the manifest records no entry
+  for it, only the later times of the words after it.
+  `ScriptSection::breaths` holds each one's place and seconds, `clip_text`
+  writes it back as `[breath 0.25]` after the pauses at its place, so a
+  changed breath makes the scene stale, and a malformed one is a lint
+  error as a pause's is. One before the first word or after the last does
+  nothing.
 - **The manifest** is `{ version: 1, scenes: { <id>: { key, text, audio,
   duration, words: [{ text, start, end, confidence }], gaps: [{ after,
   start, end, heard }], pauses: [{ after, start, end }] } } }`
@@ -712,7 +725,19 @@ manifest. Scenes run one at a time, in video order.
   1.7 s behind over 16 s); a server is asked once, too, and the aligner
   never sees the inserted silence. The silence check runs on the clip as
   spoken, never on the spliced one, so a pause is not mistaken for a
-  failed clip. The speaker and the aligner
+  failed clip. A `[breath]` (`narrate/breath.rs`) is topped up in the
+  same pass: the clip's quiet stretches are its runs of 40 ms or more of
+  10 ms frames under 3% of its 95th-percentile RMS, and the breath's zeros
+  are what its seconds lack over the quiet between its two words, put in
+  the middle of the longest such stretch, or, where the voice ran on, at
+  the pause's quietest 10 ms. Under 40 ms to add is left alone, and the
+  speech either side of the zeros fades over 6 ms so a cut into running
+  speech does not click. Of two breaths that land on one spot ("a, a" said
+  as one sound) the later is kept. Measured on 27 passages with 343
+  breaths (`am_michael` at 0.9, `data/evals/studio-voices/narration/round2`):
+  of the 270 breaths of 0.2 s or more, 256 came out within 60 ms of their
+  length or longer, and the rest were sentence ends the grader hears as
+  shorter than they are. The speaker and the aligner
   model are checked before the first clip, so a missing one costs no
   synthesis; the aligner fails with ``download it in Settings -> Studio -> Word timing or
   run `oculus studio aligner download` ``.
@@ -1802,7 +1827,9 @@ For a narrated video lint also reports, each naming the scene id:
   `app/studio-core/src/project/lint/spoken.rs`;
 - a malformed pause marker (kind `script`, with its line): ``[pause x]` is
   not a pause; write `[pause]` for the theme's pause or `[pause 1.5]` for
-  seconds``, or that a pause is more than 0 and at most 5 seconds;
+  seconds``, or that a pause is more than 0 and at most 5 seconds; a
+  malformed breath marker the same way (``[breath x]` is not a breath``,
+  or that a breath is more than 0 and at most 1 second);
 - as a note, not an error, each word whose aligner confidence is below
   `LOW_CONFIDENCE` (-8.0, measured on Kokoro, where clean words stayed
   above -4.83; re-check it for another TTS engine), since a mangled word

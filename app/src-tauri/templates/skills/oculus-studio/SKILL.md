@@ -251,14 +251,20 @@ measured against Studio's own:
 - **Open on the question, never an agenda.** Not "In this video we will
   build up three tools: halving, logarithms and a bound." Instead: "A
   million names, sorted. How few guesses find one?"
-- **One breath a sentence.** The voice says each sentence in one go; split
-  one with two clauses of maths.
+- **Short sentences.** The voice says each sentence in one go; split one
+  with two clauses of maths.
 - **Every number given meaning.** "A 768-bit key" says nothing; "a 768-bit
   key, a number about two hundred and thirty digits long" does.
 - **`[pause]` where an idea lands**: after a result is shown, a definition
   is complete or a rewrite finishes, and at the end of the last scene.
   Two to four a scene, never after every sentence. A pause is silent and
   the picture holds through it.
+- **`[breath 0.25]` wherever a reader would breathe.** Left alone the
+  voice runs most commas together, so mark the silence after a word:
+  about 0.3 s at a clause's comma, 0.15 in a list, 0.4 at a colon, 0.5 to
+  0.8 at a sentence's end, and 0.3 before the word a sentence was building
+  to, comma or not. About one mark every four to six words; `reference.md`
+  ("script.md") has the table. The picture does not wait on a breath.
 - **Explain, don't assert.** Every claim gets its reason, shown. Example
   first, then the rule in one sentence, so the example is not a trick.
 - **Link each scene to the last** with an opening clause that picks up

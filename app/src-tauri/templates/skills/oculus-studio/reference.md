@@ -8,7 +8,7 @@ video's slug as `DIR`; `oculus studio <command> --help` has the full flags.
 ## Contents
 
 - video.json: its keys, a scene's keys, how long a scene lasts
-- script.md: sections, pauses, the spoken-form table, acronyms and fusions
+- script.md: sections, pauses, breaths, the spoken-form table, acronyms and fusions
 - Components: the file's three exports, prop types, flat props
 - Elements: element props, layout, the style keys
 - The theme: token names and type sizes, making a new theme
@@ -98,7 +98,7 @@ A typical step size is zero point zero one.
   each id appears once, and no section is empty: any of these stops every
   command from loading the video, naming the line.
 - `*`, `_` and backticks are dropped; whitespace is collapsed. Everything
-  else is read aloud, except pauses.
+  else is read aloud, except pauses and breaths.
 
 **Pauses.** `[pause]` holds the picture in silence for the theme's pause
 (1 s); `[pause 1.5]` for that many seconds, at most 5. The voice does not
@@ -116,6 +116,43 @@ Place one where an idea lands: after a result is shown, a definition is
 complete, a rewrite finishes, and at the end of the scene's argument. Not
 after every sentence: two to four a scene. Changing a pause re-narrates
 its scene. Anything else in brackets starting `pause` is a `script` error.
+
+**Breaths.** The voice runs most commas together: left alone it pauses at
+about one in six. `[breath 0.25]` makes the silence after the word before
+it at least 0.25 s; a bare `[breath]` is 0.3 s, and the most is 1 s. It
+only adds: where the voice already paused that long, nothing changes. The
+picture does not wait on a breath, `pause()` does not count it, and
+`word()` times already include it. Write one after the word, punctuation
+kept:
+
+```markdown
+## clock
+
+Start at six, [breath 0.25] and count on seven. [breath 0.5] Seven,
+[breath 0.2] eight, [breath 0.2] nine, [breath 0.2] ten, [breath 0.2]
+eleven, [breath 0.25] wrap round through zero, [breath 0.25] and land on
+one. [breath 0.65] So on this clock, [breath 0.25] six plus seven
+[breath 0.15] is one. [pause]
+```
+
+Mark every place a person reading it aloud would breathe, about one mark
+every four to six words:
+
+| Where | Seconds |
+| --- | --- |
+| A comma between two clauses, or after "First," "However," "So on this clock," | 0.2 to 0.35 |
+| Each comma of a list being counted or read out ("one, two, three") | 0.12 to 0.2 |
+| A comma that is not a pause ("Yes, it does", "f of x, y") | none |
+| Either side of an aside ("the rule, which we call delta, takes") | 0.15 to 0.2 |
+| A colon, a semicolon or a dash | 0.4 |
+| The end of a sentence that the next one carries on from | 0.45 to 0.6 |
+| The end of a sentence before a turn, a new step or the answer | 0.7 to 0.8 |
+| No punctuation, before the word the sentence was building to ("and you get [breath 0.3] exactly one") | 0.25 to 0.35 |
+| No punctuation, between a long subject and its verb, or at each clause of a long sentence with no commas | 0.15 to 0.3 |
+
+Where an idea lands, the breath gives way to a `[pause]`: write one or the
+other at a place, not both. Changing a breath re-narrates its scene.
+Anything else in brackets starting `breath` is a `script` error.
 
 **Spoken form.** Write what the voice should say. Lint flags each of these
 with what to write instead:
@@ -851,6 +888,7 @@ Warnings name the time span and the words said in it:
 | `script` | A section no scene's `id` matches | Rename the heading or the scene id. |
 | `script` | Text not in spoken form, with `say … as …` | Write the words it suggests. |
 | `script` | `[pause x]` is not a pause, or longer than 5 seconds | Write `[pause]` or `[pause <seconds>]`. |
+| `script` | `[breath x]` is not a breath, or longer than 1 second | Write `[breath]` or `[breath <seconds>]`; a longer silence is a `[pause]`. |
 | `component` | A colour, font or spacing literal (`colour #5e6ad2 is a literal; use theme.color.accent`) | Use the token it names. |
 | `component` (note) | "theme.font.mono is used outside a Code component" | Mono is for code; use `theme.font.body` and `fontVariantNumeric: "tabular-nums"`. |
 | `component` | The component threw, or a key is on two nodes | Fix the TSX at `loc`. A bad `word()` phrase names the closest one said. |

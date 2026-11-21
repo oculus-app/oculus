@@ -45,10 +45,11 @@ pub use library::{
 };
 pub use look::{Beat, SceneLook, Warning};
 pub use project::{
-    CascadeComponents, ComponentSource, CuedPause, CuedWord, FRAME_RATES, FolderComponents,
-    LOW_CONFIDENCE, Library, LintIssue, LintLevel, LintReport, MANIFEST_PATH, MAX_PAUSE, Manifest,
-    ManifestGap, ManifestPause, ManifestScene, ManifestWord, Project, SceneSpec, Script,
-    ScriptPause, ScriptSection, Timeline, Video, Voice, VoiceEngine, WordCues, valid_subject,
+    CascadeComponents, ComponentSource, CuedPause, CuedWord, DEFAULT_BREATH, FRAME_RATES,
+    FolderComponents, LOW_CONFIDENCE, Library, LintIssue, LintLevel, LintReport, MANIFEST_PATH,
+    MAX_BREATH, MAX_PAUSE, Manifest, ManifestGap, ManifestPause, ManifestScene, ManifestWord,
+    Project, SceneSpec, Script, ScriptBreath, ScriptPause, ScriptSection, Timeline, Video, Voice,
+    VoiceEngine, WordCues, valid_subject,
 };
 pub use render::{
     Engine, Frame, MotionBlur, Purpose, RenderOptions, Renderer, SceneCall, Size, Time,

@@ -391,9 +391,10 @@ pub(crate) enum StudioEngineArg {
 /// download` fetches it once). The manifest then gives each narrated scene its
 /// length and its `word()` cues; `frame`, `strip` and `lint` read it. A
 /// section is said and timed whole, then each `[pause]` is spliced in as
-/// exact silence between the words either side of it.
+/// exact silence between the words either side of it, and each `[breath]`
+/// tops up the silence after its word to its length.
 ///
-/// A clip's key hashes its text with its pauses, the engine, the voice and
+/// A clip's key hashes its text with its pauses and breaths, the engine, the voice and
 /// speed, the server and model or Kokoro's model and the text's phonemes,
 /// and the aligner model, so a run only makes scenes whose text, voice or reading
 /// changed (a lexicon edit re-narrates the scenes it changes); the rest

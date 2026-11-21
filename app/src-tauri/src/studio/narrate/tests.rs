@@ -664,3 +664,90 @@ fn a_pause_is_cut_into_the_silence_between_its_words() {
     assert_eq!(clip::cut(&samples, rate, &words, 0), 0);
     assert_eq!(clip::cut(&samples, rate, &words, 2), samples.len());
 }
+
+/// 0.5 s of tone, `gap` seconds of silence, 0.4 s of tone, and the two
+/// words either side of the silence.
+fn two_words(gap: f64) -> (Vec<f32>, [WordTime; 2]) {
+    let tone = |n: usize| (0..n).map(|i| ((i as f32) * 0.05).sin() * 0.3);
+    let quiet = (gap * 24_000.0) as usize;
+    let samples = tone(12_000)
+        .chain(std::iter::repeat_n(0.0, quiet))
+        .chain(tone(9_600))
+        .collect();
+    let word = |index: usize, start: f64, end: f64| WordTime {
+        index,
+        text: "w".into(),
+        start,
+        end,
+        confidence: -0.5,
+    };
+    (samples, [word(0, 0.0, 0.5), word(1, 0.5 + gap, 0.9 + gap)])
+}
+
+#[test]
+fn a_breath_tops_up_the_silence_the_voice_left() {
+    let (samples, words) = two_words(0.1);
+    let ups = breath::top_ups(&samples, 24_000, &words, &[(1, 0.3)]);
+    assert_eq!(ups.len(), 1);
+    assert_eq!(ups[0].zeros, 4_800, "0.3 s wanted, 0.1 s there");
+    assert_eq!(ups[0].at, 13_200, "the middle of the silence");
+    assert!(ups[0].breath && ups[0].words == 1);
+
+    let covered = breath::top_ups(&samples, 24_000, &words, &[(1, 0.12)]);
+    assert!(
+        covered.is_empty(),
+        "never shortened, and 20 ms is not added"
+    );
+    let edges = breath::top_ups(&samples, 24_000, &words, &[(0, 0.3), (2, 0.3)]);
+    assert!(
+        edges.is_empty(),
+        "no word before the first or after the last"
+    );
+}
+
+#[test]
+fn a_breath_where_the_voice_ran_on_is_cut_at_the_quietest_moment() {
+    let (mut samples, mut words) = two_words(0.0);
+    (words[0].end, words[1].start) = (0.45, 0.55);
+    for s in &mut samples[11_880..12_120] {
+        *s *= 0.2;
+    }
+    let ups = breath::top_ups(&samples, 24_000, &words, &[(1, 0.25)]);
+    assert_eq!(ups.len(), 1);
+    assert_eq!(ups[0].zeros, 6_000, "no silence there, so all of it");
+    assert!(ups[0].at.abs_diff(12_000) <= 120, "{}", ups[0].at);
+}
+
+#[test]
+fn breaths_move_the_words_after_them_and_are_in_the_key() {
+    let dir = Scratch::new("narrate-breath");
+    video(
+        &dir,
+        "## a\nWe follow, [breath 0.3] um, the gradient.\n\n## b\nOne small step.\n",
+    );
+    let speaker = FakeSpeaker::new();
+    let stub = Stub::new();
+    let report = run(&dir, &speaker, &stub, &Options::default());
+    assert_eq!(report.scenes[0].pauses, 0, "a breath is not a pause");
+    assert_eq!(speaker.spoken()[0], "We follow, um, the gradient.");
+
+    let m = manifest(&dir);
+    let a = &m.scenes["a"];
+    assert_eq!(a.text, "We follow, [breath 0.3] um, the gradient.");
+    assert!(a.pauses.is_empty());
+    assert!((a.duration - 0.8).abs() < 1e-9, "{}", a.duration);
+    assert!((a.words[1].end - 0.2).abs() < 1e-9 && (a.words[2].start - 0.5).abs() < 1e-9);
+    let clip = decode_wav(&std::fs::read(dir.join("narration").join(&a.audio)).unwrap()).unwrap();
+    assert!(clip.samples[4_800..12_000].iter().all(|&s| s == 0.0));
+
+    video(
+        &dir,
+        "## a\nWe follow, [breath 0.2] um, the gradient.\n\n## b\nOne small step.\n",
+    );
+    let again = run(&dir, &speaker, &stub, &Options::default());
+    assert_eq!(
+        outcomes(&again),
+        [("a", Outcome::Narrated), ("b", Outcome::Cached)],
+        "a breath's length is in the key"
+    );
+}

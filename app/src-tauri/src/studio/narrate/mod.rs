@@ -4,11 +4,13 @@
 //! is kept; any other is synthesised, timed and saved, and the manifest is
 //! rewritten after each, so a failure keeps the scenes already done. A
 //! section's `[pause]`s are exact silence spliced into its clip between
-//! the words either side (`clip`).
+//! the words either side, and its `[breath]`s top up the silence the voice
+//! left (`clip`).
 //! Afterwards entries for ids no longer narrated, and clips nothing
 //! references, are removed. Rules: docs/studio.md, "Narration is made by
 //! `oculus studio narrate`".
 
+mod breath;
 mod clip;
 mod key;
 mod prune;
@@ -221,19 +223,20 @@ pub fn narrate(
 
 /// A narrated scene as its clip is made: the text its manifest entry
 /// must match (`ScriptSection::clip_text`), the text said, and each pause
-/// as how many words come before it and its seconds.
+/// and each breath as how many words come before it and its seconds.
 #[derive(Debug, Clone)]
 struct Said {
     id: String,
     text: String,
     spoken: String,
     pauses: Vec<(usize, f64)>,
+    breaths: Vec<(usize, f64)>,
 }
 
 impl Said {
-    /// The clip's cache key: the text with its pauses and the speaker's
-    /// parts for the words said. Without pauses the two texts are one, so
-    /// the key is the one a clip has always had.
+    /// The clip's cache key: the text with its pauses and breaths and the
+    /// speaker's parts for the words said. Without either the two texts are
+    /// one, so the key is the one a clip has always had.
     fn key(&self, speaker: &dyn Speaker) -> Result<String, String> {
         Ok(cache_key(&self.text, &speaker.key(&self.spoken)?))
     }
@@ -253,6 +256,7 @@ fn narrated_scenes(project: &Project) -> Vec<Said> {
                 .iter()
                 .map(|p| (p.words, p.length(pause)))
                 .collect(),
+            breaths: s.breaths.iter().map(|b| (b.words, b.seconds)).collect(),
         })
         .collect()
 }
@@ -280,7 +284,8 @@ fn make_clip(
     aligner: &dyn Aligner,
 ) -> Result<(ManifestScene, Timings), NarrateError> {
     let fail = |message: String| NarrateError::scene(&said.id, message);
-    let made = clip::make(&said.spoken, &said.pauses, speaker, aligner).map_err(fail)?;
+    let made =
+        clip::make(&said.spoken, &said.pauses, &said.breaths, speaker, aligner).map_err(fail)?;
     let audio = format!("{key}.wav");
     write_clip(&clips.join(&audio), &made.wav).map_err(fail)?;
     let scene = ManifestScene {

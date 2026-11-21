@@ -1,15 +1,17 @@
 //! One scene's clip: the section said in one go and timed in one pass, as
 //! without pauses, then each `[pause]` spliced in as exact silence at the
-//! quietest moment between the words either side of it, the times after it
-//! moved on by its length. Saying the words whole keeps the voice's pace:
-//! Kokoro paces an input by its length, so parts said apart came out up to
-//! 11% slower than the same words said whole. A server is asked once, too.
-//! A clip with no pause is the speaker's WAV byte for byte.
+//! quietest moment between the words either side of it, and each `[breath]`
+//! topped up (`breath`), the times after either moved on by its zeros.
+//! Saying the words whole keeps the voice's pace: Kokoro paces an input by
+//! its length, so parts said apart came out up to 11% slower than the same
+//! words said whole. A server is asked once, too. A clip nothing was put
+//! into is the speaker's WAV byte for byte.
 
 use std::time::Instant;
 
 use studio_core::{ManifestGap, ManifestPause, ManifestWord};
 
+use super::breath::{self, FADE_SECONDS};
 use super::{Aligner, Speaker, Timings};
 use crate::studio::audio::{encode_wav, resample_to_16k};
 use crate::studio::timing::{Gap, WordTime};
@@ -25,11 +27,12 @@ pub(super) struct Made {
     pub timings: Timings,
 }
 
-/// The clip of `spoken` with `pauses`, each `(words before it, seconds)`
-/// in script order.
+/// The clip of `spoken` with `pauses` and `breaths`, each `(words before
+/// it, seconds)` in script order.
 pub(super) fn make(
     spoken: &str,
     pauses: &[(usize, f64)],
+    breaths: &[(usize, f64)],
     speaker: &dyn Speaker,
     aligner: &dyn Aligner,
 ) -> Result<Made, String> {
@@ -47,23 +50,20 @@ pub(super) fn make(
         align_ms: started.elapsed().as_millis() as u64,
     };
     let seconds = |n: usize| n as f64 / f64::from(rate);
-    let spliced = splice(&decoded.samples, rate, &alignment.words, pauses);
-    // A word after a pause moves by it; a gap by the pauses cut before it.
+    let inserts = inserts(&decoded.samples, rate, &alignment.words, pauses, breaths);
+    let spliced = splice(&decoded.samples, rate, &alignment.words, &inserts);
+    // A word moves by the zeros put in before it; a gap by those cut before it.
     let words = alignment.words.iter().map(|w| {
-        let after = spliced.cuts.iter().zip(pauses);
-        let n: usize = after
-            .filter(|(_, (k, _))| w.index >= *k)
-            .map(|(c, _)| c.1)
-            .sum();
-        word(w, seconds(n))
+        let before = inserts.iter().filter(|i| w.index >= i.words);
+        word(w, seconds(before.map(|i| i.zeros).sum()))
     });
     let gaps = alignment.gaps.iter().map(|g| {
         let at = (g.start * f64::from(rate)).round() as usize;
-        let n: usize = spliced.cuts.iter().filter(|c| c.0 <= at).map(|c| c.1).sum();
-        gap(g, seconds(n))
+        let before = spliced.cuts.iter().zip(&inserts).filter(|(c, _)| **c <= at);
+        gap(g, seconds(before.map(|(_, i)| i.zeros).sum()))
     });
     let (words, gaps) = (words.collect(), gaps.collect());
-    if pauses.is_empty() {
+    if inserts.is_empty() {
         return Ok(Made {
             wav,
             duration: decoded.duration,
@@ -101,44 +101,101 @@ fn gap(g: &Gap, shift: f64) -> ManifestGap {
     }
 }
 
-/// A clip with its pauses in.
+/// Silence to put into a clip: `zeros` samples before sample `at` of the
+/// clip as spoken, after `words` script words. A breath's fades the speech
+/// either side of it; a pause's goes into the manifest.
+pub(super) struct Insert {
+    pub words: usize,
+    pub at: usize,
+    pub zeros: usize,
+    pub breath: bool,
+}
+
+/// Every pause and breath top-up in script order, a pause before a breath
+/// at the same place.
+fn inserts(
+    samples: &[f32],
+    rate: u32,
+    words: &[WordTime],
+    pauses: &[(usize, f64)],
+    breaths: &[(usize, f64)],
+) -> Vec<Insert> {
+    let mut all: Vec<Insert> = pauses
+        .iter()
+        .map(|&(k, seconds)| Insert {
+            words: k,
+            at: cut(samples, rate, words, k),
+            zeros: (seconds * f64::from(rate)).round() as usize,
+            breath: false,
+        })
+        .collect();
+    all.extend(breath::top_ups(samples, rate, words, breaths));
+    all.sort_by_key(|i| (i.words, i.breath));
+    all
+}
+
+/// A clip with its silences in.
 struct Spliced {
     samples: Vec<f32>,
-    /// Per pause: the sample of the clip as spoken it went before, and
-    /// how many zeros it is.
-    cuts: Vec<(usize, usize)>,
+    /// Per insert: the sample of the clip as spoken it went before.
+    cuts: Vec<usize>,
     pauses: Vec<ManifestPause>,
 }
 
-/// `samples` with each pause's zeros inserted at its `cut`. Without pauses
-/// it copies nothing.
-fn splice(samples: &[f32], rate: u32, words: &[WordTime], pauses: &[(usize, f64)]) -> Spliced {
+/// `samples` with each insert's zeros at its cut, never before the one
+/// ahead of it. Without inserts it copies nothing.
+fn splice(samples: &[f32], rate: u32, words: &[WordTime], inserts: &[Insert]) -> Spliced {
     let mut spliced = Spliced {
         samples: Vec::new(),
-        cuts: Vec::with_capacity(pauses.len()),
-        pauses: Vec::with_capacity(pauses.len()),
+        cuts: Vec::with_capacity(inserts.len()),
+        pauses: Vec::new(),
     };
-    if pauses.is_empty() {
+    if inserts.is_empty() {
         return spliced;
     }
+    let fade = (FADE_SECONDS * f64::from(rate)).round() as usize;
     let out = &mut spliced.samples;
     let mut from = 0;
-    for &(k, seconds) in pauses {
-        let c = cut(samples, rate, words, k).max(from);
-        out.extend_from_slice(&samples[from..c]);
+    let mut fade_in = false;
+    for i in inserts {
+        let c = i.at.max(from);
+        extend(out, &samples[from..c], fade, fade_in, i.breath);
         from = c;
-        let n = (seconds * f64::from(rate)).round() as usize;
+        fade_in = i.breath;
         let start = out.len() as f64 / f64::from(rate);
-        out.resize(out.len() + n, 0.0);
-        spliced.pauses.push(ManifestPause {
-            after: words.iter().rposition(|w| w.index < k),
-            start,
-            end: out.len() as f64 / f64::from(rate),
-        });
-        spliced.cuts.push((c, n));
+        out.resize(out.len() + i.zeros, 0.0);
+        if !i.breath {
+            spliced.pauses.push(ManifestPause {
+                after: words.iter().rposition(|w| w.index < i.words),
+                start,
+                end: out.len() as f64 / f64::from(rate),
+            });
+        }
+        spliced.cuts.push(c);
     }
-    out.extend_from_slice(&samples[from..]);
+    extend(out, &samples[from..], fade, fade_in, false);
     spliced
+}
+
+/// Appends `part`, its first `fade` samples rising from silence (`fade_in`)
+/// and its last falling to it (`fade_out`): a raised cosine, so a cut into
+/// running speech does not click.
+fn extend(out: &mut Vec<f32>, part: &[f32], fade: usize, fade_in: bool, fade_out: bool) {
+    let at = out.len();
+    out.extend_from_slice(part);
+    let n = fade.min(part.len());
+    let ramp = |j: usize| 0.5 * (1.0 - (std::f32::consts::PI * (j as f32 + 0.5) / n as f32).cos());
+    if fade_in {
+        for j in 0..n {
+            out[at + j] *= ramp(j);
+        }
+    }
+    if fade_out {
+        let end = out.len();
+        for j in 0..n {
+            out[end - 1 - j] *= ramp(j);
+        }
+    }
 }
 
 /// Half the span whose energy places a cut: 5 ms either side.
