@@ -30,7 +30,7 @@ export function splitMaths(text: string): { pieces: Piece[]; open: number } {
     const display = text[i + 1] === "$";
     const start = i + (display ? 2 : 1);
     const end = display ? text.indexOf("$$", start) : closingDollar(text, start);
-    if (!display && (start >= text.length || /\s/.test(text[start]))) {
+    if (!display && start < text.length && /\s/.test(text[start])) {
       plain += c;
       i++;
       continue;

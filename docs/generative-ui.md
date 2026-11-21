@@ -207,6 +207,33 @@ inline code (`code`, `kbd`) and semantic text tones (`.muted`, `.brand`,
 rects, and `--font-mono` applies only to `code` and `kbd`
 ([ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)).
 
+## A derivation lines steps up on the equals sign
+
+`app/src/components/markdown/genui/derive.css` styles multi-step derivations as
+a `.g.g-derive` block of `.r` rows, each holding four inline cells: the step
+number (`.n`, `tabular-nums`), the left-hand side (`.l`, right-aligned and
+non-wrapping), the right-hand side starting with `$= …$` and the short reason
+(`.why`). Wide blocks lay rows out as a `border-collapse: collapse` table so
+every equals sign aligns on one vertical axis and row separators
+(`--color-border-subtle`) meet edge to edge. `.genui` establishes an inline-size
+container (`container: genui / inline-size`); below `28rem`, `@container genui`
+switches `.g-derive` to a three-column CSS grid with `subgrid` rows so the
+reason drops onto a second line beneath its equation while step numbers and
+equals signs stay aligned and wide right-hand sides scroll horizontally without
+widening the pane or scrolling vertically.
+
+Changed terms are tinted with markup rather than TeX colour commands: the
+formula splits around `<span class="hl">$…$</span>` with `{}` on each side of
+the cut (`$… -{}$<span class="hl">$\bar y$</span>${} - …$`, or `$= {}$` before
+a tinted right-hand side) so the maths engine keeps binary and relation
+spacing. `.hl` paints `--color-brand-muted`, keeping foreground text readable in
+light, dark and derived themes (whereas `\colorbox` and `\textcolor` bake
+literal colours and `\htmlClass` / `\htmlStyle` are refused). The final boxed
+result leaves `.l` empty and wraps the whole result in `<span class="fin">`
+(styled with `--color-brand` rather than `\boxed`, which draws in the text
+colour). Empty `.hl` and `.fin` spans hide via `:empty` while `repairPrefix`
+holds back an unclosed `$…$` formula during streaming.
+
 ## Folded replies, copy and find treat `ui` like `widget`
 
 - **Folded replies.** `mayHoldWidget` and `remarkFenceSplit`

@@ -10,6 +10,7 @@ import { BlockRuntime } from "./runtime";
 import { sanitize } from "./sanitize";
 import "./genui.css";
 import "./controls.css";
+import "./derive.css";
 
 /** The language tag of a generative-UI fence. */
 export const UI_LANG = /(^|\s)language-ui(\s|$)/;
