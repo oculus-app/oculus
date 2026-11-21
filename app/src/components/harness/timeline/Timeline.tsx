@@ -155,6 +155,9 @@ export const Timeline = memo(function Timeline({
           // In the same keyed list as the rows, under the key its committed row takes.
           streamRow ? (
             <RetainedRow key={streamRow.key} className={ROW}>
+              {/* Committed item rows have `[divider, Item]` children; keep that
+                  two-child shape here, or commit remounts the row's contents. */}
+              {null}
               <Item item={streamRow.item} dim={false} actions={questions} role="provisional" stream />
             </RetainedRow>
           ) : [],

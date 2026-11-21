@@ -454,7 +454,10 @@ row identities; appending a row leaves earlier rows memoised. `LiveTail` reads
 only running, thinking and assistant text, so tool output updates its tool row.
 A reply streaming a ` ```widget ` fence is the one exception: `Timeline` draws
 its text as the row it will become, a `Reply` with `stream` under the key the
-committed answer takes (`replyKey`, `streamingReply` in `rows.ts`), and that
+committed answer takes (`replyKey`, `streamingReply` in `rows.ts`) and with
+the committed item row's two-child shape (`[null, Item]` to match
+`[RunDividerRow, Item]`, so React keeps the subtree instead of remounting it on
+commit), and that
 row reads the text per delta in place of `LiveTail`, which keeps the reasoning
 and "Working for 8s". The commit swaps the row's item in the same render, so the
 widget's frame survives it
