@@ -145,7 +145,9 @@ display policy: no thinking flags or summary setting, with
 - **`run_once` is the headless shape** — no thread, no rows; its jobs
   ([chapters.md](./chapters.md)) keep the turn's selected answer
   (`lecture_jobs::reply`, see [One answer per run](#one-answer-per-run)) and
-  do their own database write in Rust.
+  do their own database write in Rust. Nobody can answer a headless turn, so
+  `drain_turn` declines every `RequestAsked` through its route
+  (`Route::withdraw`) and the turn carries on.
 - Chat's old tables (`llm_usage`, `chats`, `chat_messages`) have no readers.
 
 ## Every thread runs from `agents/`; it writes there and in the student's own files
@@ -247,10 +249,11 @@ project|task` call. `is_oculus_cli` only checks the first words, and
 `cd … && oculus task list` reads as Bash. Proposal commands also notify
 open boards after their committed writes.
 
-**The child's environment is edited.** `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`
-are stripped so a shell key cannot move a subscription onto API billing, and so
-opencode (which reads both) shows the same catalogue from a terminal as from
-the Dock. `CLAUDECODE`/`CLAUDE_CODE_ENTRYPOINT` are stripped because the CLI
+**The child's environment is edited.** `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+and Google's three (`GEMINI_API_KEY`, `GOOGLE_API_KEY`,
+`GOOGLE_GENERATIVE_AI_API_KEY`) are stripped so a shell key cannot move a
+subscription onto API billing, and so opencode (which reads them all) shows the
+same catalogue from a terminal as from the Dock. `CLAUDECODE`/`CLAUDE_CODE_ENTRYPOINT` are stripped because the CLI
 refuses to nest. The `oculus` binary's directory goes first on PATH, so a
 stale dev binary shows up as `unrecognized subcommand`
 ([development.md](./development.md)). Claude's auto-memory is off. Every child also gets `OCULUS_AGENT=1`:

@@ -16,6 +16,10 @@ pub fn child_env() -> Vec<(String, String)> {
                 k.as_str(),
                 "ANTHROPIC_API_KEY"
                     | "OPENAI_API_KEY"
+                    // The three names opencode's Google provider and agy read.
+                    | "GEMINI_API_KEY"
+                    | "GOOGLE_API_KEY"
+                    | "GOOGLE_GENERATIVE_AI_API_KEY"
                     | "CLAUDE_AGENT_SDK_CLIENT_APP"
                     // Set inside a Claude Code session; the CLI refuses to nest.
                     | "CLAUDECODE"
@@ -68,7 +72,13 @@ mod tests {
         assert_eq!(agent[0].1, "1");
         assert!(!env.iter().any(|(key, _)| matches!(
             key.as_str(),
-            "ANTHROPIC_API_KEY" | "OPENAI_API_KEY" | "CLAUDECODE" | "CLAUDE_CODE_ENTRYPOINT"
+            "ANTHROPIC_API_KEY"
+                | "OPENAI_API_KEY"
+                | "GEMINI_API_KEY"
+                | "GOOGLE_API_KEY"
+                | "GOOGLE_GENERATIVE_AI_API_KEY"
+                | "CLAUDECODE"
+                | "CLAUDE_CODE_ENTRYPOINT"
         )));
     }
 }

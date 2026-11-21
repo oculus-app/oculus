@@ -36,7 +36,20 @@ fn each_provider_knows_its_own_wording() {
         Provider::Opencode,
         "no credentials for provider anthropic"
     ));
-    for p in [Provider::Claude, Provider::Codex, Provider::Opencode] {
+    assert!(is_auth_failure(
+        Provider::Antigravity,
+        "Antigravity was not started: agy session/new: Authentication required"
+    ));
+    assert!(is_auth_failure(
+        Provider::Antigravity,
+        "Error: Please sign in to view available models."
+    ));
+    for p in [
+        Provider::Claude,
+        Provider::Codex,
+        Provider::Opencode,
+        Provider::Antigravity,
+    ] {
         assert!(is_auth_failure(p, "OAuth token has expired"), "{p:?}");
         assert!(
             is_auth_failure(p, "authentication_error: invalid x-api-key"),
@@ -58,7 +71,12 @@ fn ordinary_failures_are_not_auth_failures() {
         "codex app-server exited (code Some(2))",
         "ENOENT: could not open agents/notes.md",
     ];
-    for p in [Provider::Claude, Provider::Codex, Provider::Opencode] {
+    for p in [
+        Provider::Claude,
+        Provider::Codex,
+        Provider::Opencode,
+        Provider::Antigravity,
+    ] {
         for msg in innocent {
             assert!(!is_auth_failure(p, msg), "{p:?} wrongly flagged {msg:?}");
         }

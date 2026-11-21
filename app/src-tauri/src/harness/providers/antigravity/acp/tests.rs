@@ -335,9 +335,15 @@ fn chunks_join_into_named_blocks_split_by_tools_and_closed_by_the_reply() {
     ] {
         events.extend(t.update(&u));
     }
-    events.extend(t.finish(Ok(
-        json!({ "stopReason": "end_turn", "usage": { "inputTokens": 7, "outputTokens": 3 } }),
-    )));
+    events.extend(t.finish(Ok(json!({
+        "stopReason": "end_turn",
+        "usage": {
+            "inputTokens": 7,
+            "cachedReadTokens": 10,
+            "cachedWriteTokens": 2,
+            "outputTokens": 3
+        }
+    }))));
     let kept: Vec<Value> = events
         .iter()
         .filter(|e| {
@@ -369,7 +375,7 @@ fn chunks_join_into_named_blocks_split_by_tools_and_closed_by_the_reply() {
     assert_eq!(kept[5]["source"]["id"], "msg-3");
     assert!(kept[5]["source"].get("partial").is_none());
     assert_eq!(kept[6]["context_tokens"], 120);
-    assert_eq!(kept[6]["input_tokens"], 7);
+    assert_eq!(kept[6]["input_tokens"], 19);
     assert_eq!(kept[7]["status"], "completed");
     let HarnessEvent::TurnFinished { turn, .. } = events.last().unwrap() else {
         panic!()
