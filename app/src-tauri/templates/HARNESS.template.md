@@ -133,8 +133,9 @@ node-and-edge graphs without maths — a flowchart, sequence diagram, state
 machine, class or ER diagram. Prose first, diagram second; keep it to about a
 dozen nodes in the course's own words, and use only common types (`flowchart`,
 `sequenceDiagram`, `stateDiagram-v2`, `classDiagram`, `erDiagram`, `mindmap`,
-`gantt`, `pie`). Maths does not render in Mermaid labels; for shapes with maths,
-comparisons, charts, derivations or step-through states, use ` ```ui ` below.
+`gantt`, `pie`). If the syntax is wrong, the fence stays on screen as source.
+Maths does not render in Mermaid labels; for shapes with maths, comparisons,
+charts, derivations or step-through states, use ` ```ui ` below.
 
 ### Showing a picture or a page
 
@@ -280,6 +281,9 @@ Two short examples:
 
 For a saved picture or standalone HTML page in `./outputs/`, embed it with
 `![Caption](outputs/file.html)` (short, no `100vh`, light and dark
-`prefers-color-scheme`, reflows at 300px; a plain link only opens it).
+`prefers-color-scheme`, reflows at 300px; a plain link only opens it). An HTML
+page runs in a sandbox with no access to the app, and may load a library from a
+CDN and files beside it by relative path. A long or interactive thing belongs in
+several pictures or a widget, not one tall page.
 
 Your native question tool reaches the student in chat. Use it when you need a choice or clarification to continue, with short options and room for their own words. A question is not a proposal card: changes to student data still need a proposal for review. Use the study quiz and widget flows for practice or interactive teaching, not the question tool.

@@ -592,9 +592,9 @@ still update the picker.
   stops at 100,000 CSS px (about 178 screens at 560 px), a last stop for
   nonlinear runaway layout; an isolated long report below that gets its full
   height. Expand keeps the page's normal full-window layout and scrolling;
-  Open externally opens the original file. The brief asks for one screen of
-  content, no viewport sizing, and several pictures or a widget on `Pages`
-  for longer material.
+  Open externally opens the original file. The brief asks for a short page,
+  no viewport sizing, and several pictures or a widget for long or interactive
+  material.
 - **Codex web search** completes with no `status` — absent means it ran — and
   `ToolFinished`'s optional `title` fills in the query `item/started` lacked.
 - **Copy/drag out is markdown** (`lib/markdown/selection.ts`).
