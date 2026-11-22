@@ -64,7 +64,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 
 **A bridge's capabilities are one struct.** `providers/capabilities.rs`
 (`Capabilities`, `of`) says per bridge whether Stop ends a turn
-(`interrupt`), whether the CLI can take a question back (`rewind`), whether
+(`interrupt`), how a question is taken back (`rewind`: `native` or `fresh`), whether
 one server process serves every chat (`shared_process`: Codex, opencode),
 whether a live session takes another model with its next turn
 (`model_switch_in_session`: Codex, opencode), whether the bridge can take
@@ -1612,8 +1612,9 @@ from the app, which settles the run. A send whose commit fails wrote
 nothing; the chat gets the error row and a failed turn's end with no run.
 
 **A command that needs the provider's answer first is decided twice.**
-Rewind and edit-and-resend ask the provider to forget the question before
-the rows go, and the rows' fate depends on the answer. The decider returns
+A native rewind or edit-and-resend asks the provider to forget the question
+before the rows go, and the rows' fate depends on the answer (a fresh one
+asks nothing and commits at once). The decider returns
 `Decision::Ask`; the consumer holds the chat (a message sent meanwhile
 waits its turn, so it cannot be among the rows the rewind takes; the hold
 is the parked command itself), performs
@@ -2515,24 +2516,24 @@ student wrote for their own terminal does not hold in a chat.
 Edit, Retry and Rewind truncate at a row (`harness::store::truncate`, announced as
 `Rewound`); Edit/Retry then send in the same commit (`harness_edit_resend`,
 the `EditResend` command), Rewind returns the
-words to the composer (`harness_rewind`). No branching; idle threads only; not
-offered where the `rewind` capability of the bridge that answered the
-question (its run's provider, `questionProvider`) is false (Antigravity),
-whichever agent the chat is on now. That provider rewinds first
-([Changing provider mid-chat](#changing-provider-mid-chat)), resuming an
-exited session without a turn:
+words to the composer (`harness_rewind`). These actions are available in idle
+chats once the capabilities of the provider that answered the question are
+known (its run's provider, `questionProvider`). A native rewind resumes an
+exited session if needed. A fresh-session rewind takes effect in the
+truncation commit and starts a session on the next send.
 
-| | Call | Names |
+| Provider | Rewind | Target |
 | --- | --- | --- |
 | Claude | `control_request` / `rewind_conversation` | the user message's uuid, plus the newest question's as `last_seen_user_message_uuid` (without it the CLI refuses past any later turn: `stale_target`) |
 | Codex | `thread/revert` | the turn to revert before |
 | opencode | `POST /session/{id}/revert` | the message to drop, inclusive; lands on the next prompt |
+| Antigravity | none: a fresh session (`agy acp` has no way back to an earlier message) | nothing is asked. The truncation commit clears the binding's saved id and ends its live session; the next send opens `session/new` with a `full` handoff of the kept rows, and `Rewound` says `context: true` |
 
 An edit may name the provider the composer shows (`harness_edit_resend`'s
 `provider`): the new run then starts there, with the handoff that provider
 is owed, in the same commit as the rewind.
 
-The id is stored on the question row as `anchor` (from `TurnAnchor`) when the
+For native rewinds, the id is stored on the question row as `anchor` (from `TurnAnchor`) when the
 turn goes out: Codex's `turn/start` reply, opencode's first user
 `message.updated`. Claude never echoes it, so `anchor_for` walks
 `~/.claude/projects/<slug>/<session>.jsonl` up from the first answer (slug =
@@ -2631,7 +2632,7 @@ from the thread's live session and the run's selection, in this order:
 | same provider, another permission mode | `SwitchModeInSession` where `mode_switch_in_session` is true (Codex names it on its next `turn/start`) or the bridge has no `approvals` (it reads no mode, so the mode is only recorded). Else `RestartAndResume` (Claude, whose mode is fixed at spawn) | |
 | the same selection and mode | `Reuse` | |
 
-A rewind brings up the question's provider the same way, without regard to
+A native rewind brings up the question's provider the same way, without regard to
 model or level.
 
 **A session that has not seen the chat is handed it.** Each provider's
@@ -2709,31 +2710,36 @@ The student's new message:
   `runSwitch` in `lib/harness/switching.ts`).
 
 **A rewind goes to the session that holds the question.** The question's
-own run names its binding (`bindings::holder`), so `Rewind` and `EditResend`
-ask that provider's session to forget it, by the question's anchor,
-whichever provider the chat is on now; `Harness::rewind` brings that
-provider's session up, ending another's. In the commit that removes the
-rows (`bindings::rewound`):
+own run names its binding (`bindings::holder`), whichever provider the chat
+is on now. For a native rewind, `Harness::rewind` brings up that provider's
+session and asks it to forget the question by its anchor. A fresh-session
+rewind needs neither a live session nor an anchor. In the commit that
+removes the rows (`bindings::rewound`):
 
-- **The holder keeps its session** and is marked as having seen only what
-  it had before that run: every earlier run, or, when the run's prompt
-  carried a handoff, what it had seen before the handoff, since the
-  provider's rewind takes the handoff back with the question. Its next run
-  is handed those runs again.
+- **A native holder keeps its session.** Its coverage goes back to the
+  run before the question, or to the coverage it had before the question's
+  handoff. Its next run is handed any missing runs again.
+- **A fresh holder gives up its session.** Its native id and coverage are
+  cleared and its live session is ended (`Effect::Forget`, detached on the
+  consumer before an edit's run can reuse it), so `Rewound` says
+  `context: true`. Its next prompt opens a new session with a `full`
+  handoff of the surviving rows, when any remain. A holder given up
+  earlier is cleared the same way, with nothing live to end.
 - **Every other binding that saw the question or anything after it holds
   context erased by the rewind.** Its native session is cleared and it
   covers nothing, so its next use starts fresh with a `full` handoff; a
   live session of that provider is ended (`Effect::Forget`).
 - **Handoff rows of the removed runs go with them** (`store::truncate`).
 
-Where the holder's session cannot be asked (no anchor, no session, or one
+Where a native holder's session cannot be asked (no anchor, no session, or one
 given up since), the rows go anyway and `Rewound { context: false }` says
 so, as in a one-provider chat.
 
 `switching.rs` in the testkit replays these through recorded bridges:
 Claude → Codex → Claude → Codex, the dropped middle, the send that cannot
 fit, the crash on either side of the start step, a message queued before a
-switch, and the refusals. Its rig lets every bridge take a handoff
+switch, the refusals, and an edit at an Antigravity question in a chat
+Claude started, resent on Antigravity or on Claude. Its rig lets every bridge take a handoff
 (`Harness::allow_handoff_everywhere`), which no production path can.
 
 ### In the composer and the timeline

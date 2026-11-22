@@ -1,13 +1,18 @@
-//! Derived setup traffic: an unloadable saved session, then a new session
-//! carrying the same transcript handoff as a provider switch.
-use std::sync::{Arc, Mutex};
+//! Derived ACP setup traffic for fresh sessions after a failed load or a rewind.
+use std::sync::{mpsc, Arc};
 
 use serde_json::{json, Value};
 
-use crate::harness::antigravity::acp::{replay::opening_bridge, OpenError};
-use crate::harness::{Provider, SendError, SendOptions};
+use crate::harness::antigravity::acp::{replay::open_session, OpenError};
+use crate::harness::antigravity::AcpSession;
+use crate::harness::manager::Handle;
+use crate::harness::{Harness, Provider, SendError, SendOptions};
 
-use super::{outbound::Expected, rig::Rig, scenario::Scenario};
+use super::{
+    outbound::{Expected, Outbound},
+    rig::Rig,
+    scenario::Scenario,
+};
 
 fn expected(id: i64, method: &str, params: Value, response: Value, prompt: bool) -> Expected {
     Expected {
@@ -18,25 +23,73 @@ fn expected(id: i64, method: &str, params: Value, response: Value, prompt: bool)
     }
 }
 
+fn initialize() -> Expected {
+    expected(
+        1,
+        "initialize",
+        json!({
+            "protocolVersion":1,
+            "clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"elicitation":{"form":{}}},
+            "clientInfo":{"name":"oculus","title":"Oculus","version":env!("CARGO_PKG_VERSION")},
+        }),
+        json!({"agentInfo":{"version":"1.5.9"}}),
+        false,
+    )
+}
+
+fn prompt(id: i64, session: &str) -> Expected {
+    expected(
+        id,
+        "session/prompt",
+        json!({"sessionId":session,"prompt":[{"type":"text","text":"Replay request"}]}),
+        Value::Null,
+        true,
+    )
+}
+
+fn new_session(session: &str) -> [Expected; 4] {
+    [
+        initialize(),
+        expected(
+            2,
+            "session/new",
+            json!({"cwd":"$SCRATCH/agents","mcpServers":[]}),
+            json!({"sessionId": session}),
+            false,
+        ),
+        expected(
+            3,
+            "session/set_mode",
+            json!({"sessionId":session,"modeId":"default"}),
+            json!({}),
+            false,
+        ),
+        prompt(4, session),
+    ]
+}
+
+/// Register the ACP handshake using the session id chosen by the real send.
+fn register_session(
+    harness: &Harness,
+    thread: i64,
+    outbound: Outbound,
+    root: std::path::PathBuf,
+    opened: mpsc::Sender<Arc<AcpSession>>,
+) {
+    harness.replay_spawn_result(thread, Provider::Antigravity, move |sink, resume| {
+        let session = open_session(outbound, sink, resume, &root)
+            .map_err(|e| SendError::Unsent(e.to_string()))?;
+        opened.send(session.clone()).unwrap();
+        Ok(Handle::Antigravity(session))
+    });
+}
+
 #[test]
 fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id() {
-    let init = || {
-        expected(
-            1,
-            "initialize",
-            json!({
-                "protocolVersion":1,
-                "clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"elicitation":{"form":{}}},
-                "clientInfo":{"name":"oculus","title":"Oculus","version":env!("CARGO_PKG_VERSION")},
-            }),
-            json!({"agentInfo":{"version":"1.5.9"}}),
-            false,
-        )
-    };
     let mut scenario = Scenario::recorded("antigravity-acp-ls");
     scenario.frames.clear();
     scenario.fixture.expected_outbound = vec![
-        init(),
+        initialize(),
         expected(
             2,
             "session/load",
@@ -44,36 +97,15 @@ fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id(
             json!({"error":{"code":-32603,"message":"conversation not found"}}),
             false,
         ),
-        init(),
-        expected(
-            2,
-            "session/new",
-            json!({"cwd":"$SCRATCH/agents","mcpServers":[]}),
-            json!({"sessionId":"fresh-acp-id"}),
-            false,
-        ),
-        expected(
-            3,
-            "session/set_mode",
-            json!({"sessionId":"fresh-acp-id","modeId":"default"}),
-            json!({}),
-            false,
-        ),
-        expected(
-            4,
-            "session/prompt",
-            json!({"sessionId":"fresh-acp-id","prompt":[{"type":"text","text":"Replay request"}]}),
-            Value::Null,
-            true,
-        ),
-        expected(
-            5,
-            "session/prompt",
-            json!({"sessionId":"fresh-acp-id","prompt":[{"type":"text","text":"Replay request"}]}),
-            Value::Null,
-            true,
-        ),
     ];
+    scenario
+        .fixture
+        .expected_outbound
+        .extend(new_session("fresh-acp-id"));
+    scenario
+        .fixture
+        .expected_outbound
+        .push(prompt(5, "fresh-acp-id"));
     let mut rig = Rig::start(scenario);
     rig.runtime.block_on(async {
         let binding: i64 = sqlx::query_scalar("INSERT INTO harness_bindings (thread_id,provider,current,native_session,covered_through) VALUES (?1,'antigravity',1,'old-print-id',1) RETURNING id")
@@ -86,31 +118,20 @@ fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id(
             sqlx::query(&format!("UPDATE harness_runs SET {column} = ?2 WHERE id = ?1")).bind(old).bind(item).execute(&rig.pool).await.unwrap();
         }
     });
-    let bridge: Arc<Mutex<Option<crate::harness::manager::Handle>>> = Arc::default();
-    let (harness, thread, outbound, root, slot) = (
+    let (opened, bridge) = mpsc::channel();
+    let (harness, thread, outbound, root) = (
         Arc::downgrade(&rig.harness),
         rig.thread,
         rig.outbound.clone(),
         rig.scratch.to_path_buf(),
-        bridge.clone(),
     );
     rig.harness
-        .replay_spawn_result(thread, Provider::Antigravity, move |sink| {
-            let error = match opening_bridge(outbound.clone(), sink, Some("old-print-id"), &root) {
+        .replay_spawn_result(thread, Provider::Antigravity, move |sink, resume| {
+            let error = match open_session(outbound.clone(), sink, resume, &root) {
                 Err(OpenError::Load(e)) => e,
                 _ => panic!("the real load must fail before any prompt"),
             };
-            harness.upgrade().unwrap().replay_spawn_result(
-                thread,
-                Provider::Antigravity,
-                move |sink| {
-                    let next = opening_bridge(outbound, sink, None, &root)
-                        .map_err(|e| SendError::Unsent(e.to_string()))?;
-                    let handle = next.handle.clone();
-                    *slot.lock().unwrap() = Some(handle.clone());
-                    Ok(handle)
-                },
-            );
+            register_session(&harness.upgrade().unwrap(), thread, outbound, root, opened);
             Err(SendError::ResumeFailed(error))
         });
     rig.say(
@@ -127,14 +148,8 @@ fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id(
     assert!(prompt.contains("Your locker is 19"));
     assert_eq!(prompt.matches("Which locker?").count(), 1);
     let reply = |id| json!({"id":id,"result":{"stopReason":"end_turn"}});
-    let feed = |frame: Value| {
-        let slot = bridge.lock().unwrap();
-        let crate::harness::manager::Handle::Antigravity(session) = slot.as_ref().unwrap() else {
-            panic!()
-        };
-        session.inbound(&frame);
-    };
-    feed(reply(4));
+    let session = bridge.try_recv().unwrap();
+    session.inbound(&reply(4));
     rig.drain();
     rig.say(
         "next",
@@ -145,7 +160,7 @@ fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id(
     .unwrap();
     rig.drain();
     assert_eq!(rig.prompts(), [prompt, "Thank you".into()]);
-    feed(reply(5));
+    session.inbound(&reply(5));
     rig.drain();
     let current: String = rig
         .runtime
@@ -229,4 +244,101 @@ fn a_stop_or_delete_before_recovery_does_not_replace_the_binding() {
         assert_eq!(count, 1);
         rig.finish();
     }
+}
+
+#[test]
+fn a_mid_chat_rewind_opens_a_new_acp_session_with_only_the_kept_exchange() {
+    use crate::harness::core::{Command, Kind};
+    use crate::harness::store::bindings;
+
+    let agy = Provider::Antigravity;
+    let options = SendOptions::default();
+    let mut scenario = Scenario::recorded("antigravity-acp-ls");
+    scenario.frames.clear();
+    scenario.fixture.expected_outbound = new_session("original").into();
+    scenario
+        .fixture
+        .expected_outbound
+        .extend([prompt(5, "original"), prompt(6, "original")]);
+    scenario
+        .fixture
+        .expected_outbound
+        .extend(new_session("replacement"));
+    let mut rig = Rig::start(scenario);
+    let open = |rig: &Rig| {
+        let (opened, bridge) = mpsc::channel();
+        register_session(
+            &rig.harness,
+            rig.thread,
+            rig.outbound.clone(),
+            rig.scratch.to_path_buf(),
+            opened,
+        );
+        bridge
+    };
+    let answer = |acp: &AcpSession, session, id, text| {
+        acp.inbound(
+            &json!({"method":"session/update","params":{"sessionId":session,"update":{
+                "sessionUpdate":"agent_message_chunk","content":{"type":"text","text":text}
+            }}}),
+        );
+        acp.inbound(&json!({"id":id,"result":{"stopReason":"end_turn"}}));
+    };
+    let opened = open(&rig);
+    rig.say("first", agy, "Kept question", &options).unwrap();
+    let old = opened.try_recv().unwrap();
+    answer(&old, "original", 4, "Kept answer");
+    rig.drain();
+    let second = rig
+        .say("second", agy, "Removed question", &options)
+        .unwrap()
+        .run
+        .unwrap();
+    answer(&old, "original", 5, "Removed answer");
+    rig.drain();
+    rig.say("third", agy, "Later question", &options).unwrap();
+    answer(&old, "original", 6, "Later answer");
+    rig.drain();
+    let binding = |rig: &Rig| {
+        rig.runtime
+            .block_on(bindings::find(&rig.pool, rig.thread, agy))
+            .unwrap()
+            .unwrap()
+    };
+    assert_eq!(binding(&rig).native_session.as_deref(), Some("original"));
+
+    rig.command(Command {
+        id: "rewind".into(),
+        thread_id: Some(rig.thread),
+        kind: Kind::Rewind {
+            item_id: second.item_id,
+        },
+    })
+    .unwrap();
+    assert!(!old.is_alive());
+    let reset = binding(&rig);
+    assert_eq!((reset.native_session, reset.covered_through), (None, 0));
+    assert!(rig
+        .envelopes()
+        .iter()
+        .any(|e| e["event"]["type"] == "rewound" && e["event"]["context"] == true));
+
+    let opened = open(&rig);
+    rig.say("next", agy, "Next question", &options).unwrap();
+    let fresh = opened.try_recv().unwrap();
+    answer(&fresh, "replacement", 4, "Next answer");
+    rig.drain();
+    let prompt = rig.prompts().pop().unwrap();
+    assert!(prompt.contains("2 messages follow, whole and in order."));
+    assert!(prompt.contains("[Student]\nKept question"));
+    assert!(prompt.contains("[Agent (Antigravity)]\nKept answer"));
+    assert!(prompt.ends_with("The student's new message:\nNext question"));
+    assert!(!prompt.contains("Removed") && !prompt.contains("Later"));
+    assert_eq!(binding(&rig).native_session.as_deref(), Some("replacement"));
+    let handoff: (String, String) = rig
+        .runtime
+        .block_on(sqlx::query_as("SELECT kind,status FROM harness_handoffs").fetch_one(&rig.pool))
+        .unwrap();
+    assert_eq!(handoff, ("full".into(), "inline".into()));
+    rig.finish();
 }

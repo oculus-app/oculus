@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { createCapabilities, type Capabilities } from "@/lib/harness/capabilities";
 
 const codex: Capabilities = {
-  questions: true, provider: "codex", interrupt: true, rewind: true, sharedProcess: true, activeSteering: false, steerByRestart: false,
+  questions: true, provider: "codex", interrupt: true, rewind: "native", sharedProcess: true, activeSteering: false, steerByRestart: false,
   modelSwitchInSession: true, providerHandoff: true, approvals: true, autoReview: true, sessionGrants: true,
   modeSwitchInSession: true,
 };
@@ -18,7 +18,7 @@ test("every optional action reads as unavailable until Rust has answered", async
   caps.subscribe(() => (told += 1));
   const before = caps.of("codex");
   expect(before).toEqual({
-    ...codex, interrupt: false, rewind: false, sharedProcess: false, modelSwitchInSession: false, providerHandoff: false,
+    ...codex, interrupt: false, rewind: null, sharedProcess: false, modelSwitchInSession: false, providerHandoff: false,
     questions: false, approvals: false, autoReview: false, sessionGrants: false, modeSwitchInSession: false,
   });
   // The same object while nothing has changed, as `useSyncExternalStore` needs.
@@ -30,8 +30,14 @@ test("every optional action reads as unavailable until Rust has answered", async
   expect(told).toBe(1);
   expect(caps.of("codex")).toBe(codex);
   // A provider Rust did not list keeps the conservative answer.
-  expect(caps.of("antigravity").rewind).toBe(false);
+  expect(caps.of("antigravity").rewind).toBeNull();
   expect(asked).toBe(1);
+});
+
+test("a bridge can take a question back by starting a fresh session", async () => {
+  const caps = createCapabilities(async () => [{ ...codex, provider: "antigravity", rewind: "fresh" }]);
+  await caps.load();
+  expect(caps.of("antigravity").rewind).toBe("fresh");
 });
 
 test("a failed read is asked again by the next reader", async () => {
@@ -42,9 +48,9 @@ test("a failed read is asked again by the next reader", async () => {
   });
   await expect(caps.load()).rejects.toThrow("Tauri is not available");
   // Reading asks again; that try fails too and leaves the answer unknown.
-  expect(caps.of("codex").rewind).toBe(false);
+  expect(caps.of("codex").rewind).toBeNull();
   await caps.load().catch(() => {});
   fail = false;
   await caps.load();
-  expect(caps.of("codex").rewind).toBe(true);
+  expect(caps.of("codex").rewind).toBe("native");
 });

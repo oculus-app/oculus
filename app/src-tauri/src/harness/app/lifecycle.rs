@@ -97,7 +97,7 @@ impl ConsumerIo for AppIo {
             bus: self.bus.clone(),
             pools: Pools::App,
         };
-        tauri::async_runtime::spawn(async move { effect::run(&runtime, effect).await });
+        tauri::async_runtime::spawn(effect::run(runtime, effect));
     }
 
     fn emit(&mut self, envelope: Envelope) {

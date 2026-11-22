@@ -298,6 +298,63 @@ async fn bindings_follow_the_native_session_and_rewinds_drop_their_runs() {
 }
 
 #[tokio::test]
+async fn a_fresh_holder_gives_up_its_session_and_a_native_one_keeps_it() {
+    use crate::harness::providers::capabilities::Rewind;
+
+    // (strategy, whether the holder is current) -> (returned, session, coverage)
+    let cases = [
+        (Rewind::Fresh, true, vec![Provider::Antigravity], None, 0),
+        (Rewind::Fresh, false, vec![], None, 0),
+        (Rewind::Native, true, vec![], Some("old-session"), 1),
+    ];
+    for (rewind, current, returned, session, covered) in cases {
+        let (_dir, pool) = scratch_pool("rewound-holder").await;
+        let provider = Provider::Antigravity;
+        let thread = store::create_thread(&pool, provider, None, None, None, "q")
+            .await
+            .unwrap();
+        let intent = |receipt: &str| store::SendIntent {
+            provider,
+            ..intent(thread, receipt)
+        };
+        let first = store::begin_run(&pool, &intent("a")).await.unwrap();
+        let second = store::begin_run(&pool, &intent("b")).await.unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        store::bindings::bind_session(&mut tx, first.run_id, "old-session")
+            .await
+            .unwrap();
+        // Coverage lags the question: the fresh holder goes all the same.
+        store::bindings::cover(&mut tx, first.binding_id, 1)
+            .await
+            .unwrap();
+        if !current {
+            sqlx::query("UPDATE harness_bindings SET current = 0")
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+        }
+        let stale = store::bindings::rewound(&mut tx, thread, second.item_id, rewind)
+            .await
+            .unwrap();
+        assert_eq!(stale, returned, "{rewind:?} current={current}");
+        let row: (Option<String>, i64) = sqlx::query_as(
+            "SELECT native_session, covered_through FROM harness_bindings WHERE id = ?1",
+        )
+        .bind(second.binding_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        assert_eq!(
+            row,
+            (session.map(String::from), covered),
+            "{rewind:?} current={current}"
+        );
+        tx.commit().await.unwrap();
+        pool.close().await;
+    }
+}
+
+#[tokio::test]
 async fn a_restart_interrupts_runs_left_open() {
     let (_dir, pool) = scratch_pool("turn-reconcile").await;
     let thread = store::create_thread(&pool, Provider::Claude, None, None, None, "q")

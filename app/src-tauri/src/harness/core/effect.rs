@@ -103,59 +103,76 @@ impl Pools {
 
 /// Carry one effect out. A failure is reported on the bus as the events
 /// that close what the effect was for; nothing is returned.
-pub(in crate::harness) async fn run(rt: &Runtime, effect: Effect) {
-    match effect {
-        Effect::Start(start) => crate::harness::app::send::start(rt, *start).await,
-        Effect::Rewind { command, ask } => {
-            let thread_id = ask.thread_id;
-            let context = crate::harness::app::rewind::provider(rt, *ask).await;
-            let _ = rt.bus.send(BusMsg::Answer {
-                thread_id,
-                command,
-                answer: Answer::Rewound { context },
-            });
-        }
-        Effect::Steer(steer) => crate::harness::app::steer::write(rt, *steer).await,
-        Effect::Interrupt { thread_id } => {
-            let harness = rt.harness.clone();
-            let asked = crate::runtime::blocking::run(move || harness.interrupt(thread_id)).await;
-            if let Err(e) = asked {
-                elog!("[oculus] harness thread {thread_id}: interrupt: {e}");
-            }
-        }
-        Effect::ForceStop { thread_id } => rt.harness.force_stop(thread_id),
-        Effect::Release { thread_id, reason } => rt.harness.release(thread_id, reason),
+pub(in crate::harness) fn run(
+    rt: Runtime,
+    effect: Effect,
+) -> impl std::future::Future<Output = ()> {
+    // A stale session is detached now, on the consumer, not in the spawned
+    // task: a resend dispatched right after must not find it live and reuse it.
+    let close = match effect {
         Effect::Forget {
             thread_id,
             provider,
-        } => rt.harness.release_provider(thread_id, provider),
-        Effect::Reply(reply) => {
-            let Reply {
-                thread_id,
-                provider,
-                request_id,
-                route,
-                option,
-                answers,
-            } = *reply;
-            let written =
-                crate::runtime::blocking::run(move || Ok(route.0.reply_answers(&option, &answers)));
-            let reply = written
-                .await
-                .unwrap_or_else(crate::harness::requests::Reply::Uncertain);
-            let _ = rt.bus.send(BusMsg::Replied {
-                thread_id,
-                provider,
-                request_id,
-                reply,
-            });
-        }
-        Effect::Withdraw { routes } => {
-            let withdrawn = crate::runtime::blocking::run(move || {
-                routes.iter().for_each(|route| route.0.withdraw());
-                Ok(())
-            });
-            let _: Result<(), String> = withdrawn.await;
+        } => rt.harness.forget_provider(thread_id, provider),
+        _ => None,
+    };
+    async move {
+        match effect {
+            Effect::Start(start) => crate::harness::app::send::start(&rt, *start).await,
+            Effect::Rewind { command, ask } => {
+                let thread_id = ask.thread_id;
+                let context = crate::harness::app::rewind::provider(&rt, *ask).await;
+                let _ = rt.bus.send(BusMsg::Answer {
+                    thread_id,
+                    command,
+                    answer: Answer::Rewound { context },
+                });
+            }
+            Effect::Steer(steer) => crate::harness::app::steer::write(&rt, *steer).await,
+            Effect::Interrupt { thread_id } => {
+                let harness = rt.harness.clone();
+                let asked =
+                    crate::runtime::blocking::run(move || harness.interrupt(thread_id)).await;
+                if let Err(e) = asked {
+                    elog!("[oculus] harness thread {thread_id}: interrupt: {e}");
+                }
+            }
+            Effect::ForceStop { thread_id } => rt.harness.force_stop(thread_id),
+            Effect::Release { thread_id, reason } => rt.harness.release(thread_id, reason),
+            Effect::Forget { .. } => {
+                if let Some(close) = close {
+                    close();
+                }
+            }
+            Effect::Reply(reply) => {
+                let Reply {
+                    thread_id,
+                    provider,
+                    request_id,
+                    route,
+                    option,
+                    answers,
+                } = *reply;
+                let written = crate::runtime::blocking::run(move || {
+                    Ok(route.0.reply_answers(&option, &answers))
+                });
+                let reply = written
+                    .await
+                    .unwrap_or_else(crate::harness::requests::Reply::Uncertain);
+                let _ = rt.bus.send(BusMsg::Replied {
+                    thread_id,
+                    provider,
+                    request_id,
+                    reply,
+                });
+            }
+            Effect::Withdraw { routes } => {
+                let withdrawn = crate::runtime::blocking::run(move || {
+                    routes.iter().for_each(|route| route.0.withdraw());
+                    Ok(())
+                });
+                let _: Result<(), String> = withdrawn.await;
+            }
         }
     }
 }

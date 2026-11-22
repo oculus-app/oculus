@@ -1017,3 +1017,101 @@ fn an_edit_under_another_provider_rewinds_and_switches_in_one_commit() {
         ]
     );
 }
+
+/// Antigravity's rewind is a fresh session, whichever agent the chat is on
+/// now: an edit at its question gives up its session in the truncation
+/// commit, asks it nothing, and hands the new run only the kept rows.
+/// Claude saw nothing that went, and keeps its session.
+#[test]
+fn an_edit_at_an_antigravity_question_gives_its_session_up_for_a_fresh_one() {
+    let mut bench = Bench::new("edit-fresh-holder");
+    bench.allow_handoff();
+    bench.play(turn(&bench, "c1", Provider::Claude, "first"));
+    bench.play(turn(&bench, "c2", Provider::Antigravity, "second"));
+    assert_eq!(bench_handoffs(&bench)[0].1, "inline");
+    let (pick, picked) = bench.command(
+        "pick",
+        Kind::SelectModel {
+            provider: Provider::Claude,
+            model: None,
+            effort: None,
+        },
+    );
+    bench.play(vec![pick]);
+    bench.got(picked).unwrap();
+    let claude = bench_bindings(&bench)[0].clone();
+    let first = question(&bench, "first");
+    let answer = bench.count("SELECT answer_item_id FROM harness_runs WHERE ordinal = 1");
+    bench.clear();
+    let (edit, edited) = bench.command(
+        "edit",
+        Kind::EditResend {
+            item_id: question(&bench, "second"),
+            text: "replacement".into(),
+            options: SendOptions::default(),
+            provider: Some(Provider::Antigravity),
+        },
+    );
+    bench.play(vec![edit]);
+    bench.got(edited).unwrap();
+    assert_eq!(bench.effects(), ["forget antigravity", "start replacement"]);
+    assert_eq!(bench.events()[0]["event"]["context"], true);
+    assert_eq!(bench.questions(), ["first", "replacement"]);
+    assert_eq!(
+        bench_bindings(&bench),
+        [claude, ("antigravity".into(), None, 1, 0)]
+    );
+    let handed = bench_handoffs(&bench);
+    assert_eq!(handed.len(), 1);
+    let (kind, status, from, to, items) = &handed[0];
+    assert_eq!(
+        (kind.as_str(), status.as_str(), *from, *to),
+        ("full", "pending", 1, 1)
+    );
+    assert_eq!(
+        serde_json::from_str::<Vec<i64>>(items).unwrap(),
+        [first, answer]
+    );
+}
+
+/// An edit at Antigravity's question sent under Claude: Antigravity's
+/// session goes as above, and the run starts on Claude, whose session
+/// already holds every kept row, so nothing is handed to it.
+#[test]
+fn an_edit_at_an_antigravity_question_can_switch_back_to_claude() {
+    let mut bench = Bench::new("edit-fresh-switch");
+    bench.allow_handoff();
+    bench.play(turn(&bench, "c1", Provider::Claude, "first"));
+    bench.play(turn(&bench, "c2", Provider::Antigravity, "second"));
+    bench.clear();
+    let (edit, edited) = bench.command(
+        "edit",
+        Kind::EditResend {
+            item_id: question(&bench, "second"),
+            text: "second, for Claude".into(),
+            options: SendOptions::default(),
+            provider: Some(Provider::Claude),
+        },
+    );
+    bench.play(vec![edit]);
+    bench.got(edited).unwrap();
+    assert_eq!(
+        bench.effects(),
+        ["forget antigravity", "start second, for Claude"]
+    );
+    let start = bench.starts().pop().expect("the edit's run goes out");
+    assert_eq!(start.provider, Provider::Claude);
+    assert_eq!(bench.events()[0]["event"]["context"], true);
+    assert_eq!(bench.questions(), ["first", "second, for Claude"]);
+    assert_eq!(
+        bench_bindings(&bench),
+        [
+            ("claude".into(), Some("claude-session".into()), 1, 1),
+            ("antigravity".into(), None, 1, 0),
+        ]
+    );
+    assert!(
+        bench_handoffs(&bench).is_empty(),
+        "run 2's handoff went with it, and Claude is owed none"
+    );
+}

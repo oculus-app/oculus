@@ -121,7 +121,7 @@ impl ConsumerIo for Io {
             return;
         }
         let runtime = self.runtime.as_ref().unwrap();
-        runtime.block_on(effect::run(&self.effects, effect));
+        runtime.block_on(effect::run(self.effects.clone(), effect));
     }
     fn emit(&mut self, envelope: Envelope) {
         self.snapshots.push(

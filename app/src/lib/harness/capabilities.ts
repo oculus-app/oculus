@@ -8,8 +8,8 @@ export interface Capabilities {
   questions: boolean;
   /** Stop ends the running turn. */
   interrupt: boolean;
-  /** The CLI can drop a question from its own context: gates Rewind, Edit and Retry. */
-  rewind: boolean;
+  /** How Rewind, Edit and Retry take a question back. Null until capabilities are known. */
+  rewind: "native" | "fresh" | null;
   /** One server process answers every chat of this provider, so Force stop
    *  ends the other chats' turns too. */
   sharedProcess: boolean;
@@ -39,7 +39,7 @@ export interface Capabilities {
 /** What a provider is taken to do until Rust has answered: nothing optional. */
 function unknown(provider: Provider): Capabilities {
   return {
-    questions: false, provider, interrupt: false, rewind: false, sharedProcess: false, activeSteering: false, steerByRestart: false,
+    questions: false, provider, interrupt: false, rewind: null, sharedProcess: false, activeSteering: false, steerByRestart: false,
     modelSwitchInSession: false, providerHandoff: false, approvals: false, autoReview: false,
     sessionGrants: false, modeSwitchInSession: false,
   };

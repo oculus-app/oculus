@@ -22,10 +22,9 @@ import { mayHoldWidget } from "@/components/markdown/openui/remarkWidgets";
 import { WidgetRow } from "@/components/markdown/openui/state";
 import { WidgetStream } from "@/components/markdown/widget/stream/context";
 
-/** Whether a question can be taken back (Edit, Rewind, Retry): Rust asks its
- *  own run's provider to forget it, so that bridge's `rewind` decides, not
- *  the chat's current agent. Undefined `question` (a reply with no question)
- *  cannot. */
+/** Whether a question can be taken back (Edit, Rewind, Retry): Rust rewinds
+ *  its own run's provider, so that bridge's `rewind` decides, not the chat's
+ *  current agent. Undefined `question` (a reply with no question) cannot. */
 function useRewinds(question: HarnessItem | undefined): boolean {
   const provider = useHarnessStore((s): Provider | null => {
     if (!question) return null;
@@ -34,7 +33,7 @@ function useRewinds(question: HarnessItem | undefined): boolean {
   });
   // Hooks are unconditional: a missing provider reads one and ignores it.
   const rewind = useCapabilities(provider ?? "claude").rewind;
-  return provider != null && rewind;
+  return provider != null && rewind != null;
 }
 
 /** Busy is read from the store here, not passed in: it changes twice a turn,

@@ -484,16 +484,6 @@ impl AcpSession {
         !self.callbacks.lock().unwrap().1.is_empty()
     }
 
-    /// Refuses: ACP has no way back to an earlier message, and the manager
-    /// deletes rows on an `Ok`.
-    pub fn rewind(&self, _anchor: &str) -> Result<(), String> {
-        Err(
-            "Antigravity cannot take a question back out of a conversation — \
-             edit it in a new thread instead"
-                .into(),
-        )
-    }
-
     pub fn kill(&self) {
         self.closing.store(true, Ordering::SeqCst);
         self.end_callbacks();

@@ -7,6 +7,7 @@ use sqlx::{Row, SqliteConnection, SqlitePool};
 
 use crate::harness::handoff::store::{self as handoff, HandoffView};
 use crate::harness::manager::transition::Selection;
+use crate::harness::providers::capabilities::Rewind;
 use crate::harness::requests::{self, PermissionMode, RequestView};
 use crate::harness::store::{self, RunStart, SendIntent};
 use crate::harness::{Provider, SendOptions};
@@ -85,6 +86,7 @@ pub(in crate::harness) enum Change {
     /// The rows from `item_id` on leave the chat. `context` is whether the
     /// provider forgot them too.
     Truncate {
+        rewind: Rewind,
         item_id: i64,
         context: bool,
     },
@@ -320,9 +322,13 @@ pub(in crate::harness) async fn run(
                 store::queue::unhold(&mut tx, thread_id).await?;
                 applied.push(Applied::Queue);
             }
-            Change::Truncate { item_id, context } => {
+            Change::Truncate {
+                item_id,
+                context,
+                rewind,
+            } => {
                 let thread_id = thread.ok_or("a rewind with no thread")?;
-                let stale = store::bindings::rewound(&mut tx, thread_id, item_id).await?;
+                let stale = store::bindings::rewound(&mut tx, thread_id, item_id, rewind).await?;
                 store::truncate(&mut tx, thread_id, item_id).await?;
                 applied.push(Applied::Truncated {
                     item_id,

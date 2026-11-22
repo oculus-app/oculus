@@ -158,14 +158,15 @@ impl Handle {
         }
     }
 
-    /// Antigravity refuses: its protocol has no way back to an earlier message.
     pub(super) fn rewind(&self, to: RewindTo) -> Result<(), String> {
         let RewindTo { anchor, last_seen } = to;
         match self {
             Handle::Claude(s) => s.rewind(anchor, last_seen),
             Handle::Codex(server, tid, _) => server.revert(tid, anchor),
             Handle::Opencode(server, ses) => server.revert(ses, anchor),
-            Handle::Antigravity(s) => s.rewind(anchor),
+            // ACP has no way back to an earlier message: its rewind is a
+            // fresh session, which the decider gives up without asking.
+            Handle::Antigravity(_) => Err("Antigravity has no native rewind".into()),
         }
     }
 

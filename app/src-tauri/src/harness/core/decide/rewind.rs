@@ -1,3 +1,4 @@
+use crate::harness::providers::capabilities::{self, Rewind};
 use crate::harness::{Provider, SendOptions};
 
 use super::super::command::Command;
@@ -14,9 +15,10 @@ pub(super) struct Resend<'a> {
 }
 
 /// Rewind, and edit-and-resend: the rows from a question on go, and with
-/// `resend` new text is asked in its place. The provider is asked to forget
-/// them first, where it holds a handle for the question; with no handle or
-/// no session the rows go anyway and the chat says its agent kept them.
+/// `resend` new text is asked in its place. A native rewind asks the
+/// question's provider to forget them first; with no handle or no session
+/// the rows go anyway and the chat says its agent kept them. A fresh rewind
+/// asks nothing: the truncation commit gives the holder's session up.
 pub(super) fn decide(
     state: &State,
     command: &Command,
@@ -27,6 +29,11 @@ pub(super) fn decide(
     let (Some(row), Some(question)) = (&state.thread, &state.question) else {
         return Err("a rewind names a question in a thread".into());
     };
+    let provider = state
+        .holder
+        .as_ref()
+        .map_or(row.provider, |holder| holder.provider);
+    let rewind = capabilities::of(provider).rewind;
     let context = match answer {
         Some(Answer::Rewound { context }) => context,
         None => {
@@ -43,33 +50,23 @@ pub(super) fn decide(
             if let Some(reason) = target.and_then(|to| select::refusal(state, to)) {
                 return Err(reason);
             }
-            // The session that answered the question is the one asked to
-            // forget it, whichever provider the chat is on now.
-            let held = state.holder.as_ref().and_then(|holder| {
-                let session = holder.session.clone()?;
-                Some((holder, session, question.anchor.clone()?))
-            });
-            if let Some((holder, resume, anchor)) = held {
-                return Ok(Decision::Ask(Ask::Rewind(Box::new(RewindAsk {
-                    thread_id: row.id,
-                    provider: holder.provider,
-                    anchor,
-                    last_seen: state.newest_anchor.clone(),
-                    resume,
-                    // A respawn for the rewind runs under what the question
-                    // was sent with, whatever the edit goes out under.
-                    options: SendOptions {
-                        model: holder.model.clone(),
-                        reasoning_effort: holder.effort.clone(),
-                        ..SendOptions::default()
-                    },
-                }))));
+            match rewind {
+                Rewind::Fresh => true,
+                Rewind::Native => {
+                    if let Some(ask) = native_ask(state, row.id) {
+                        return Ok(Decision::Ask(Ask::Rewind(Box::new(ask))));
+                    }
+                    false
+                }
             }
-            false
         }
     };
     let mut plan = Plan {
-        changes: vec![Change::Truncate { item_id, context }],
+        changes: vec![Change::Truncate {
+            item_id,
+            context,
+            rewind,
+        }],
         text: None,
     };
     match resend {
@@ -89,6 +86,24 @@ pub(super) fn decide(
         None => plan.text = Some(question.text.clone()),
     }
     Ok(Decision::Commit(plan))
+}
+
+/// A native rewind resumes the question's own session under the model and
+/// level that answered it, whichever provider an edit will use.
+fn native_ask(state: &State, thread_id: i64) -> Option<RewindAsk> {
+    let holder = state.holder.as_ref()?;
+    Some(RewindAsk {
+        thread_id,
+        provider: holder.provider,
+        anchor: state.question.as_ref()?.anchor.clone()?,
+        last_seen: state.newest_anchor.clone(),
+        resume: holder.session.clone()?,
+        options: SendOptions {
+            model: holder.model.clone(),
+            reasoning_effort: holder.effort.clone(),
+            ..SendOptions::default()
+        },
+    })
 }
 
 #[cfg(test)]
@@ -199,11 +214,30 @@ mod tests {
                 plan.changes.as_slice(),
                 [Change::Truncate {
                     item_id: 12,
-                    context: false
+                    context: false,
+                    ..
                 }]
             ));
             assert_eq!(plan.text.as_deref(), Some("the question"));
         }
+    }
+
+    #[test]
+    fn a_question_from_before_bindings_uses_its_chats_rewind_strategy() {
+        let mut state = state(false, None, None);
+        state.holder = None;
+        state.thread.as_mut().unwrap().provider = Provider::Antigravity;
+        let Ok(Decision::Commit(plan)) = decide(&state, &command(), 12, None, None) else {
+            panic!("no session to ask");
+        };
+        assert!(matches!(
+            plan.changes.as_slice(),
+            [Change::Truncate {
+                rewind: Rewind::Fresh,
+                context: true,
+                ..
+            }]
+        ));
     }
 
     #[test]
@@ -231,7 +265,8 @@ mod tests {
             [
                 Change::Truncate {
                     item_id: 12,
-                    context: true
+                    context: true,
+                    ..
                 },
                 Change::Begin { receipt, text, .. }
             ] if receipt == "c9" && text == "again"

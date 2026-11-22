@@ -7,6 +7,7 @@
 use sqlx::{Row, SqliteConnection, SqliteExecutor};
 
 use crate::harness::event::Provider;
+use crate::harness::providers::capabilities::Rewind;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Binding {
@@ -276,17 +277,19 @@ pub async fn holder(
     }))
 }
 
-/// The rows from `item_id` on are about to leave the chat. The binding
-/// that holds that question keeps its session, which the provider's own
+/// The rows from `item_id` on are about to leave the chat. A `Native`
+/// holder of that question keeps its session, which the provider's own
 /// rewind takes back, and is marked as having seen only what came before
-/// it. Every other binding that has seen anything from that question on
-/// holds context that no longer exists: its session is given up and it
+/// it. A `Fresh` holder's session still holds them, so it is given up.
+/// Every other binding that has seen anything from that question on holds
+/// context that no longer exists: its session is given up too and it
 /// covers nothing, so its next use starts fresh with the whole chat.
 /// Returns the providers whose current session was given up.
 pub async fn rewound(
     tx: &mut SqliteConnection,
     thread_id: i64,
     item_id: i64,
+    rewind: Rewind,
 ) -> Result<Vec<Provider>, String> {
     let err = |e: sqlx::Error| e.to_string();
     // The question's own run, the binding that holds it and what that
@@ -318,42 +321,34 @@ pub async fn rewound(
             (0, first, 0)
         }
     };
-    // Only a current binding is kept: one given up earlier is not used again.
-    let kept: i64 = sqlx::query_scalar(
+    // Only a current native holder is kept: one given up earlier is not used again.
+    let kept: Option<i64> = sqlx::query_scalar(
         "UPDATE harness_bindings SET covered_through = MIN(covered_through, ?2)
           WHERE id = ?1 AND current = 1 RETURNING id",
     )
-    .bind(holder)
+    .bind(holder.filter(|_| rewind == Rewind::Native))
     .bind(before.max(0))
     .fetch_optional(&mut *tx)
     .await
-    .map_err(err)?
-    .unwrap_or(-1);
-    let stale = "thread_id = ?1 AND id != ?2 AND covered_through >= ?3
-                 AND (covered_through > 0 OR native_session IS NOT NULL)";
-    let gone: Vec<String> = sqlx::query_scalar(&format!(
-        "SELECT provider FROM harness_bindings WHERE {stale} AND current = 1"
-    ))
+    .map_err(err)?;
+    // The fresh holder goes even when delivery never advanced its coverage.
+    let gone: Vec<(String, bool)> = sqlx::query_as(
+        "UPDATE harness_bindings SET native_session = NULL, covered_through = 0, context_tokens = NULL
+          WHERE thread_id = ?1 AND id IS NOT ?2
+            AND (id = ?3 OR (covered_through >= ?4 AND (covered_through > 0 OR native_session IS NOT NULL)))
+          RETURNING provider, current",
+    )
     .bind(thread_id)
     .bind(kept)
+    .bind(holder.filter(|_| rewind == Rewind::Fresh))
     .bind(ordinal)
     .fetch_all(&mut *tx)
     .await
     .map_err(err)?;
-    sqlx::query(&format!(
-        "UPDATE harness_bindings
-            SET native_session = NULL, covered_through = 0, context_tokens = NULL
-          WHERE {stale}"
-    ))
-    .bind(thread_id)
-    .bind(kept)
-    .bind(ordinal)
-    .execute(&mut *tx)
-    .await
-    .map_err(err)?;
     Ok(gone
-        .iter()
-        .filter_map(|provider| Provider::parse(provider))
+        .into_iter()
+        .filter(|(_, current)| *current)
+        .filter_map(|(provider, _)| Provider::parse(&provider))
         .collect())
 }
 

@@ -125,8 +125,9 @@ export function useThreadActions(opts: ThreadActionsOptions) {
   );
 
   // Edit/retry rewind the thread to that row and send anew; Rust rewinds the
-  // agent's session first (`docs/harness.md`). The rows offer them only where
-  // the question's own run's bridge can rewind (`questionProvider`).
+  // agent's session first, or gives it up for a fresh one (`docs/harness.md`).
+  // The rows offer them once the question's own run's bridge (`questionProvider`)
+  // has a `rewind`.
   const questions = useMemo((): QuestionActions => {
     // The composer's send on the open thread, e.g. after an approved permission.
     const followUp = async (text: string) => {

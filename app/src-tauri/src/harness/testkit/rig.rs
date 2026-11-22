@@ -338,7 +338,8 @@ impl Rig {
     /// for the consumer to hear how they went.
     pub fn run_effects(&self) {
         for effect in self.kept_effects() {
-            self.runtime.block_on(effect::run(&self.effects, effect));
+            self.runtime
+                .block_on(effect::run(self.effects.clone(), effect));
         }
         self.drain();
     }

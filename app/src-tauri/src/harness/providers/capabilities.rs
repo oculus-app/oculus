@@ -8,14 +8,24 @@ use serde::Serialize;
 
 use crate::harness::Provider;
 
+/// How the bridge removes a question and later turns from the agent's
+/// context: `Native` asks the CLI to drop them from its session, `Fresh`
+/// gives the session up so the next send starts one with only the kept rows.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum Rewind {
+    Native,
+    Fresh,
+}
+
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
     pub provider: Provider,
     /// Stop ends the running turn and the session answers with its terminal.
     pub interrupt: bool,
-    /// The CLI can drop a question, and what followed, from its own context.
-    pub rewind: bool,
+    /// Whether a rewind edits the native session or starts the next run fresh.
+    pub rewind: Rewind,
     /// One server process answers every chat of this provider, so a forced
     /// stop of one chat ends the others' turns too.
     pub shared_process: bool,
@@ -49,14 +59,14 @@ pub struct Capabilities {
     pub mode_switch_in_session: bool,
 }
 
-/// One bridge's flags. Antigravity (`agy acp`) has no way back to an
-/// earlier message.
+/// One bridge's capabilities.
 pub const fn of(provider: Provider) -> Capabilities {
-    let (rewind, shared_process) = match provider {
-        Provider::Claude => (true, false),
-        Provider::Codex | Provider::Opencode => (true, true),
-        Provider::Antigravity => (false, false),
+    let rewind = match provider {
+        Provider::Claude | Provider::Codex | Provider::Opencode => Rewind::Native,
+        // `agy acp` has no way back to an earlier message.
+        Provider::Antigravity => Rewind::Fresh,
     };
+    let shared_process = matches!(provider, Provider::Codex | Provider::Opencode);
     Capabilities {
         provider,
         interrupt: true,
@@ -211,13 +221,20 @@ mod tests {
     fn todays_flags_are_what_the_bridges_do() {
         let rewinds: Vec<Provider> = all()
             .into_iter()
-            .filter(|c| c.rewind)
+            .filter(|c| c.rewind == Rewind::Native)
             .map(|c| c.provider)
             .collect();
         assert_eq!(
             rewinds,
             [Provider::Claude, Provider::Codex, Provider::Opencode]
         );
+        let fresh = of(Provider::Antigravity);
+        assert_eq!(fresh.rewind, Rewind::Fresh);
+        for caps in all().into_iter().filter(|c| c.rewind == Rewind::Fresh) {
+            assert!(caps.provider_handoff);
+            assert!(fixture(caps.provider, Flag::ProviderHandoff).is_some_and(recorded));
+        }
+        assert_eq!(serde_json::to_value(fresh).unwrap()["rewind"], "fresh");
         let shared: Vec<Provider> = all()
             .into_iter()
             .filter(|c| c.shared_process)
@@ -227,6 +244,7 @@ mod tests {
         assert!(all().iter().all(|c| c.interrupt));
         let wire = serde_json::to_value(of(Provider::Codex)).unwrap();
         assert_eq!(wire["provider"], "codex");
+        assert_eq!(wire["rewind"], "native");
         assert_eq!(wire["sharedProcess"], true);
         assert_eq!(wire["activeSteering"], true);
         let steering: Vec<Provider> = all()

@@ -348,7 +348,7 @@ pub enum HarnessEvent {
     /// Rows from `from_item_id` on are gone: an edited question rewound the thread.
     Rewound {
         from_item_id: i64,
-        /// Whether the provider's session rewound too (false: no anchor, or session gone).
+        /// Whether the next run's context excludes the removed rows.
         context: bool,
     },
     /// The provider compacted the conversation's context. A row of its own:

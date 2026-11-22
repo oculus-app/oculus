@@ -80,12 +80,12 @@ pub(in crate::harness) fn bridge(
 
 /// Synthetic setup replay: unlike captured turn excerpts this drives the
 /// production initialize/load/new path, including explicit RPC errors.
-pub(in crate::harness) fn opening_bridge(
+pub(in crate::harness) fn open_session(
     outbound: Outbound,
     sink: Sink,
     resume: Option<&str>,
     root: &Path,
-) -> Result<Bridge, super::OpenError> {
+) -> Result<Arc<AcpSession>, super::OpenError> {
     let base = ThreadSpawn {
         bin: "agy".into(),
         cwd: root.join("agents"),
@@ -117,10 +117,5 @@ pub(in crate::harness) fn opening_bridge(
         session.kill();
         return Err(e);
     }
-    let (reading, closing, root) = (session.clone(), session.clone(), root.to_path_buf());
-    Ok(Bridge {
-        handle: Handle::Antigravity(session),
-        inbound: Box::new(move |frame| reading.inbound(&place(frame, &root))),
-        eof: Box::new(move || closing.closed()),
-    })
+    Ok(session)
 }

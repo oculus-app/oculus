@@ -222,7 +222,7 @@ impl Harness {
             live.insert(
                 thread_id,
                 Live {
-                    handle: spawn(sink)?.with_mode(mode),
+                    handle: spawn(sink, resume)?.with_mode(mode),
                     selection: target,
                     mode,
                     generation,

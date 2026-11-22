@@ -4,7 +4,7 @@
 
 use crate::harness::Provider;
 
-use super::handle::Live;
+use super::handle::{Handle, Live};
 use super::Harness;
 
 /// Why a session ended.
@@ -28,8 +28,12 @@ impl Live {
     /// The consumer is told before the kill, so whatever the dying process
     /// still says arrives stale.
     pub(super) fn end(self, reason: Release) {
+        self.released(reason).close(false);
+    }
+
+    fn released(self, reason: Release) -> Handle {
         self.sinks.released(self.generation, reason);
-        self.handle.close(false);
+        self.handle
     }
 }
 
@@ -68,9 +72,14 @@ impl Harness {
         }
     }
 
-    /// End the thread's session if it is `provider`'s, as replaced: its
+    /// Detach the thread's session if it is `provider`'s, as replaced: its
     /// context no longer matches the chat, and the next send starts another.
-    pub fn release_provider(&self, thread_id: i64, provider: Provider) {
+    /// Detaching is immediate; the returned close kills the process.
+    pub(in crate::harness) fn forget_provider(
+        &self,
+        thread_id: i64,
+        provider: Provider,
+    ) -> Option<impl FnOnce() + Send + 'static> {
         let live = {
             let mut live = self.live.lock().unwrap();
             match live.get(&thread_id) {
@@ -78,9 +87,8 @@ impl Harness {
                 _ => None,
             }
         };
-        if let Some(live) = live {
-            live.end(Release::Replaced);
-        }
+        let handle = live?.released(Release::Replaced);
+        Some(move || handle.close(false))
     }
 
     /// End the thread's session, if it has one. The thread row stays; the

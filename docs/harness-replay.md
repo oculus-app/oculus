@@ -239,8 +239,10 @@ stop are mutations of recordings.
 ACP client and production send: `session/load` fails, a fresh `session/new`
 opens, a full transcript handoff goes out exactly once, the binding learns
 the fresh id, and the next message uses it without another handoff. The
-session-start note survives reopening. This is derived evidence, not a live
-failed-load recording.
+session-start note survives reopening. A rewind mid-chat ends the live ACP
+session and clears the saved id, and the next send opens `session/new` with
+a `full` handoff of only the kept exchange. This is derived evidence, not a
+live failed-load or rewind recording.
 
 `testkit/questions.rs` replays twelve question fixtures through the real
 command, decider and bridge reply path: Codex 0.169.0 single choice, two
@@ -311,8 +313,9 @@ and on Codex (the next `turn/start`), a pick stored mid-turn, and the two
 refusals. A recorded Codex or opencode session names itself when the
 manager opens it, as `start_thread` and `attach_session` do. On the
 scripted bus (`Bench::allow_handoff`) it checks a rewind to a question
-another provider answered, a rewind to a run that carried a handoff, and an
-edit sent under another provider.
+another provider answered, a rewind to a run that carried a handoff, an
+edit sent under another provider, and an edit at an Antigravity question
+(fresh rewind) resent on Antigravity or on Claude.
 `testkit/handoff_recordings.rs` seeds three synthetic earlier exchanges and
 replays the Claude, Codex and Antigravity `handoff-*-full`
 fixtures as the first target run after a provider switch, with its exact
@@ -414,7 +417,8 @@ every reader of `harness_runs` beside runs that never ran.
 `testkit/runs.rs` checks run identity: one run,
 attempt, binding and receipt per send on all four bridges, with every later
 row owned by them; a repeated receipt starting nothing; a failed intent
-blocking the provider write; bindings following the native session; rewind,
+blocking the provider write; bindings following the native session;
+`bindings::rewound` keeping a native holder and clearing a fresh one; rewind,
 delete and restart handling of runs; a stray row on the bus written before
 the next question; every bridge naming its messages with no gap on clean or
 stopped turns; a stream cut off without a stop kept as partial with a gap;
