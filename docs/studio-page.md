@@ -19,7 +19,7 @@ video starts that chat. The renderer, the commands and the thread link are
 | A series' part on the video page and in the chat card: the series bar, the Parts outline, the frame of a part not made, and what each decides (`seriesView.ts`) | `app/src/components/studio/series/` (`SeriesBar.tsx`, `PartsOutline.tsx`, `UnmadePart.tsx`), `app/src/lib/studio/seriesView.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
 | Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
-| The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts` |
+| The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts`, `app/src/hooks/ui/useGridMotion.ts`, `app/src/lib/ui/gridMotion.ts` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
 | Render state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
 | The Components playground: list, stage, timeline, inspector, source, change box | `app/src/pages/studio/ComponentsPage.tsx`, `app/src/components/studio/components/` (`inspector/` for the props form) |
@@ -182,8 +182,28 @@ its parts take. `useGridColumns` reads the column count from the grid's
 computed `grid-template-columns` (a count of tracks, which page zoom does not
 change) and again whenever the grid's width changes.
 
-The detail (`VideoDetailStage`) is the player with a dock, and under it a row
-of the facts (subject, theme, voice, length, shape) beside the render bar.
+**A press on a folder is animated** (`useGridMotion`). `StudioGrid` calls
+`capture` before the toggle, which snapshots every cell's layout box
+(`offsetLeft` and `offsetTop` against the grid, which page zoom does not
+scale), and the commit that follows plays from it; `planGridMotion`
+(`lib/ui/gridMotion.ts`) says what moved, entered and left. Cards after the
+folder glide to their new cells (320 ms). Each part's tile is dealt out of
+the folder, fading in and 35 ms after the one before it, while the run's
+tint fades in where it lies, so the outline never travels in pieces. A
+close is plainer: React has already removed the parts, so their elements go
+back into the grid out of flow, at their old boxes, `inert` and under the
+other cells, and fade where they are with the tint (120 ms); the cards wait
+70 ms before they glide back, so none crosses a part half gone. A second
+press mid-glide starts from where each card is drawn. Only a captured press moves anything:
+a resize, a reload and the first draw of a remembered open folder do not,
+and nothing moves under reduced motion. Tiles and run cells carry
+`will-change-transform`, so a glide promotes no layer
+([ui.md](./ui.md#gotchas)).
+
+The detail (`VideoDetailStage`) is the player with a dock, and under it one
+row: the facts (subject, theme, voice, length, shape) at its start, and the
+render bar and the video's one button at its end. The row wraps, the end
+group staying on the right, when the page is narrow.
 The subject's pill is its icon and display code (`SubjectIcon`, keyed by the
 course's current subject, `subjectCodeFor`).
 Opened beside the chat that makes it (the video card's title or expand
@@ -191,8 +211,8 @@ button, [harness.md](./harness.md#a-studio-thread-carries-its-video)), it
 reads the video again when that thread's turn ends or the folder's modified
 time moves, so it follows the agent's edits; at side-panel widths the dock
 goes under the picture (below). Playing it pauses the chat's inline player
-and the other way round, as for any two library videos. The header's last
-button is **Render draft** while the video has no playable render (it starts
+and the other way round, as for any two library videos. The header holds
+only the way back and the title. The row's button is **Render draft** while the video has no playable render (it starts
 `studio_render` for `draft` through `renderStore`, and spins, disabled, while
 any render of the folder runs), and **Export** once it has one.
 
@@ -202,15 +222,16 @@ any render of the folder runs), and **Export** once it has one.
   When the render has its `.vtt` beside it, `studio_render_captions` reads it, `parseVtt` makes the cues
   and the bar gets its captions button; otherwise there is none (and none
   when the video's captions are drawn into the picture, `detail.captions`).
-  No render shows "Not rendered yet", and the header offers Render draft. The scrub bar's notches
+  No render shows "Not rendered yet", and the row under it offers Render draft. The scrub bar's notches
   are the scene starts. The element shares the app's one sound with lectures
   and library videos (`useLibraryPlayback`). The same player, without a
   dock, plays a video inside a chat thread
   ([harness.md](./harness.md#a-studio-thread-carries-its-video)).
-- **The render bar** is under the player and has no buttons: the render
-  pills when there are several, and when the shown one was made. A render in
-  flight, of any preset (the header starts them through `renderStore`), takes
-  its place with a bar naming the preset, the percentage and Cancel; a failure
+- **The render bar** sits before the row's button and starts nothing: the
+  render pills when there are several, and when the shown one was made. A
+  render in flight, of any preset (Render draft and Export start them through
+  `renderStore`), takes its place with a bar naming the preset, the
+  percentage and Cancel; a failure shows under the row (`RenderError`) and
   stays until the next render starts. Rendering is local (ffmpeg), so unlike
   Settings it may start from the page.
 - **The dock** is the lecture player's (`MediaDock`, `useTranscriptDock`):
@@ -240,7 +261,7 @@ any render of the folder runs), and **Export** once it has one.
   narrower page draws the dock at the bottom without rewriting the preference.
   With no render the picture says "Not rendered yet" under the control bar,
   with no button of its own.
-- **Export** (`ExportMenu`) is a pill over a popover of the presets, Draft,
+- **Export** (`ExportMenu`), the row's button once there is a render, is a pill over a popover of the presets, Draft,
   Final and Small ([studio.md](./studio.md#rendering-a-video)): each row names
   the preset and what it makes for this video's shape (`presetHint`), and its
   state from `studio_exports`, read when the menu opens and again when a
@@ -251,7 +272,7 @@ any render of the folder runs), and **Export** once it has one.
   video runs the buttons are off and the running row spins. A row with a file
   has Show in Finder (Show in Explorer on Windows, `revealItemInDir`). A
   failure to read the statuses shows in the popover; a render's failure,
-  under the render bar.
+  under the row.
 - **Captions in the picture** is the switch under the presets (hint: "Drawn
   into the frames, so every player shows them"), per video: `detail.captions`
   is video.json's `captions` and `setCaptions` writes it

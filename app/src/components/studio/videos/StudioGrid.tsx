@@ -1,7 +1,10 @@
+import { useCallback } from "react";
+
 import { SeriesCells } from "@/components/studio/videos/series/SeriesCells";
 import { VideoCard } from "@/components/studio/videos/VideoCard";
 import { MediaGrid } from "@/components/ui/layout/MediaGrid";
 import { useGridColumns } from "@/hooks/ui/useGridColumns";
+import { useGridMotion } from "@/hooks/ui/useGridMotion";
 import type { StudioGridItem } from "@/lib/studio/series";
 import { gridRunEdges, type RunCellEdges } from "@/lib/ui/gridRun";
 
@@ -19,7 +22,8 @@ export function layoutGridItems(items: StudioGridItem[], open: ReadonlySet<strin
 }
 
 /** The Videos grid: single videos and series folders, newest first, an open
- *  folder's parts following it in place. */
+ *  folder's parts following it in place. A press on a folder is animated:
+ *  its parts are dealt out of it and the cards after them glide along. */
 export function StudioGrid({
   items,
   open,
@@ -29,7 +33,15 @@ export function StudioGrid({
   open: ReadonlySet<string>;
   onToggle: (slug: string) => void;
 }) {
-  const { ref, columns } = useGridColumns();
+  const { ref: columnsRef, columns } = useGridColumns();
+  const { ref: motionRef, capture } = useGridMotion();
+  const ref = useCallback(
+    (el: HTMLDivElement | null) => {
+      columnsRef(el);
+      motionRef(el);
+    },
+    [columnsRef, motionRef],
+  );
   return (
     <MediaGrid ref={ref}>
       {layoutGridItems(items, open, columns).map(({ item, open: isOpen, edges }) =>
@@ -41,7 +53,10 @@ export function StudioGrid({
             series={item.series}
             open={isOpen}
             edges={edges}
-            onToggle={() => onToggle(item.series.slug)}
+            onToggle={() => {
+              capture();
+              onToggle(item.series.slug);
+            }}
           />
         ),
       )}

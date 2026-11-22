@@ -1,4 +1,6 @@
-import { RenderBar } from "@/components/studio/video/RenderBar";
+import type { ReactNode } from "react";
+
+import { RenderBar, RenderError } from "@/components/studio/video/RenderBar";
 import { VideoDock, readVideoDockTab } from "@/components/studio/video/VideoDock";
 import { VideoFacts } from "@/components/studio/video/VideoFacts";
 import { VideoPlayer } from "@/components/studio/video/VideoPlayer";
@@ -10,11 +12,19 @@ const TAB_KEY = "oculus-studio-video-dock-tab";
 
 /**
  * The detail page's video: the player with the Script and Scenes in its dock,
- * and under it the facts and the render bar (no buttons: Render draft and
- * Export are in the header). Folding the dock (its button, T
- * or its ×) leaves the picture the whole width.
+ * and under it one row, the facts at its start and the render bar and
+ * `actions` (Render draft or Export) at its end. Folding the dock (its
+ * button, T or its ×) leaves the picture the whole width.
  */
-export function VideoDetailStage({ detail, playback }: { detail: VideoDetail; playback: VideoPlayback }) {
+export function VideoDetailStage({
+  detail,
+  playback,
+  actions,
+}: {
+  detail: VideoDetail;
+  playback: VideoPlayback;
+  actions?: ReactNode;
+}) {
   const [tab, setTab] = useStoredState(TAB_KEY, readVideoDockTab);
   const { player, current, src } = playback;
   const { dock, size, resizing, startDockDrag } = player.dock;
@@ -44,13 +54,17 @@ export function VideoDetailStage({ detail, playback }: { detail: VideoDetail; pl
           />
         }
       />
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-[3_1_20rem]">
-          <VideoFacts detail={detail} />
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+          <div className="min-w-0 flex-[1_1_20rem]">
+            <VideoFacts detail={detail} />
+          </div>
+          <div className="ml-auto flex min-w-0 items-center gap-3">
+            <RenderBar detail={detail} playback={playback} />
+            {actions}
+          </div>
         </div>
-        <div className="min-w-0 flex-[2_1_18rem] empty:hidden">
-          <RenderBar detail={detail} playback={playback} />
-        </div>
+        <RenderError dir={detail.row.dir} />
       </div>
     </div>
   );

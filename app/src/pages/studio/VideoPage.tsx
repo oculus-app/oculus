@@ -24,7 +24,7 @@ const PAGE = "mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-6 py-5";
 
 /**
  * /studio/videos/:slug: the player with the script and scenes in its dock,
- * the facts and the render bar under it, and Export (Render draft until the
+ * and under it the facts, the render bar and Export (Render draft until the
  * video has a render). A series' part adds the series bar over the picture
  * and the Parts outline under the facts; a part not made has this route too,
  * decided from the list, with its question and Make this part in the frame.
@@ -68,22 +68,25 @@ export default function VideoPage() {
         title={title}
         meta={membership ? `Part ${membership.part.number}/${membership.series.parts.length}` : null}
         back={VIDEOS_HREF}
-        actions={
-          view === "player" &&
-          detail &&
-          (playableRenders(detail.renders).length === 0 ? (
-            <RenderDraftButton detail={detail} />
-          ) : (
-            <ExportMenu detail={detail} onChanged={() => void reload()} />
-          ))
-        }
       />
       <div className="page-scroll min-h-0 flex-1">
         <div className={PAGE}>
           {membership && <SeriesBar series={membership.series} number={membership.part.number} />}
           {view === "player" && detail ? (
             <WithPlayback detail={detail} docked>
-              {(playback) => <VideoDetailStage detail={detail} playback={playback} />}
+              {(playback) => (
+                <VideoDetailStage
+                  detail={detail}
+                  playback={playback}
+                  actions={
+                    playableRenders(detail.renders).length === 0 ? (
+                      <RenderDraftButton detail={detail} />
+                    ) : (
+                      <ExportMenu detail={detail} onChanged={() => void reload()} />
+                    )
+                  }
+                />
+              )}
             </WithPlayback>
           ) : view === "error" ? (
             <p className="text-[12.5px] leading-snug text-destructive">{error}</p>

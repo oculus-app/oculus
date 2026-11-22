@@ -16,7 +16,7 @@ const REVEAL = isWindows ? "Show in Explorer" : "Show in Finder";
 /**
  * The video page's Export menu: each preset with whether its file is there
  * and current, Render for one that is missing or out of date (the render bar
- * under the player shows its progress), and Show in Finder for a file there.
+ * beside the button shows its progress), and Show in Finder for a file there.
  * The statuses are read when the menu opens and again when a render ends.
  * Under the presets, the switch for captions drawn into the picture, which
  * makes the files already there out of date; `onChanged` re-reads the video.

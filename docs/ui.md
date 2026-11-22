@@ -405,7 +405,10 @@ themes are opt-in and keep the same structure.
   progress bar are plain marks on the picture, and its one control,
   `action`, is drawn over the picture as the button's sibling. A run of
   consecutive cells is tinted as one shape with `MediaRunCell` and
-  `gridRunEdges`, the column count read by `useGridColumns`
+  `gridRunEdges`, the column count read by `useGridColumns`. A change to
+  the cells that one press makes is animated with `useGridMotion`: moved
+  cells glide, new ones are dealt out of the cell they follow and removed
+  ones fade where they were
   ([studio-page.md](./studio-page.md#videos-and-the-detail)).
 - **Row lists use `ListCard` as a flat divided stack**, without a card border
   around the rows. A page adds a card only when the content itself calls for one.

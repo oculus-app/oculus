@@ -4,12 +4,13 @@ import { cn } from "@/lib/utils";
 
 /** A responsive grid of `MediaTile`s: as many 240px-or-wider columns as fit.
  *  Its gaps are `--media-gap-x` and `--media-gap-y`, which `MediaRunCell`
- *  reads to tint across them. */
+ *  reads to tint across them. It is `relative`, so `useGridMotion` measures
+ *  and places its cells against it. */
 export function MediaGrid({ children, ref }: { children: ReactNode; ref?: Ref<HTMLDivElement> }) {
   return (
     <div
       ref={ref}
-      className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-(--media-gap-x) gap-y-(--media-gap-y) [--media-gap-x:1rem] [--media-gap-y:1.5rem]"
+      className="relative grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-(--media-gap-x) gap-y-(--media-gap-y) [--media-gap-x:1rem] [--media-gap-y:1.5rem]"
     >
       {children}
     </div>
@@ -20,6 +21,7 @@ export function MediaGrid({ children, ref }: { children: ReactNode; ref?: Ref<HT
  * A 16:9 picture over a title and a line of facts. The tile is one button,
  * so a badge or bar on it is a plain element; the one control it may hold,
  * `action`, is drawn over the picture as the button's sibling, never inside it.
+ * It keeps its own layer, so a glide (`useGridMotion`) promotes nothing.
  */
 export function MediaTile({
   picture,
@@ -59,7 +61,7 @@ export function MediaTile({
   onOpen: () => void;
 }) {
   return (
-    <div className="relative flex min-w-0 flex-col">
+    <div className="relative flex min-w-0 flex-col will-change-transform">
       <button
         type="button"
         data-tab-href={href}

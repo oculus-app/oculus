@@ -10,13 +10,15 @@ import { cn } from "@/lib/utils";
  * shape; a dashed line marks the sides `edges` calls outer, and outer
  * corners round. It sits behind the tile and takes no layout of its own.
  * With no `edges` the cell is plain, so a folder keeps its element (and its
- * focus) as it opens and closes.
+ * focus) as it opens and closes. `useGridMotion` finds the tint by
+ * `data-run-tint`, and the cell keeps its own layer for the same glide.
  */
 export function MediaRunCell({ edges, children }: { edges: RunCellEdges | null; children: ReactNode }) {
   return (
-    <div className="relative z-0 flex min-w-0 flex-col">
+    <div className="relative z-0 flex min-w-0 flex-col will-change-transform">
       {edges && <span
         aria-hidden
+        data-run-tint
         className={cn(
           "pointer-events-none absolute -z-10 border-dashed border-brand/55 bg-brand-muted",
           "inset-x-[calc(var(--media-gap-x)*-0.5_-_0.5px)] inset-y-[calc(var(--media-gap-y)*-0.5_-_0.5px)]",
