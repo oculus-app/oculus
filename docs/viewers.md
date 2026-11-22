@@ -45,9 +45,20 @@ classes work even when there are no dollar delimiters.
   `FileMarkdown` with it, extended by `FileViewer`'s
   `useLibraryMdComponents` to resolve in-file links, and without the front
   matter a scraped thread or lesson carries (`stripFrontmatter`); chat replies through
-  `CompactMd`, with `rehypeMaths` only when `hasMath` finds a delimiter. `normalizeMath` rewrites
-  `\(…\)` / `\[…\]` to `$…$` / `$$…$$` because CommonMark eats the backslash
-  first. An inline `<code>` holding only a citation (`app/src/lib/citations/`)
+  `CompactMd`, with `rehypeMaths` only when `hasMath` finds a delimiter.
+  `normalizeMath` (`app/src/lib/markdown/math.ts`) rewrites the source so
+  remark-math reads the maths as written: `\(…\)` / `\[…\]` become dollars
+  (CommonMark eats the backslash first); a `$$` sharing its line with TeX
+  (`$$\begin{aligned}`, `\end{aligned}$$ Then…`) gets its own line, since
+  remark-math drops the opener's text and never closes on the other; a price
+  (`$5 and $10`, `$5-$10`) is escaped; `\$` inside `$…$` becomes `{\char36}`,
+  which `rehypeMaths` turns back (`restoreDollars`), because remark-math closes a
+  formula on any `$`; and a `|` in a formula in a table row becomes `\vert`,
+  since GFM splits the row first. The dollar rules are `scanMaths`
+  (`app/src/lib/markdown/mathScan.ts`), which `ui` blocks share.
+  `bun scripts/maths-lint.ts` (from `app/`) replays every reply in `oculus.db`
+  through this pipeline and KaTeX and lists the formulas that fail and the TeX
+  left as prose; each rule above came from a run of it. An inline `<code>` holding only a citation (`app/src/lib/citations/`)
   renders as `FileChip`. `![alt](path)` naming a library picture or HTML
   page renders it in place (`OutputEmbed.tsx`). In replies, `outputs/x.svg`
   and `./outputs/x.svg` both name a file under the agent’s `outputs/` folder.

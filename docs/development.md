@@ -36,6 +36,7 @@ and stable Rust, plus the MSVC toolchain, Windows SDK and WebView2.
 | Stages the CLI into the bundle | `app/scripts/stage-cli.mjs` |
 | Regenerates `docs/cli-reference.md` | `app/scripts/gen-cli-docs.mjs` |
 | Measures Studio videos and agent token use ([studio-eval.md](./studio-eval.md)) | `app/scripts/studio-eval/` |
+| Replays chat history through the reply's maths pipeline and lists what fails ([viewers.md](./viewers.md)) | `app/scripts/maths-lint.ts` |
 | How an agent thread finds `oculus` | `app/src-tauri/src/harness/cli/discover/` |
 | Windows native manifest, Store manifest template and MSIX packaging | `app/src-tauri/windows-app-manifest.xml`, `app/src-tauri/windows/AppxManifest.xml`, `app/src-tauri/windows/logo.svg`, `app/scripts/windows-icons.mjs`, `app/scripts/package-msix.mjs`, `app/scripts/package-msix.ps1`, `app/scripts/package-msix.test.mjs` |
 | ffmpeg licence notices, source offer and the Windows release gate | `app/src-tauri/ffmpeg-notices/README.md` |

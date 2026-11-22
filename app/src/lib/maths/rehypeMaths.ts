@@ -16,13 +16,14 @@
  * Both renders carry the source map (`data-s`/`data-e`), which in-place
  * selection reads (`lib/markdown/mathSelection/`). Its offsets index the TeX
  * annotation's text, so line ends are made `\n` first, as the HTML parser
- * makes them.
+ * makes them, and `normalizeMath`'s stand-in for `\$` is undone.
  */
 import type { Element, ElementContent, Root } from "hast";
 import { fromHtmlIsomorphic } from "hast-util-from-html-isomorphic";
 import { toText } from "hast-util-to-text";
 import { SKIP, visitParents } from "unist-util-visit-parents";
 import type { VFile } from "vfile";
+import { restoreDollars } from "@/lib/markdown/math";
 import { mathsReady } from "./engine";
 import { renderToString } from "./render";
 
@@ -108,7 +109,7 @@ export default function rehypeMaths() {
       if (!parent) return;
 
       const text = toText(scope, { whitespace: "pre" });
-      const value = text.replace(/\r\n?/g, "\n");
+      const value = restoreDollars(text.replace(/\r\n?/g, "\n"));
       const where = { ancestors: [...parents, element], place: element.position };
       const result = rendered(value, displayMode, file, where);
       parent.children.splice(parent.children.indexOf(scope), 1, ...result);

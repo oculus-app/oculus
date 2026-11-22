@@ -604,10 +604,9 @@ still update the picker.
 - **Codex web search** completes with no `status` — absent means it ran — and
   `ToolFinished`'s optional `title` fills in the query `item/started` lacked.
 - **Copy/drag out is markdown** (`lib/markdown/selection.ts`).
-- **Maths**: the brief asks for `$…$`/`$$…$$`; `normalizeMath` rewrites
-  `\(…\)`/`\[…\]`, which CommonMark eats before remark-math.
-  The brief also bans a bare `|` in maths inside a table (the table splits the
-  cell first); agents use `\lvert`/`\rvert`.
+- **Maths**: the brief asks for `$…$`/`$$…$$` and no bare `|` in maths inside a
+  table; `normalizeMath` repairs what replies get wrong anyway
+  ([viewers.md](./viewers.md)).
 - **Thread notices sit in one lane above the composer** (`BannerLane`, fed by
   `ThreadBanners` for the open thread in Chat, the lecture dock and a Studio
   video's thread): an

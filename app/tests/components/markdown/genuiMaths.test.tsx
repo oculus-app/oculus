@@ -6,7 +6,7 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkRehype from "remark-rehype";
-import { hasMath, normalizeMath } from "@/lib/markdown/math";
+import { hasMath, normalizeMath, restoreDollars } from "@/lib/markdown/math";
 import { splitMaths } from "@/components/markdown/genui/maths";
 import { repairPrefix } from "@/components/markdown/genui/repair";
 
@@ -52,7 +52,7 @@ function replyMaths(input: string): { tex: string; display: boolean }[] {
     const cls = Array.isArray(n.properties?.className) ? n.properties.className : [];
     if (n.type === "element" && (cls.includes("math-inline") || cls.includes("math-display"))) {
       out.push({
-        tex: (n.children ?? []).map((c) => (c as { value?: string }).value ?? "").join(""),
+        tex: restoreDollars((n.children ?? []).map((c) => (c as { value?: string }).value ?? "").join("")),
         display: cls.includes("math-display"),
       });
       return;
@@ -188,7 +188,7 @@ describe("finding 2: streaming repair tracks dollars within one eligible text ru
     expect(repairPrefix(`<p>$x<y`)).toBe(`<p>`);
   });
 
-  test("treats $5 and $10 identically to the reply pipeline and ignores dollars in comments, attributes, code, kbd and svg", () => {
+  test("reads $5 and $10 as prices, as the reply pipeline does, and ignores dollars in comments, attributes, code, kbd and svg", () => {
     const priceText = "It costs $5 and $10";
     const host = sanitizeDom(`<p>${priceText}</p>`);
     const rendered = Array.from(host.querySelectorAll("[data-tex]")).map((el) => {
@@ -196,6 +196,7 @@ describe("finding 2: streaming repair tracks dollars within one eligible text ru
       return { tex: raw.slice(1), display: raw[0] === "D" };
     });
     expect(rendered).toEqual(replyMaths(priceText));
+    expect(rendered).toEqual([]);
 
     const nonEligible = [
       `<p>$x<!-- $ -->y</p>`,
@@ -274,9 +275,16 @@ describe("finding 6: splitMaths matches the reply remark-math pipeline on spans 
     "\\\\$$x$$",
     "$x < y$ and $c > d$",
     "$$\n\\begin{aligned}\na &= 1 \\\\\nb &= 2\n\\end{aligned}\n$$",
+    "about $1M to build and $5M a year",
+    "from $5-$10, and $x$ per unit",
+    "$5 and \\$10",
+    "push $\\$$ first",
+    "$\\epsilon,\\$\\to\\epsilon$ and $\\$4$",
+    "$\\text{cost \\$5}$",
+    "$a\\\\$ then $b$",
   ];
 
-  test("agrees with remark-math on every span and inline/display mode across 45 inputs", () => {
+  test("agrees with remark-math on every span and inline/display mode across 52 inputs", () => {
     expect(PARITY_INPUTS.length).toBeGreaterThanOrEqual(30);
     for (const input of PARITY_INPUTS) {
       expect({ input, got: blockMaths(input) }).toEqual({ input, got: replyMaths(input) });

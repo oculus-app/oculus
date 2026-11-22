@@ -16,7 +16,7 @@ script, no external styles and no iframe.
 | Streaming prefix repair and shared markup scanner | `app/src/components/markdown/genui/repair.ts`, `app/src/components/markdown/genui/scan.ts` |
 | Inert sanitiser and allow-list | `app/src/components/markdown/genui/sanitize.ts`, `app/src/components/markdown/genui/allow.ts` |
 | In-place DOM morph | `app/src/components/markdown/genui/morph.ts` |
-| Inline and display `$…$` maths | `app/src/components/markdown/genui/maths.ts` |
+| Inline and display `$…$` maths | `app/src/components/markdown/genui/maths.ts`, `app/src/lib/markdown/mathScan.ts` |
 | Closing-fence detection and reply index | `app/src/components/markdown/genui/remarkUi.ts` |
 | Interactive runtime and control styles | `app/src/components/markdown/genui/runtime.ts`, `app/src/components/markdown/genui/controls.css`, `app/src/stores/chat/widgetStore.ts` |
 | Declarative charts (`data-chart`) and height reservation | `app/src/components/markdown/genui/ChartHost.tsx`, `app/src/components/markdown/genui/chartData.ts`, `app/src/components/markdown/genui/charts.css` |
@@ -189,8 +189,10 @@ and rewind alongside cards and widgets.
 
 Text nodes outside `<svg>`, `<code>` and `<kbd>` run through `mathify`
 (`maths.ts`), which joins adjacent text siblings first so text split around
-decoded entities stays intact. `scanMaths` / `splitMaths` follows the reply
-pipeline's (`normalizeMath` + `remark-math`) delimiter and mode rules: an odd
+decoded entities stays intact. `splitMaths` reads delimiters with `scanMaths`
+(`app/src/lib/markdown/mathScan.ts`), the reading the reply pipeline
+(`normalizeMath` + `remark-math`) shares: a price (`$5 and $10`) is prose, `\$`
+inside `$…$` is a dollar in the formula, and an odd
 run of backslashes before `$` escapes it while an even run does not; `$$…$$` on
 its own line or fenced `$$\n…\n$$` renders in display mode while `$$…$$` inside
 a line of text is inline; a blank line ends an inline candidate; any inline `$`

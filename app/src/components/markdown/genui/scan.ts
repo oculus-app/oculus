@@ -1,4 +1,4 @@
-import { scanMaths } from "./maths";
+import { scanMaths } from "@/lib/markdown/mathScan";
 
 type TagMatch =
   | { kind: "open"; name: string; selfClosing: boolean; end: number }
