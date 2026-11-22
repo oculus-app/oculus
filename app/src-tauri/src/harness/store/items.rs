@@ -126,6 +126,13 @@ pub async fn truncate(
         .await
         .map_err(|e| e.to_string())?
         .rows_affected();
+    // The thread list re-reads a thread's last-message preview when
+    // `updated_at` moves; without this it keeps showing a removed row.
+    sqlx::query("UPDATE harness_threads SET updated_at = datetime('now') WHERE id = ?1")
+        .bind(thread_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(removed)
 }
 

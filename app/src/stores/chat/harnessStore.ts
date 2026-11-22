@@ -690,7 +690,10 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
           const stay = Object.fromEntries(
             Object.entries(asked).filter(([, r]) => r.item_id != null && r.item_id < event.from_item_id),
           );
+          // As Rust's truncate does: the list's preview re-reads on `updated_at`.
+          if (!stale) touchThread({});
           return {
+            threads,
             contextDrift: drift,
             questionDrafts: pruneQuestionDrafts(questionDrafts, threadId, (id) => id in stay),
             ...(held
