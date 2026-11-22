@@ -55,6 +55,25 @@ pub struct Library {
     pub theme: Option<String>,
 }
 
+impl Library {
+    /// The theme a video uses through its subject, global and bundled cascade.
+    pub fn resolve_theme(&self, dir: &Path, subject: Option<&str>, name: &str) -> Result<Theme> {
+        let subject = self.subject.as_deref().or(subject);
+        if let Some(s) = subject
+            && !valid_subject(s)
+        {
+            return Err(StudioError::Project {
+                path: dir.join("video.json"),
+                message: format!("subject `{s}` must be a course code's folder name"),
+            });
+        }
+        let subject_dir = subject
+            .zip(self.subjects.as_ref())
+            .map(|(s, root)| root.join(s));
+        resolve_theme(dir, name, subject_dir.as_deref(), self)
+    }
+}
+
 #[derive(Clone)]
 pub struct Project {
     pub dir: PathBuf,
@@ -140,21 +159,8 @@ impl Project {
                 path: path.clone(),
                 message,
             })?;
-        let subject = library.subject.clone().or_else(|| video.subject.clone());
-        if let Some(s) = &subject
-            && !valid_subject(s)
-        {
-            return Err(StudioError::Project {
-                path: path.clone(),
-                message: format!("subject `{s}` must be a course code's folder name"),
-            });
-        }
-        let subject_dir = match (&subject, &library.subjects) {
-            (Some(s), Some(subjects)) => Some(subjects.join(s)),
-            _ => None,
-        };
         let name = library.theme.as_deref().unwrap_or(&video.theme);
-        let theme = resolve_theme(&dir, name, subject_dir.as_deref(), library)?;
+        let theme = library.resolve_theme(&dir, video.subject.as_deref(), name)?;
         Ok(Project {
             dir,
             video,

@@ -92,6 +92,15 @@ pub enum Voice {
 }
 
 impl Voice {
+    pub fn engine_and_id(&self) -> (Engine, &str) {
+        match self {
+            Self::Server(voice) => (Engine::Server, &voice.voice),
+            Self::Kokoro(voice) => (Engine::Kokoro, &voice.voice),
+        }
+    }
+}
+
+impl Voice {
     pub fn engine(&self) -> Engine {
         match self {
             Voice::Server(_) => Engine::Server,
@@ -256,6 +265,18 @@ pub fn resolve(
             }))
         }
     }
+}
+
+/// Resolve a video's voice over Settings for app actions.
+pub fn resolve_video(
+    video: Option<&studio_core::Voice>,
+    settings: &VoiceSettings,
+) -> Result<Voice, String> {
+    resolve(
+        &VoiceOverrides::default(),
+        &video.map(VoiceOverrides::from).unwrap_or_default(),
+        settings,
+    )
 }
 
 /// A Kokoro voice id names a file in the voice folder, so it is lower-case

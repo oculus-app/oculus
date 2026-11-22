@@ -69,13 +69,34 @@ pub(super) fn record_and_prune(
     preset: Preset,
     used: Used,
 ) -> Result<Vec<String>, RenderError> {
-    let path = record_path(dir);
     let mut record = records(dir);
     // A preset since removed keeps no segments or track alive.
     record.retain(|name, _| Preset::parse(name).is_ok());
     record.insert(preset.name().to_owned(), used);
-    crate::runtime::atomic_write::json(&path, &record).map_err(|e| RenderError::io(&path, e))?;
+    write_and_prune(dir, &record)
+}
 
+/// Forget the removed export and release the cache files it alone used.
+pub(in crate::studio) fn forget_and_prune(dir: &Path, preset: Preset) -> Result<(), RenderError> {
+    let mut record = records(dir);
+    if record.remove(preset.name()).is_some() {
+        write_and_prune(dir, &record)?;
+    } else {
+        prune(dir, &record)?;
+    }
+    Ok(())
+}
+
+fn write_and_prune(
+    dir: &Path,
+    record: &BTreeMap<String, Used>,
+) -> Result<Vec<String>, RenderError> {
+    let path = record_path(dir);
+    crate::runtime::atomic_write::json(&path, &record).map_err(|e| RenderError::io(&path, e))?;
+    prune(dir, record)
+}
+
+fn prune(dir: &Path, record: &BTreeMap<String, Used>) -> Result<Vec<String>, RenderError> {
     let keep: BTreeSet<&str> = record
         .values()
         .flat_map(|u| u.segments.iter().chain(&u.track))

@@ -8,12 +8,14 @@ use std::path::{Path, PathBuf};
 
 use studio_core::Library;
 
-use super::detail::detail_in;
 use super::frame::{frame_png, FrameAt, MAX_WIDTH};
 use super::rows::list_in;
 use super::thumbnail::thumbnail_in;
+use super::{delete, detail::detail_in};
 use crate::db::store::StudioLink;
 use crate::studio::libraries::libraries_at;
+use crate::studio::render::{Preset, RENDERS};
+use crate::studio::voice::{Engine, VoiceSettings};
 use crate::test_support::Scratch;
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../studio-core/tests/fixtures");
@@ -56,6 +58,113 @@ fn png_size(bytes: &[u8]) -> (u32, u32) {
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "not a PNG");
     let be = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
     (be(16), be(20))
+}
+
+#[test]
+fn deletion_refuses_while_any_preset_is_running() {
+    let root = Scratch::new("cmd-delete-running");
+    let videos = root.join("videos");
+    let dir = narrated(&videos);
+    let _running = RENDERS.start(&dir, Preset::Draft).unwrap();
+    let remove = |_: &Path| panic!("a running video's files must stay in place");
+    let expected = "A draft render of this video is running. Cancel it first.";
+
+    assert_eq!(RENDERS.running(&dir), Some(Preset::Draft));
+    assert_eq!(
+        delete::video_in(&videos, "narrated", &remove).unwrap_err(),
+        expected
+    );
+    assert_eq!(
+        delete::render_in(&videos, "narrated", "final", &remove).unwrap_err(),
+        expected
+    );
+}
+
+#[test]
+fn deleting_a_render_releases_only_the_cache_files_it_alone_used() {
+    let root = Scratch::new("cmd-delete-render");
+    let videos = root.join("videos");
+    let dir = narrated(&videos);
+    for folder in ["renders", ".cache/segments"] {
+        std::fs::create_dir_all(dir.join(folder)).unwrap();
+    }
+    let removed = [
+        "renders/draft.mp4",
+        "renders/draft.vtt",
+        ".cache/segments/draft.mp4",
+        ".cache/narration-draft.wav",
+    ];
+    let kept = [
+        "renders/final.mp4",
+        "renders/final.vtt",
+        ".cache/segments/final.mp4",
+        ".cache/segments/shared.mp4",
+        ".cache/narration-final.wav",
+    ];
+    for file in removed.into_iter().chain(kept) {
+        std::fs::write(dir.join(file), b"fixture").unwrap();
+    }
+    let records = serde_json::json!({
+        "draft": {
+            "segments": ["draft.mp4", "shared.mp4"],
+            "track": "narration-draft.wav",
+            "out": "renders/draft.mp4"
+        },
+        "final": {
+            "segments": ["final.mp4", "shared.mp4"],
+            "track": "narration-final.wav",
+            "out": "renders/final.mp4"
+        }
+    });
+    let index = dir.join(".cache/renders.json");
+    std::fs::write(&index, records.to_string()).unwrap();
+
+    let error = delete::render_in(&videos, "narrated", "draft", &|path| {
+        assert!(path.ends_with("draft.vtt"));
+        Err("Could not move the captions to the Trash.".into())
+    })
+    .unwrap_err();
+    assert!(error.contains("captions"));
+    assert!(dir.join("renders/draft.mp4").is_file());
+    assert_eq!(
+        std::fs::read_to_string(&index).unwrap(),
+        records.to_string()
+    );
+
+    delete::render_in(&videos, "narrated", "draft", &|path| {
+        assert_eq!(path.parent().unwrap().file_name().unwrap(), "renders");
+        std::fs::remove_file(path).map_err(|e| e.to_string())
+    })
+    .unwrap();
+    for file in removed {
+        assert!(!dir.join(file).exists(), "{file}");
+    }
+    for file in kept {
+        assert!(dir.join(file).is_file(), "{file}");
+    }
+    let remaining: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&index).unwrap()).unwrap();
+    assert_eq!(remaining, serde_json::json!({ "final": records["final"] }));
+}
+
+#[test]
+fn deletion_rejects_a_bad_slug_or_missing_render() {
+    let root = Scratch::new("cmd-delete-missing");
+    let videos = root.join("videos");
+    narrated(&videos);
+    let remove = |_: &Path| panic!("nothing should be deleted");
+    assert!(delete::video_in(&videos, "../narrated", &remove)
+        .unwrap_err()
+        .contains("not a video's slug"));
+    assert!(delete::render_in(&videos, "../narrated", "draft", &remove)
+        .unwrap_err()
+        .contains("not a video's slug"));
+    assert!(delete::render_in(&videos, "narrated", "draft", &remove)
+        .unwrap_err()
+        .contains("has no draft render"));
+    assert!(delete::render_in(&videos, "narrated", "other", &remove)
+        .unwrap_err()
+        .contains("no export preset"));
 }
 
 #[test]
@@ -139,7 +248,11 @@ fn series_parts_have_a_video_when_the_folder_exists_and_keep_their_place_after_d
         .unwrap()
         .series
         .is_empty());
-    std::fs::remove_dir_all(&dir).unwrap();
+    delete::video_in(&videos, slug, &|path| {
+        std::fs::remove_dir_all(path).map_err(|e| e.to_string())
+    })
+    .unwrap();
+    assert!(!dir.exists());
     let deleted = part();
     assert_eq!(deleted["number"], 1);
     assert_eq!(deleted["slug"], slug);
@@ -172,7 +285,11 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
         &videos,
         &Library::default(),
         &HashMap::new(),
-        Some("settings"),
+        &VoiceSettings {
+            engine: Some(Engine::Kokoro),
+            voice: Some("settings".into()),
+            ..VoiceSettings::default()
+        },
         "narrated",
     )
     .unwrap();
@@ -217,6 +334,19 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
     assert_eq!(json["row"]["slug"], "narrated");
     assert!(json["timingProblem"].is_null());
     assert!(json["scenes"][0]["built"].as_bool().unwrap());
+
+    let unconfigured = detail_in(
+        &videos,
+        &Library::default(),
+        &HashMap::new(),
+        &VoiceSettings::default(),
+        "narrated",
+    )
+    .unwrap();
+    assert_eq!(
+        unconfigured.voice, None,
+        "the voice needs a resolved engine"
+    );
 }
 
 #[test]
@@ -235,7 +365,11 @@ fn the_detail_of_an_unnarrated_video_has_no_times_and_falls_back_to_the_settings
         &videos,
         &Library::default(),
         &HashMap::new(),
-        Some("settings"),
+        &VoiceSettings {
+            engine: Some(Engine::Kokoro),
+            voice: Some("settings".into()),
+            ..VoiceSettings::default()
+        },
         "narrated",
     )
     .unwrap();
@@ -258,12 +392,19 @@ fn the_detail_of_an_unnarrated_video_has_no_times_and_falls_back_to_the_settings
         &videos,
         &Library::default(),
         &HashMap::new(),
-        None,
+        &VoiceSettings::default(),
         "narrated",
     )
     .unwrap();
     assert_eq!(none.voice, None);
-    assert!(detail_in(&videos, &Library::default(), &HashMap::new(), None, "../x").is_err());
+    assert!(detail_in(
+        &videos,
+        &Library::default(),
+        &HashMap::new(),
+        &VoiceSettings::default(),
+        "../x"
+    )
+    .is_err());
 }
 
 #[test]
@@ -415,7 +556,14 @@ fn list_lengths_match_detail_without_reading_components_and_reject_stale_narrati
             .unwrap()
             .seconds
     };
-    let detail = detail_in(&videos, &library, &HashMap::new(), None, "narrated").unwrap();
+    let detail = detail_in(
+        &videos,
+        &library,
+        &HashMap::new(),
+        &VoiceSettings::default(),
+        "narrated",
+    )
+    .unwrap();
     let last = detail.scenes.last().unwrap();
     assert_eq!(length(), Some(last.start.unwrap() + last.duration.unwrap()));
     assert_eq!(length(), detail.row.seconds);
@@ -430,7 +578,14 @@ fn list_lengths_match_detail_without_reading_components_and_reject_stale_narrati
     assert_eq!(length(), None);
 
     scaffold(&videos, "silent", "Silent");
-    let detail = detail_in(&videos, &library, &HashMap::new(), None, "silent").unwrap();
+    let detail = detail_in(
+        &videos,
+        &library,
+        &HashMap::new(),
+        &VoiceSettings::default(),
+        "silent",
+    )
+    .unwrap();
     let row = list_in(&videos, None, &HashMap::new())
         .unwrap()
         .videos
@@ -530,4 +685,106 @@ fn a_series_uses_the_first_live_link_and_the_newest_outline_or_part_time() {
     links.remove("force");
     let json = serde_json::to_value(list_in(&videos, None, &links).unwrap()).unwrap();
     assert!(json["series"][0]["threadId"].is_null());
+}
+
+#[test]
+fn app_video_claims_exclude_rendering_narration_and_edits() {
+    use super::actions::{edit, start_narration, start_render};
+    use crate::studio::narrate::running::NARRATIONS;
+    use crate::studio::render::{Preset, RENDERS};
+    use std::sync::atomic::Ordering;
+
+    let dir = Scratch::new("video-action-claims");
+
+    let render = start_render(&dir, Preset::Final).unwrap();
+    assert!(matches!(start_narration(&dir), Err(error) if error.contains("final render")));
+    assert!(!NARRATIONS.running(&dir));
+    assert!(edit(&dir, || panic!("edit while rendering"))
+        .unwrap_err()
+        .contains("final render"));
+    drop(render);
+
+    let narration = start_narration(&dir).unwrap();
+    assert!(start_narration(&dir).is_err());
+    let message = "this video is being narrated; wait for it or cancel it";
+    assert!(matches!(start_render(&dir, Preset::Draft), Err(error) if error == message));
+    assert_eq!(RENDERS.running(&dir), None);
+    assert_eq!(
+        edit(&dir, || panic!("edit while narrating")).unwrap_err(),
+        message
+    );
+    assert!(NARRATIONS.cancel(&dir));
+    assert!(narration.cancel_flag().load(Ordering::Relaxed));
+    drop(narration);
+
+    assert!(!NARRATIONS.cancel(&dir));
+    edit(&dir, || Ok(())).unwrap();
+    assert!(start_render(&dir, Preset::Draft).is_ok());
+}
+
+#[test]
+fn narration_progress_uses_the_video_rows_folder_and_the_ipc_shapes() {
+    use super::narration::{Event, NarrateSummary, Step};
+    use crate::studio::narrate::Outcome;
+    use serde_json::json;
+
+    let root = Scratch::new("video-narration-events");
+    let videos = root.join("videos");
+    let dir = scaffold(&videos, "demo", "Demo");
+    let rows = list_in(&videos, None, &HashMap::new()).unwrap();
+    assert_eq!(rows.videos[0].dir, dir.to_string_lossy());
+    assert_eq!(
+        rows.videos[0].dir,
+        crate::studio::videos::video_in(&videos, "demo")
+            .unwrap()
+            .to_string_lossy()
+    );
+    let dir = rows.videos[0].dir.as_str();
+    let event = |step| serde_json::to_value(Event { dir, step }).unwrap();
+
+    assert_eq!(
+        event(Step::Scene {
+            id: "intro",
+            n: 1,
+            of: 12
+        }),
+        json!({ "dir": dir, "phase": "scene", "id": "intro", "n": 1, "of": 12 })
+    );
+    for (outcome, name) in [(Outcome::Narrated, "narrated"), (Outcome::Cached, "cached")] {
+        assert_eq!(
+            event(Step::Done {
+                id: "intro",
+                n: 1,
+                of: 12,
+                outcome
+            }),
+            json!({ "dir": dir, "phase": "done", "id": "intro", "n": 1, "of": 12, "outcome": name })
+        );
+    }
+    assert_eq!(
+        event(Step::Complete {
+            scenes: 12,
+            narrated: 5
+        }),
+        json!({ "dir": dir, "phase": "complete", "scenes": 12, "narrated": 5 })
+    );
+    assert_eq!(
+        event(Step::Cancelled),
+        json!({ "dir": dir, "phase": "cancelled" })
+    );
+    assert_eq!(
+        event(Step::Error {
+            error: "scene `intro`: a failure"
+        }),
+        json!({ "dir": dir, "phase": "error", "error": "scene `intro`: a failure" })
+    );
+    assert_eq!(
+        serde_json::to_value(NarrateSummary {
+            scenes: 12,
+            narrated: 5,
+            ms: 123
+        })
+        .unwrap(),
+        json!({ "scenes": 12, "narrated": 5, "ms": 123 })
+    );
 }

@@ -8,6 +8,7 @@ import { UnmadePart } from "@/components/studio/series/UnmadePart";
 import { ExportMenu } from "@/components/studio/video/ExportMenu";
 import { RenderDraftButton } from "@/components/studio/video/RenderDraftButton";
 import { VideoDetailStage } from "@/components/studio/video/VideoDetailStage";
+import { VideoMenu } from "@/components/studio/video/VideoMenu";
 import { WithPlayback } from "@/components/studio/video/WithPlayback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMakeSeriesPart } from "@/hooks/studio/useMakeSeriesPart";
@@ -24,9 +25,10 @@ const PAGE = "mx-auto flex w-full max-w-[1440px] flex-col gap-3 px-6 py-5";
 
 /**
  * /studio/videos/:slug: the player with the script and scenes in its dock,
- * and under it the facts, the render bar and Export (Render draft until the
- * video has a render). A series' part adds the series bar over the picture
- * and the Parts outline under the facts; a part not made has this route too,
+ * and under it the facts, the render bar, Export (Render draft until the
+ * video has a render) and the ⋯ menu that deletes the video. A series' part
+ * adds the series bar over the picture and the Parts outline under the
+ * facts; a part not made has this route too,
  * decided from the list, with its question and Make this part in the frame.
  * Opened beside the chat that makes it, it follows that thread's turns.
  */
@@ -78,12 +80,22 @@ export default function VideoPage() {
                 <VideoDetailStage
                   detail={detail}
                   playback={playback}
+                  running={running}
+                  onChanged={() => void reload()}
                   actions={
-                    playableRenders(detail.renders).length === 0 ? (
-                      <RenderDraftButton detail={detail} />
-                    ) : (
-                      <ExportMenu detail={detail} onChanged={() => void reload()} />
-                    )
+                    <div className="flex items-center gap-1">
+                      {playableRenders(detail.renders).length === 0 ? (
+                        <RenderDraftButton detail={detail} />
+                      ) : (
+                        <ExportMenu detail={detail} onChanged={() => void reload()} />
+                      )}
+                      <VideoMenu
+                        detail={detail}
+                        title={title}
+                        part={membership?.part.number ?? null}
+                        running={running}
+                      />
+                    </div>
                   }
                 />
               )}

@@ -7,6 +7,7 @@
 
 mod captions;
 mod edit;
+mod settings;
 #[cfg(test)]
 mod tests;
 mod title;
@@ -21,6 +22,7 @@ use studio_core::{valid_subject, valid_theme_name, Video};
 use crate::library::paths::{data_dir, studio_dir};
 
 pub use captions::{set_captions, with_captions};
+pub use settings::{set_theme, set_voice};
 pub use title::{set_title, title_of, video_title, with_title};
 
 /// `<data dir>/studio/videos`.

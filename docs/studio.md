@@ -4,8 +4,9 @@ Studio makes lecture videos from scenes written as TSX components.
 `app/studio-core/` is its renderer: a video folder plus a time in, one RGBA
 frame out, the same pixels on every machine, scene transitions included.
 A narrated scene lasts as long as its narration and can cue elements to its
-words, from clips and timings `oculus studio narrate` makes with Kokoro run
-inside the app or a TTS server, and a local aligner. `oculus studio render`, or the app's `studio_render`
+words, from clips and timings the Studio video page or `oculus studio
+narrate` makes with Kokoro or a TTS server and a local aligner.
+`oculus studio render`, or the app's `studio_render`
 command, encodes a video to an mp4 with ffmpeg, one cached segment per
 scene. `oculus studio` also renders single
 frames and contact sheets, lints (errors, and warnings about how a
@@ -33,7 +34,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | `<Math>`: KaTeX through math-core, the layout of its HTML tree, keys, the expansion into glyphs, `<Write>`, KaTeX's brace; the KaTeX fonts | `app/studio-core/src/math/` (`walk/` one file per construct, `write.rs`, `brace.rs`), `app/studio-core/fonts/katex/` |
 | Props schemas and their validation | `app/studio-core/src/schema/` |
 | Component and theme libraries: the starter set, seeding, the snapshot write path and removal, `library.json` (a library's default theme), promoting a video's own file | `app/studio-core/src/library/`, `app/studio-core/library/` (the starter files), `app/src-tauri/src/studio/libraries/` (the app's data-dir roots, `promote.rs`, `defaults.rs`) |
-| Videos in the data directory: `new`, `list`, slug resolution, a video's name and `title`, video.json's text edits, the app's scope | `app/src-tauri/src/studio/videos/` (`title.rs`, `edit.rs`, `captions.rs`), `app/src-tauri/src/library/paths/studio.rs` (`studio_dir`, `agent_write_dirs`) |
+| Videos in the data directory: `new`, `list`, slug resolution, a video's name and `title`, video.json's text edits, the app's scope | `app/src-tauri/src/studio/videos/` (`title.rs`, `edit.rs`, `captions.rs`, `settings.rs`), `app/src-tauri/src/library/paths/studio.rs` (`studio_dir`, `agent_write_dirs`) |
 | Series outlines, part numbers and render status | `app/src-tauri/src/studio/series/` |
 | Galleries: each example of a component as a still, and its contact sheet | `app/studio-core/src/gallery/` |
 | Themes and bundled fonts | `app/studio-core/themes/`, `app/studio-core/fonts/`, `app/studio-core/src/theme/`, `app/studio-core/src/fonts/` |
@@ -47,7 +48,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | Settings -> Studio (Narration, Pronunciation, Word timing): the `voice` row and its engine, the server's model list, Kokoro's packs, voices and sample, the pronunciation review, the aligner download; its Tauri commands | `app/src/pages/settings/studio/`, `app/src/components/settings/voice/` (`pronunciations/`, `voices/`), `app/src/lib/studio/` (`voice.ts`, `voicePacks.ts`, `kokoroVoices.ts`, `aligner.ts`), `app/src-tauri/src/studio/commands/` (`voice.rs`, `kokoro.rs`, `voice_files.rs`, `aligner.rs`, `progress.rs`), `app/src-tauri/src/studio/tts/models.rs` |
 | Rendering a video: the export presets, ffmpeg's toolkit and the encoder choice, plan, workers and the reorder buffer, ffmpeg, the segment cache, the narration track, mux, the `.vtt` beside each narrated render, each preset's status, one render per folder | `app/src-tauri/src/studio/render/` (`preset.rs`, `toolkit.rs`, `settings.rs`, `export.rs`, `status.rs`), `app/src-tauri/crates/oculus-core/build.rs` (`STUDIO_RENDER_BUILD`) |
 | Rendering from the app: `studio_render`, `studio_render_cancel`, `studio_exports`, the `studio-render-progress` event and their wrappers; the page over them is [studio-page.md](./studio-page.md) | `app/src-tauri/src/studio/commands/render.rs`, `app/src/lib/studio/render.ts` |
-| The Studio page's commands: the video list, a video's detail, stills and thumbnails; the `studio_videos` link table; a video thread's brief | `app/src-tauri/src/studio/commands/videos/`, `app/src-tauri/src/db/store/studio_videos.rs`, `app/src-tauri/src/harness/manager/studio.rs`, `app/src/lib/studio/videos.ts` |
+| The Studio page's commands: the video list, a video's detail, settings, narration, stills and thumbnails; the `studio_videos` link table; a video thread's brief | `app/src-tauri/src/studio/commands/videos/`, `app/src-tauri/src/db/store/studio_videos.rs`, `app/src-tauri/src/harness/manager/studio.rs`, `app/src/lib/studio/videos.ts` |
 | The playground's and Themes page's commands: the theme and component lists, source, frame, validated write, history, restore and removal, each library's default theme; the shared snapshot listing; a new video's default theme | `app/src-tauri/src/studio/commands/components/`, `commands/themes/`, `commands/levels.rs`, `commands/history.rs`, `app/src-tauri/src/studio/libraries/defaults.rs`, `app/src/lib/studio/components.ts`, `app/src/lib/studio/themes.ts` |
 | The agent flow: the `oculus-studio` skill and the prelude's globals, typed | `app/src-tauri/templates/skills/oculus-studio/` (`SKILL.md`, `reference.md`), `app/studio-core/studio.d.ts` (its test: `src/host/tests/globals.rs`) |
 | Slides: a region of a library PDF page as a video asset, the blocks to pick it by, edges moved off ink, the sidecar and its lint; the bundled sample crop | `app/src-tauri/src/studio/slides/` (`blocks.rs`, `geometry.rs`, `snap.rs`, `raster.rs`, `sidecar.rs`, `preview.rs`), `app/studio-core/library/components/Slide.tsx`, `app/studio-core/src/images/`, `app/studio-core/library/assets/` |
@@ -488,8 +489,7 @@ scenes that use it.
 
 `script.md` holds what is said, and `narration/manifest.json` the timings of
 the clips made from it. studio-core reads both and never the audio. The
-manifest is written by `oculus studio narrate` (see "Narration is made by
-`oculus studio narrate`").
+[narrator](#narration-makes-clips-and-word-times) writes the manifest.
 
 ```markdown
 ## steps
@@ -557,8 +557,8 @@ We follow the *gradient* downhill, one small step at a time.
   (`Manifest`). `text` is the section's `clip_text`, each word's `text` the
   word as the script writes it, `audio` the clip's
   file name in `narration/`, `key` its content
-  address (see "Cache" under "Narration is made by `oculus studio
-  narrate`"), times are seconds from the clip's start, `confidence` is the
+  address (see "Cache" under [how narration makes clips](#narration-makes-clips-and-word-times)).
+  Times are seconds from the clip's start. `confidence` is the
   aligner's (mean log-probability of the word's letter frames; higher is
   surer), and `gaps` (optional) is speech the aligner heard that the
   script does not have, after word index `after` (`null`: before the first
@@ -667,11 +667,13 @@ aligner at a copy elsewhere instead, for development and the parity tests.
   no word under -4.2, no gaps, and the last word ending within 40 ms of
   the speech.
 
-## Narration is made by `oculus studio narrate`
+## Narration makes clips and word times
 
 `narrate` (`app/src-tauri/src/studio/narrate/`) turns each scene's
 `script.md` section into a clip and its word times, and writes the
-manifest. Scenes run one at a time, in video order.
+manifest. Scenes run one at a time, in video order. The Studio video page
+runs narration on an explicit request, and `oculus studio narrate` runs it
+from the terminal.
 
 - **Voice.** Each of engine, voice and speed, and for the server engine
   the server and model, comes from the first that sets it: the CLI flags
@@ -2141,9 +2143,10 @@ error before any frame renders.
   Studio page's commands"): `render::RENDERS` maps each canonical folder to its preset and
   an `Arc<AtomicBool>` cancel flag, and a second start for the same folder
   is refused at once ("a draft render of <dir> is already running"), with
-  no event. A guard frees the folder however the render ends, before the
-  last event. `studio_render_cancel(dir)` sets the flag (false when none
-  runs). Each step is a `studio-render-progress` event `{ dir, preset,
+  no event. An app render and app narration cannot share a folder. Each
+  claims its own registry before checking the other. A guard frees the
+  folder however the render ends, before the last event.
+  `studio_render_cancel(dir)` sets the flag (false when none runs). Each step is a `studio-render-progress` event `{ dir, preset,
   phase, ... }`, `dir` as given: `planning` at the start and again with `plan:
   {segments, cached, frames, threads}`; `rendering` with `{segment, of,
   scene, frame, frames, fps}` (1-based segment and frame), at most one per
@@ -2174,21 +2177,43 @@ The list reads both the video folders and the series outlines. Commands on one v
 | --- | --- |
 | `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series`, `part` and nullable `seconds`. Each series has its ordered outline, `threadId` (first non-null part link in outline order), `modified` (newest outline or matching part time), and a nullable video row per part with `exists` and `made` flags. A matching folder has a row before it has a render; `made` means it has an MP4. |
 | `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
+| `studio_video_delete(slug)` | moves the video folder to the Trash and removes its thread link. Its series outline still lists the part, now without a video. |
+| `studio_render_delete(slug, preset)` | moves the preset's MP4 and any WebVTT sidecar to the Trash, then drops its cache record and deletes segments and tracks unused by the remaining records. A missing MP4 is an error. |
 | `studio_render_captions(slug, preset)` | the WebVTT text beside that preset's render (`renders/<preset>.vtt`), for the player's CC |
+| `studio_set_theme(slug, theme)` | sets video.json's theme to a name that parses through the video's subject, global and bundled cascade |
+| `studio_set_voice(slug, voice)` | sets the voice id over Settings, or clears it with `null`. The other voice overrides stay, and an empty block is removed. The resulting voice must resolve. |
+| `studio_narration_status(slug)` | `{engine, voice, scenes, stale, problem}`. Engine and voice are null if resolution fails. Local file checks report missing prerequisites. Cache keys count scenes that need clips, including all scenes when the pronunciation pack needed to key them is missing. |
+| `studio_narrate(slug)` | uses the resolved voice to make all missing or stale clips, returning `{scenes, narrated, ms}` or `null` on cancel |
+| `studio_narrate_cancel(slug)` | requests a stop after the scene in flight, returning false when the video has no narration running |
 | `studio_set_captions(slug, on)` | sets video.json's `captions`: the `true`/`false` literal is replaced in the text, or the key is added before `scenes` on a line of its own, so the rest of the file keeps its formatting (`videos::set_captions`) |
 | `studio_exports(dir)` | each preset's status (`render::exports`, see "Rendering a video") as `{preset, path, modified, current, problem}`; it asks ffmpeg for its toolkit, renders nothing and makes no network call |
 | `studio_frame(slug, at, width)` | a PNG `width` px wide (1 to 4096), the layout of the full-size frame, as bytes through `tauri::ipc::Response` |
 | `studio_thumbnail(slug)` | the video's cached thumbnail PNG |
 | `studio_render`, `studio_render_cancel`, `studio_exports` | see "Rendering a video"; they take a slug or a video's folder and refuse any other |
 
+- **Deletion** requires the video to be idle. The Trash helper in
+  `app/src-tauri/src/runtime/trash.rs` uses `NSFileManager` on macOS and
+  the Recycle Bin on Windows.
+- **Video edits and narration.** Theme and voice edits preserve video.json's
+  text outside the edited member and are refused while the app renders or
+  narrates the folder. The narration status reads cache keys and model
+  files locally. Kokoro's pronunciation model loads only when an
+  existing clip's key needs a guessed reading. An explicit narration request is the video page's only path to
+  audio synthesis or a TTS server call.
+- **Narration progress** uses `studio-narrate-progress` with the same
+  absolute `dir` as the video row. The `phase` is `scene` with `{id, n,
+  of}` (1-based), `done` with `{id, n, of, outcome}` (`narrated` or
+  `cached`), then `complete` with `{scenes, narrated}`, `cancelled`, or
+  `error` with `{error}`. A completed scene is on disk before its `done`
+  event, so a retry after cancellation or failure reuses current clips.
 - **List lengths** use `Project::read_timeline_with`: video.json, script.md,
   the narration manifest and the resolved theme's narration tokens, with no
   component or asset lookup. Script freshness, silent holds and frame
   rounding share the renderer's timing rules. The last scene's start plus
   duration is `seconds`, null when any scene's timing is unavailable; the
   detail's row derives it from the timeline it already loaded.
-- **The detail's voice** is video.json's `voice.voice`, else Settings ->
-  Voice's voice, else null. **Scenes** are `{id, component, start, duration,
+- **The detail's voice** is the resolved narration voice id, or null
+  when the voice does not resolve. **Scenes** are `{id, component, start, duration,
   text}`; `text` is the scene's `## id` section of `script.md` (null when it
   has none). `start` and `duration` are seconds from `Project::timeline`, so
   they are known once every scene has a length (a hold, or narration that
@@ -2501,7 +2526,7 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
   pronounce suggest|list` puts a reading up for the student's review and
   lists the waiting ones (see "The student reviews the agent's suggested
   readings"); `oculus studio aligner` manages the aligner model. See
-  "Narration is made by `oculus studio narrate`".
+  [how narration makes clips](#narration-makes-clips-and-word-times).
 - `oculus studio voices` lists each Kokoro pack's status and size and each
   of the 20 voices with its accent, gender, grade and status, marking the
   one Settings -> Studio -> Narration names. `voices download` with no

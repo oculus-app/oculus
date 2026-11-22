@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use sqlx::{Row, SqlitePool};
+use sqlx::{Row, SqliteExecutor, SqlitePool};
 
 /// What a video's thread was started with.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +41,19 @@ pub async fn studio_links(pool: &SqlitePool) -> Result<HashMap<String, StudioLin
         .map(link)
         .map(|l| (l.slug.clone(), l))
         .collect())
+}
+
+/// Remove the link for a deleted video, freeing its thread to make another.
+pub async fn delete_studio_link<'e>(
+    executor: impl SqliteExecutor<'e>,
+    slug: &str,
+) -> Result<(), String> {
+    sqlx::query("DELETE FROM studio_videos WHERE slug = ?1")
+        .bind(slug)
+        .execute(executor)
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("Could not remove the thread link for video `{slug}`: {e}"))
 }
 
 fn link(r: sqlx::sqlite::SqliteRow) -> StudioLink {

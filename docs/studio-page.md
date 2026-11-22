@@ -18,10 +18,11 @@ video starts that chat. The renderer, the commands and the thread link are
 | Series grouping, outline navigation and shared part requests | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
 | A series' part on the video page and in the chat card: the series bar, the Parts outline, the frame of a part not made, and what each decides (`seriesView.ts`) | `app/src/components/studio/series/` (`SeriesBar.tsx`, `PartsOutline.tsx`, `UnmadePart.tsx`), `app/src/lib/studio/seriesView.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
-| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`), `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
+| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu, the ⋯ menu that deletes the video and what a delete decides | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`, `VideoMenu.tsx`), `app/src/lib/studio/videoActions.ts`, `app/src/hooks/studio/useExportStatus.ts`, `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
 | The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts`, `app/src/hooks/ui/useGridMotion.ts`, `app/src/lib/ui/gridMotion.ts` |
+| The theme and voice pickers, narrating from the page, the out-of-date note, and what each decides (`videoControls.ts`) | `app/src/components/studio/video/` (`PickerPill.tsx`, `ThemePicker.tsx`, `VoicePicker.tsx`, `RenderBar.tsx`), `app/src/lib/studio/videoControls.ts`, `app/src/lib/studio/narration.ts` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
-| Render state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
+| Render and narration state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `narrateStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
 | The Components playground: list, stage, timeline, inspector, source, change box | `app/src/pages/studio/ComponentsPage.tsx`, `app/src/components/studio/components/` (`inspector/` for the props form) |
 | The inspector column both editors share: fold, width, sections, compact fields | `app/src/components/studio/panel/` (`InspectorColumn.tsx`, `fields.tsx`), `app/src/components/ui/CollapsibleSection.tsx`, `app/src/hooks/studio/useInspectorSections.ts` |
 | The playground's hooks: component list, source, stage frames, playhead, change flow | `app/src/hooks/studio/` (`useComponents`, `useComponentSource`, `useStageFrame`, `useStageWidth`, `usePlayhead`, `useLibraryChange`, `useDefaultModel`), `app/src/lib/studio/props.ts` (the form's sections, tooltips and changed-from-default), `app/src/lib/studio/changeRequest.ts` |
@@ -45,8 +46,8 @@ video opened beside its chat) a Studio page has no nav column and its header
 no toggle: the panel's switcher, expand and × claim the row as on any page
 built on `PageHeader` ([shell.md](./shell.md#the-side-panel-is-a-stack-of-items-beside-the-page)).
 
-The rail's Studio item shows a brand dot while any render runs; there are no
-toasts or bars ([ui.md](./ui.md)).
+The rail's Studio item shows a brand dot while any render runs (a narration
+does not light it); there are no toasts or bars ([ui.md](./ui.md)).
 
 ## New video starts a chat
 
@@ -107,6 +108,15 @@ however it ends, removes the entry, keeps a failure's sentence in `errors`
 bumps `settled[dir]` (a page showing the folder re-reads on it) and reloads
 the video list. The store outlives navigation, so the rail dot, a grid
 card's badge, a chat's video card and the page's bar all follow one render.
+
+`narrateStore` does the same for a narration started from the video page:
+`active` is keyed by the folder and holds the slug and the scene it is on
+(`n` of `of`, and how many are done), fed by `studio-narrate-progress`
+(`useStudioEvents`) and by `start`, which awaits `narrateVideo`
+(`studio_narrate`). An end, however it ends, removes the entry, keeps a
+failure's sentence in `errors` until the next narration of the folder starts,
+bumps `settled[dir]` (the detail and the export statuses are read again on
+it) and reloads the video list. Only the page shows it.
 
 ## Videos and the detail
 
@@ -202,8 +212,10 @@ and nothing moves under reduced motion. Tiles and run cells carry
 
 The detail (`VideoDetailStage`) is the player with a dock, and under it one
 row: the facts (subject, theme, voice, length, shape) at its start, and the
-render bar and the video's one button at its end. The row wraps, the end
-group staying on the right, when the page is narrow.
+render bar, the video's one button and its ⋯ menu at its end. The facts take
+their pills' width, so when the end group no longer fits beside them it
+wraps under them, still on the right, and a longer note never reflows the
+pills.
 The subject's pill is its icon and display code (`SubjectIcon`, keyed by the
 course's current subject, `subjectCodeFor`).
 Opened beside the chat that makes it (the video card's title or expand
@@ -214,7 +226,41 @@ goes under the picture (below). Playing it pauses the chat's inline player
 and the other way round, as for any two library videos. The header holds
 only the way back and the title. The row's button is **Render draft** while the video has no playable render (it starts
 `studio_render` for `draft` through `renderStore`, and spins, disabled, while
-any render of the folder runs), and **Export** once it has one.
+any render of the folder runs, and is off while a narration does), and
+**Export** once it has one.
+
+- **The theme and voice pills** are pickers (`PickerPill`: the facts' pill
+  with a small caret, opening a popover). Both are off while a render or a
+  narration of the folder runs or the video's thread runs a turn, with a
+  tooltip saying which (`pillBlocker`); the setters themselves refuse while
+  a render or a narration runs.
+  - **Theme** (`ThemePicker`) lists the themes in effect for the video's
+    subject (`useThemes` with the full subject code, `useSubjectCode`) in the
+    style chip's rows (`ThemeList`, swatches and where each comes from), the
+    current one ticked and the subject's default marked. A press saves it at
+    once (`setVideoTheme`, `studio_set_theme`), closes, and reads the detail,
+    the list and the export statuses again; a refusal is a line in the
+    popover. A theme video.json names by path shows as written, with no row
+    ticked. Scene stills and the grid's thumbnail are keyed by the folder's
+    modified time (scene stills by the theme too), so they redraw.
+  - **Voice** (`VoicePicker`) reads `studio_narration_status` (local, nothing
+    synthesises) and the Settings voice when it opens and again when a
+    narration ends. Its first row is the Settings voice ("Default · af_heart"),
+    which clears the video's own (`setVideoVoice(slug, null)`); then, for
+    Kokoro, the downloaded voices named as Settings names them
+    (`kokoroVoiceLabel`), with "More voices in Settings" under them and no
+    download here; for a TTS server, a field for the voice id. It opens on
+    Default when the video narrates with the Settings voice. Choosing a row
+    only selects it. One button applies (`narrateAction`): "Use Michael ·
+    narrate 12 scenes" when the choice differs from the voice narrating now
+    (it sets the voice, then starts the narration through `narrateStore`), or
+    "Narrate 3 scenes" when the voice is the same and clips are stale; with
+    neither, a quiet line says the narration is current. For a server the
+    line under the button says "Sends each scene to your TTS server." A reason
+    narration cannot run now (`problem`) is a warning line with a Settings
+    link, and the button is off. Nothing narrates on open, on a choice or on
+    load, and there is no sample, which would synthesise. A refused voice
+    change shows in the popover; a narration's failure, under the row.
 
 - **The player** is the app's `MediaPlayer` over the newest video render
   (`draft`, `final` or `small`; `playableRenders`), `mediaSrc(path)` plus `&v=<mtime>` so a re-render of
@@ -227,13 +273,31 @@ any render of the folder runs), and **Export** once it has one.
   and library videos (`useLibraryPlayback`). The same player, without a
   dock, plays a video inside a chat thread
   ([harness.md](./harness.md#a-studio-thread-carries-its-video)).
-- **The render bar** sits before the row's button and starts nothing: the
-  render pills when there are several, and when the shown one was made. A
-  render in flight, of any preset (Render draft and Export start them through
-  `renderStore`), takes its place with a bar naming the preset, the
-  percentage and Cancel; a failure shows under the row (`RenderError`) and
-  stays until the next render starts. Rendering is local (ffmpeg), so unlike
-  Settings it may start from the page.
+- **The render bar** sits before the row's button: the render pills when
+  there are several, and a note on the shown one (`renderNote`,
+  `renderNoteText`): when it was made ("Draft · 6h ago"); "Draft · 6h ago ·
+  out of date" with a small **Re-render** when its file is from an older
+  version (its export state, below), which renders that preset through
+  `renderStore`; or "Narration out of date" with a small **Narrate** while
+  the narration no longer covers the script (`detail.timingProblem`), shown
+  even before any render. Narrate starts the narration through
+  `narrateStore`; it is off while the thread's turn or a render runs, or
+  while `studio_narration_status` gives a reason it cannot run, which is its
+  tooltip (`narrateBlocker`). Rust's own sentence for a preset that cannot
+  render stays in the Export menu. A render in flight, of any preset (Render
+  draft, Export and Re-render start them through `renderStore`), takes the
+  bar's place with a bar naming the preset, the percentage and Cancel; a
+  narration in flight does the same with "Narrating 4/12" (`narratingLabel`).
+  A failure shows under the row (`RenderError`, `NarrateError`) and stays
+  until the next render or narration starts. Rendering is local (ffmpeg), so
+  unlike Settings it may start from the page; a narration starts only from
+  the Narrate buttons.
+- **The export statuses** (`studio_exports`) are read once for the row and
+  the Export menu (`useExportStatus`, coalesced per folder): when the detail
+  first loads, when a render or a narration of the folder ends, when the
+  folder's modified time moves while its thread is idle (not on every write
+  of a running turn), when the Export menu opens, and after a theme, voice,
+  captions or bin change.
 - **The dock** is the lecture player's (`MediaDock`, `useTranscriptDock`):
   the player's dock button, T and the dock's × fold it, its header drags it to
   an edge, its divider resizes it, and the side, size and open state are
@@ -264,15 +328,21 @@ any render of the folder runs), and **Export** once it has one.
 - **Export** (`ExportMenu`), the row's button once there is a render, is a pill over a popover of the presets, Draft,
   Final and Small ([studio.md](./studio.md#rendering-a-video)): each row names
   the preset and what it makes for this video's shape (`presetHint`), and its
-  state from `studio_exports`, read when the menu opens and again when a
-  render of the folder ends: a check when its file is current, "out of date"
+  state from the export statuses above: a check when its file is current, "out of date"
   when the file is from an older version, the reason when it cannot render
   now. Render (or Re-render) closes the menu and starts it through
-  `renderStore`, so its progress is the render bar's; while any render of the
-  video runs the buttons are off and the running row spins. A row with a file
-  has Show in Finder (Show in Explorer on Windows, `revealItemInDir`). A
-  failure to read the statuses shows in the popover; a render's failure,
-  under the row.
+  `renderStore`, so its progress is the render bar's; while any render or a
+  narration of the video runs the buttons are off and the running row spins. A row with a file
+  has Show in Finder (Show in Explorer on Windows, `revealItemInDir`) and a
+  bin, Move to Trash (Move to Recycle Bin), which asks nothing, since the
+  file can be rendered again: `studio_render_delete` moves the mp4 and its
+  `.vtt`, then the detail, the list and the statuses are read again. The
+  player falls back to the render left (`useVideoPlayback` shows the newest
+  playable one when the shown one is gone); with none left, the row's
+  button becomes Render draft and the popover goes with Export, and a
+  series' part counts as not made again (below). The bin is
+  off while any render or a narration of the folder runs. A failure to read the statuses
+  or to move a file shows in the popover; a render's failure, under the row.
 - **Captions in the picture** is the switch under the presets (hint: "Drawn
   into the frames, so every player shows them"), per video: `detail.captions`
   is video.json's `captions` and `setCaptions` writes it
@@ -280,6 +350,22 @@ any render of the folder runs), and **Export** once it has one.
   the files made the other way show "out of date". With the switch on the
   player has no CC button, since the words are in the frames; with it off the
   CC button shows the render's `.vtt`. A failed write shows under the switch.
+- **The ⋯ menu** (`VideoMenu`), a ghost icon button after Render draft or
+  Export, holds **Delete video…**, red as other menus' deletes are. It is off,
+  its tooltip saying why (`deleteVideoBlocker`), while a render of the folder
+  runs ("Cancel the render first"), a narration of it runs ("Wait for the
+  narration or cancel it") or the video's thread runs a turn ("The chat is
+  still working on this video"). It asks first in `ConfirmDialog`:
+  "Delete “title”?", that its script, narration and renders move to the
+  Trash (the Recycle Bin on Windows), and for a series' part that the part
+  goes back to not made (`deleteVideoPrompt`). Move to Trash calls
+  `studio_video_delete` ([studio.md](./studio.md)) and spins while it runs;
+  Rust's sentence for a refusal shows in the dialog, which stays open. Then
+  the list is read again and `afterVideoDelete` says where the page goes: a
+  part stays and becomes its not-made view once the list says so; a video
+  open beside its chat closes that side item (`removeSide`); any other goes
+  to the Videos grid. The chat's video card follows the list, so it goes
+  with the row.
 
 **A series' part** has the same page with three additions. The header is the
 part's title with "Part 2/5" beside it (`StudioHeader`'s `meta`). Over the
@@ -309,7 +395,7 @@ made the frame says "Making “question”", the status (`partStatus`:
 "Sending", "Starting" or "Asked for" until its folder exists, then its
 video's progress line) and **Open the chat**, which opens the series'
 thread; nothing opens on its own. A failed request shows its sentence under
-the button, never as a toast. There is no dock, no facts and no Export.
+the button, never as a toast. There is no dock, no facts, no Export and no ⋯ menu.
 The list is re-read whenever a Studio call finishes or a turn ends
 (`useHarnessEvents`), so when the part's folder and then its render appear
 the same page becomes its player.

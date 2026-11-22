@@ -553,6 +553,32 @@ async fn a_studio_video_links_to_its_thread_and_survives_the_thread() {
 }
 
 #[tokio::test]
+async fn deleting_a_studio_video_link_frees_its_thread_for_another_video() {
+    let pool = migrated_pool().await;
+    sqlx::raw_sql(
+        "INSERT INTO harness_threads (id, provider, status) VALUES (7, 'claude', 'idle');
+         INSERT INTO studio_videos (slug, thread_id) VALUES ('first', 7), ('unlinked', NULL);",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    delete_studio_link(&pool, "first").await.unwrap();
+    assert_eq!(studio_link_of_thread(&pool, 7).await.unwrap(), None);
+    let links = studio_links(&pool).await.unwrap();
+    assert_eq!(links.len(), 1);
+    assert!(links.contains_key("unlinked"));
+    sqlx::query("INSERT INTO studio_videos (slug, thread_id) VALUES ('second', 7)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        studio_link_of_thread(&pool, 7).await.unwrap().unwrap().slug,
+        "second"
+    );
+}
+
+#[tokio::test]
 async fn term_sort_backfill_reads_names_and_keeps_stamped_keys() {
     let pool = migrated_pool().await;
     sqlx::raw_sql(

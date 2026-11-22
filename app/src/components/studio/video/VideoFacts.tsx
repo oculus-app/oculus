@@ -1,23 +1,42 @@
-import { Microphone, Palette, Timer } from "@phosphor-icons/react";
+import { Timer } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
+import { ThemePicker } from "@/components/studio/video/ThemePicker";
+import { VoicePicker } from "@/components/studio/video/VoicePicker";
 import { useSubjectCode } from "@/hooks/studio/useSubjectCode";
 import { displayCode } from "@/lib/format/format";
 import { fmtClockSecs } from "@/lib/lectures/media";
+import { pillBlocker } from "@/lib/studio/videoControls";
 import type { VideoDetail } from "@/lib/studio/videos";
+import { useNarrateStore } from "@/stores/studio/narrateStore";
+import { useRenderStore } from "@/stores/studio/renderStore";
 
-/** A video's subject, theme, voice, length and shape as quiet pills. */
-export function VideoFacts({ detail }: { detail: VideoDetail }) {
+/** A video's subject, theme, voice, length and shape as quiet pills; the
+ *  theme and voice open pickers, off while anything writes into the folder. */
+export function VideoFacts({
+  detail,
+  running,
+  onChanged,
+}: {
+  detail: VideoDetail;
+  /** The video's thread is running a turn. */
+  running: boolean;
+  /** Re-reads the video after a picker changes it. */
+  onChanged: () => void;
+}) {
   const { row } = detail;
+  const rendering = useRenderStore((s) => row.dir in s.active);
+  const narrating = useNarrateStore((s) => row.dir in s.active);
+  const blocker = pillBlocker({ rendering, narrating, running });
   const last = detail.scenes[detail.scenes.length - 1];
   const length = last?.start != null && last.duration != null ? last.start + last.duration : null;
   const portrait = detail.height > detail.width;
   return (
     <div className="flex flex-wrap gap-1.5">
       {row.subject && <SubjectFact course={row.subject} />}
-      <Fact icon={Palette}>{detail.theme}</Fact>
-      {detail.voice && <Fact icon={Microphone}>{detail.voice}</Fact>}
+      <ThemePicker detail={detail} blocker={blocker} onChanged={onChanged} />
+      <VoicePicker detail={detail} blocker={blocker} onChanged={onChanged} />
       {length != null && <Fact icon={Timer}>{fmtClockSecs(length)}</Fact>}
       <Fact>
         {portrait ? "Reels" : "Video"} · {detail.width}×{detail.height} · {detail.fps} fps

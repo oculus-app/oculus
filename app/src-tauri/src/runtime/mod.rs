@@ -9,4 +9,5 @@ pub mod onnx;
 pub(crate) mod pipeline_events;
 pub mod platform;
 pub mod stream;
+pub mod trash;
 pub mod upper;

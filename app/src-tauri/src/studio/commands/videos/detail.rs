@@ -13,6 +13,7 @@ use super::rows::VideoView;
 use crate::db::store::StudioLink;
 use crate::studio::render::Preset;
 use crate::studio::videos;
+use crate::studio::voice::{self, VoiceSettings};
 
 /// Mirrors `VideoDetail` in `app/src/lib/studio/videos.ts`.
 #[derive(Debug, Serialize, PartialEq)]
@@ -63,8 +64,7 @@ pub struct RenderFile {
     pub captions: bool,
 }
 
-/// The video `slug` under `videos`. `settings_voice` is Settings -> Studio -> Narration's
-/// voice id, shown when video.json names none. Scene times are known once
+/// The video `slug` under `videos`, with the voice it resolves to. Scene times are known once
 /// every scene has a length: a hold, or narration that matches the script.
 /// Until then they are null, and so is a stale narration's, which the page
 /// meets as an error when it asks for a frame.
@@ -72,7 +72,7 @@ pub fn detail_in(
     videos: &Path,
     library: &Library,
     links: &HashMap<String, StudioLink>,
-    settings_voice: Option<&str>,
+    settings: &VoiceSettings,
     slug: &str,
 ) -> Result<VideoDetail, String> {
     let dir = videos::video_in(videos, slug)?;
@@ -105,12 +105,9 @@ pub fn detail_in(
             text: project.section(i).map(|s| s.text.clone()),
         })
         .collect();
-    let voice = project
-        .video
-        .voice
-        .as_ref()
-        .and_then(|v| v.voice.clone())
-        .or_else(|| settings_voice.map(str::to_owned));
+    let voice = voice::resolve_video(project.video.voice.as_ref(), settings)
+        .ok()
+        .map(|voice| voice.engine_and_id().1.to_owned());
     Ok(VideoDetail {
         row: VideoView::of(
             row,

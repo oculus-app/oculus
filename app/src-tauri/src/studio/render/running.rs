@@ -31,8 +31,8 @@ impl Renders {
 
     /// Claim `dir` for a render, or refuse naming the render that holds it.
     pub fn start(&self, dir: &Path, preset: Preset) -> Result<Running<'_>, String> {
-        let key = std::fs::canonicalize(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut running = self.lock();
+        let key = std::fs::canonicalize(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         if let Some(entry) = running.get(&key) {
             return Err(format!(
                 "a {} render of {} is already running; wait for it or cancel it",
@@ -67,6 +67,30 @@ impl Renders {
             }
             None => false,
         }
+    }
+
+    /// The preset of the render that holds `dir`, if one runs.
+    pub fn running(&self, dir: &Path) -> Option<Preset> {
+        let key = std::fs::canonicalize(dir).ok()?;
+        self.lock().get(&key).map(|entry| entry.preset)
+    }
+
+    /// Hold off new renders while a deletion changes the folder or its cache.
+    pub(in crate::studio) fn while_idle(
+        &self,
+        dir: &Path,
+        delete: impl FnOnce(&Path) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let running = self.lock();
+        let key = std::fs::canonicalize(dir)
+            .map_err(|e| format!("Could not open the video folder {}: {e}", dir.display()))?;
+        if let Some(entry) = running.get(&key) {
+            return Err(format!(
+                "A {} render of this video is running. Cancel it first.",
+                entry.preset.name()
+            ));
+        }
+        delete(&key)
     }
 
     /// A render that panicked while holding the lock left the map whole.

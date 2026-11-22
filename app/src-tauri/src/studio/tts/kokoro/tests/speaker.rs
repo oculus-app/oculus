@@ -91,3 +91,23 @@ fn a_dollar_in_the_text_is_refused_before_anything_loads() {
         assert!(e.contains("`$`") && e.contains("pad"), "{e}");
     }
 }
+
+#[test]
+fn a_status_key_for_dictionary_words_does_not_load_the_guesser() {
+    let dir = Scratch::new("kokoro-status-key");
+    fake_pack(&dir, &guess::PACK);
+    for (name, json) in [
+        (guess::GOLD_FILE, r#"{"hello":"həlˈoʊ"}"#),
+        (guess::SILVER_FILE, "{}"),
+    ] {
+        let path = dir.join(name);
+        let mut bytes = json.as_bytes().to_vec();
+        bytes.resize(path.metadata().unwrap().len() as usize, b' ');
+        std::fs::write(path, bytes).unwrap();
+    }
+    let mut status = speaker(&dir, "af_heart");
+    status.defer_guesser();
+    let key = status.key("Hello").unwrap();
+    assert_eq!(key.last().unwrap(), "həlˈoʊ");
+    assert!(speaker(&dir, "af_heart").key("Hello").is_err());
+}

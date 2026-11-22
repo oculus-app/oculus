@@ -1,14 +1,10 @@
 //! `oculus studio narrate` and `oculus studio tts`: the TTS server or Kokoro,
-//! through `app_lib::studio` (docs/studio.md, "Narration is made by `oculus
-//! studio narrate`").
+//! through `app_lib::studio` (docs/studio.md, "Narration makes clips and word times").
 
 use crate::*;
 use app_lib::studio::libraries;
-use app_lib::studio::narrate::{
-    self, ModelAligner, Outcome, Progress, SceneReport, ServerSpeaker, Speaker,
-};
-use app_lib::studio::tts::kokoro::{KokoroSpeaker, LexiconFiles, Packs};
-use app_lib::studio::voice::lint::{notes, Note};
+use app_lib::studio::narrate::{self, speaker, ModelAligner, Outcome, Progress, SceneReport};
+use app_lib::studio::voice::lint::Note;
 use app_lib::studio::voice::review::Store;
 use app_lib::studio::voice::{self, Engine, Voice, VoiceOverrides};
 use studio_core::{Project, LOW_CONFIDENCE};
@@ -142,41 +138,6 @@ impl Ctx {
     }
 }
 
-/// The speaker `voice`'s engine makes clips with; Kokoro reads the
-/// lexicon of `subject` over the library's.
-fn speaker<'a>(voice: &'a Voice, subject: Option<&str>) -> Speakers<'a> {
-    match voice {
-        Voice::Server(v) => Speakers::Server(ServerSpeaker(v)),
-        Voice::Kokoro(v) => Speakers::Kokoro(Box::new(KokoroSpeaker::new(
-            v.clone(),
-            Packs::app(),
-            LexiconFiles::app(subject),
-        ))),
-    }
-}
-
-enum Speakers<'a> {
-    Server(ServerSpeaker<'a>),
-    Kokoro(Box<KokoroSpeaker>),
-}
-
-impl Speakers<'_> {
-    fn speaker(&self) -> &dyn Speaker {
-        match self {
-            Speakers::Server(s) => s,
-            Speakers::Kokoro(s) => &**s,
-        }
-    }
-
-    /// A note per word Kokoro guessed in the scenes it read.
-    fn notes(&self, project: &Project) -> Vec<Note> {
-        match self {
-            Speakers::Server(_) => Vec::new(),
-            Speakers::Kokoro(k) => notes(project, |text| k.phonemized(text)),
-        }
-    }
-}
-
 /// `note: scene 2 `momentum` script.md:9: check pronunciation: ...`
 pub(super) fn print_note(note: &Note) {
     println!(
@@ -241,7 +202,7 @@ fn print_progress(p: &Progress) {
             paint("warning:", YELLOW)
         ),
         Progress::Start { .. } => {}
-        Progress::Done(scene) => print_scene(scene),
+        Progress::Done { scene, .. } => print_scene(scene),
     }
 }
 

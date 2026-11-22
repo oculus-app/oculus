@@ -101,10 +101,10 @@ pub enum Progress<'a> {
     /// being rebuilt from nothing; the reason.
     Reset(&'a str),
     /// Scene `n` of `of` (1-based) begins.
-    Start {
-        id: &'a str,
+    Start { id: &'a str, n: usize, of: usize },
+    Done {
+        scene: &'a SceneReport,
         n: usize,
         of: usize,
     },
-    Done(&'a SceneReport),
 }

@@ -128,9 +128,29 @@ export function videoDetail(slug: string): Promise<VideoDetail> {
   return invoke<VideoDetail>("studio_video_detail", { slug });
 }
 
+/** Moves the video's whole folder to the Trash (the Recycle Bin on Windows)
+ *  and drops its thread link. Rejects with a sentence fit to show, for
+ *  instance while a render of it runs. */
+export function deleteVideo(slug: string): Promise<void> {
+  return invoke("studio_video_delete", { slug });
+}
+
 /** Turns the captions in the picture on or off (video.json's `captions`). */
 export function setCaptions(slug: string, on: boolean): Promise<void> {
   return invoke("studio_set_captions", { slug, on });
+}
+
+/** Writes video.json's theme. `theme` is a name in effect for the video's
+ *  subject; rejects with a sentence otherwise, or while a render or a
+ *  narration of the video runs. */
+export function setVideoTheme(slug: string, theme: string): Promise<void> {
+  return invoke("studio_set_theme", { slug, theme });
+}
+
+/** Writes the video's own narration voice; null clears it, so the video
+ *  follows Settings → Studio → Narration. Rejects as `setVideoTheme` does. */
+export function setVideoVoice(slug: string, voice: string | null): Promise<void> {
+  return invoke("studio_set_voice", { slug, voice });
 }
 
 /** The WebVTT text beside the video's `preset` render. */

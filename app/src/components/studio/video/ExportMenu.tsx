@@ -1,50 +1,46 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { CaretDown, CheckCircle, CircleNotch, FolderOpen } from "@phosphor-icons/react";
+import { CaretDown, CheckCircle, CircleNotch, FolderOpen, Trash } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { reloadExportStatus, useExportStatus } from "@/hooks/studio/useExportStatus";
 import { isWindows } from "@/lib/platform";
 import { exportState, PRESET_LABEL, presetHint } from "@/lib/studio/exports";
-import { exportStatus, type ExportStatus, type RenderPreset } from "@/lib/studio/render";
+import { deleteRender, type ExportStatus, type RenderPreset } from "@/lib/studio/render";
+import { trashName } from "@/lib/studio/videoActions";
 import { setCaptions, type VideoDetail } from "@/lib/studio/videos";
+import { useNarrateStore } from "@/stores/studio/narrateStore";
 import { useRenderStore } from "@/stores/studio/renderStore";
+import { useVideosStore } from "@/stores/studio/videosStore";
 
 const REVEAL = isWindows ? "Show in Explorer" : "Show in Finder";
+const TRASH = `Move to ${trashName(isWindows)}`;
 
 /**
  * The video page's Export menu: each preset with whether its file is there
  * and current, Render for one that is missing or out of date (the render bar
- * beside the button shows its progress), and Show in Finder for a file there.
- * The statuses are read when the menu opens and again when a render ends.
+ * beside the button shows its progress), and Show in Finder and Move to Trash
+ * for a file there. The statuses are the row's (`useExportStatus`), read
+ * again when the menu opens and after a file is moved to the Trash. While a
+ * render or a narration of the video runs, nothing here starts or moves one.
  * Under the presets, the switch for captions drawn into the picture, which
  * makes the files already there out of date; `onChanged` re-reads the video.
  */
 export function ExportMenu({ detail, onChanged }: { detail: VideoDetail; onChanged: () => void }) {
   const { dir, slug } = detail.row;
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<ExportStatus[] | null>(null);
+  const { rows, error: readError } = useExportStatus(dir);
   const [error, setError] = useState<string | null>(null);
   const active = useRenderStore((s) => s.active[dir]);
-  const settled = useRenderStore((s) => s.settled[dir] ?? 0);
+  const narrating = useNarrateStore((s) => dir in s.active);
   const start = useRenderStore((s) => s.start);
-
-  const load = useCallback(() => {
-    let stale = false;
-    exportStatus(dir)
-      .then((r) => {
-        if (stale) return;
-        setRows(r);
-        setError(null);
-      })
-      .catch((e) => !stale && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [dir]);
-
-  useEffect(() => (open ? load() : undefined), [open, load, settled]);
+  const load = () => reloadExportStatus(dir);
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) load();
+  };
 
   const [saving, setSaving] = useState(false);
   const [captionsError, setCaptionsError] = useState<string | null>(null);
@@ -67,8 +63,26 @@ export function ExportMenu({ detail, onChanged }: { detail: VideoDetail; onChang
     void start(dir, slug, preset);
   };
 
+  // No confirm: the file goes to the Trash and can be rendered again. The
+  // page then plays the render left, or offers Render draft when none is.
+  const [removing, setRemoving] = useState<RenderPreset | null>(null);
+  const remove = async (preset: RenderPreset) => {
+    setRemoving(preset);
+    setError(null);
+    try {
+      await deleteRender(slug, preset);
+      onChanged();
+      void useVideosStore.getState().reload();
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRemoving(null);
+    }
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button size="sm" className="gap-1.5">
           Export
@@ -76,16 +90,19 @@ export function ExportMenu({ detail, onChanged }: { detail: VideoDetail; onChang
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-1.5">
-        {error && <p className="px-2 py-1.5 text-[12px] leading-snug text-destructive">{error}</p>}
-        {!rows && !error && <p className="px-2 py-1.5 text-[12px] text-muted-foreground">Checking the exports…</p>}
+        {(error ?? readError) && (
+          <p className="px-2 py-1.5 text-[12px] leading-snug text-destructive">{error ?? readError}</p>
+        )}
+        {!rows && !readError && <p className="px-2 py-1.5 text-[12px] text-muted-foreground">Checking the exports…</p>}
         {rows?.map((row) => (
           <ExportRow
             key={row.preset}
             row={row}
             hint={presetHint(row.preset, detail.width, detail.height)}
             rendering={active ? active.preset === row.preset : false}
-            busy={!!active}
+            busy={!!active || narrating || removing != null}
             onRender={() => render(row.preset)}
+            onRemove={() => void remove(row.preset)}
           />
         ))}
         <div className="mt-1 border-t border-border-subtle px-2 pb-1 pt-2.5">
@@ -117,12 +134,16 @@ function ExportRow({
   rendering,
   busy,
   onRender,
+  onRemove,
 }: {
   row: ExportStatus;
   hint: string;
   rendering: boolean;
+  /** A render or a narration of the folder runs, or a file is being moved
+   *  to the Trash. */
   busy: boolean;
   onRender: () => void;
+  onRemove: () => void;
 }) {
   const state = exportState(row);
   const path = row.path;
@@ -149,6 +170,11 @@ function ExportRow({
             onClick={() => revealItemInDir(path).catch((e) => console.error("reveal failed", e))}
           >
             <FolderOpen />
+          </Button>
+        )}
+        {path && (
+          <Button variant="ghost" size="icon-xs" title={TRASH} aria-label={TRASH} disabled={busy} onClick={onRemove}>
+            <Trash />
           </Button>
         )}
         {rendering ? (

@@ -3,6 +3,7 @@
 //! a change send started, whose user row carries `libraryChange`) is never
 //! linked.
 
+use crate::db::store::delete_studio_link;
 use crate::harness::event::studio_command::new_slugs;
 use crate::studio::videos;
 use serde_json::Value;
@@ -72,11 +73,7 @@ pub(super) async fn link_created(
             .await
             .map_err(|e| e.to_string())?;
     if let Some(old) = linked.filter(|old| videos::video_in(root, old).is_err()) {
-        sqlx::query("DELETE FROM studio_videos WHERE slug = ?1")
-            .bind(old)
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| e.to_string())?;
+        delete_studio_link(&mut *conn, &old).await?;
     }
     let length = meta
         .as_ref()

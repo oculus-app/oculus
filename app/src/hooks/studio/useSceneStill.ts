@@ -18,7 +18,9 @@ export function useSceneStill(
 ): Still {
   const { slug, modified } = detail.row;
   const t = scene.duration != null ? scene.duration * 0.8 : 1;
-  const still = useStill(`frame:${slug}:${modified}:${index}:${width}`, () =>
+  // `modified` is whole seconds; the theme also keys it, so a second switch
+  // within the same second still redraws.
+  const still = useStill(`frame:${slug}:${modified}:${detail.theme}:${index}:${width}`, () =>
     studioFrame(slug, { scene: index, t }, width),
   );
   const failure = still.error;

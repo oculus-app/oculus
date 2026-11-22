@@ -68,6 +68,13 @@ export function exportStatus(dir: string): Promise<ExportStatus[]> {
   return invoke<ExportStatus[]>("studio_exports", { dir });
 }
 
+/** Moves `renders/<preset>.mp4` and its `.vtt` to the Trash (the Recycle Bin
+ *  on Windows). Rejects with a sentence fit to show while a render runs or
+ *  when there is no such render. */
+export function deleteRender(slug: string, preset: RenderPreset): Promise<void> {
+  return invoke("studio_render_delete", { slug, preset });
+}
+
 /** false when `dir` has no render running. */
 export function cancelRender(dir: string): Promise<boolean> {
   return invoke<boolean>("studio_render_cancel", { dir });

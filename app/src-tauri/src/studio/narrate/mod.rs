@@ -8,20 +8,23 @@
 //! left (`clip`). A reading (`[records](verb)`) goes to the speaker only:
 //! the word is timed and recorded as it is written.
 //! Afterwards entries for ids no longer narrated, and clips nothing
-//! references, are removed. Rules: docs/studio.md, "Narration is made by
-//! `oculus studio narrate`".
+//! references, are removed. Rules: docs/studio.md, "Narration makes clips and word times".
 
 mod breath;
 mod clip;
 mod key;
 mod prune;
 mod report;
+pub mod running;
+mod speakers;
+mod status;
 #[cfg(test)]
 mod tests;
 
 use std::collections::BTreeSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use studio_core::{Library, Manifest, ManifestScene, Project, MANIFEST_PATH};
 
@@ -31,6 +34,8 @@ use super::voice::ServerVoice;
 use super::NarrationError;
 pub use key::{cache_key, server_key};
 pub use report::{GapReport, Outcome, Progress, Report, SceneReport};
+pub use speakers::{speaker, Speakers};
+pub use status::{status, NarrationStatus};
 
 /// Times a clip's words. [`ModelAligner`] runs the wav2vec2 model; tests
 /// stub it.
@@ -146,13 +151,26 @@ pub fn narrate(
 ) -> Result<Report, NarrateError> {
     let project = Project::load_unnarrated_with(dir, library)
         .map_err(|e| NarrateError::video(e.to_string()))?;
+    Ok(
+        narrate_project(&project, speaker, aligner, options, None, progress)?
+            .expect("narration without a cancel flag runs to completion"),
+    )
+}
+
+/// Narrate a loaded project, returning `None` when stopped between scenes.
+pub fn narrate_project(
+    project: &Project,
+    speaker: &dyn Speaker,
+    aligner: &dyn Aligner,
+    options: &Options,
+    cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(Progress),
+) -> Result<Option<Report>, NarrateError> {
+    let dir = &project.dir;
     if project.script.is_none() {
-        return Err(NarrateError::video(format!(
-            "{} has no script.md; write one `## <scene id>` section per narrated scene",
-            dir.display()
-        )));
+        return Err(NarrateError::video(no_script(dir)));
     }
-    let narrated = narrated_scenes(&project);
+    let narrated = narrated_scenes(project);
     let todo = match &options.scene {
         None => narrated.clone(),
         Some(id) => {
@@ -183,18 +201,21 @@ pub fn narrate(
     let clips = dir.join("narration");
     let mut report = Report::default();
     let mut ready = false;
+    let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
     for (n, said) in todo.iter().enumerate() {
+        if cancelled() {
+            return Ok(None);
+        }
         let id = &said.id;
-        progress(Progress::Start {
-            id,
-            n: n + 1,
-            of: todo.len(),
-        });
+        let n = n + 1;
+        let of = todo.len();
+        progress(Progress::Start { id, n, of });
         let key = said.key(speaker).map_err(|e| NarrateError::scene(id, e))?;
-        let cached = manifest
-            .scenes
-            .get(id)
-            .filter(|s| !options.force && s.key == key && clips.join(&s.audio).is_file());
+        let cached = if options.force {
+            None
+        } else {
+            existing_clip(&manifest, &clips, id).filter(|clip| clip_matches(clip, &key))
+        };
         let scene = match cached {
             Some(clip) => SceneReport::new(id, Outcome::Cached, clip, None),
             None => {
@@ -212,8 +233,15 @@ pub fn narrate(
                 scene
             }
         };
-        progress(Progress::Done(&scene));
+        progress(Progress::Done {
+            scene: &scene,
+            n,
+            of,
+        });
         report.scenes.push(scene);
+    }
+    if cancelled() {
+        return Ok(None);
     }
 
     let keep: BTreeSet<&str> = narrated.iter().map(|s| s.id.as_str()).collect();
@@ -222,7 +250,25 @@ pub fn narrate(
         write_manifest(dir, &manifest)?;
     }
     report.deleted = prune::orphan_clips(&clips, &manifest).map_err(NarrateError::video)?;
-    Ok(report)
+    Ok(Some(report))
+}
+
+fn no_script(dir: &Path) -> String {
+    format!(
+        "{} has no script.md; write one `## <scene id>` section per narrated scene",
+        dir.display()
+    )
+}
+
+fn existing_clip<'a>(manifest: &'a Manifest, clips: &Path, id: &str) -> Option<&'a ManifestScene> {
+    manifest
+        .scenes
+        .get(id)
+        .filter(|scene| clips.join(&scene.audio).is_file())
+}
+
+fn clip_matches(clip: &ManifestScene, key: &str) -> bool {
+    clip.key == key
 }
 
 /// A narrated scene as its clip is made: the text its manifest entry

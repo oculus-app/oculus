@@ -15,6 +15,7 @@ export function ThemeList({
   state,
   value,
   defaultTheme,
+  offerDefault = true,
   onChange,
 }: {
   state: ThemesState;
@@ -22,12 +23,15 @@ export function ThemeList({
   value: string | null;
   /** The theme a new video in this subject takes, once known. */
   defaultTheme: string | null;
+  /** A "Default" row while the default is unknown; a video's own theme is
+   *  always a name, so its picker has none. */
+  offerDefault?: boolean;
   onChange: (theme: string | null) => void;
 }) {
   const shown = value ?? defaultTheme;
   return (
     <div role="listbox" aria-label="Theme" className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
-      {defaultTheme == null && (
+      {offerDefault && defaultTheme == null && (
         <ThemeRow label="Default" note={<Note text="The subject's own" />} selected={value == null} onPick={() => onChange(null)} />
       )}
       {state.themes.map((t) => (

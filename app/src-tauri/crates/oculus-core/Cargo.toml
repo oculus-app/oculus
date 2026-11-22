@@ -63,6 +63,7 @@ rubato.workspace = true
 sha2.workspace = true
 unicode-normalization.workspace = true
 if-watch.workspace = true
+trash.workspace = true
 
 # LLM provider API keys live in the platform's secret store, never in SQLite —
 # the store is an opt-in feature in keyring 3.

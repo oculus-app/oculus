@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { videoDetail, type VideoDetail } from "@/lib/studio/videos";
+import { useNarrateStore } from "@/stores/studio/narrateStore";
 import { useRenderStore } from "@/stores/studio/renderStore";
 
 interface Snapshot {
@@ -67,7 +68,7 @@ export function reloadVideoDetail(slug: string): void {
 }
 
 /** One video's detail, shared by everything showing that slug, re-read
- *  when a render of it ends and on `reload` (a thread's turn or tool call
+ *  when a render or a narration of it ends and on `reload` (a thread's turn or tool call
  *  finishing, which may have changed its files). */
 export function useVideoDetail(slug: string) {
   const subscribe = useCallback(
@@ -92,7 +93,9 @@ export function useVideoDetail(slug: string) {
   }, [slug]);
 
   const dir = snapshot.detail?.row.dir;
-  const settled = useRenderStore((s) => (dir ? (s.settled[dir] ?? 0) : 0));
+  const rendered = useRenderStore((s) => (dir ? (s.settled[dir] ?? 0) : 0));
+  const narrated = useNarrateStore((s) => (dir ? (s.settled[dir] ?? 0) : 0));
+  const settled = rendered + narrated;
   // The count at first sight of the folder is not news.
   const seen = useRef<{ dir: string; n: number } | null>(null);
   useEffect(() => {

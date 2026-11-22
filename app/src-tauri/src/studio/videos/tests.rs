@@ -420,3 +420,130 @@ fn a_new_video_burns_no_captions_in() {
     let video: Video = serde_json::from_str(&text).unwrap();
     assert!(!video.captions);
 }
+
+#[test]
+fn theme_edits_resolve_the_video_subjects_cascade_and_keep_the_other_text() {
+    let root = Scratch::new("change-theme");
+    let dir = root.join("video");
+    let global = root.join("library");
+    let subjects = root.join("subjects");
+    let library = libraries_at(&global, &subjects, false).unwrap();
+    let subject_themes = subjects.join("MATH/themes");
+    std::fs::create_dir_all(&subject_themes).unwrap();
+    std::fs::create_dir(&dir).unwrap();
+    let bundled = studio_core::Theme::bundled_text("default").unwrap();
+    std::fs::write(subject_themes.join("course.json"), bundled).unwrap();
+    std::fs::write(global.join("themes/global.json"), bundled).unwrap();
+    std::fs::write(subject_themes.join("broken.json"), "[malformed").unwrap();
+    std::fs::write(global.join("themes/broken.json"), bundled).unwrap();
+    let path = dir.join("video.json");
+    let text = concat!(
+        "{\n  \"size\": { \"width\": 640, \"height\": 360 },\n",
+        "  \"subject\": \"MATH\",\n",
+        "  \"theme\" : \"old\",\n",
+        "  \"scenes\": [{ \"component\": \"Card\", \"hold\": 1, ",
+        "\"props\": {\"theme\": \"old\"} }]\n}\n"
+    );
+
+    for name in ["default", "course", "global"] {
+        std::fs::write(&path, text).unwrap();
+        set_theme(&dir, name, &library).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            text.replacen("\"old\"", &format!("\"{name}\""), 1)
+        );
+    }
+
+    std::fs::write(&path, text).unwrap();
+    for name in [
+        "some/theme",
+        "some\\theme",
+        "local.json",
+        "unknown",
+        "broken",
+    ] {
+        let error = set_theme(&dir, name, &library).unwrap_err();
+        assert!(error.contains(&format!("`{name}`")), "{error}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+    }
+}
+
+#[test]
+fn voice_edits_keep_overrides_and_refuse_an_unresolvable_voice() {
+    use crate::studio::voice::{Engine, VoiceSettings};
+
+    let dir = Scratch::new("change-voice");
+    let path = dir.join("video.json");
+    let settings = VoiceSettings {
+        engine: Some(Engine::Kokoro),
+        voice: Some("af_heart".into()),
+        ..VoiceSettings::default()
+    };
+    let block =
+        r#"{ "model": "server-model", "engine": "kokoro", "voice": "af_heart", "speed": 0.9 }"#;
+    let text = format!("{{\n  \"voice\": {block},\n  \"scenes\": [{{ \"voice\": \"x\" }}]\n}}\n");
+    std::fs::write(&path, &text).unwrap();
+    set_voice(&dir, Some("am_michael".into()), &settings).unwrap();
+    let written = std::fs::read_to_string(&path).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert_eq!(
+        value["voice"],
+        json!({
+            "engine": "kokoro", "model": "server-model", "voice": "am_michael", "speed": 0.9
+        })
+    );
+    assert!(written.ends_with("  \"scenes\": [{ \"voice\": \"x\" }]\n}\n"));
+
+    let error = set_voice(&dir, Some("bad/id".into()), &settings).unwrap_err();
+    assert!(error.contains("is not a voice id"), "{error}");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
+
+    set_voice(&dir, None, &settings).unwrap();
+    let written = std::fs::read_to_string(&path).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert_eq!(
+        value["voice"],
+        json!({
+            "engine": "kokoro", "model": "server-model", "speed": 0.9
+        })
+    );
+    assert!(written.ends_with("  \"scenes\": [{ \"voice\": \"x\" }]\n}\n"));
+    assert!(set_voice(&dir, None, &VoiceSettings::default()).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), written);
+}
+
+#[test]
+fn clearing_the_only_voice_override_removes_the_top_level_key() {
+    use crate::studio::voice::{Engine, VoiceSettings};
+
+    let dir = Scratch::new("clear-voice");
+    let path = dir.join("video.json");
+    let settings = VoiceSettings {
+        engine: Some(Engine::Kokoro),
+        voice: Some("af_heart".into()),
+        ..VoiceSettings::default()
+    };
+    for (before, after) in [
+        (
+            "{\r\n  \"voice\": { \"voice\": \"am_michael\" },\r\n    \"scenes\": []\r\n}\r\n",
+            "{\r\n    \"scenes\": []\r\n}\r\n",
+        ),
+        (
+            r#"{"theme":"default", "v\u006fice":{"voice":"am_michael"}, "scenes":[{"voice":"nested"}]}"#,
+            r#"{"theme":"default", "scenes":[{"voice":"nested"}]}"#,
+        ),
+        (
+            r#"{"scenes": [], "voice": {"voice":"am_michael"}}"#,
+            r#"{"scenes": []}"#,
+        ),
+        (
+            "{\"voice\":{\"voice\":\"am_michael\"},\n  \"scenes\":[]\n}",
+            "{\n  \"scenes\":[]\n}",
+        ),
+        (r#"{"voice":{"voice":"am_michael"}}"#, "{}"),
+    ] {
+        std::fs::write(&path, before).unwrap();
+        set_voice(&dir, None, &settings).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), after);
+    }
+}

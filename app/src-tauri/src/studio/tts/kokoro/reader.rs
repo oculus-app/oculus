@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use super::vocab::PAD;
 use crate::runtime::onnx;
 use crate::studio::voice::g2p::guess::{self, Guesser};
-use crate::studio::voice::g2p::{self, Dictionary, Lexicon, Phonemized};
+use crate::studio::voice::g2p::{self, Dictionary, Guess, Lexicon, Phonemized};
 
 /// The lexicon layers a video reads (`g2p::Lexicon`); a missing file is an
 /// empty layer.
@@ -32,17 +32,44 @@ impl LexiconFiles {
     }
 }
 
-/// The dictionary, the lexicon and the guesser, loaded together.
+/// The dictionary, lexicon and guesser for one run.
 pub struct Reader {
     dict: Dictionary,
     lexicon: Lexicon,
-    guesser: Guesser,
+    guesser: PronunciationGuesser,
+}
+
+struct PronunciationGuesser {
+    dir: PathBuf,
+    model: Option<Guesser>,
+}
+
+impl PronunciationGuesser {
+    fn load(&mut self) -> Result<&mut Guesser, String> {
+        Ok(match &mut self.model {
+            Some(model) => model,
+            empty @ None => empty.insert(Guesser::load(&self.dir)?),
+        })
+    }
+}
+
+impl Guess for PronunciationGuesser {
+    fn guess(&mut self, part: &str) -> Result<String, String> {
+        self.load()?.guess(part)
+    }
 }
 
 impl Reader {
     /// Fails when the pack is not in `g2p`, and on a lexicon entry that is
     /// not valid (naming its file and key).
     pub fn load(g2p: &Path, lexicon: &LexiconFiles) -> Result<Self, String> {
+        let mut reader = Self::load_for_keys(g2p, lexicon)?;
+        reader.guesser.load()?;
+        Ok(reader)
+    }
+
+    /// Status only needs the guesser model when a cache key contains a guess.
+    pub(super) fn load_for_keys(g2p: &Path, lexicon: &LexiconFiles) -> Result<Self, String> {
         if !onnx::is_present(g2p, &guess::PACK) {
             return Err(missing("G2P pack (g2p-en-us)", guess::PACK.bytes()));
         }
@@ -61,11 +88,13 @@ impl Reader {
             &dict,
         )
         .map_err(|e| e.to_string())?;
-        let guesser = Guesser::load(g2p)?;
         Ok(Self {
             dict,
             lexicon,
-            guesser,
+            guesser: PronunciationGuesser {
+                dir: g2p.to_owned(),
+                model: None,
+            },
         })
     }
 

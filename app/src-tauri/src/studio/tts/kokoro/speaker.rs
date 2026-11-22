@@ -44,6 +44,7 @@ pub struct KokoroSpeaker {
     reader: RefCell<Option<Reader>>,
     kokoro: RefCell<Option<Kokoro>>,
     read: RefCell<HashMap<String, Phonemized>>,
+    defer_guesser: bool,
 }
 
 impl KokoroSpeaker {
@@ -55,7 +56,12 @@ impl KokoroSpeaker {
             reader: RefCell::new(None),
             kokoro: RefCell::new(None),
             read: RefCell::new(HashMap::new()),
+            defer_guesser: false,
         }
+    }
+
+    pub(crate) fn defer_guesser(&mut self) {
+        self.defer_guesser = true;
     }
 
     /// How `text` was read: each word's phonemes and who read it (the
@@ -73,6 +79,9 @@ impl KokoroSpeaker {
         let mut slot = self.reader.borrow_mut();
         let reader = match &mut *slot {
             Some(r) => r,
+            empty @ None if self.defer_guesser => {
+                empty.insert(Reader::load_for_keys(&self.packs.g2p, &self.lexicon)?)
+            }
             empty @ None => empty.insert(Reader::load(&self.packs.g2p, &self.lexicon)?),
         };
         let phonemized = reader.read(text)?;
@@ -100,10 +109,8 @@ impl KokoroSpeaker {
             )
         }
     }
-}
-
-impl Speaker for KokoroSpeaker {
-    fn ready(&self) -> Result<(), String> {
+    /// Checks the model, pronunciation pack and voice files without loading them.
+    pub(crate) fn check_files(&self) -> Result<(), String> {
         if !onnx::is_present(&self.packs.voice, &PACK) {
             return Err(missing("model (voice-kokoro)", PACK.bytes()));
         }
@@ -113,6 +120,12 @@ impl Speaker for KokoroSpeaker {
         voices::file(&self.packs.voice, &self.voice.voice)
             .map(drop)
             .ok_or_else(|| self.no_voice())
+    }
+}
+
+impl Speaker for KokoroSpeaker {
+    fn ready(&self) -> Result<(), String> {
+        self.check_files()
     }
 
     /// The engine, model, voice, speed and the text's phonemes, so a

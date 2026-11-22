@@ -2,8 +2,11 @@
 //! video's detail, and PNG stills of it (docs/studio.md, "The Studio page's
 //! commands"). The list also reads the series outlines beside `videos/`.
 
+pub(super) mod actions;
+mod delete;
 mod detail;
 mod frame;
+pub mod narration;
 mod rows;
 pub(super) mod slot;
 #[cfg(test)]
@@ -12,7 +15,8 @@ mod thumbnail;
 
 use tauri::ipc::Response;
 
-use crate::db::store::{open_pool, setting, studio_links};
+use crate::db::store::{delete_studio_link, open_pool, setting, studio_links};
+use crate::runtime::{blocking, trash::move_to_trash};
 use crate::studio::libraries::libraries;
 use crate::studio::videos::videos_dir;
 use crate::studio::voice;
@@ -34,18 +38,57 @@ pub async fn studio_video_detail(slug: String) -> Result<VideoDetail, String> {
     let pool = open_pool().await?;
     let links = studio_links(&pool).await?;
     let row = setting(&pool, voice::SETTINGS_KEY).await?;
-    let settings_voice = voice::settings_from(row.as_deref()).voice;
+    let settings = voice::settings_from(row.as_deref());
     crate::runtime::blocking::run(move || {
         let library = libraries(false).map_err(|e| e.to_string())?;
-        detail::detail_in(
-            &videos_dir(),
-            &library,
-            &links,
-            settings_voice.as_deref(),
-            &slug,
-        )
+        detail::detail_in(&videos_dir(), &library, &links, &settings, &slug)
     })
     .await
+}
+
+#[tauri::command]
+pub async fn studio_set_theme(slug: String, theme: String) -> Result<(), String> {
+    crate::runtime::blocking::run(move || {
+        let dir = crate::studio::videos::video_in(&videos_dir(), &slug)?;
+        let library = libraries(false).map_err(|e| e.to_string())?;
+        actions::edit(&dir, || {
+            crate::studio::videos::set_theme(&dir, &theme, &library)
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn studio_set_voice(slug: String, voice: Option<String>) -> Result<(), String> {
+    crate::runtime::blocking::run(move || {
+        let dir = crate::studio::videos::video_in(&videos_dir(), &slug)?;
+        let settings = voice::settings();
+        actions::edit(&dir, || {
+            crate::studio::videos::set_voice(&dir, voice, &settings)
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn studio_video_delete(slug: String) -> Result<(), String> {
+    let pool = open_pool().await?;
+    // A new link for the same slug must wait until this one has been removed.
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|e| format!("Could not begin deleting video `{slug}`: {e}"))?;
+    let video = slug.clone();
+    blocking::run(move || delete::video_in(&videos_dir(), &video, &move_to_trash)).await?;
+    delete_studio_link(&mut *tx, &slug).await?;
+    tx.commit().await.map_err(|e| {
+        format!("Could not save the removal of the thread link for video `{slug}`: {e}")
+    })
+}
+
+#[tauri::command]
+pub async fn studio_render_delete(slug: String, preset: String) -> Result<(), String> {
+    blocking::run(move || delete::render_in(&videos_dir(), &slug, &preset, &move_to_trash)).await
 }
 
 /// Turns the video's burned-in captions on or off (video.json's
@@ -54,6 +97,7 @@ pub async fn studio_video_detail(slug: String) -> Result<VideoDetail, String> {
 pub async fn studio_set_captions(slug: String, on: bool) -> Result<(), String> {
     crate::runtime::blocking::run(move || {
         let dir = crate::studio::videos::video_in(&videos_dir(), &slug)?;
+        let _action = actions::lock();
         crate::studio::videos::set_captions(&dir, on)
     })
     .await

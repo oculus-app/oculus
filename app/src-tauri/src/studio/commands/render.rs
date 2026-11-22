@@ -83,7 +83,7 @@ pub async fn studio_render(
 ) -> Result<Option<Report>, String> {
     let preset = Preset::parse(&preset)?;
     let folder = videos::scoped(Path::new(&dir))?;
-    let running = RENDERS.start(&folder, preset)?;
+    let running = super::videos::actions::start_render(&folder, preset)?;
     crate::runtime::blocking::run(move || {
         let name = preset.name();
         let emit = |step: Step<'_>| {
@@ -101,6 +101,7 @@ pub async fn studio_render(
         let result = render_once(&app, &folder, preset, &running, &emit);
         // Freed before the terminal event, so a listener can start the next
         // render as soon as it hears this one end.
+        drop(running);
         match &result {
             Ok(Some(report)) => {
                 elog!(

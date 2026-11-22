@@ -67,6 +67,7 @@ impl Aligner for Stub {
 /// `texts` is every text it was asked to speak, in order.
 struct FakeSpeaker {
     ready: bool,
+    fail_broken: Cell<bool>,
     texts: RefCell<Vec<String>>,
 }
 
@@ -74,6 +75,7 @@ impl FakeSpeaker {
     fn new() -> Self {
         Self {
             ready: true,
+            fail_broken: Cell::new(true),
             texts: RefCell::new(Vec::new()),
         }
     }
@@ -101,7 +103,7 @@ impl Speaker for FakeSpeaker {
 
     fn speak(&self, text: &str) -> Result<Speech, String> {
         self.texts.borrow_mut().push(text.to_owned());
-        if text.contains("broken") {
+        if self.fail_broken.get() && text.contains("broken") {
             return Err("the speaker failed: engine exploded".into());
         }
         let wav = tone(0.1 * text.split_whitespace().count() as f64);
@@ -283,6 +285,14 @@ fn a_failure_keeps_the_scenes_before_it() {
     let m = manifest(&dir);
     assert_eq!(m.scenes.keys().collect::<Vec<_>>(), ["a"]);
     assert!(dir.join("narration").join(&m.scenes["a"].audio).is_file());
+
+    speaker.fail_broken.set(false);
+    let resumed = run(&dir, &speaker, &Stub::new(), &Options::default());
+    assert_eq!(
+        outcomes(&resumed),
+        [("a", Outcome::Cached), ("b", Outcome::Narrated)]
+    );
+    assert_eq!(speaker.spoken().len(), 3);
 }
 
 #[test]
@@ -344,7 +354,7 @@ fn a_speaker_that_is_not_ready_fails_before_any_clip() {
     video(&dir, SCRIPT);
     let speaker = FakeSpeaker {
         ready: false,
-        texts: RefCell::new(Vec::new()),
+        ..FakeSpeaker::new()
     };
     let stub = Stub::new();
     let error = narrate(
@@ -802,5 +812,117 @@ fn a_server_is_given_the_words_as_written() {
     assert_eq!(
         studio_core::strip_readings("The table [records](verb) it, in [use](noun)."),
         "The table records it, in use."
+    );
+}
+
+#[test]
+fn status_matches_the_clip_keys_without_speaking() {
+    use crate::studio::voice::{Engine, VoiceSettings};
+
+    let dir = Scratch::new("narrate-status");
+    video(&dir, SCRIPT);
+    let fake = FakeSpeaker::new();
+    run(&dir, &fake, &Stub::new(), &Options::default());
+
+    let server = voice();
+    let settings = VoiceSettings {
+        engine: Some(Engine::Server),
+        base_url: Some(server.base_url),
+        model: Some(server.model),
+        voice: Some(server.voice),
+        ..VoiceSettings::default()
+    };
+    let read =
+        |settings: &VoiceSettings| status(&Project::load_unnarrated(&*dir).unwrap(), settings);
+    let current = read(&settings);
+    assert_eq!((current.scenes, current.stale), (2, 0));
+    assert_eq!(current.engine.as_deref(), Some("server"));
+    assert_eq!(current.voice.as_deref(), Some("af_heart"));
+
+    let mut new_voice = settings.clone();
+    new_voice.voice = Some("a_different_voice".into());
+    assert_eq!(read(&new_voice).stale, 2);
+
+    video(
+        &dir,
+        "## a\nFollow the gradient.\n\n## b\nOne small step at a time.\n",
+    );
+    assert_eq!(read(&settings).stale, 1);
+
+    let m = manifest(&dir);
+    std::fs::remove_file(dir.join("narration").join(&m.scenes["b"].audio)).unwrap();
+    assert_eq!(read(&settings).stale, 2);
+
+    let no_voice = read(&VoiceSettings::default());
+    assert_eq!(
+        serde_json::to_value(no_voice).unwrap(),
+        json!({
+            "engine": null, "voice": null, "scenes": 2, "stale": 2,
+            "problem": "no narration engine: choose Kokoro or a TTS server in Settings -> Studio -> Narration"
+        })
+    );
+
+    std::fs::remove_file(dir.join("script.md")).unwrap();
+    let no_script = read(&settings);
+    assert_eq!((no_script.scenes, no_script.stale), (0, 0));
+    assert!(no_script.problem.unwrap().contains("no script.md"));
+}
+
+#[test]
+fn cancel_finishes_the_scene_in_flight_and_stops_before_the_next() {
+    let dir = Scratch::new("narrate-cancel");
+    video(&dir, SCRIPT);
+    let project = Project::load_unnarrated(&*dir).unwrap();
+    let fake = FakeSpeaker::new();
+    let cancel = AtomicBool::new(false);
+    let mut events = Vec::new();
+    let result = narrate_project(
+        &project,
+        &fake,
+        &Stub::new(),
+        &Options::default(),
+        Some(&cancel),
+        &mut |event| match event {
+            Progress::Start { id, n, of } => {
+                events.push(format!("start {id} {n}/{of}"));
+                cancel.store(true, Ordering::Relaxed);
+            }
+            Progress::Done { scene, n, of } => {
+                events.push(format!("{:?} {} {n}/{of}", scene.outcome, scene.id));
+                assert!(manifest(&dir).scenes.contains_key(&scene.id));
+            }
+            Progress::Reset(why) => panic!("{why}"),
+        },
+    )
+    .unwrap();
+    assert!(result.is_none());
+    assert_eq!(events, ["start a 1/2", "Narrated a 1/2"]);
+    assert_eq!(fake.spoken(), ["We follow the gradient."]);
+    assert_eq!(manifest(&dir).scenes.keys().collect::<Vec<_>>(), ["a"]);
+
+    let mut events = Vec::new();
+    narrate_project(
+        &project,
+        &fake,
+        &Stub::new(),
+        &Options::default(),
+        None,
+        &mut |event| match event {
+            Progress::Start { id, n, of } => events.push(format!("start {id} {n}/{of}")),
+            Progress::Done { scene, n, of } => {
+                events.push(format!("{:?} {} {n}/{of}", scene.outcome, scene.id));
+            }
+            Progress::Reset(why) => panic!("{why}"),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        events,
+        [
+            "start a 1/2",
+            "Cached a 1/2",
+            "start b 2/2",
+            "Narrated b 2/2"
+        ]
     );
 }

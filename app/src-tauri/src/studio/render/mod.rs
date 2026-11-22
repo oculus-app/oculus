@@ -34,6 +34,7 @@ use std::time::Instant;
 
 use studio_core::{Project, RenderOptions, StudioError};
 
+pub(super) use cache::forget_and_prune;
 pub use error::RenderError;
 use error::Stop;
 pub use key::still_key;

@@ -521,7 +521,7 @@ it rewrites paths, in either process ([library-move.md](./library-move.md)).
   keys when changing either object; malformed records start from defaults.
 - Studio's narration voice is the `voice` row (`{ engine, baseUrl, model,
   voice, speed }`), read by `studio::voice::settings` and written through
-  `edit_setting` by `studio::voice::save` ([studio.md](./studio.md#narration-is-made-by-oculus-studio-narrate)).
+  `edit_setting` by `studio::voice::save` ([studio.md](./studio.md#narration-makes-clips-and-word-times)).
 
 ## Rust counts app usage; the frontend only pings
 

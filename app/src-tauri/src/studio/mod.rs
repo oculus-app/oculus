@@ -5,7 +5,7 @@
 //! word times, `slides`, crops of library PDF pages as video assets,
 //! and the Tauri commands behind
 //! Settings -> Studio and rendering
-//! (docs/studio.md, "Narration is made by `oculus studio narrate`",
+//! (docs/studio.md, "Narration makes clips and word times",
 //! "Narration timing" and "Rendering a video").
 
 pub mod audio;
