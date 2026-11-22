@@ -21,6 +21,7 @@ pub fn init(app: &AppHandle) -> HarnessState {
     let own_turns: Arc<Mutex<OwnTurns>> = Arc::default();
     // Thread-less events use the same routing as thread events, on id 0.
     harness.set_codex_account_sink(sink_for(&tx, 0, Provider::Codex));
+    harness.set_antigravity_account_sink(sink_for(&tx, 0, Provider::Antigravity));
     harness.set_opencode_default_sink(sink_for(&tx, 0, Provider::Opencode));
     // The naming turn's answer comes back in as an event like any other,
     // so it is written and forwarded by this same loop.

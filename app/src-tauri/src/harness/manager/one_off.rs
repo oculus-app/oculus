@@ -148,7 +148,7 @@ impl Harness {
                         brief: instructions.to_string(),
                         one_off: true,
                     },
-                    sink,
+                    self.with_antigravity_rate_limits(sink),
                 )
                 .map_err(|e| e.to_string())?,
             ),

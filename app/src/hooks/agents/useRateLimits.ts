@@ -4,9 +4,8 @@ import { useHarnessStore } from "@/stores/chat/harnessStore";
 
 const NONE: RateWindow[] = [];
 
-/** The provider's usage windows, for `UsageMeter`: the stored snapshot at once,
- *  then a refresh (Codex only; Claude's arrive with the next turn). The answer
- *  lands in the store via an event, so the refresh depends on the provider alone. */
+/** Read the stored usage windows for `UsageMeter`. Codex and Antigravity
+ *  refresh on provider selection and deliver their windows through events. */
 export function useRateLimits(provider: Provider): RateWindow[] {
   const windows = useHarnessStore((s) => s.rateLimits[provider]);
 

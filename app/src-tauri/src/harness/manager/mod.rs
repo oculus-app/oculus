@@ -66,6 +66,7 @@ pub struct Harness {
     /// Codex events with no thread — the account's rate-limit windows.
     /// `None` headless, where nothing is listening.
     codex_account_sink: Mutex<Option<Sink>>,
+    antigravity_account_sink: Mutex<Option<Sink>>,
     /// opencode events that name no session; same role, same thread id 0.
     opencode_default_sink: Mutex<Option<Sink>>,
     /// Claude Code's last catalogue, keyed by the binary's resolved path and
@@ -92,6 +93,7 @@ impl Harness {
             codex: Mutex::new(None),
             opencode: Mutex::new(None),
             codex_account_sink: Mutex::new(None),
+            antigravity_account_sink: Mutex::new(None),
             opencode_default_sink: Mutex::new(None),
             claude_models: Mutex::new(None),
             suggest: Mutex::new(crate::harness::suggest::Suggestions::default()),
@@ -102,6 +104,10 @@ impl Harness {
     /// Where Codex's account-scoped events go, set once at startup.
     pub fn set_codex_account_sink(&self, sink: Sink) {
         *self.codex_account_sink.lock().unwrap() = Some(sink);
+    }
+
+    pub fn set_antigravity_account_sink(&self, sink: Sink) {
+        *self.antigravity_account_sink.lock().unwrap() = Some(sink);
     }
 
     /// The same, for opencode's events that name no session.

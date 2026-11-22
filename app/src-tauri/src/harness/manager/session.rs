@@ -336,7 +336,7 @@ impl Harness {
                         ),
                         one_off: false,
                     },
-                    sink,
+                    self.with_antigravity_rate_limits(sink),
                 )
                 .map_err(|e| match e {
                     crate::harness::antigravity::acp::OpenError::Load(e) => {

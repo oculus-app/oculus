@@ -17,6 +17,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Tauri commands (setup, models, turns, suggestions) | `app/src-tauri/src/harness/app/` |
 | The event enum, tool classification (`classify`) and answer selection | `app/src-tauri/src/harness/event/mod.rs`, `app/src-tauri/src/harness/event/classify.rs`, `app/src-tauri/src/harness/event/answer.rs` |
 | Bridges: Claude (`claude -p`), Codex (`app-server`), opencode (`serve`), Antigravity (`agy acp`) | `app/src-tauri/src/harness/providers/claude/`, `app/src-tauri/src/harness/providers/codex/`, `app/src-tauri/src/harness/providers/opencode/`, `app/src-tauri/src/harness/providers/antigravity/` (`acp/`) |
+| Antigravity's account quota probe and window mapping | `app/src-tauri/src/harness/providers/antigravity/limits/` |
 | Paths no agent may write and the own zone it may; each CLI's rendering (Claude's settings, Codex's writable roots, opencode's ruleset, what Rust answers agy); taking back the agy rules earlier versions wrote | `app/src-tauri/src/harness/protected.rs`, `app/src-tauri/src/harness/providers/claude/settings.rs`, `writable_roots` in `app/src-tauri/src/harness/providers/codex/mod.rs`, `app/src-tauri/templates/OPENCODE.template.json`, `app/src-tauri/src/harness/providers/antigravity/acp/policy.rs`, `app/src-tauri/src/harness/providers/antigravity/cleanup.rs` |
 | Finding, installing, updating and signing in the CLIs | `app/src-tauri/src/harness/cli/discover/`, `app/src-tauri/src/harness/cli/install/`, `app/src-tauri/src/harness/cli/update/`, `app/src-tauri/src/harness/cli/signin/` |
 | …their frontend | `app/src/hooks/agents/useBridgeHealth.ts`, `app/src/hooks/agents/useSignInStatus.ts`, `app/src/components/settings/agents/InstallAgentDialog.tsx`, `app/src/components/settings/agents/UpdateAgents.tsx`, `app/src/components/harness/SignInDialog.tsx`, `app/src/pages/settings/integrations/AgentsPage.tsx` |
@@ -613,17 +614,30 @@ still update the picker.
   ordered stack of cards, each a toned glyph, a title, a muted description,
   pill actions and an optional close. Never a toast, and nothing times out.
 - **Usage is a ring of the nearest limit** (`UsageMeter.tsx`): the plan
-  window closest to running out, the 5-hour session's or the week's
+  window closest to running out, such as a 5-hour or weekly quota
   (`nearestLimit` in `app/src/lib/harness/usageLimit.ts`, the one
   `usageSummary` and the usage-limit notice both read), named in its title.
-  Usage is plan limits only: an agent without plan windows (opencode,
-  Antigravity) shows no ring, and the context window lives in the settings
-  list's strip and the thread info card. Its popover lists every window with
-  its reset. Spend is
-  hidden, as subscriptions aren't billed per token. Claude context is the last
-  `assistant` usage, since `result.usage` sums the turn. Codex windows are read
-  on server start and page open (`harness_refresh_rate_limits`, which never
-  starts a server).
+  Usage is plan limits only: an agent without plan windows (opencode)
+  shows no ring, and the context window lives in the settings list's strip
+  and the thread info card. Its popover lists every window with its reset.
+  Spend is hidden, as subscriptions aren't billed per token. Claude context
+  is the last `assistant` usage, since `result.usage` sums the turn. Codex
+  windows are read on server start and page open
+  (`harness_refresh_rate_limits`, which never starts a server).
+
+  Antigravity's windows are one 5-hour and one weekly quota per model family
+  (Gemini, Claude & GPT, Argon), read after each agy turn and on page open
+  (`antigravity/limits/`, one probe at a time). It POSTs
+  `v1internal:retrieveUserQuotaSummary` to Google's daily and production
+  Cloud Code hosts with agy's own access token; the daily host's reading of
+  a bucket wins for a personal sign-in, production's otherwise. Google
+  answers 403 unless the User-Agent starts with `antigravity/`. agy keeps the
+  token in the login keychain (`gemini` / `antigravity`) through go-keyring,
+  whose item trusts only `/usr/bin/security`, so the probe runs that tool and
+  no keychain prompt appears; elsewhere it reads the CLI's
+  `antigravity-oauth-token` file. The token is never refreshed: within a
+  minute of expiry the probe is skipped and the saved windows stay until
+  agy's next turn renews it.
 
 **Names cost a turn outside the thread.** No CLI emits a title, so
 `Harness::name_thread` runs one on the `threadNaming` job's model;

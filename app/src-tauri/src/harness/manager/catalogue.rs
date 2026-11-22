@@ -11,7 +11,7 @@ use crate::harness::claude;
 use crate::harness::codex::{CodexServer, CodexSpawn, ModelInfo};
 use crate::harness::discover;
 use crate::harness::opencode::{self, OpencodeServer, OpencodeSpawn, ProviderList};
-use crate::harness::Provider;
+use crate::harness::{HarnessEvent, Provider, Sink};
 
 use super::instructions::thread_cwd;
 use super::raw_log::RawLog;
@@ -63,6 +63,25 @@ impl Harness {
                 elog!("[oculus] codex rate limits: {e}");
             }
         }
+    }
+
+    pub fn refresh_antigravity_rate_limits(&self) {
+        if let Some(sink) = self.antigravity_account_sink.lock().unwrap().clone() {
+            antigravity::limits::refresh(sink);
+        }
+    }
+
+    pub(super) fn with_antigravity_rate_limits(&self, sink: Sink) -> Sink {
+        let Some(account) = self.antigravity_account_sink.lock().unwrap().clone() else {
+            return sink;
+        };
+        Arc::new(move |ev| {
+            let finished = matches!(ev, HarnessEvent::TurnFinished { .. });
+            sink(ev);
+            if finished {
+                antigravity::limits::refresh(account.clone());
+            }
+        })
     }
 
     pub fn codex_models(&self) -> Result<Vec<ModelInfo>, String> {

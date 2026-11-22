@@ -150,20 +150,26 @@ pub async fn harness_sign_in_cancel(provider: Provider) -> Result<(), String> {
     blocking(move || signin::cancel(provider)).await
 }
 
-/// Only Codex can be asked for its plan windows; the other providers'
-/// arrive with a turn.
+/// Refresh Codex and Antigravity's account quota. Claude reports its
+/// windows with a turn.
 #[tauri::command]
 pub async fn harness_refresh_rate_limits(
     state: State<'_, HarnessState>,
     provider: Provider,
 ) -> Result<(), String> {
-    if provider != Provider::Codex {
-        return Ok(());
+    match provider {
+        Provider::Codex => {
+            let h = state.harness.clone();
+            blocking(move || {
+                h.refresh_codex_rate_limits();
+                Ok(())
+            })
+            .await
+        }
+        Provider::Antigravity => {
+            state.harness.refresh_antigravity_rate_limits();
+            Ok(())
+        }
+        _ => Ok(()),
     }
-    let h = state.harness.clone();
-    blocking(move || {
-        h.refresh_codex_rate_limits();
-        Ok(())
-    })
-    .await
 }

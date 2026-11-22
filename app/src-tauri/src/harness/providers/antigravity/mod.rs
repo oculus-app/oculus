@@ -6,6 +6,7 @@
 pub mod acp;
 pub mod cleanup;
 mod json;
+pub(in crate::harness) mod limits;
 mod models;
 mod skill;
 #[cfg(test)]

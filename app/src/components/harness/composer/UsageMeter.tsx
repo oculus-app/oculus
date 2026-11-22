@@ -113,8 +113,8 @@ export function usageSummary(usage: ThreadUsage | null, rateLimits: RateWindow[]
 /**
  * The ring is the plan window closest to running out, so the number that
  * stops the student first is the one in view; an agent without plan windows
- * (opencode, Antigravity) shows none. The popover lists every window. No
- * spend shown: subscription CLIs report a notional price nobody is billed.
+ * (opencode) shows none. The popover lists every window. No spend shown:
+ * subscription CLIs report a notional price nobody is billed.
  */
 export function UsageMeter({
   usage,
