@@ -160,6 +160,17 @@ export function elementHitTest(el: WhiteboardElement, world: Point, tolerance = 
   return filled || world.x <= b.x + pad || world.x >= b.x + b.width - pad || world.y <= b.y + pad || world.y >= b.y + b.height - pad;
 }
 
+/** Rounds a coordinate to 2 decimal places (0.01 world units), normalising -0 to 0. */
+export function roundCoord(value: number): number {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isFinite(rounded) ? rounded || 0 : value;
+}
+
+/** Rounds every point to 2 decimal places so committed freehand ink avoids full-precision floats. */
+export function roundPoints(points: readonly Point[]): Point[] {
+  return points.map(p => ({ x: roundCoord(p.x), y: roundCoord(p.y) }));
+}
+
 /** Iterative Ramer–Douglas–Peucker keeps long pointer strokes off the call stack. */
 export function simplifyPolyline(points: readonly Point[], tolerance = 1): Point[] {
   if (points.length <= 2) return points.map(p => ({ ...p }));

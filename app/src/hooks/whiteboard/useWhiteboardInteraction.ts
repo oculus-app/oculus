@@ -2,7 +2,7 @@ import { measureWhiteboard, traceWhiteboard } from '@/lib/whiteboard/diagnostics
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type MouseEvent, type ClipboardEvent } from 'react';
 import { WHITEBOARD_DEFAULTS, LABELLED_TYPES, type WhiteboardDocument, type WhiteboardElement, type WhiteboardTool, type WhiteboardViewport, type Point } from '@/lib/whiteboard/model';
 import { kindTitle } from '@/lib/whiteboard/kindWords';
-import { elementBounds, pointInBounds, screenToWorld, selectionBounds, zoomAt, type Bounds } from '@/lib/whiteboard/geometry';
+import { elementBounds, pointInBounds, roundCoord, roundPoints, screenToWorld, selectionBounds, zoomAt, type Bounds } from '@/lib/whiteboard/geometry';
 import { hitTest, visibleElements } from '@/lib/whiteboard/engine';
 import { drawElement, paintWhiteboard, pointEditTarget, elementResizeHandles, selectedBounds } from '@/lib/whiteboard/render';
 import { LiveStroke } from '@/lib/whiteboard/liveStroke';
@@ -736,8 +736,23 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
     clearCaptureHold(); captureGhost.current = undefined; gesture.current = null; overrides.current.clear(); marquee.current = undefined; lasso.current = undefined; bindHint.current = null;
     marqueePreview.current = null; erasing.current = null; eraseTargets.current = null;
   };
-  /** Commits the preview unchanged so lifting the pointer preserves the ink already drawn; a cut stroke's pieces stay where it was. */
-  const commitGesture = () => commitChanges(new Map(overrides.current), erasing.current?.pieces);
+  /** Commits the preview, rounding freehand coordinates to 2 decimals so memory and disk agree; a cut stroke's pieces stay where it was. */
+  const commitGesture = () => {
+    const changes = new Map(overrides.current);
+    for (const [id, element] of changes) {
+      if (element?.type === 'freedraw' && element.points) {
+        changes.set(id, {
+          ...element,
+          x: roundCoord(element.x),
+          y: roundCoord(element.y),
+          width: roundCoord(element.width),
+          height: roundCoord(element.height),
+          points: roundPoints(element.points),
+        });
+      }
+    }
+    return commitChanges(changes, erasing.current?.pieces);
+  };
   const dropCut = (erase: EraseState, id: string) => {
     for (const piece of erase.pieces.get(id) ?? []) overrides.current.delete(piece);
     overrides.current.delete(id);

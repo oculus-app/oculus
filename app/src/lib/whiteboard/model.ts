@@ -168,5 +168,5 @@ export function parseWhiteboardDocument(text: string): WhiteboardDocument {
 
 export function serializeWhiteboardDocument(document: WhiteboardDocument): string {
   validate(document);
-  return `${JSON.stringify(document, null, 2)}\n`;
+  return `${JSON.stringify(document)}\n`;
 }

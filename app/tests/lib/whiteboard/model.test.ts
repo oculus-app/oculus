@@ -52,6 +52,13 @@ describe('whiteboard document format', () => {
   ])('refuses an invalid %s: %j', (key, value) => {
     expect(() => parseWhiteboardDocument(JSON.stringify({ ...createWhiteboardDocument(), elements: [{ ...element, [key]: value }] }))).toThrow(`invalid ${key}`);
   });
+  test('writes minified JSON with a trailing newline and still parses pretty-printed files', () => {
+    const doc = { ...createWhiteboardDocument(), elements: [element] };
+    const saved = serializeWhiteboardDocument(doc);
+    expect(saved).toBe(`${JSON.stringify(doc)}\n`);
+    expect(saved.slice(0, -1)).not.toContain('\n');
+    expect(parseWhiteboardDocument(`${JSON.stringify(doc, null, 2)}\n`)).toEqual(doc);
+  });
   test('reports malformed JSON and refuses non-finite geometry on save', () => {
     expect(() => parseWhiteboardDocument('{')).toThrow('invalid JSON');
     expect(() => serializeWhiteboardDocument({ ...createWhiteboardDocument(), elements: [{ ...element, x: Infinity }] })).toThrow('invalid x');
