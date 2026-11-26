@@ -79,7 +79,7 @@ test("a pick is a draft in the store, so it survives a chat switch and a reload"
   open(request());
   const f = flow()!;
   expect(f.question.id).toBe("colour");
-  expect(f.placeholder).toBe("Type your answer");
+  expect(f.placeholder).toBe("Or write your own answer");
   expect(f.primaryLabel).toBe("Send answer");
   expect(f.ready).toBe(false);
   f.pick("Blue");
@@ -178,41 +178,82 @@ test("the oldest waiting question is the one answered", () => {
   expect(flow()!.request.id).toBe(5);
 });
 
-test("the panel draws radios with digit caps, the count and the refusal", () => {
-  const html = renderToStaticMarkup(
+const noop = () => {};
+const panel = (props: Partial<Parameters<typeof QuestionPanelView>[0]> = {}) =>
+  renderToStaticMarkup(
     <QuestionPanelView
-      question={{ ...colour, multi: true }}
-      draft={{ selected: ["Blue"], text: "", dismissed: false }}
+      provider="claude"
+      questions={[colour, size]}
+      question={colour}
+      draft={{ selected: [], text: "", dismissed: false }}
       index={0}
-      count={2}
-      ready
+      ready={false}
       busy={false}
-      error="This question was already answered."
+      error={null}
       moved={false}
       primaryLabel="Next"
-      onPick={() => {}}
-      onBack={() => {}}
-      onPrimary={() => {}}
-      onDismiss={() => {}}
+      onPick={noop}
+      onBack={noop}
+      onGoTo={noop}
+      onPrimary={noop}
+      onDismiss={noop}
+      {...props}
     />,
   );
+
+test("the tray draws checkbox cards with digit chips, the refusal and Skip", () => {
+  const html = panel({
+    question: { ...colour, multi: true },
+    draft: { selected: ["Blue"], text: "", dismissed: false },
+    ready: true,
+    error: "This question was already answered.",
+  });
   expect(html).toContain('role="group"');
   expect(html).toContain('role="checkbox" aria-checked="false"');
   expect(html).toContain('role="checkbox" aria-checked="true"');
-  expect(html).toContain(">1</kbd>");
-  expect(html).toContain(">2</kbd>");
-  expect(html).toContain(">1/2</span>");
+  expect(html).toMatch(/>1<\/kbd>/);
+  expect(html).toMatch(/>2<\/kbd>/);
+  expect(html).toContain(">1 selected</span>");
   expect(html).toContain("This question was already answered.");
-  expect(html).toContain("Dismiss question without answering");
+  expect(html).toContain('aria-label="Dismiss this question without answering"');
+  expect(html).toContain(">Skip</button>");
   expect(html).not.toContain(">Back<");
-  const single = renderToStaticMarkup(
-    <QuestionPanelView question={colour} draft={{ selected: [], text: "", dismissed: false }} index={1} count={2} ready={false}
-      busy={false} error={null} moved primaryLabel="Answer in a new message" onPick={() => {}} onBack={() => {}} onPrimary={() => {}} onDismiss={() => {}} />,
-  );
+  expect(html).not.toContain("1/2");
+  const single = panel({ index: 1, moved: true, primaryLabel: "Answer in a new message" });
   expect(single).toContain('role="radiogroup"');
   expect(single).toContain(">Back<");
   expect(single).toContain("Answer in a new message");
   expect(single).toContain("What you typed was moved to your message draft.");
+});
+
+test("step pills: the current one marked, an earlier one checked and a button back, a later one muted", () => {
+  const third: AgentQuestion = { ...size, id: "third", header: "" };
+  const back: number[] = [];
+  const first = panel({ questions: [colour, size, third], index: 1, question: size, onGoTo: (i) => back.push(i) });
+  expect(first).toContain('title="Back to Colour"');
+  expect(first).toMatch(/aria-current="step"[^>]*>.*Size/);
+  // A question with no header is named by its place.
+  expect(first).toContain("Question 3");
+  const one = panel({ questions: [colour] });
+  expect(one).not.toContain('aria-label="Questions"');
+  expect(one).toContain(">Colour</span>");
+});
+
+test("an option the agent recommends shows a badge, its label without the suffix", () => {
+  const pick: AgentQuestion = { ...colour, options: [{ label: "Red (Recommended)", description: "Warm" }, { label: "Blue", description: "" }] };
+  const html = panel({ question: pick, questions: [pick] });
+  expect(html).toContain(">Recommended</span>");
+  expect(html).not.toContain("(Recommended)");
+});
+
+test("Something else is offered only where a typed answer is taken, and is picked once text is typed", () => {
+  const html = panel();
+  expect(html).toContain("Something else…");
+  // Two options, so its key is 3.
+  expect(html).toMatch(/>3<\/kbd>/);
+  expect(html).toContain('aria-pressed="false"');
+  expect(panel({ draft: { selected: [], text: "Teal", dismissed: false } })).toContain('aria-pressed="true"');
+  expect(panel({ question: size, questions: [size] })).not.toContain("Something else");
 });
 
 test("only the focused pane takes a digit, so split panes never both answer", () => {

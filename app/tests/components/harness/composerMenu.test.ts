@@ -102,7 +102,7 @@ describe("skill chunks", () => {
   test("mentions and skills share a sentence", () => {
     const text = "/oculus-plan using `courses/MAST20004/Course/Pages/week-1.md`";
     const chunks = normalize(toChunks(text, known));
-    expect(chunks.map((c) => c.kind)).toEqual(["text", "skill", "text", "chip"]);
+    expect(chunks.map((c) => c.kind)).toEqual(["text", "skill", "text", "chip", "text"]);
     expect(chunksText(chunks)).toBe(text);
   });
 });

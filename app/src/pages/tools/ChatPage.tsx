@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { SkillPills } from "@/components/harness/composer/SkillPills";
-import { Composer, type ComposerHandle } from "@/components/harness/composer/Composer";
+import { Composer } from "@/components/harness/composer/Composer";
+import { placeCaretAtEnd } from "@/components/harness/mentions/dom";
 import { DraftHero } from "@/components/harness/composer/DraftHero";
 import { NewThreadDialog } from "@/components/harness/threads/NewThreadDialog";
+import { ParentCrumb } from "@/components/harness/threads/ParentCrumb";
 import { RecentThreads } from "@/components/harness/threads/RecentThreads";
 import { THREAD_LIST_PANEL, ThreadList } from "@/components/harness/threads/ThreadList";
 import { ThreadMap } from "@/components/harness/timeline/ThreadMap";
 import { JumpToLatest } from "@/components/harness/timeline/JumpToLatest";
 import { Timeline } from "@/components/harness/timeline/Timeline";
 import { ThreadInfoButton } from "@/components/harness/threadInfo/ThreadInfoButton";
-import { VideoCard } from "@/components/harness/video/VideoCard";
 import "@/components/harness/video/workKind";
 import { ThreadInfoCard, type ThreadInfoProps } from "@/components/harness/threadInfo/ThreadInfoCard";
 import { GAP, PAD, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
@@ -33,6 +33,7 @@ import {
   harnessDeleteAttachments,
   harnessDeleteThread,
   chatHref,
+  chatChoose,
   chatDraftId,
   chatScope,
   chatThreadId,
@@ -46,6 +47,7 @@ import {
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
 import { draftKey, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { cn } from "@/lib/utils";
+import { noteNewChatSent } from "@/stores/studio/seriesMakeStore";
 import { useVideosStore } from "@/stores/studio/videosStore";
 import { WARP_NAME } from "@/lib/ui/warp";
 
@@ -57,9 +59,9 @@ import { WARP_NAME } from "@/lib/ui/warp";
  * headline names the subject (`DraftHero`), the recent threads
  * (`RecentThreads`) below it. New thread and the headline's pill ask for the
  * subject in `NewThreadDialog`. The composer is docked at the bottom of both,
- * with the skill pills under it on a new chat, and a new thread's will not
+ * with the skill pills above it on a new chat, and a new thread's will not
  * send until a subject or General is chosen. A thread making a Studio video
- * has its card above the timeline (`VideoCard`).
+ * has its card in the timeline, under the run that worked on it (`VideoCard`).
  *
  * Subscribes slice by slice: `live` is written many times a second mid-turn,
  * so the streaming parts subscribe where they are drawn, not here.
@@ -216,6 +218,8 @@ export default function ChatPage() {
     // to go back to.
     onCreated: (id) => {
       sentDraft.current = draftRef.current;
+      // Before the draft is dropped, so a part's chat reads as sent, not discarded.
+      if (draftRef.current != null) noteNewChatSent(draftRef.current, id);
       navigate(chatHref(id), { replace: true });
     },
   });
@@ -245,6 +249,19 @@ export default function ChatPage() {
   );
   const [choosing, setChoosing] = useState(false);
   const onChoose = useCallback(() => setChoosing(true), []);
+  // An entry point's `?c=1` (Studio's New video) opens the picker once; the
+  // route effect drops it like `?s=`. It waits for the subjects, since the
+  // picker highlights the seeded choice only as it mounts.
+  const asked = activeId == null && chatChoose(here.search);
+  const [askPending, setAskPending] = useState(false);
+  useEffect(() => {
+    if (asked) setAskPending(true);
+  }, [asked]);
+  useEffect(() => {
+    if (!askPending || !subjectsLoaded) return;
+    setAskPending(false);
+    setChoosing(true);
+  }, [askPending, subjectsLoaded]);
   // Every New makes a new chat, a row of its own above the list; leaving one
   // empty drops it (`openNewChat`). A Subject group's `+` names its scope;
   // plain New asks for one.
@@ -269,6 +286,7 @@ export default function ChatPage() {
     },
     [navigate],
   );
+  const openChooser = useCallback(() => setChoosing(true), []);
   const onChosen = useCallback(
     (next: ChatScope) => {
       useDraftStore.getState().setScope(newKey, next);
@@ -276,18 +294,12 @@ export default function ChatPage() {
     },
     [newKey],
   );
-  const composerHandle = useRef<ComposerHandle>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   // The Overview's ask bar, sent from this pane, morphs into this composer.
   const warping = useWarpLanding(paneId, activeId);
   const focusComposer = useCallback(() => {
     const box = composerRef.current?.querySelector<HTMLElement>('[role="textbox"]');
-    if (!box) return;
-    box.focus();
-    // WebKit focuses a contenteditable with the caret at its start.
-    const sel = window.getSelection();
-    sel?.selectAllChildren(box);
-    sel?.collapseToEnd();
+    if (box) placeCaretAtEnd(box);
   }, []);
   const onDelete = useCallback(
     (id: number, attachments: string[]) => {
@@ -335,8 +347,8 @@ export default function ChatPage() {
 
   const composer = (
     <Composer
-      ref={composerHandle}
       studioStyle
+      skillPills={fresh}
       draftKey={activeId != null ? draftKey(activeId, "chat") : newKey}
       provider={activeProvider}
       model={selection.model}
@@ -347,6 +359,7 @@ export default function ChatPage() {
       subjects={subjects}
       subjectId={activeSubject}
       unscoped={fresh && scope == null}
+      onChooseScope={openChooser}
       running={running}
       usage={usage}
       rateLimits={rateLimits}
@@ -387,6 +400,7 @@ export default function ChatPage() {
         <PageHeader>
           <SideNavCollapseToggle panel={listPanel} />
           <PaneTrail>
+            {!fresh && thread?.parent_id != null && <ParentCrumb parentId={thread.parent_id} />}
             <PaneTitle>{fresh ? "New thread" : thread ? thread.title?.trim() || "Untitled" : ""}</PaneTitle>
           </PaneTrail>
           {infoCard && <ThreadInfoButton info={info} {...infoCard} />}
@@ -409,14 +423,13 @@ export default function ChatPage() {
               </div>
             ) : (
               <div key="thread" ref={scroll.inner} className="mx-auto w-full max-w-[760px]">
-                {/* Outside the row window, so scrolling never unmounts it or its player. */}
-                {activeId != null && <VideoCard key={activeId} threadId={activeId} />}
                 <Timeline
                   items={items}
                   threadId={activeId}
                   running={running}
                   questions={questions}
                   pending={pending}
+                  videoCard
                 />
               </div>
             )}
@@ -449,7 +462,6 @@ export default function ChatPage() {
         <div ref={composerRef} style={composerPad} className={cn("shrink-0 pb-4", easeShift)}>
           <div className="mx-auto max-w-[760px]" style={warping ? { viewTransitionName: WARP_NAME } : undefined}>
             {composer}
-            {fresh && <SkillPills onPick={(name) => composerHandle.current?.insertSkill(name)} />}
           </div>
         </div>
 

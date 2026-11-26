@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useDefaultModel } from "@/hooks/studio/useDefaultModel";
-import { GENERAL_SCOPE, harnessSend } from "@/lib/harness";
+import { useComposerSelection } from "@/components/harness/threads/useComposerSelection";
+import { useThreadActions } from "@/components/harness/threads/useThreadActions";
+import { GENERAL_SCOPE } from "@/lib/harness";
 import { changeRequestText, type LibraryItemKind } from "@/lib/studio/changeRequest";
 import {
   componentHistory,
@@ -62,15 +63,32 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * "Ask for a change" to a component (the Components page) or a library theme
  * (the Themes page): the first request of a page session starts a Chat
  * harness thread, later ones continue it (a new thread when the library's
- * subject changes, since a thread's subject is fixed at creation). When the
- * turn ends the item is read again and `onSettled` fires, so the page can
- * reload its list, source and stage. A change with an earlier snapshot at
- * its level can be undone.
+ * subject changes, since a thread's subject is fixed at creation). It sends
+ * through Chat's `useThreadActions` under what the box's composer names
+ * (`composer`), as the Overview's ask bar does. When the turn ends the item
+ * is read again and `onSettled` fires, so the page can reload its list,
+ * source and stage. A change with an earlier snapshot at its level can be
+ * undone.
  */
 export function useLibraryChange(kind: LibraryItemKind, subject: ChangeSubject | null, onSettled: () => void) {
   const item = ITEMS[kind];
-  useDefaultModel();
   const [thread, setThread] = useState<{ id: number; subjectId: number | null } | null>(null);
+  /** The thread the next request continues; none once the subject changed. */
+  const nextId = thread && thread.subjectId === (subject?.id ?? null) ? thread.id : null;
+  const nextRow = useHarnessStore((s) => (nextId == null ? null : (s.threads.find((t) => t.id === nextId) ?? null)));
+  const pick = useComposerSelection(nextRow);
+  const nextRef = useRef(nextId);
+  nextRef.current = nextId;
+  const created = useRef<number | null>(null);
+  const actions = useThreadActions({
+    threadId: () => nextRef.current,
+    selection: pick.selection,
+    onRestore: () => {},
+    onCreated: (id) => {
+      created.current = id;
+    },
+  });
+  const sendTurn = actions.send;
   const [sent, setSent] = useState<Sent | null>(null);
   const [applied, setApplied] = useState<Applied | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,11 +99,10 @@ export function useLibraryChange(kind: LibraryItemKind, subject: ChangeSubject |
   settledRef.current = onSettled;
 
   const send = useCallback(
-    async (name: string, level: ComponentLevel, request: string): Promise<boolean> => {
+    async (name: string, level: ComponentLevel, request: string, skills: string[] = []): Promise<boolean> => {
       setError(null);
       setApplied(null);
       setWorking(name);
-      const store = useHarnessStore.getState();
       // Only a subject-level component belongs to the subject's library.
       const code = level === "subject" ? (subject?.code ?? null) : null;
       try {
@@ -93,22 +110,18 @@ export function useLibraryChange(kind: LibraryItemKind, subject: ChangeSubject |
           item.source(name, code).catch(() => null),
           item.history(name, level, code).catch(() => []),
         ]);
-        const open = thread && thread.subjectId === (subject?.id ?? null) ? thread : null;
-        const row = open ? store.threads.find((t) => t.id === open.id) : null;
-        const id = await harnessSend(
-          open?.id ?? null,
-          row?.provider ?? store.provider,
-          changeRequestText({ kind, name, level, subject: code, request }),
-          {
-            model: row ? row.model : store.model,
-            reasoningEffort: store.reasoning,
-            // A plain thread, so it names its scope as Chat's composer does.
-            chatScope: subject?.id ?? GENERAL_SCOPE,
-            // Its scratch videos are never linked to the thread.
-            libraryChange: true,
-          },
-        );
-        if (!open) await store.loadThreads();
+        const open = nextRef.current;
+        created.current = null;
+        const refused = await sendTurn(changeRequestText({ kind, name, level, subject: code, request }), () => ({
+          // A plain thread, so it names its scope as Chat's composer does.
+          chatScope: subject?.id ?? GENERAL_SCOPE,
+          // Its scratch videos are never linked to the thread.
+          libraryChange: true,
+          skills,
+        }));
+        if (refused != null) throw new Error(refused);
+        const id = open ?? created.current;
+        if (id == null) throw new Error("The change was sent, but its thread was not found.");
         sawRunning.current = false;
         setThread({ id, subjectId: subject?.id ?? null });
         setSent({
@@ -125,7 +138,7 @@ export function useLibraryChange(kind: LibraryItemKind, subject: ChangeSubject |
         return false;
       }
     },
-    [kind, item, subject, thread],
+    [kind, item, subject, sendTurn],
   );
 
   const settle = useCallback(async (s: Sent) => {
@@ -177,6 +190,16 @@ export function useLibraryChange(kind: LibraryItemKind, subject: ChangeSubject |
 
   return {
     threadId: thread?.id ?? null,
+    /** What the box's composer names and changes: the continued thread's
+     *  pick, else the session's for a new one. */
+    composer: {
+      ...pick,
+      threadId: nextId,
+      subjectId: subject?.id ?? null,
+      onProvider: actions.onProvider,
+      onModel: actions.onModel,
+      onReasoning: actions.onReasoning,
+    },
     /** The component or theme the running turn is changing. */
     working,
     error,

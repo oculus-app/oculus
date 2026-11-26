@@ -40,6 +40,7 @@ import { useDataDir } from "@/hooks/backend/useDataDir";
 import { readPicturePath } from "./readPicture";
 import { unwrapShell } from "@/lib/harness/cliArgs";
 import {
+  awaitedToolVerb,
   describeOculusCli,
   latestThought,
   parseToolMeta,
@@ -47,6 +48,7 @@ import {
   reviewView,
   summariseOculusCli,
   thoughtLabel,
+  toolAwaitsApproval,
   toolVerb,
   type CliIcon,
   type HarnessItem,
@@ -55,6 +57,7 @@ import {
 } from "@/lib/harness";
 import { libraryPath, openLibraryPath } from "@/lib/files/openFile";
 import { useVisibleAnimation } from "@/hooks/ui/useVisibleAnimation";
+import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
 import { useOverflows } from "./useOverflows";
 
@@ -329,6 +332,8 @@ export const ToolRow = memo(function ToolRow({
   const meta = parseToolMeta(item);
   const kind: ToolKind = meta.kind ?? "other";
   const done = meta.ok != null;
+  // A waiting approval holds this call: it has not started, so no spinner.
+  const awaited = useHarnessStore((s) => !done && toolAwaitsApproval(s.requests[item.thread_id], item.ref_id));
   const failed = meta.ok === false;
   const output = meta.output ?? liveOutput ?? "";
   const entries = args(meta.input);
@@ -355,10 +360,10 @@ export const ToolRow = memo(function ToolRow({
   return (
     <RowShell
       icon={cli ? CLI_ICON[cli.icon] : TOOL_ICON[kind]}
-      title={cli ? cli.title : toolVerb(kind, done, meta.name)}
+      title={cli ? cli.title : awaited ? awaitedToolVerb(kind, meta.name) : toolVerb(kind, done, meta.name)}
       code={label}
       em={label ? undefined : cli ? cli.em : (item.content ?? undefined)}
-      live={cliStatus === "live"}
+      live={cliStatus === "live" && !awaited}
       tone={cliStatus === "failed" || cliStatus === "refused" ? "error" : "default"}
       dim={dim && done}
       expandable={entries.length > 0 || output.length > 0 || !!review}
@@ -369,7 +374,7 @@ export const ToolRow = memo(function ToolRow({
               {review.label}
             </span>
           )}
-          {cli ? null : !done ? (
+          {cli || awaited ? null : !done ? (
             <CircleNotch size={12} className="shrink-0 animate-spin" />
           ) : failed && !review ? (
             <span className="shrink-0 text-[11px] text-destructive">failed</span>

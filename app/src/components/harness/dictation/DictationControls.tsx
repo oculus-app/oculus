@@ -7,21 +7,21 @@ import { VoiceWaveform } from "./VoiceWaveform";
 import type { Dictation } from "./useDictation";
 import { cn } from "@/lib/utils";
 
-export function DictationMic({ dictation: d }: { dictation: Dictation }) {
-  return <Button type="button" variant="ghost" size="icon-xs" aria-label="Dictate message" title="Dictate message" onClick={() => void d.start()}><Microphone /></Button>;
+/** `large`: the compact composer's 32px controls. */
+export function DictationMic({ dictation: d, large = false }: { dictation: Dictation; large?: boolean }) {
+  return <Button type="button" variant="ghost" size={large ? "icon-sm" : "icon-xs"} className={large ? "text-muted-foreground hover:text-foreground" : undefined} aria-label="Dictate message" title="Dictate message" onClick={() => void d.start()}><Microphone /></Button>;
 }
 
-/** The recording strip that stands in for the composer's controls; `small`
- *  keeps to the compact composer's 24px row, so the bar keeps its height. */
-export function DictationBar({ dictation: d, small = false, className }: { dictation: Dictation; small?: boolean; className?: string }) {
+/** The recording strip that stands in for the composer's controls, as tall
+ *  as their 32px row, so the bar keeps its height. */
+export function DictationBar({ dictation: d, className }: { dictation: Dictation; className?: string }) {
   const recording = d.phase === "recording";
   const label = recording ? "Listening…" : d.phase === "transcribing" ? "Transcribing…" : d.phase === "cleaning" ? "Tidying up…" : "Preparing microphone…";
-  const button = small ? "icon-xs" : "icon-sm";
-  return <div className={cn("flex items-center gap-2", small ? "min-h-6" : "min-h-8", className)} role="group" aria-label="Voice dictation">
-    <Button type="button" variant="secondary" size={button} aria-label="Cancel dictation" onClick={d.cancel}><X /></Button>
-    {recording ? <VoiceWaveform analyser={d.analyser} className={small ? "h-5" : undefined} /> : <div className="flex min-w-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"><SpinnerGap className="shrink-0 motion-safe:animate-spin" size={15} /><span className="truncate">{label}</span></div>}
+  return <div className={cn("flex min-h-8 items-center gap-2", className)} role="group" aria-label="Voice dictation">
+    <Button type="button" variant="secondary" size="icon-sm" aria-label="Cancel dictation" onClick={d.cancel}><X /></Button>
+    {recording ? <VoiceWaveform analyser={d.analyser} /> : <div className="flex min-w-0 flex-1 items-center justify-center gap-2 text-xs text-muted-foreground"><SpinnerGap className="shrink-0 motion-safe:animate-spin" size={15} /><span className="truncate">{label}</span></div>}
     <span className="sr-only" role="status">{label}</span>
-    {recording && <><span className="text-[11px] text-muted-foreground tabular-nums" aria-label="Recording duration">{Math.floor(d.elapsed / 60)}:{String(d.elapsed % 60).padStart(2, "0")}</span><Button type="button" size={button} aria-label="Finish dictation" title="Finish and tidy up" onClick={() => void d.finish()}><Check /></Button></>}
+    {recording && <><span className="text-[11px] text-muted-foreground tabular-nums" aria-label="Recording duration">{Math.floor(d.elapsed / 60)}:{String(d.elapsed % 60).padStart(2, "0")}</span><Button type="button" size="icon-sm" aria-label="Finish dictation" title="Finish and tidy up" onClick={() => void d.finish()}><Check /></Button></>}
   </div>;
 }
 

@@ -1,8 +1,11 @@
-import { useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { useStudioStyle } from "./useStudioStyle";
+import { SkillPills } from "./SkillPills";
 import type { SendOptions } from "@/lib/harness";
 import { SendControls } from "@/components/harness/composer/SendControls";
 import { MentionInput, type MentionInputHandle } from "@/components/harness/mentions/MentionInput";
+import { placeCaretAtEnd, toChunks } from "@/components/harness/mentions/dom";
+import { usePresence } from "@/hooks/ui/usePresence";
 import { ComposerMenu } from "@/components/harness/mentions/ComposerMenu";
 import { useComposerTools } from "@/components/harness/composer/useComposerTools";
 import { useComposerStash } from "@/components/harness/composer/useComposerStash";
@@ -12,7 +15,9 @@ import { notePickedSkills } from "@/lib/harness/skills";
 import { ModelPicker } from "@/components/harness/composer/ModelPicker";
 import { UsageMeter } from "@/components/harness/composer/UsageMeter";
 import { ThreadBanners } from "@/components/harness/composer/ThreadBanners";
-import { RequestBar } from "@/components/harness/composer/RequestBar";
+import { ComposerFrame } from "@/components/harness/composer/ComposerFrame";
+import { RequestTray } from "@/components/harness/composer/requestTray/RequestTray";
+import { useRequestTray } from "@/components/harness/composer/requestTray/useRequestTray";
 import { QuestionPanel } from "@/components/harness/composer/QuestionPanel";
 import { QuestionEditor } from "@/components/harness/composer/QuestionEditor";
 import { useQuestionComposer } from "@/components/harness/composer/useQuestionComposer";
@@ -44,7 +49,6 @@ import { SignInDialog, useSignIn } from "@/components/harness/SignInDialog";
 import { useDictation } from "@/components/harness/dictation/useDictation";
 import { DictationBar, DictationMic, DictationFeedback } from "@/components/harness/dictation/DictationControls";
 import { isMac } from "@/lib/platform";
-import { cn } from "@/lib/utils";
 
 /** The empty box's hint, naming its two menus. */
 export const COMPOSER_PLACEHOLDER = "Ask anything. @ files, / skills";
@@ -56,7 +60,9 @@ export const COMPOSER_PLACEHOLDER = "Ask anything. @ files, / skills";
  * waiting message (`useSendMode`); the send button shows which before the
  * press. Stop names the run on screen and holds the queue, and with the box
  * empty the main button resumes it. A rewind hands its question back as
- * `restore`.
+ * `restore`. A waiting question or approval is a tray on top of the box in
+ * its frame (`ComposerFrame`); an empty box's Enter and Escape answer an
+ * approval (`useRequestTray`).
  * Scope is chosen above the box, only while the thread is new; a new Chat
  * thread chooses it in `NewThreadDialog` and, while it has none,
  * the box is `unscoped`: it keeps collecting but will not send. `@` mentions
@@ -64,12 +70,35 @@ export const COMPOSER_PLACEHOLDER = "Ask anything. @ files, / skills";
  * Unsent text lives in `draftStore` under `draftKey`, so it outlives the box;
  * so do long pastes, held as cards in the attachment strip.
  * `compact` is one bar that never changes shape: the text, then a settings
- * button (`CompactSettings`: model, level, mode, usage), the mic and send.
- * It grows taller as the text wraps, with the controls held at its bottom
- * right; attachments sit above it.
+ * button (`CompactSettings`: model, level, mode, usage), the mic and send,
+ * on a 32px row. It grows taller as the text wraps, with the controls held
+ * at its bottom right; attachments sit above it.
  */
+/** Exit duration of `bar-swap-motion` (`styles/utilities.css`). */
+const BAR_SWAP_EXIT_MS = 130;
+
+export function skillsInText(text: string, known: ReadonlySet<string> | null | undefined): string[] {
+  if (!known?.size || !text.includes("/")) return [];
+  return toChunks(text, known).flatMap((c) => (c.kind === "skill" ? [c.name] : []));
+}
+
+/** Tracks presence with `bar-swap-motion`, skipping the enter animation on
+ *  initial mount or draft switch so a cold composer draws quietly in place. */
+function useBarPresence(open: boolean, resetKey: string) {
+  const presence = usePresence(open, BAR_SWAP_EXIT_MS);
+  const track = useRef({ key: resetKey, open, animate: false });
+  if (track.current.key !== resetKey) {
+    track.current = { key: resetKey, open, animate: false };
+  } else if (track.current.open !== open) {
+    track.current = { key: resetKey, open, animate: true };
+  }
+  return { ...presence, animate: track.current.animate };
+}
+
 export interface ComposerHandle {
   insertSkill(name: string): void;
+  removeSkill(name: string): void;
+  toggleSkill(name: string): void;
 }
 
 export function Composer({
@@ -84,6 +113,7 @@ export function Composer({
   subjects,
   subjectId,
   unscoped = false,
+  onChooseScope,
   running,
   usage,
   rateLimits,
@@ -99,10 +129,12 @@ export function Composer({
   autoFocus,
   dropRef,
   onDropping,
+  onPickedSkills,
   placeholder,
   threadId = null,
   compact = false,
   studioStyle = false,
+  skillPills = false,
 }: {
   ref?: Ref<ComposerHandle>;
   /** Whose draft this box shows (`draftKey` in `stores/chat/draftStore.ts`). */
@@ -120,9 +152,12 @@ export function Composer({
   subjects: Subject[];
   /** null is the general thread — the whole library. */
   subjectId: number | null;
-  /** A new Chat thread with no subject or General chosen yet: Enter and the
-   *  send button do nothing, and the placeholder says why. */
+  /** A new Chat thread with no subject or General chosen yet: it will not
+   *  send, and the placeholder says why. */
   unscoped?: boolean;
+  /** Asks for the scope when Enter or the send button is pressed while
+   *  `unscoped`; without it those presses do nothing. */
+  onChooseScope?: () => void;
   running: boolean;
   usage: ThreadUsage | null;
   rateLimits: RateWindow[];
@@ -146,14 +181,19 @@ export function Composer({
    *  its own overlay from `onDropping`. */
   dropRef?: RefObject<HTMLElement | null>;
   onDropping?: (over: boolean) => void;
+  /** Fires whenever the skill chips inside the box change. */
+  onPickedSkills?: (skills: string[]) => void;
   /** The empty box's hint; a running turn's own wins. */
   placeholder?: string;
   /** The open thread, whose notices (`ThreadBanners`) sit above the box. */
   threadId?: number | null;
   /** One bar with a settings menu in place of the control row (the subject
-   *  Overview's ask bar). */
+   *  Overview's ask bar, Studio's Ask for a change). */
   compact?: boolean;
   studioStyle?: boolean;
+  /** Show the quick skill pills in the fixed-height slot above the box while
+   *  no skill chip is active; they swap out smoothly when a skill is picked. */
+  skillPills?: boolean;
 }) {
   /** The serialized message (chips as paths); emptiness checks read this. */
   const text = useDraftStore((s) => s.drafts[draftKey] ?? "");
@@ -165,13 +205,30 @@ export function Composer({
   const dictation = useDictation(draftKey, (transcript) => (answerRef.current ?? ref.current)?.append(transcript));
   const tools = useComposerTools({ subjectId, input: ref });
   const mentions = tools.menu;
-  const [picked, setPicked] = useState<string[]>([]);
-  useEffect(() => { setPicked(ref.current?.pickedSkills() ?? []); }, [draftKey, tools.skillNames]);
+  const [picked, setPicked] = useState<string[]>(() => skillsInText(text, tools.skillNames));
+  const reportPicked = (next: string[]) =>
+    setPicked((prev) => (prev.length === next.length && prev.every((s, i) => s === next[i]) ? prev : next));
+  useEffect(() => { reportPicked(ref.current?.pickedSkills() ?? []); }, [draftKey, tools.skillNames]);
+  useEffect(() => { onPickedSkills?.(picked); }, [picked, onPickedSkills]);
   const studio = useStudioStyle(studioStyle, threadId, subjects.find((s) => s.id === subjectId)?.code ?? null, picked);
+  const showPills = skillPills && picked.length === 0;
+  const pillsBar = useBarPresence(showPills, draftKey);
+  const styleBar = useBarPresence(Boolean(studio.leading), draftKey);
+  const lastStyle = useRef<ReactNode>(null);
+  if (studio.leading) lastStyle.current = studio.leading;
+  const renderedStyle = studio.leading || (styleBar.mounted ? lastStyle.current : null);
   const sending = useRef(false);
   useImperativeHandle(composerHandle, () => ({
     insertSkill(name) {
       if (tools.skillNames?.has(name)) ref.current?.insertSkill(null, name);
+    },
+    removeSkill(name) {
+      ref.current?.removeSkill(name);
+    },
+    toggleSkill(name) {
+      const current = ref.current?.pickedSkills() ?? [];
+      if (current.includes(name)) ref.current?.removeSkill(name);
+      else if (tools.skillNames?.has(name)) ref.current?.insertSkill(null, name);
     },
   }), [tools.skillNames]);
   /** The drop target for attachments: the whole box, not just the editor. */
@@ -217,8 +274,13 @@ export function Composer({
 
   // A request waits on the student: a message sent now queues behind it.
   const asking = useHarnessStore((s) => threadId != null && awaitsApproval(s.requests[threadId]));
-  // A question waits: the box is its typed answer, and Enter answers it.
-  const question = useQuestionComposer(threadId, draftKey);
+  // The oldest waiting approval is the tray on top of the box.
+  const tray = useRequestTray(threadId);
+  // A question waits, once no approval does (an approval outranks it, as in
+  // the sidebar): the box is its typed answer, and Enter answers it.
+  const asked = useQuestionComposer(threadId, draftKey);
+  const question = tray ? null : asked;
+  const frameRef = useRef<HTMLDivElement>(null);
 
   const ready = text.trim().length > 0 || att.items.length > 0 || att.texts.length > 0;
   const mode = useSendMode({ threadId, running, text });
@@ -226,7 +288,7 @@ export function Composer({
     threadId,
     running,
     hasDraft: ready,
-    ready: canSend({ ready, unscoped }),
+    ready: canSend({ ready, unscoped, choose: onChooseScope != null }),
     writing: att.writing,
     action: mode.shown,
     onStop,
@@ -237,7 +299,8 @@ export function Composer({
    *  follow-up behaviour); while a file is still being written the box is
    *  kept as is. */
   const send = async (flip: boolean) => {
-    if (dictation.busy || unscoped || sending.current) return;
+    if (unscoped) return onChooseScope?.();
+    if (dictation.busy || sending.current) return;
     sending.current = true;
     try {
     const skills = ref.current?.pickedSkills() ?? [];
@@ -279,7 +342,7 @@ export function Composer({
       skills={tools.skillNames}
       autoFocus={autoFocus}
       onEdit={(next, caret, masked, skills) => {
-        setPicked(skills);
+        reportPicked(skills);
         setDraft(draftKey, next);
         mentions.track(next, caret, masked);
       }}
@@ -291,6 +354,11 @@ export function Composer({
         // The menu's claimed keys come back prevented, so a pick never sends.
         mentions.keyDown(e);
         if (e.defaultPrevented) return;
+        // An empty box's Enter and Escape answer the waiting approval.
+        if (tray?.press(e, e.nativeEvent.isComposing, { focus: "editor", draftEmpty: !ready, menuOpen: mentions.shown })) {
+          e.preventDefault();
+          return;
+        }
         stash.keyDown(e);
         history.keyDown(e);
         if (e.defaultPrevented) return;
@@ -298,10 +366,11 @@ export function Composer({
         if (action) e.preventDefault();
         if (action === "send" || action === "flip") void send(action === "flip");
         if (action === "steer-oldest") mode.steerOldest();
+        if (action === "hold") onChooseScope?.();
       }}
       placeholder={
         asking || running
-          ? busyPlaceholder({ approval: asking, plain: mode.plain, steer: mode.steer })
+          ? busyPlaceholder({ approval: asking ? (tray?.request.provider ?? provider) : null, plain: mode.plain, steer: mode.steer })
           : unscoped
             ? UNSCOPED_PLACEHOLDER
             : (placeholder ?? COMPOSER_PLACEHOLDER)
@@ -310,6 +379,7 @@ export function Composer({
   );
   const sendControls = (
     <SendControls
+      large={compact}
       stop={controls.stop}
       send={question ? { kind: "send", label: question.primaryLabel, disabled: !question.ready || question.busy } : controls.send}
       onStop={controls.stopNow}
@@ -317,18 +387,52 @@ export function Composer({
       onResume={controls.resumeNow}
     />
   );
-  const box =
-    "flex border border-border bg-card shadow-sm transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25";
-  const dropRing = att.dropping && !dropRef && "border-brand ring-[3px] ring-brand/25";
+  const trayNode = question ? (
+    <QuestionPanel flow={question} onOther={() => focusTextBox(frameRef.current)} />
+  ) : tray ? (
+    <RequestTray tray={tray} />
+  ) : null;
+  const frame = {
+    ref: frameRef,
+    dropping: att.dropping && !dropRef,
+    tray: trayNode,
+    stacked: !question && (tray?.count ?? 0) > 1,
+  };
+
+  const hasTopBar = skillPills || styleBar.mounted || stash.menu.entries.length > 0;
 
   return (
     <div ref={wrapRef} className="flex flex-col gap-1.5">
-      {(studio.leading || stash.menu.entries.length > 0) && (
-        <div className="flex items-center gap-1.5 px-0.5">
-          {studio.leading}
-          <div className="ml-auto">
-            <StashMenu {...stash.menu} />
-          </div>
+      {hasTopBar && (
+        <div className="relative mb-0.5 grid h-8 min-h-8 grid-cols-[1fr_auto_1fr] items-center gap-1.5 px-0.5">
+          {styleBar.mounted && renderedStyle && (
+            <div
+              data-state={styleBar.animate ? styleBar.state : undefined}
+              className="bar-swap-motion col-start-1 row-start-1 flex min-w-0 items-center justify-start"
+            >
+              {renderedStyle}
+            </div>
+          )}
+          {pillsBar.mounted && (
+            <div
+              data-state={pillsBar.animate ? pillsBar.state : undefined}
+              className="bar-swap-motion col-span-full row-start-1 flex min-w-0 justify-center overflow-hidden"
+            >
+              <SkillPills
+                active={picked}
+                onToggle={(name) => {
+                  const current = ref.current?.pickedSkills() ?? [];
+                  if (current.includes(name)) ref.current?.removeSkill(name);
+                  else if (tools.skillNames?.has(name)) ref.current?.insertSkill(null, name);
+                }}
+              />
+            </div>
+          )}
+          {stash.menu.entries.length > 0 && (
+            <div className="relative z-10 col-start-3 row-start-1 flex justify-end">
+              <StashMenu {...stash.menu} />
+            </div>
+          )}
         </div>
       )}
 
@@ -383,21 +487,20 @@ export function Composer({
         onForceStop={onForceStop}
       />
 
-      <RequestBar threadId={threadId} />
-      {question && <QuestionPanel flow={question} />}
-
       {compact && !question && strip}
       {compact ? (
-        <div
-          className={cn(box, "cursor-text items-end gap-1.5 rounded-[17px] py-1 pr-1 pl-3.5", dropRing)}
+        <ComposerFrame
+          {...frame}
+          radius="rounded-2xl"
+          className="flex cursor-text items-end gap-2 p-1.5 pl-3.5"
           onClick={(e) => focusAtEnd(e.target, e.currentTarget)}
         >
           {/* As tall as the controls on one line, so the first line sits level with them. */}
-          <div className="min-w-0 flex-1 py-1">{editor}</div>
+          <div className="min-w-0 flex-1 py-2">{editor}</div>
           {dictation.busy ? (
-            <DictationBar dictation={dictation} small className="w-56 max-w-[60%] shrink-0" />
+            <DictationBar dictation={dictation} className="w-56 max-w-[60%] shrink-0" />
           ) : (
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-0.5">
               <CompactSettings
                 providers={pickerProviders}
                 provider={provider}
@@ -415,13 +518,13 @@ export function Composer({
                 usage={usage}
                 rateLimits={rateLimits}
               />
-              <DictationMic dictation={dictation} />
+              <DictationMic dictation={dictation} large />
               {sendControls}
             </div>
           )}
-        </div>
+        </ComposerFrame>
       ) : (
-        <div className={cn(box, "flex-col gap-4 rounded-xl px-3 py-3", dropRing)}>
+        <ComposerFrame {...frame} radius="rounded-xl" className="flex flex-col gap-4 px-3 py-3">
           <div className="flex flex-col gap-2">
             {!question && strip}
             {editor}
@@ -452,7 +555,7 @@ export function Composer({
               {sendControls}
             </div>
           )}
-        </div>
+        </ComposerFrame>
       )}
       {studio.feedback}
     </div>
@@ -466,10 +569,12 @@ export function Composer({
 function focusAtEnd(target: EventTarget, bar: HTMLElement) {
   if (!(target instanceof Element) || !bar.contains(target)) return;
   if (target.closest("button, [role=\"textbox\"]")) return;
-  const box = bar.querySelector<HTMLElement>('[role="textbox"]');
-  if (!box) return;
-  box.focus();
-  const sel = window.getSelection();
-  sel?.selectAllChildren(box);
-  sel?.collapseToEnd();
+  focusTextBox(bar);
+}
+
+/** The text box under `root` focused, its caret at the end ("Something
+ *  else" in the question tray lands here too). */
+function focusTextBox(root: HTMLElement | null) {
+  const box = root?.querySelector<HTMLElement>('[role="textbox"]');
+  if (box) placeCaretAtEnd(box);
 }

@@ -54,7 +54,7 @@ test("an empty box names its two menus unless the caller gives its own hint", ()
   expect(render(false, "Ask for a change")).not.toContain("Ask anything.");
 });
 
-test("Enter is swallowed while unscoped; Shift+Enter still breaks the line", () => {
+test("Enter holds the send while unscoped; Shift+Enter still breaks the line", () => {
   const key = (k: string, shiftKey: boolean) => ({ key: k, shiftKey, metaKey: false, ctrlKey: false });
   expect(enterKey(key("Enter", false), true, true)).toBe("hold");
   expect(enterKey(key("Enter", false), false, true)).toBe("send");
@@ -62,8 +62,10 @@ test("Enter is swallowed while unscoped; Shift+Enter still breaks the line", () 
   expect(enterKey(key("a", false), true, true)).toBeNull();
 });
 
-test("the button needs something to send and a chosen scope", () => {
+test("the button needs something to send and a chosen scope, or a way to ask for one", () => {
   expect(canSend({ ready: true, unscoped: true })).toBe(false);
   expect(canSend({ ready: false, unscoped: false })).toBe(false);
   expect(canSend({ ready: true, unscoped: false })).toBe(true);
+  expect(canSend({ ready: true, unscoped: true, choose: true })).toBe(true);
+  expect(canSend({ ready: false, unscoped: true, choose: true })).toBe(false);
 });

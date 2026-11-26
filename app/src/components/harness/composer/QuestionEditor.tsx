@@ -7,7 +7,7 @@ import type { QuestionComposer } from "./useQuestionComposer";
  * answer in an editor of its own (`flow.editorKey`), so the message draft is
  * untouched underneath, and Enter answers. A choice-only question has
  * nothing to type, so the box only says to choose above, and digit keys
- * reach the panel.
+ * reach the tray.
  */
 export function QuestionEditor({ flow, inputRef }: { flow: QuestionComposer; inputRef: Ref<MentionInputHandle> }) {
   if (!flow.question.allowsTypedAnswer) {

@@ -1,17 +1,23 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUp, CircleNotch } from "@phosphor-icons/react";
 
+import { Composer } from "@/components/harness/composer/Composer";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import type { Applied } from "@/hooks/studio/useLibraryChange";
-import { chatHref } from "@/lib/harness";
+import { useRateLimits } from "@/hooks/agents/useRateLimits";
+import type { Applied, useLibraryChange } from "@/hooks/studio/useLibraryChange";
+import { chatHref, type SendOptions } from "@/lib/harness";
 import { cn } from "@/lib/utils";
+import { draftKey } from "@/stores/chat/draftStore";
+import { useHarnessStore } from "@/stores/chat/harnessStore";
+
+const noop = () => {};
 
 /**
- * "Ask for a change": one box that sends the request to the agent in a Chat
- * thread (the first one starts it, the rest continue it). While its turn runs
- * a spinner takes the button's place; after it, the component is read again
+ * "Ask for a change": Chat's composer, `compact`, as on the subject
+ * Overview, so it names and changes the model, level and mode and takes
+ * `@` files, `/` skills and dictation. The request goes to the agent in a
+ * Chat thread (the first one starts it, the rest continue it). While its
+ * turn runs a send is handed back; after it, the component is read again
  * and the result is said plainly, with Undo when an earlier version exists
  * and a way to the thread.
  */
@@ -21,6 +27,7 @@ export function ChangeBox({
   applied,
   error,
   threadId,
+  composer,
   onSend,
   onUndo,
 }: {
@@ -30,23 +37,32 @@ export function ChangeBox({
   applied: Applied | null;
   error: string | null;
   threadId: number | null;
-  onSend: (request: string) => Promise<boolean>;
+  composer: ReturnType<typeof useLibraryChange>["composer"];
+  onSend: (request: string, skills: string[]) => Promise<boolean>;
   onUndo: () => Promise<void>;
 }) {
   const navigate = useNavigate();
-  const [text, setText] = useState("");
+  const subjects = useHarnessStore((s) => s.subjects);
+  const { selection } = composer;
+  const rateLimits = useRateLimits(selection.provider);
   const [sending, setSending] = useState(false);
+  const [restore, setRestore] = useState<{ text: string; n: number } | null>(null);
+  const [waitNote, setWaitNote] = useState(false);
+  const handBack = useCallback((text: string) => setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 })), []);
+  const onRestored = useCallback(() => setRestore(null), []);
   const busy = working != null || sending;
-  const ready = text.trim().length > 0 && !busy;
 
-  const send = async () => {
-    if (!ready) return;
-    const request = text;
+  const send = async (request: string, extra?: SendOptions) => {
+    if (busy) {
+      handBack(request);
+      setWaitNote(true);
+      return;
+    }
+    setWaitNote(false);
     setSending(true);
-    setText("");
-    const ok = await onSend(request);
+    const ok = await onSend(request, extra?.skills ?? []);
     // A send that failed gives the words back.
-    if (!ok) setText(request);
+    if (!ok) handBack(request);
     setSending(false);
   };
   const open = threadId == null ? null : chatHref(threadId);
@@ -54,27 +70,34 @@ export function ChangeBox({
 
   return (
     <div className="space-y-2.5">
-      <div className="flex items-end gap-2 rounded-2xl border border-input bg-card p-1.5 pl-3.5 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25">
-        <Textarea
-          aria-label={`Ask for a change to ${name}`}
-          value={text}
-          disabled={busy}
-          rows={1}
-          placeholder={`Describe a change to ${name}`}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          className="max-h-40 min-h-8 flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
-        <Button type="button" size="icon-sm" aria-label="Send" disabled={!ready} onClick={() => void send()}>
-          {busy ? <CircleNotch size={14} className="animate-spin" /> : <ArrowUp size={14} weight="bold" />}
-        </Button>
-      </div>
+      <Composer
+        compact
+        draftKey={draftKey(null, `studio-change:${name}`)}
+        provider={selection.provider}
+        model={selection.model}
+        reasoning={selection.effort}
+        locked={composer.locked}
+        refused={composer.refused}
+        switchFrom={composer.switchFrom}
+        subjects={subjects}
+        subjectId={composer.subjectId}
+        threadId={composer.threadId}
+        running={false}
+        usage={null}
+        rateLimits={rateLimits}
+        restore={restore}
+        onRestored={onRestored}
+        onProvider={composer.onProvider}
+        onModel={composer.onModel}
+        onReasoning={composer.onReasoning}
+        onSend={(text, _mode, extra) => void send(text, extra)}
+        onStop={noop}
+        placeholder={`Describe a change to ${name}`}
+      />
 
+      {waitNote && working != null && (
+        <p className="text-[12.5px] text-muted-foreground">Wait for this change to finish before asking for the next.</p>
+      )}
       {working != null && (
         <p className="text-[12.5px] text-muted-foreground">
           {working === name ? "The agent is changing it" : `The agent is changing ${working}`}. Its steps are in the thread.

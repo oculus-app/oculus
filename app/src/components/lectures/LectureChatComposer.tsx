@@ -5,6 +5,7 @@ import { useDictation } from "@/components/harness/dictation/useDictation";
 import { DictationBar, DictationMic, DictationFeedback } from "@/components/harness/dictation/DictationControls";
 import { SendControls } from "@/components/harness/composer/SendControls";
 import { MentionInput, type MentionInputHandle } from "@/components/harness/mentions/MentionInput";
+import { placeCaretAtEnd } from "@/components/harness/mentions/dom";
 import { ComposerMenu } from "@/components/harness/mentions/ComposerMenu";
 import { useComposerTools } from "@/components/harness/composer/useComposerTools";
 import { useComposerStash } from "@/components/harness/composer/useComposerStash";
@@ -15,7 +16,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ModelPicker, type PickerProvider } from "@/components/harness/composer/ModelPicker";
 import { UsageMeter } from "@/components/harness/composer/UsageMeter";
 import { ThreadBanners } from "@/components/harness/composer/ThreadBanners";
-import { RequestBar } from "@/components/harness/composer/RequestBar";
+import { ComposerFrame } from "@/components/harness/composer/ComposerFrame";
+import { RequestTray } from "@/components/harness/composer/requestTray/RequestTray";
+import { useRequestTray } from "@/components/harness/composer/requestTray/useRequestTray";
 import { QuestionPanel } from "@/components/harness/composer/QuestionPanel";
 import { QuestionEditor } from "@/components/harness/composer/QuestionEditor";
 import { useQuestionComposer } from "@/components/harness/composer/useQuestionComposer";
@@ -198,8 +201,18 @@ export function LectureChatComposer({
 
   // A request waits on the student: a message sent now queues behind it.
   const asking = useHarnessStore((s) => threadId != null && awaitsApproval(s.requests[threadId]));
-  // A question waits: the box is its typed answer, and Enter answers it.
-  const question = useQuestionComposer(threadId, draftKey);
+  // The oldest waiting approval is the tray on top of the box.
+  const tray = useRequestTray(threadId);
+  // A question waits, once no approval does (an approval outranks it, as in
+  // the sidebar): the box is its typed answer, and Enter answers it.
+  const asked = useQuestionComposer(threadId, draftKey);
+  const question = tray ? null : asked;
+  const frameRef = useRef<HTMLDivElement>(null);
+  /** "Something else" in the question tray: the typed answer, caret at its end. */
+  const focusAnswer = () => {
+    const box = frameRef.current?.querySelector<HTMLElement>('[role="textbox"]');
+    if (box) placeCaretAtEnd(box);
+  };
 
   /** Whether there is a message at all: words, pastes, pictures. */
   const ready = text.trim().length > 0 || att.items.length > 0 || att.texts.length > 0;
@@ -264,20 +277,20 @@ export function LectureChatComposer({
         onResume={onResume}
         onForceStop={onForceStop}
       />
-      <RequestBar threadId={threadId ?? null} />
-      {question && <QuestionPanel flow={question} />}
       {stash.menu.entries.length > 0 && (
         <div className="flex justify-end px-0.5">
           <StashMenu {...stash.menu} />
         </div>
       )}
 
-      <div
-        className={cn(
-          "flex flex-col gap-2 rounded-lg border border-border bg-card px-2 py-2 shadow-sm transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25",
-          // Drag-over styling in focus's vocabulary, like the page composer.
-          att.dropping && !dropRef && "border-brand ring-[3px] ring-brand/25",
-        )}
+      <ComposerFrame
+        ref={frameRef}
+        radius="rounded-lg"
+        className="flex flex-col gap-2 px-2 py-2"
+        // Drag-over styling in focus's vocabulary, like the page composer.
+        dropping={att.dropping && !dropRef}
+        tray={question ? <QuestionPanel flow={question} onOther={focusAnswer} /> : tray ? <RequestTray tray={tray} /> : null}
+        stacked={!question && (tray?.count ?? 0) > 1}
       >
         {question ? (
           <QuestionEditor flow={question} inputRef={answerRef} />
@@ -313,6 +326,11 @@ export function LectureChatComposer({
                 // The menu's claimed keys come back prevented, so a pick never sends.
                 mentions.keyDown(e);
                 if (e.defaultPrevented) return;
+                // An empty box's Enter and Escape answer the waiting approval.
+                if (tray?.press(e, e.nativeEvent.isComposing, { focus: "editor", draftEmpty: !ready, menuOpen: mentions.shown })) {
+                  e.preventDefault();
+                  return;
+                }
                 stash.keyDown(e);
                 history.keyDown(e);
                 if (e.defaultPrevented) return;
@@ -323,7 +341,7 @@ export function LectureChatComposer({
               }}
               placeholder={
                 asking || running
-                  ? busyPlaceholder({ approval: asking, plain: mode.plain, steer: mode.steer, compact: true })
+                  ? busyPlaceholder({ approval: asking ? (tray?.request.provider ?? provider) : null, plain: mode.plain, steer: mode.steer, compact: true })
                   : LECTURE_PLACEHOLDER
               }
             />
@@ -355,7 +373,7 @@ export function LectureChatComposer({
               onStop={controls.stopNow} onSend={question ? question.primary : (e) => void send(modClick(e, isMac))} onResume={controls.resumeNow} />
           </div>
         </div>}
-      </div>
+      </ComposerFrame>
     </div>
   );
 }

@@ -12,51 +12,53 @@ import type { SendControl, StopControl } from "@/lib/harness";
  * held queue as a pill that says so. While a turn runs its tooltip names
  * the action (and a restart says so), and the icon follows ⌘ as it is held,
  * so the button shows what a press will do before it happens. Every kind
- * shares the readiness gate, attachments included.
+ * shares the readiness gate, attachments included. `large` is the compact
+ * composer's 32px row.
  */
-export function SendControls({ stop, send, onStop, onSend, onResume }: {
+export function SendControls({ stop, send, onStop, onSend, onResume, large = false }: {
   stop: StopControl | null;
   send: SendControl | null;
   onStop: () => void;
   /** `e` says whether ⌘ was held for the click. */
   onSend: (e?: MouseEvent) => void;
   onResume: () => void;
+  large?: boolean;
 }) {
   return (
     <>
       {stop &&
         (stop.stopping ? (
-          <Button size="xs" variant="ghost" disabled className="shrink-0 text-muted-foreground">
+          <Button size={large ? "sm" : "xs"} variant="ghost" disabled className="shrink-0 text-muted-foreground">
             <CircleNotch weight="bold" className="animate-spin text-brand" aria-hidden />
             {stop.label}
           </Button>
         ) : (
-          <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label={stop.label} onClick={onStop}>
+          <Button size={large ? "icon-sm" : "icon-xs"} variant="ghost" className="shrink-0" aria-label={stop.label} onClick={onStop}>
             <Stop weight="fill" />
           </Button>
         ))}
       {send?.kind === "resume" && (
-        <Button size="xs" disabled={send.disabled} onClick={onResume} className="shrink-0 will-change-[opacity]">
+        <Button size={large ? "sm" : "xs"} disabled={send.disabled} onClick={onResume} className="shrink-0 will-change-[opacity]">
           <Play weight="fill" aria-hidden />
           {send.label}
         </Button>
       )}
-      {send && send.kind !== "resume" && <SendButton send={send} onSend={onSend} />}
+      {send && send.kind !== "resume" && <SendButton send={send} onSend={onSend} large={large} />}
     </>
   );
 }
 
-function SendButton({ send, onSend }: { send: SendControl; onSend: (e?: MouseEvent) => void }) {
+function SendButton({ send, onSend, large }: { send: SendControl; onSend: (e?: MouseEvent) => void; large: boolean }) {
   const button = (
     <Button
-      size="icon-xs"
+      size={large ? "icon-sm" : "icon-xs"}
       disabled={send.disabled}
       onClick={(e) => onSend(e)}
       className="shrink-0 will-change-[opacity]"
       aria-label={send.label}
       aria-description={send.hint}
     >
-      {send.kind === "queue" ? <ListPlus weight="bold" /> : <ArrowUpIcon />}
+      {send.kind === "queue" ? <ListPlus weight="bold" /> : large ? <ArrowUpIcon weight="bold" className="size-3.5" /> : <ArrowUpIcon />}
     </Button>
   );
   // Idle sends need no explanation; into a running turn the two actions

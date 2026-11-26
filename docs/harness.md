@@ -18,7 +18,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | The event enum, tool classification (`classify`) and answer selection | `app/src-tauri/src/harness/event/mod.rs`, `app/src-tauri/src/harness/event/classify.rs`, `app/src-tauri/src/harness/event/answer.rs` |
 | Bridges: Claude (`claude -p`), Codex (`app-server`), opencode (`serve`), Antigravity (`agy acp`) | `app/src-tauri/src/harness/providers/claude/`, `app/src-tauri/src/harness/providers/codex/`, `app/src-tauri/src/harness/providers/opencode/`, `app/src-tauri/src/harness/providers/antigravity/` (`acp/`) |
 | Antigravity's account quota probe and window mapping | `app/src-tauri/src/harness/providers/antigravity/limits/` |
-| Paths no agent may write and the own zone it may; each CLI's rendering (Claude's settings, Codex's writable roots, opencode's ruleset, what Rust answers agy); taking back the agy rules earlier versions wrote | `app/src-tauri/src/harness/protected.rs`, `app/src-tauri/src/harness/providers/claude/settings.rs`, `writable_roots` in `app/src-tauri/src/harness/providers/codex/mod.rs`, `app/src-tauri/templates/OPENCODE.template.json`, `app/src-tauri/src/harness/providers/antigravity/acp/policy.rs`, `app/src-tauri/src/harness/providers/antigravity/cleanup.rs` |
+| Protected library paths and the student's own files, including Antigravity's folder guard; each CLI's rendering (Claude's settings, Codex's writable roots, opencode's ruleset, what Rust answers agy); taking back the agy rules earlier versions wrote | `app/src-tauri/src/harness/protected.rs`, `app/src-tauri/src/harness/providers/claude/settings.rs`, `writable_roots` in `app/src-tauri/src/harness/providers/codex/mod.rs`, `app/src-tauri/templates/OPENCODE.template.json`, `app/src-tauri/src/harness/providers/antigravity/acp/policy.rs`, `app/src-tauri/src/harness/providers/antigravity/cleanup.rs` |
 | Finding, installing, updating and signing in the CLIs | `app/src-tauri/src/harness/cli/discover/`, `app/src-tauri/src/harness/cli/install/`, `app/src-tauri/src/harness/cli/update/`, `app/src-tauri/src/harness/cli/signin/` |
 | …their frontend | `app/src/hooks/agents/useBridgeHealth.ts`, `app/src/hooks/agents/useSignInStatus.ts`, `app/src/components/settings/agents/InstallAgentDialog.tsx`, `app/src/components/settings/agents/UpdateAgents.tsx`, `app/src/components/harness/SignInDialog.tsx`, `app/src/pages/settings/integrations/AgentsPage.tsx` |
 | Hidden native processes, Windows job ownership and npm shim resolution | `app/src-tauri/src/runtime/platform/` |
@@ -31,16 +31,17 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Recorded provider output the bridge tests replay | `app/src-tauri/fixtures/harness/` |
 | Provider table (`PROVIDERS`), platform capabilities, types, commands | `app/src/lib/harness/registry.ts`, `app/src/lib/harness/availability.ts`, `app/src/lib/harness/` |
 | What an agent asks mid-turn: the request table, its live routes, the protected-path check, the `Respond` and permission-mode commands | `app/src-tauri/src/harness/requests/`, `app/src-tauri/src/harness/core/decide/respond.rs`, `app/src-tauri/src/harness/app/consumer/requests.rs`, `app/src-tauri/src/harness/app/requests.rs` |
-| …their frontend: the row, the answer bar, the question panel, the mode control, what each shows | `app/src/components/harness/timeline/request/`, `app/src/components/harness/composer/RequestBar.tsx`, `app/src/components/harness/composer/QuestionPanel.tsx`, `app/src/components/harness/composer/useQuestionComposer.ts`, `app/src/components/harness/composer/PermissionModeControl.tsx`, `app/src/components/harness/composer/usePermissionMode.ts`, `app/src/stores/chat/newChatMode.ts`, `app/src/lib/harness/requests.ts`, `app/src/lib/harness/questions.ts`, `app/src/lib/harness/permissionModes.ts` |
+| …their frontend: the row, the composer's frame and its approval and question trays, the risk chips and keys, the mode control, what each shows | `app/src/components/harness/timeline/request/`, `app/src/components/harness/composer/ComposerFrame.tsx`, `app/src/components/harness/composer/requestTray/`, `app/src/components/harness/composer/QuestionPanel.tsx`, `app/src/components/harness/composer/question/`, `app/src/components/harness/composer/useQuestionComposer.ts`, `app/src/stores/chat/requestReveal.ts`, `app/src/lib/harness/requestRisk.ts`, `app/src/lib/harness/requestKeys.ts`, `app/src/components/harness/composer/PermissionModeControl.tsx`, `app/src/components/harness/composer/usePermissionMode.ts`, `app/src/stores/chat/newChatMode.ts`, `app/src/lib/harness/requests.ts`, `app/src/lib/harness/questions.ts`, `app/src/lib/harness/permissionModes.ts` |
 | A thread's selection, what a send does to its session (`decide_transition`), and the context handoff | `app/src-tauri/src/harness/core/decide/select.rs`, `app/src-tauri/src/harness/manager/transition.rs`, `app/src-tauri/src/harness/handoff/`, `app/src-tauri/src/harness/store/bindings.rs`, `app/src-tauri/src/harness/store/switching.sql` |
 | What each bridge can do (Stop, rewind, steering, switching), declared in Rust and read by the webview | `app/src-tauri/src/harness/providers/capabilities.rs`, `app/src/lib/harness/capabilities.ts`, `app/src/hooks/agents/useCapabilities.ts` |
 | Live state and event folding | `app/src/stores/chat/harnessStore.ts`, `app/src/hooks/backend/useBackendEvents.ts` |
 | Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Checked widget" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
-| Unsent text per thread (and per new chat), each new chat's chosen scope, and the new chats waiting as rows, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts`, `app/src/components/harness/threads/list/DraftRows.tsx` |
+| Unsent text per thread (and per new chat), each new chat's chosen scope, and the new chats waiting as rows, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts`, `app/src/components/harness/threads/list/DraftRows.tsx`, `app/src/components/harness/threads/list/useLeftDraft.ts` |
 | Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
-| The video a thread makes: its card above the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/hooks/studio/useVideoProgress.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/seriesView.ts`, `app/src/lib/studio/activity.ts` |
+| The video a thread makes: its card in the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/hooks/studio/useVideoProgress.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/seriesView.ts`, `app/src/lib/studio/activity.ts` |
 | Proposal dispatch context and confirmed jobs | `app/src-tauri/src/harness/app/proposal_context.rs`, `app/src-tauri/src/harness/app/proposal_jobs/` |
+| Subagents: starting a child chat, waiting for its report, stopping it ([below](#subagents-are-child-chats)) | `app/src-tauri/src/harness/app/children/` |
 | Local OpenUI Query tools and event refresh | `app/src/components/markdown/openui/query/` |
 | Seeded simulation and maths functions | `app/src/components/markdown/openui/functions/` |
 | Interactive reply fences, study widgets and their persisted progress | `app/src/components/markdown/openui/`, `app/src/stores/chat/widgetStore.ts` |
@@ -50,7 +51,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Per-job models | `app/src-tauri/src/harness/jobs.rs`, `JOBS` in `app/src/lib/db/jobModels.ts`, `app/src/components/settings/jobs/`, `app/src/hooks/agents/useJobAudit.ts` |
 | One-off turns (`Harness::one_off`, `Harness::one_turn`): thread names, the editor's inline suggestions (`document_suggest`), where a lecture ends, a widget's `ask` (stoppable by id) | `app/src-tauri/src/harness/manager/one_off.rs`, `app/src-tauri/src/harness/manager/stoppable.rs`, `app/src-tauri/src/harness/app/suggest.rs`, `app/src-tauri/src/harness/suggest/`, `app/src-tauri/src/lectures/lecture_end/`, `app/src-tauri/src/widgets/ask/` |
 | The JSON in a model's reply (whole reply, fences, balanced brackets), for the jobs that want JSON back | `app/src-tauri/src/harness/reply_json.rs` |
-| `@` and `/` menu, mention input, skill chips | `app/src/components/harness/mentions/useComposerMenu.ts`, `app/src/components/harness/mentions/ComposerMenu.tsx`, `app/src/components/harness/mentions/trigger.ts`, `app/src/components/harness/mentions/MentionInput.tsx`, `app/src/components/harness/mentions/SkillChip.tsx`, `app/src/components/markdown/FileChip.tsx`, `app/src/components/harness/composer/useComposerTools.ts` |
+| `@` and `/` menu, mention input, skill chips | `app/src/components/harness/mentions/useComposerMenu.ts`, `app/src/components/harness/mentions/ComposerMenu.tsx`, `app/src/components/harness/mentions/trigger.ts`, `app/src/components/harness/mentions/MentionInput.tsx`, `app/src/components/harness/mentions/clipboard.ts`, `app/src/components/harness/mentions/SkillChip.tsx`, `app/src/components/markdown/FileChip.tsx`, `app/src/components/harness/composer/useComposerTools.ts` |
 | Commands and skills: the catalogue, its search, the ranking, how a picked skill reaches each bridge | `app/src/lib/harness/skills.ts`, `app/src/lib/harness/composerCommands.ts`, `app/src/stores/chat/skillStore.ts`, `app/src/lib/search/ranking.ts`, `app/src-tauri/src/harness/app/skills.rs`, `app/src-tauri/src/harness/providers/*/skill.rs` |
 | Earlier messages on ArrowUp, and the ⌘S stash | `app/src/lib/harness/promptHistory.ts`, `app/src/hooks/agents/usePromptHistory.ts`, `app/src/stores/chat/stashStore.ts`, `app/src/components/harness/composer/useComposerStash.ts`, `app/src/components/harness/composer/StashMenu.tsx`, `app/src/components/harness/composer/StashBadge.tsx` |
 | The subject Overview's ask bar: `Composer`'s `compact` mode and its settings menu, and the warp into the thread it starts | `app/src/pages/subject/content/overview/AskBar.tsx`, `app/src/components/harness/composer/settings/`, `app/src/lib/ui/warp.ts`, `app/src/hooks/ui/useWarpLanding.ts`, `app/src/styles/warp.css` |
@@ -68,7 +69,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 (`interrupt`), how a question is taken back (`rewind`: `native` or `fresh`), whether
 one server process serves every chat (`shared_process`: Codex, opencode),
 whether a live session takes another model with its next turn
-(`model_switch_in_session`: Codex, opencode), whether the bridge can take
+(`model_switch_in_session`: Codex, opencode, Antigravity), whether the bridge can take
 over a chat another provider started (`provider_handoff`,
 [Changing provider mid-chat](#changing-provider-mid-chat)), the request
 flags ([Requests](#requests): `approvals`, `auto_review`,
@@ -160,20 +161,21 @@ A thread rooted at the library would write straight into every subject's
 CLI is given, its own way, what else it may write: the database's three files
 and `studio/` (below), and the **own zone** — every subject's files and
 folders beside its `Course/` and `.oculus/` (`layout::Zone::Own`), written
-without a request. What stays protected is one list in `protected.rs`: each
+without a request. Antigravity's native Auto approves its own writes, so on
+macOS a folder guard refuses them on the protected paths
+([below](#antigravity-asks-over-acp)).
+The protected paths are listed in `protected.rs`: each
 subject's `Course/` and `.oculus/` (`subject_dirs`, the layout's
 `reserved_names`), the subjects' folder itself and anything in it outside a
 subject, the `canvas-session/` folder (`library_dirs`), the root files
-by pattern (the vault and its lock and temp files among them, so an agent
-cannot delete or truncate the sealed sessions) and the workspace folders. agy
-names the files instead.
+by pattern (including the vault and its lock and temp files) and the workspace folders.
 
 | CLI | The own zone | `Course/` and `.oculus/` |
 | --- | --- | --- |
 | Claude | `<data>/courses` in `sandbox.filesystem.allowWrite`; `--add-dir` and `acceptEdits` take its edits unasked | `Edit(//<data>/courses/*/Course)` and `…/Course/**`, the same for `.oculus` (`*` is one segment, so a subject synced mid-thread is covered), plus `Edit(//<data>/courses/<code>/Course)` and `…/.oculus` named for each subject on disk at spawn, which makes the sandbox refuse moving that subject's folder; the CLI merges `Edit` denies into `denyWrite` |
 | Codex | Each subject's top-level own entries on disk at the thread's start (`layout::own_top_level`), one writable root each: `workspace-write`'s roots cannot leave out a folder beneath them, so a subject's folder is never a root. A new file or folder at a subject's top level is a request | Never a writable root |
 | opencode | `"{{LIBRARY}}/courses/*/*": "allow"` after the root-file denies (opencode's `*` crosses `/`, and `{{LIBRARY}}/*.json` would refuse a student's `.json`) | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
-| Antigravity | Rust allows a write unseen when every path is in it (`requests::policy::in_own_zone`) | Refused unseen (`requests::policy::protected`) |
+| Antigravity | Rust allows requests naming only own files. Native Auto can make the edit itself. | Rust refuses requests naming these folders, and the folder guard (`acp/guard.rs`) has macOS refuse the write itself, whoever approved it |
 
 Codex 0.169's permission profiles (`[permissions.<name>.filesystem]`, with a
 `deny` mode) might express the subtree less two folders, but the app-server
@@ -202,11 +204,13 @@ without case where the volume does; opencode's rule match is by spelling, so
   a redirect. Rule shapes: a leading `"*": "deny"` beats every later allow;
   the *last* rule decides whether the tool is offered at all, so an allow comes
   last; a path inside the session directory is written relative to it.
-- **Antigravity**: `agy acp` asks before every write and command, and Rust
-  answers each request first ([Antigravity asks over ACP](#antigravity-asks-over-acp)).
+- **Antigravity** asks before every write and command in Ask and Don't ask.
+  In native Auto, agy decides which requests to forward to Rust, and the
+  folder guard refuses writes to the protected paths either way.
+  [Antigravity asks over ACP](#antigravity-asks-over-acp).
   Nothing is written to the student's own agy settings.
 
-Each bridge's tests pin its rules: an own file in two subjects (a `.json`
+Tests for each bridge's path rules cover an own file in two subjects (a `.json`
 among them) writable, `Course/` and `.oculus/` refused in every subject,
 including one that did not exist at spawn where the rule is a glob.
 
@@ -241,7 +245,7 @@ through `oculus studio components|themes promote`, which keeps the old text
 in `.history/`; the sandbox cannot tell the CLI from a direct edit, so that
 is a skill rule, a speed bump like the `sqlite3` deny, not a wall.
 
-**The CLI stays the only door.** Claude merges `Edit(...)` denies into its
+**Database access through the CLI.** Claude merges `Edit(...)` denies into its
 sandbox's `denyWrite`, so an `oculus.db*` deny would cancel the grant; instead
 `sqlite3` is denied by name (`Bash(sqlite3:*)`) — a speed bump, not a wall.
 opencode keeps its `oculus.db*` deny. `Bash(oculus:*)` is allowed by name
@@ -281,7 +285,7 @@ No deny list covers it. What each CLI needs was measured on the CLI itself:
 | --- | --- | --- |
 | Claude | `sandbox.network.allowUnixSockets` naming that one socket, never `allowAllUnixSockets`; without it the connect fails with EPERM | `settings_json`, `claude.rs` |
 | Codex | the `workspace-write` policy's network access, since Codex has no per-socket grant; without it the connect is EPERM | `network_access` in thread config and `networkAccess` on every turn's `sandboxPolicy`, `codex.rs` |
-| Antigravity | nothing beyond `--sandbox`; Rust allows a plain `oculus …` unasked | `launch_args`, `acp/policy.rs` |
+| Antigravity | nothing: the folder guard allows every connect, and without the guard `--sandbox` does; Rust allows a plain `oculus …` unasked | `launch_args`, `acp/policy.rs` |
 | opencode | nothing: it has no sandbox, and `bash` allows `oculus *` | `OPENCODE.template.json` |
 
 Each bridge's tests pin its row, and that nothing it denies covers the socket.
@@ -973,13 +977,31 @@ shows it.
   call; model names come from the catalogues already read
   (`useProviderModels` with `start: false`).
 
-The first group has no heading: the **Work** rows, then the thread's subject
+The first group has no heading: the thread's subject
 (`SubjectIcon` and `displayCode`, opening the subject), its model and
 reasoning, and its context-window use as tokens ("46k / 1M", the share in
-its title) over a bar tinted like the usage ring (`usageTint`). **Work** is a registry (`threadInfo/work.ts`): a feature
+its title) over a bar tinted like the usage ring (`usageTint`). A subagent's
+card puts a row naming the chat it came from before those rows, opening that
+chat. A chat with children has a headed **Agents** group
+before Read (`threadInfo/AgentRows.tsx`), absent when it has none: each child
+newest first, as its agent's mark, its title over its model's name (from the
+catalogues already read), and its state in words, opening the child as every
+row does. The state is `agentState` (`app/src/lib/harness/children.ts`):
+Waiting for approval, Waiting for your answer, Working, then how its latest
+run ended — Failed, Stopped or Done — from `last_run`, read with the list
+(`THREAD_COLUMNS`) and kept by `turn_finished`; Not started before any run
+has. Working comes from the child's live entry, or its row's `running`
+status when it has none yet. Children older than the threads read are read once by parent
+(`getChildThreads`) and kept in the store, which keeps their states live;
+`loadThreads` reads them again with a held chat, so a reload of the list
+keeps them.
+
+**Work** is a registry (`threadInfo/work.ts`): a feature
 calls `registerWorkKind({ id, useRows })` at module load, and `useRows` is a
 hook that returns that kind's rows for the thread (glyph, title, status in
-words, the route it opens); with no rows the group draws nothing. The one
+words, the route it opens). Its rows lead the **Made** group above the files
+the thread wrote (and show **Made** even when no files are listed); with no
+rows from any kind, Work draws nothing. The one
 kind is the video the thread is making (`components/harness/video/workKind.ts`):
 its card's title and status line, opening the page of the video (a
 series' part) the card follows
@@ -1025,7 +1047,8 @@ the page writes it into the draft once and drops it from the route.
   restored tab, a ⌘-click from search) is read by id and kept
   (`useRouteThread`); one that read finds nothing walks back to bare
   `/chat` — only after the list has loaded, or a restored tab drops its
-  thread.
+  thread. A read that fails is not a deleted thread: it is tried again,
+  waiting 250 ms and doubling to 30 s, from 250 ms again for another id.
 - The conversations column (`ThreadList`, its bodies in `threads/list/`) is
   a `SideNav`, the subject page's column ([ui.md](./ui.md)), 284px by
   default. Its header is the search field (`SideNavSearch`) with the
@@ -1047,14 +1070,29 @@ the page writes it into the draft once and drops it from the route.
   says whether older ones exist; once the rows drawn reach them, the
   sentinel raises the limit by another 100 (`showMoreThreads`). A thread a view holds that is older than those read
   is read by id and kept in the store (`loadThreads`, `getThreadsByIds`), and
-  opening a search hit lists it at once (`keep`).
+  opening a search hit lists it at once (`keep`). A thread Rust started
+  itself, a subagent's chat, has no send from the webview to follow with a
+  read: its first event that is not a streamed delta reads its row by id and
+  lists it (`adoptThread.ts`), reading once more when an event lands during
+  the read, so the Chat column, the card and thread info show it at once.
+  Every read of thread rows, the list's and an adoption's, records what
+  happens meanwhile (`RowWatch` in `harnessStore.ts`): what events and a
+  model pick change on a row (a status, an approval's count, a title,
+  `updated_at`) is laid over the row the read returns, a thread deleted
+  meanwhile is dropped from it and its children lose their `parent_id`, so
+  a read never undoes a newer event. A thread heard from during a list read
+  (or before the first one) that the read missed keeps the row it was
+  adopted with, or is adopted when the read lands. An account-level event
+  (thread id 0) reads nothing.
 - **Subject view** (`SubjectBody`): the same threads the store has read,
   grouped by subject (`groupBySubject`, General for none or a deleted
   subject), groups in dragged order (`oculus-chat-groups-order`; a group
   never placed sorts above, by recency), each folding
-  (`oculus-chat-groups-collapsed`), five rows then Show n more. A group
+  (`oculus-chat-groups-collapsed`) with the timeline's fold ease
+  (`GroupRows` on `useFoldMotion`), five rows then Show n more; a folded
+  group reopens at five. A group
   header is the subject's glyph and short code, so its rows drop their
-  subject line; its right slot is the count, a working ring while folded
+  subject line; its right slot is the count, the Working dashed circle while folded
   over a running thread, and `+` on hover, a new chat in that group's scope
   (`chatHref`'s `?s=`). Once a group shows every thread read, its Show more
   calls `showMoreThreads` while older threads exist, so a subject's older
@@ -1097,9 +1135,13 @@ the page writes it into the draft once and drops it from the route.
   Subject group's "+" makes one in that subject. Above the list, in both
   views and over a divider, `DraftRows` draws each new chat holding words, a
   pasted card or a picture (`hasDraft`; blank text is nothing, since an
-  emptied box keeps a lone line break), newest first. The one this tab is on
-  gets no row until a tab has left it holding something (`left` in
-  `DraftRows`), so starting a chat adds nothing to the list. A row is a pencil
+  emptied box keeps a lone line break), newest first. The list shows the
+  draft of the composer its tab has open only as the tab found it
+  (`useLeftDraft`, `listsOpenDraft`): a new chat gets no row, and a thread no
+  pencil, until a tab has left it holding something, and the open new chat's
+  row keeps the scope and line it had, so typing draws nothing in the list.
+  Going elsewhere lists what the composer holds; emptying it (send, discard
+  or clearing the box) unlists it until it is left again. A row is a pencil
   (`DRAFT_MARK`), its scope ("No subject yet" until chosen) and its first
   line, on a faint warning tint while it is not open (`DRAFT_TINT`); hover
   offers × Discard. One emptied loses its row, and the next New forgets it
@@ -1116,10 +1158,13 @@ the page writes it into the draft once and drops it from the route.
   dimmer line, in the column rows' text levels (`getThreadPreviews`, one read for the list). The list stays
   because it is the empty chat's only way back to a recent thread. The page
   has its own scroller, since a thread's follows its bottom.
+- **A subagent is listed under its parent**, in a fold that remembers being
+  open, and a folded parent shows what its children most need
+  ([Subagents are child chats](#subagents-are-child-chats)).
 - **Each listed thread shows one status** (`StatusPill` in `threads/`, from
   `threadStatus` in `app/src/lib/harness/threadStatus.ts`), first match
   wins: Approval (warning), Question (warning, question-mark glyph), Working
-  (brand, T3's dashed ring turning slowly, still under reduced motion, and
+  (brand, a still dashed circle, and
   the run's elapsed time ticking in its own leaf, `Elapsed`), Failed
   (destructive: the thread's last run failed, until its next one), Done
   (success: unread). Brand means Working only. The timer counts from
@@ -1519,9 +1564,10 @@ both composers (Chat's and the lecture dock's).
   `harnessSteerQueued`; one at a time, and Rust's refusal is said under the
   waiting messages.
 - **An approval waiting.** Where a send would steer, the empty box reads
-  "Send a message to decline and redirect the agent": Rust declines the
-  request and steers with the words. Where it would queue, the box keeps
-  "Waiting for your approval… a message waits its turn".
+  "Or tell Codex what to do instead" (the asking agent's name,
+  `declinePlaceholder`): Rust declines the request and steers with the
+  words. Where it would queue, the box keeps "Waiting for your approval… a
+  message waits its turn".
 - **A question waiting** keeps the box as its typed answer
   ([In the chat](#in-the-chat)); nothing is steerable, so "Send now" is
   not offered.
@@ -1771,8 +1817,15 @@ is stored, so it cannot end a turn twice. Settlement:
 6. For a completed run that is `incomplete` with no error row, writes one
    `delivery_notice` row: "The agent finished, but its answer did not reach
    Oculus." (no answer) or "Some earlier reply text did not reach Oculus.
-   This reply may be incomplete." (a gap). A stop or failure already has its
-   row, so it gets none.
+   This reply may be incomplete." (a gap). A run with no answer whose
+   request was declined says that instead: "The agent stopped after Oculus
+   refused a write to a protected folder." when Rust declined a protected
+   path unseen, else "The agent stopped after its request was declined."
+   An unseen decline has no request row, so the bridge or the consumer
+   reports it as `RequestDeclined` and the open run carries the reason
+   (`RunScope::declined`) to `settle`; a student's decline is read from the
+   run's resolved request. A stop or failure already has its row, so it
+   gets none.
 
 The consumer then emits `DeliveryNotice` (with its row) and `RunSettled`
 (answer id, work ids, delivery, the run's status and its stored
@@ -1835,7 +1888,8 @@ projection of the rows and the thread's runs. A run's contiguous rows become,
 in order: its question; one fold (`RunWorkGroup.tsx`) holding every earlier
 reply, reasoning and tool row; one `artifacts` row per folded reply that may
 hold a widget fence; a `render` tile for its latest render of a Studio
-video ([A Studio thread carries its video](#a-studio-thread-carries-its-video));
+video, and the thread's video card if this is the last run that worked on
+it ([A Studio thread carries its video](#a-studio-thread-carries-its-video));
 then its answer and its outcome rows (delivery notice,
 stop, error, refusal, compaction) in their stored order. The answer is the
 run's `answer_item_id`, so a reply startup recovery left without a role
@@ -1844,7 +1898,7 @@ carries its run's question (`asked`), which Retry sends again.
 
 | Run | Fold | Answer |
 | --- | --- | --- |
-| Working (the thread's last run, live) | "Working for 8s", steady, open; a running step stays unbundled; the tail's "Working for" defers to it | the latest committed reply, without Copy or Retry; none while text streams |
+| Working (the thread's last run, live) | "Working for 8s", steady, open; a running step stays unbundled; the tail's "Working for" defers to it | the latest committed reply while it is the newest thing the run did, without Copy or Retry; none once a tool, reasoning or streaming text follows it, when it folds as narration |
 | Completed | "Worked for 23s", closed | Copy and Retry |
 | Stopped | "You stopped after 23s", open | headed "Partial response", then the divider "Run interrupted · Stopped by you" |
 | Failed | "Failed after 23s", open | "Partial response", then the error or sign-in card |
@@ -1980,7 +2034,7 @@ next send resumes the thread by session id under a new generation.
 | Reason | Who releases | A turn the session left open |
 | --- | --- | --- |
 | `Stopped` | `Harness::force_stop`, for a turn whose CLI ignored Stop: the chat's own session, and on Codex and opencode every session of the server that is then killed | interrupted, and the thread's queue held |
-| `Replaced` | `ensure`, when the send needs another session ([`decide_transition`](#changing-provider-mid-chat)): a different reasoning level, a different model on Claude or Antigravity, or another provider; an Antigravity rule allowed or revoked | interrupted |
+| `Replaced` | `ensure`, when the send needs another session ([`decide_transition`](#changing-provider-mid-chat)): a different reasoning level, a different model or permission mode on Claude, or another provider | interrupted |
 | `Exited` | `ensure`, finding the session dead | failed |
 | `Deleted` | the `DeleteThread` command's `Release` effect, after its commit; the consumer has already stopped hearing the session (`RunScope::silence`), so nothing it still says writes a row | forgotten with the thread's rows |
 | `Quit` | `Harness::shutdown` | left for the next startup's repair |
@@ -2071,19 +2125,20 @@ An ended request's `responder` is `not_resumable` and its answer is
 refused. An answer still `sending` when its session ends becomes
 `uncertain`.
 
-**How a chat asks** is `harness_threads.permission_mode`: `ask` (the
-default), `quiet` ("Don't ask": declined without a prompt, as one-off jobs
-always are) or `auto` (the CLI's own reviewer decides and the student is
-never asked; a bridge with no reviewer, `auto_review` false, asks as `ask`).
-`SetPermissionMode` (`harness_set_permission_mode`) stores it at once and
-tells `PermissionMode`; it is refused while a request waits ("Answer the
-waiting request before changing how this chat asks."). The consumer reads
-the saved mode as each request arrives, so a change mid-turn decides the
-turn's next approval: under `quiet` it is declined unseen, under `ask` or
-`auto` it is shown. Auto's reviewer is a launch setting (Codex's on each
-`turn/start`, Claude's at spawn), so a switch to or from `auto` takes effect
-from the next turn's start, and on Claude, whose mode is fixed at spawn, by
-restarting the session for it. The start step
+**How a chat asks** is saved in `harness_threads.permission_mode`. Ask
+(`ask`, the default) shows approvals. Don't ask (`quiet`) declines them
+unseen, as one-off jobs do. Auto (`auto`) uses Codex's approvals reviewer,
+Claude's classifier or [Antigravity's native Auto](#antigravity-asks-over-acp)
+when the sign-in offers it and the folder guard is on. opencode has no reviewer or approval callbacks,
+so blocked actions are declined in every mode.
+
+`SetPermissionMode` (`harness_set_permission_mode`) stores the choice and
+tells `PermissionMode`. A waiting request must be answered first. For
+requests that reach the consumer, the saved mode takes effect immediately.
+It declines approvals unseen under `quiet` and shows eligible requests
+under `ask` and `auto`. The provider takes a mode change on the next turn.
+Codex reads it on `turn/start`, Antigravity before `session/prompt`, and
+Claude at spawn, so changing Claude's mode restarts its session. The start step
 reads it off the row (`SendOptions::permission_mode`), as does a rewind
 that respawns the session, and it is part of
 the session's reuse key ([`decide_transition`](#changing-provider-mid-chat)).
@@ -2092,8 +2147,7 @@ A new chat starts under the mode its composer showed before it existed
 pick): `useThreadActions`' creating sends carry it
 as `SendOptions::start_mode`, which `create` in `core/commit.rs` writes to
 the row in the transaction that makes the thread, so the first run reads it
-as every later one does. A bridge whose `approvals` flag is false declines approvals, whatever
-the mode. `questions` separately gates question support.
+as every later one does. The separate `questions` flag controls question support.
 
 `harness_load` returns the thread's requests (`requests`), and the webview
 keeps them per thread (`requests` in `harnessStore`), replaced by each
@@ -2164,57 +2218,118 @@ What the student sees is decided in `app/src/lib/harness/requests.ts`,
 `components/harness/timeline/request/` and the composer's pieces.
 
 - **The row** (`RequestRow`, the `request` item) reads its request from the
-  store. While it waits it is a card: "Codex wants to run a command" (or
-  to change files, more access, the network; a child agent's request names
-  it, "Codex's subagent child_probe …"), then per action the whole command
-  with its folder, each file with its kind and diff (`DiffBlock`, Show more
-  past 240px), one line per access asked for, or what a tool call will do
-  with its arguments (`FoldBlock`, the same fold), the agent's reason, and
-  "Runs outside the sandbox" only where the payload's `outsideSandbox` is
-  true. Settled, it is one work-row line: Approved, Always allowed,
-  Declined, Expired or Cancelled with what was asked, and under it Rust's
-  reason, an option's scope, "Sending your answer…" or the delivery
-  uncertain warning; opened, the whole request. It is not work, so
-  `buildRows` keeps it outside the run's fold, and the oldest waiting one's
-  row is always inside the mounted window (`useRowWindow`'s `keep`).
-- **The answer** is given beside the composer (`RequestBar`, in `Composer`
-  and the lecture dock's box): what is asked in one line, "1 of 2" when
-  more wait, Decline and Approve, and an option that reaches past the call
-  (Codex's "Always allow this exact command") under More with its scope.
-  It answers the oldest waiting request; a click sends one
-  `harnessRespond` and the bar is inert until it returns. A refusal is
-  Rust's sentence under the bar. A delivery that failed comes back pending
-  with "Your answer did not reach Codex. Answer again." on its row.
-- **A question** is answered in a panel on top of the composer
-  (`QuestionPanel`, in `Composer` and the lecture dock's box), driven by
-  `useQuestionComposer`. It takes the oldest waiting question request and
-  shows one question at a time: its header, "1/2" when there are more, the
-  text, and radio rows (single choice) or checkbox rows (multiple) with each
-  option's description and a key cap. Digits 1–9 pick, except while focus is
-  in an input, a textarea or an editable box, and only in the focused pane
-  of the tab in front with focus on nothing or inside the panel, so split
-  panes never both take a digit; a single choice moves to the
-  next question after 200 ms. The typed answer is the composer itself: while
-  a question waits the box is a separate editor for that question's text
-  (`QuestionEditor`), with "Type your answer", or only "Choose an option
-  above" when the question takes no typed answer. Enter and the send arrow
+  store. While it waits it is one work-row line (`WaitingRow`): a steady
+  amber dot, "Waiting for you" and what is asked (a command as code),
+  closed until opened. Opened, it says who asks ("Codex wants to run a
+  command", or to change files, more access, the network; a child agent's
+  request names it, "Codex's subagent child_probe …"), then per action the
+  whole command with its folder, each file with its kind and diff
+  (`DiffBlock`, Show more past 240px), one line per access asked for, or
+  what a tool call will do with its arguments (`FoldBlock`, the same
+  fold), the agent's reason, and "Runs outside the sandbox" only where the
+  payload's `outsideSandbox` is true. A note that warns ("Your answer did
+  not reach Codex. Answer again.") shows under the line without opening.
+  Settled, it is one work-row line: Approved, Always allowed, Declined,
+  Expired or Cancelled with what was asked, and under it Rust's reason, an
+  option's scope, "Sending your answer…" or the delivery uncertain
+  warning; opened, the whole request. It is not work, so `buildRows` keeps
+  it outside the run's fold, and the oldest waiting one's row is always
+  inside the mounted window (`useRowWindow`'s `keep`).
+- **The tool row a waiting approval holds** (its `ref_id` is the
+  approval's `payload.tool`, `toolAwaitsApproval`) has not started: no
+  spinner, and a command's verb is "Wants to run" (`awaitedToolVerb`)
+  rather than "Running". Each row reads that through a store selector that
+  returns a boolean, so an unrelated request never redraws it.
+- **The answer** is given in a tray on top of the composer, inside the
+  same rounded border (`ComposerFrame`, in `Composer`, its compact bar and
+  the lecture dock's box; `RequestTray` over `useRequestTray`). It answers
+  the oldest waiting approval: the agent's mark, the title, risk chips,
+  and "1 of 3" with a dot per request when more wait, two card edges
+  peeking above the frame; then the whole ask (`TrayBody`): the command
+  after a `$` with "in" its folder, each file with its kind and "+3 −1"
+  over its diff (three files, then "n more files"), the access lines, the
+  tool call and the agent's reason (the chips say what reaches the network
+  or leaves the sandbox). A
+  command, a diff or a tool's arguments past 140px is clipped with a faded
+  edge and never opens in the tray: "Show all in the conversation"
+  (`useRequestReveal`) opens the request's row and scrolls it into view.
+  Below, each session grant (Codex's "Always allow this exact command") is
+  a quiet button with its scope in its tooltip (past two, under More),
+  then Deny and Allow. A click sends one `harnessRespond` and the tray is
+  inert until it returns; a refusal is Rust's sentence inside it. A
+  delivery that failed comes back pending, with the row's warning. An
+  approval outranks a question here as in the sidebar: while one waits the
+  question's tray waits behind it.
+- **The tray's tone** (`requestRisk`, a display hint that decides nothing)
+  is `danger` for a command with a destructive word anywhere on its line
+  (after `;`, `&&`, `||`, `|` or at the start, Codex's shell wrapper read
+  through): `rm` "Deletes files", `sudo` "Runs as admin", `curl` or `wget`
+  with `sh`, `bash` or `zsh` "Runs a downloaded script", a forced `git
+  push`, `git reset --hard` or `git clean` "Discards git work", `dd`,
+  `mkfs` or `diskutil erase…` "Writes to a disk", `chmod -R` or `chown -R`
+  "Changes permissions", `kill`, `pkill` or `killall` "Stops processes"; and
+  for anything outside the sandbox that reaches the network. It is `safe`,
+  one green "Read-only" chip, only for a single command from a short
+  read-only list (`which`, `ls`, `cat`, `grep`, `rg`, …) inside the
+  sandbox, with no network and no chaining, redirect or substitution
+  character on the line, or for a tool call that only reads. Anything else
+  is `caution`, with an amber chip per fact: Writes (or Deletes), Network,
+  Outside sandbox, More access; a plain command gets none. A danger tray is
+  washed red.
+- **The tray's keys**: Allow shows ↵ and Deny shows esc; on a danger
+  request ↵ moves to Deny, the filled button, and Allow is an outline in
+  red with no key. Enter takes that default and Escape denies
+  (`trayKeyAction`) only on a plain keypress (no modifier, not held, not
+  composing, not already taken) once the request has been on screen for
+  400ms, with focus in the composer's own editor while it is empty and its
+  `@`/`/` menu shut, or on nothing in particular or the tray, in the
+  focused pane of the tab in front; Enter on a focused button presses that
+  button. With text in the box Enter sends as before, and the menu's
+  Escape only closes the menu.
+- **A question** is answered in a tray in the same frame (`QuestionPanel`,
+  driven by `useQuestionComposer`). It takes the oldest waiting question
+  request and shows one question at a time. Its header is the agent's mark
+  and a step pill per question by its header ("Question 2" without one):
+  the current one brand-tinted, earlier ones checked, each a button back
+  to it, later ones muted; one question shows its header as plain text.
+  Skip, at the right ("Dismiss this question without answering"),
+  dismisses the request when it has one question, and otherwise marks that
+  question dismissed and moves on; every question dismissed is the request
+  dismissed. Then the text, and each option as a card: a key chip with its
+  digit, the label, a "Recommended" badge where the agent's label ends in
+  "(Recommended)" (`splitRecommended`; the raw label is what is sent), the
+  description, and once picked a brand border, the chip filled and a
+  check; radios for a single choice, checkboxes for several, with "n
+  selected" by the button. Where the question takes a typed answer, a
+  dashed "Something else… type it below" card comes last, with the next
+  digit, and focuses the box; it shows as picked while the box holds text.
+  Digits 1–9 pick, except while focus is in an input, a textarea or an
+  editable box, and only in the focused pane of the tab in front with
+  focus on nothing or inside the tray, so split panes never both take a
+  digit; a single choice moves to the next question after 200 ms. The
+  typed answer is the composer itself: while a question waits the box is a
+  separate editor for that question's text (`QuestionEditor`), with "Or
+  write your own answer" beside options, "Type your answer" without them,
+  or only "Choose an option above" when the question takes no typed
+  answer. Enter, the tray's button (with its ↵ cap) and the send arrow
   answer (Next, then Send answer or Send answers); they never send a
   message, and the message draft, its attachments and the stash wait
   underneath. On a single choice a typed answer replaces the pick, and a
   pick made after typing moves the typed text to the message draft, said in
-  a muted line. "Dismiss question without answering" dismisses the request
-  when it has one question, and otherwise marks that question dismissed and
-  moves on; every question dismissed is the request dismissed. Back returns
-  to an earlier question. The whole request goes in one `harnessRespond`;
-  Rust's refusal is a red line inside the panel. A question whose session is
-  gone (`responder: "message"`) reads "Answer in a new message" on its last
-  button. Drafts are `harnessStore.questionDrafts`, so a chat switch or a
-  reload reopens at the first unanswered question.
-- **A question's row** (`QuestionRow`) waits as a card naming who asks
-  ("Codex asks 2 questions") with each question's header, text and options,
-  and, on a lost session, that the answer goes as a new message. Answered,
-  it stays open: each question, muted, over its answer, or "Dismissed".
-  A whole dismissal, an expiry or a cancellation is one line with the first
+  a muted line. Back returns to the question before. The whole request
+  goes in one `harnessRespond`; Rust's refusal is a red line inside the
+  tray. A question whose session is gone (`responder: "message"`) reads
+  "Answer in a new message" on its last button. Drafts are
+  `harnessStore.questionDrafts`, so a chat switch or a reload reopens at
+  the first unanswered question.
+- **A question's row** (`QuestionRow`) waits as one line like an
+  approval's, with a brand dot: "Waiting for your answer" and the question
+  (or "2 questions"), opening to who asks ("Codex asks 2 questions") and
+  each question's header, text and options, and, on a lost session, that
+  the answer goes as a new message. Answered, it is "You answered Codex"
+  over a two-column list: each question's header (or its text) muted, its
+  answers as chips without "(Recommended)", or "Skipped". A whole
+  dismissal, an expiry or a cancellation is one line with the first
   question, opening to all of them. Like an approval's, it is kept out of
   the run's fold and its waiting row stays mounted.
 - **While a request waits** the run's fold and the live tail read "Waiting
@@ -2222,19 +2337,23 @@ What the student sees is decided in `app/src/lib/harness/requests.ts`,
   they would say "Working for 8s" (`runWaitingOn`, an approval first); the
   announcer says "Needs approval" or "Needs your input" and the sidebar
   shows Approval or Question. While only an approval waits the box stays
-  usable. Where a send would steer, it declines the request and steers
-  with the words ([Steering from the composer](#steering-from-the-composer)); elsewhere it
+  usable, and its empty Enter and Escape answer the tray (above). Where a
+  send of typed words would steer, it declines the request and steers
+  with them, the box saying "Or tell Codex what to do instead"
+  ([Steering from the composer](#steering-from-the-composer)); elsewhere it
   queues behind the request. `harnessRespond` carries no feedback: Rust
   refuses it.
 - **The mode control** (`PermissionModeControl`, after the model picker;
   its state is `usePermissionMode`, which the compact composer's settings
   menu shares) is an icon-only button showing the chat's mode
   (its name in the tooltip) and opens a "Permission mode" menu of Ask, Auto
-  and Don't ask, each with a one-line description. Where the bridge has no
-  reviewer (`autoReview` false) Auto says it asks as Ask; on Claude,
-  "Classifier decides"; where it has no `approvals` a warning icon in the
-  menu's header says, in its tooltip, that the agent cannot ask yet. A pick
-  is saved with
+  and Don't ask, each with a one-line description. Auto reads “The agent's
+  reviewer decides” for Codex, “Classifier decides” for Claude, “Antigravity's
+  own Auto decides” for Antigravity and “opencode has no reviewer” for
+  opencode. In every mode the header's warning tooltip for Antigravity says
+  “In Auto, Antigravity approves its own edits and commands. Oculus cannot
+  keep it out of Course folders or the database there.” For opencode the
+  tooltip explains that blocked actions are declined in every mode. A pick is saved with
   `harnessSetPermissionMode`; Rust's refusal (a request waiting) shows at
   the top of the open menu. In a composer with no thread yet it shows, and
   a pick sets, the mode the new chat starts with (`useNewChatMode`, above).
@@ -2242,11 +2361,12 @@ What the student sees is decided in `app/src/lib/harness/requests.ts`,
   approved" or "Reviewer denied" (Codex), "Approved by Claude's classifier"
   or "Refused by Claude's classifier" quietly at its right, and opened, the
   risk and the rationale, with "you were not asked (Auto)". A Claude call a
-  deny rule refused (a protected path, `sqlite3`), in any mode, says "Refused
-  by a rule", and opened, that Oculus keeps agents out of it in every mode.
+  deny rule refused (a protected path, `sqlite3`), or an Antigravity write
+  to a protected path that failed, in any mode, says "Refused by a rule",
+  and opened, that the rule applies in every permission mode.
   None of these ever becomes a request.
 - A reload reads the requests with the rows, so a live request comes back
-  as a waiting row the bar answers, and one the restart ended as Expired
+  as a waiting row the tray answers, and one the restart ended as Expired
   with "The app was closed."
 - **A Claude request** reads "Claude Code wants to run a command" (or to
   change a file, to reach the network). A command shows no folder: the
@@ -2257,7 +2377,7 @@ What the student sees is decided in `app/src/lib/harness/requests.ts`,
   arguments as JSON; its title is "wants to read outside its folders", "to
   fetch a web page", "to search the web", or "to use github". A subagent's
   request names it by its type, "Claude Code's subagent wire-probe …". Only
-  Approve and Decline: nothing under More.
+  Deny and Allow: no session grant.
 - A `permission` row is a refusal from Antigravity's old print mode, kept
   as history (`PermissionCard`, with nothing to allow); Antigravity asks
   through requests now ([below](#antigravity-asks-over-acp)).
@@ -2396,12 +2516,14 @@ a change restarts the session at the next send.
 
 ### Antigravity asks over ACP
 
-Antigravity runs as `agy acp --sandbox --add-dir <library>`, one process
+Antigravity runs as `agy acp --add-dir <library>` inside the
+[folder guard](#the-folder-guard) on macOS, and as
+`agy acp --sandbox --add-dir <library>` where there is no guard, one process
 per chat, speaking the Agent Client Protocol (JSON-RPC 2.0 on stdio).
 `initialize` must name `agy` 1.5.9 or newer (`acp::MIN_VERSION`), the one
 the bridge was recorded against; an older one fails the spawn with how to
-update it. Recorded on `agy` 1.5.9 (`fixtures/harness/antigravity-acp-*`, from
-the stage 5 probe; replayed by `testkit/agy_requests.rs`).
+update it. `testkit/agy_requests.rs` replays the 1.5.9 default-mode and
+1.5.14 Auto recordings in `fixtures/harness/antigravity-acp-*`.
 `providers/antigravity/acp/`: `client.rs` (requests and replies by id),
 `session.rs`, `updates.rs` (the timeline), `policy.rs` and `route.rs`.
 
@@ -2416,8 +2538,18 @@ the stage 5 probe; replayed by `testkit/agy_requests.rs`).
   level and mode, so `configure` follows every new session and every
   load: `session/set_model` with the slug (`gemini-3.8-flash-low`, as
   `models::model_slug` folds a level in), `session/set_config_option
-  thought_level` when only a level is set, and `session/set_mode default`.
-  `agy acp` takes no `--model` or `--effort`.
+  thought_level` when only a level is set, then `session/set_mode`.
+  Both session replies report `modes.currentModeId` and
+  `modes.availableModes`. Oculus selects `auto` for a chat saved in Auto
+  only if the session is guarded and the reply lists that id. Otherwise it
+  selects `default`, including for Ask, Don't ask and every one-off turn.
+  With no `modes` field there are no known ids. If Auto is unavailable,
+  Oculus logs and shows one note per session: “Antigravity's Auto is not
+  available on this sign-in, so it asks.”, or without the guard
+  “Antigravity's Auto needs Oculus's folder guard, which is not available
+  here, so it asks.”
+  A live mode change sends `session/set_mode` before the next prompt only
+  if the effective mode id changes. `agy acp` takes no `--model` or `--effort`.
   If the saved `session/load` fails before any prompt, the start step gives
   up that binding, starts `session/new`, and sends the same budgeted full
   transcript handoff a provider switch sends, with the student's message.
@@ -2469,23 +2601,72 @@ in every approval mode. Multi, typed, dismiss and Stop wire cases are derived,
 not live recordings; the recorded single-choice exchange establishes native
 accept and continuation.
 
-**Rust's answer is the only gate.** In mode `default` every write and
-every command sends `session/request_permission` first, and under ACP
-`agy` neither skips nor blocks one for a rule in the student's global
-settings (stage 5 probe, rules-canonical): what Rust allows runs. So the
-policy (`policy.rs`, `judge`) answers before anyone is asked:
+**In Ask and Don't ask, Rust's answer is the only gate for approvals.**
+In ACP mode `default` every write and command sends
+`session/request_permission`. The student's global agy rules do not
+decide these requests.
+
+**In native Auto, agy approves edits and commands itself.** The workspace
+includes the entire library through `--add-dir`, and on agy 1.5.16 a
+file-tool write outside it (the home folder, `/private/tmp`) runs without a
+request too (1.5.14 asked first, which is what the recording holds). Rust
+sees only what agy chooses to forward, so the protected paths are held by
+the folder guard instead. The guard does not cover the database, which the
+`oculus` CLI agy runs must write, or files outside the library: in an
+Antigravity Auto chat those are agy's own judgement. The probe recordings
+are in `data/plans/chat/chat-experience/assets/probes-2026-11-22-agy-auto/`.
+
+#### The folder guard
+
+`acp/guard.rs` starts every agy ACP process, one-off turns included, as
+`/usr/bin/sandbox-exec -p <profile> agy acp --add-dir <library>`. The
+profile allows everything and denies `file-write*` on the paths
+`protected.rs` lists, as anchored regexes over the library's real path:
+the `library_dirs`, each subject's `Course/` and `.oculus/` (any subject,
+so one synced mid-chat is covered), the subjects folder and any entry
+directly in it (a subject cannot be created, deleted or renamed), the root
+files by pattern and the app-owned folders in `agents/`. Never
+`oculus.db*`, keyd's socket, `studio/` or an own-zone file. Seatbelt has no
+case flag, so each letter is a class (`[Cc][Oo]…`). A second rule denies
+unlinking `agents/`, the library and its ancestors, which the regexes are
+anchored to. agy and everything it starts inherit the profile: its file
+tool, a redirect, `rm`, `mv` and a script it runs all get "Operation not
+permitted" (measured 2026-11-25 on agy 1.5.16, macOS 26.3).
+
+- **Where it exists.** macOS, when a probe shows `sandbox-exec` can start a
+  write restriction (`guard::available`, cached; it cannot when Oculus
+  itself runs inside a sandbox). Elsewhere the session is unguarded: it
+  launches with agy's `--sandbox`, never selects `auto`, and
+  `auto_review` is false off macOS, so the mode menu says Auto asks.
+- **agy's own terminal sandbox cannot nest.** It is `sandbox-exec` too, and
+  macOS refuses a second one (`sandbox_apply: Operation not permitted`,
+  exit 71), so a guarded launch omits `--sandbox`. In `auto` agy sandboxes
+  commands regardless and retries with `BypassSandbox`; the guarded brief
+  (`ANTIGRAVITY_GUARD.template.md`, appended to the session's brief) tells
+  it to pass `BypassSandbox: true` from the first call, and that a refusal
+  on a protected path is final.
+- **A refused write reads as one.** A failed write tool naming a protected
+  path becomes `ToolReviewed` with source `rule` (`updates.rs`, which keeps
+  each call's paths across updates and its permission request), whether
+  Rust declined agy's request or macOS refused the write. agy ends the
+  turn silently after a decline, so the run's notice says why
+  ([settlement](#one-answer-per-run)).
+
+In every mode, `acp/policy.rs` applies `judge` to each request agy sends.
 
 | Request | Answer |
 | --- | --- |
 | a write (ACP kind `edit`, `delete`, `move`, or a writing tool) naming a protected path (`requests/policy.rs` over `protected.rs`), a folder that holds the library, or the database (`oculus.db*` at the library root) | Deny, unseen |
 | a write that names no path | Deny, unseen: it cannot be checked |
-| a write whose every path (its `locations`, which agy resolves through symlinks, its diffs' and its input's) is under `agents/` or `studio/`; a relative path is read from both the library root and `agents/`, and both readings must pass | Allow, unseen |
+| a write whose every path (its `locations`, which agy resolves through symlinks, its diffs' and its input's) is under `agents/`, `studio/` or in a subject's own files; a relative path is read from both the library root and `agents/`, and both readings must pass | Allow, unseen |
 | a plain `oculus …` (including `BypassSandbox`), or `ls …` inside the sandbox; neither may contain `;`, `&`, `|`, redirects, substitution or escapes | Allow, unseen |
 | any other write, command, read, fetch or tool | a request: `file_change` with the diffs, `command` (with `outsideSandbox` when it sets `BypassSandbox`), or `tool` (`read`, `fetch`, `other`) |
 
 A request then goes where every bridge's does: the consumer declines it
-unseen in Don't ask, with no turn open, or for a protected path; Auto asks
-as Ask (`auto_review` false: agy has no reviewer). A one-off turn asks
+unseen in Don't ask, with no turn open, or for a protected path. In Ask and
+Auto, the student sees the remaining requests: in native Auto, whatever agy
+still forwards (1.5.14 forwarded a write outside the workspace, 1.5.16 does
+not). A one-off turn asks
 nobody: what the policy does not allow is refused. Options are Approve
 once (`allow_once`) and Decline (`reject_once`), the only two agy offers;
 there are no session grants. The answer is `{outcome: selected, optionId}`
@@ -2497,15 +2678,16 @@ replace; a refused write is `failed` and the turn's end then cancels it.
 A request agy makes of a client service (`fs/*`, `terminal/*`, anything
 else) is refused with `-32601`.
 
-**agy's terminal sandbox** (`--sandbox`) runs a command from the library
-root, not the session's `cwd`, and refuses its writes there (EPERM; measured
-2026-11-16 on 1.5.9, and it let a write to `/private/tmp` through). A
-command that fails on the sandbox is retried by the agent with
-`BypassSandbox`. Rust allows a plain `oculus …` retry unasked so it can
+**agy's terminal sandbox** (`--sandbox`, an unguarded session's) runs a
+command from the library root, not the session's `cwd`, and refuses its
+writes there (EPERM; measured 2026-11-16 on 1.5.9, and it let a write to
+`/private/tmp` through). A
+command that fails on the sandbox can be retried by the agent with
+`BypassSandbox`. When agy sends a permission request, Rust allows a plain `oculus …` retry unasked so it can
 write `oculus.db`. This matches Claude, whose sandbox permits database writes
 and whose rules allow `Bash(oculus:*)`: the CLI's `OCULUS_AGENT` guard protects
-the library on every bridge. `ls` remains sandbox-only; a bypassed `ls` or
-any command with shell syntax still asks.
+Oculus CLI operations on every bridge. For requests Rust receives, a bypassed
+`ls` or any command with shell syntax goes to the consumer.
 
 `agy acp` has no `--disable-slash-commands`. A message starting with one of
 agy's own slash commands, such as `/compact`, runs that command.
@@ -2643,7 +2825,7 @@ from the thread's live session and the run's selection, in this order:
 | another provider's | `CreateWithHandoff` | the old session is released (`Replaced`) and the target's is spawned or resumed |
 | same provider, another reasoning level | `RestartAndResume` | released and resumed under the new level |
 | same provider, another model | `SwitchModelInSession` where `model_switch_in_session` is true: Codex's next `turn/start` and opencode's next prompt name it. Else `RestartAndResume` | |
-| same provider, another permission mode | `SwitchModeInSession` where `mode_switch_in_session` is true (Codex names it on its next `turn/start`) or the bridge has no `approvals` (it reads no mode, so the mode is only recorded). Else `RestartAndResume` (Claude, whose mode is fixed at spawn) | |
+| same provider, another permission mode | `SwitchModeInSession` where `mode_switch_in_session` is true (Codex names it on its next `turn/start`, Antigravity sets it before the next prompt) or the bridge has no `approvals` (it reads no mode, so the mode is only recorded). Else `RestartAndResume` (Claude, whose mode is fixed at spawn) | |
 | the same selection and mode | `Reuse` | |
 
 A native rewind brings up the question's provider the same way, without regard to
@@ -2718,6 +2900,15 @@ The student's new message:
   binding covers nothing again (`bindings::forget_unnamed`).
 - **A CLI command carries none.** A message starting with `/` must stay
   first in its prompt, so its handoff waits for the next message.
+- **Cards follow the session.** Card outcomes ride prompts ("Cards in this
+  thread"), never rows, so no block carries them. A card counts as told
+  only to the session of the run that told it
+  ([Proposal context](#proposal-context-is-read-at-dispatch-and-confirmation-lives-in-rust)),
+  so a session taking over is told the decided cards with its first
+  prompt, as many as the section's cap holds, and the rest with the next:
+  after a switch, a session given up, a session replaced without a handoff,
+  and the Antigravity load-failure restart, whose start step reads the
+  prompt again for its new binding.
 - **Views are told.** `Handoff { run_id, kind, status, from, omitted }`
   goes out when the run is written and again when it settles, and
   `harness_load` returns it on the run (`RunHandoff`, `handoffLabel` and
@@ -3031,8 +3222,9 @@ drops under "What should we work on?" when the one-line sentence is wider
 than the column ([ui.md](./ui.md)). An open thread's header has no pill.
 
 **Until then the composer is `unscoped`**: words, pictures and pasted cards
-collect, but Enter and the send button do nothing and the placeholder reads
-"Choose a subject above to start a chat". The choice belongs to the draft
+collect, the placeholder reads "Choose a subject above to start a chat", and
+Enter or the send button opens the subject dialog instead of sending
+(`onChooseScope`); the words wait in the box for the next press. The choice belongs to the draft
 (`oculus.chatScopes` in `draftStore`, keyed like drafts: `"general"` or a
 subject id, never null, so no entry is unchosen and General is a choice of
 its own). It outlives a thread switch and a relaunch, a deleted subject's id
@@ -3043,7 +3235,8 @@ route instead, with no dialog: a group's "+" opens a new chat with
 `s=<id|general>`, a revision artifact's Ask about this a new chat holding
 its question, with `s=<id>` when the artifact has a subject, and Studio's
 New video a new chat holding the `oculus-studio` chip, with `s=<id>` in the
-subject its grid shows. The lecture dock is always its lecture's subject and
+subject its grid shows and `c=1`, which opens the dialog once on arrival
+(after the subjects load) with that subject highlighted. The lecture dock is always its lecture's subject and
 does not show the headline.
 
 **Rust holds the same line.** A send that creates a plain Chat thread must
@@ -3088,7 +3281,24 @@ underlined, `referenceRestClass`, with no hover since a click there belongs to
 the caret), which is why `MentionInput.tsx` is a contenteditable:
 the DOM is the source of truth while typing, React re-renders only on
 structural changes (bumping `key`), and `revealCaret` scrolls the box because
-a contenteditable follows its caret only for edits it made. The menu anchors
+a contenteditable follows its caret only for edits it made. Every atomic
+`contenteditable="false"` chip (`FileChip`, `AttachmentChip`, `SkillChip`)
+keeps an editable text node on both sides — `normalize` in `mentions/chunks.ts`
+for committed chunks and `ensureChipGuards` in `mentions/dom.ts` on live edits,
+focus, clicks and `selectionchange` — resolving clicks or selections inside a
+chip to the nearest editable edge (`chipSideForPoint`), merging adjacent text
+guards, stepping across chips with ArrowLeft/ArrowRight (`moveCaretPastChip`)
+and unstalling wrapped ArrowUp/ArrowDown (`stepVerticallyPastChip`), deleting
+chips through the chunk model (`removeChipByOrdinal`), and owning undo/redo
+history (`editRouting.ts`) so typing, chip insertions and deletions undo and
+redo cleanly without WebKit DOM drift. Structural redraws defer during IME
+composition and never steal focus or collapse an active range when a late skill
+catalogue resolves; typing or pasting non-whitespace directly against a skill
+chip inserts a separating space so the draft keeps its skill identity. Copy and
+cut write the selection as the message spells it and, beside it, as chunks
+(`mentions/clipboard.ts`), because WebKit's own copy takes a chip's drawn
+label; a paste carrying those chunks puts the chips back, and any other
+paste is plain text. The menu anchors
 on a range over the trigger character and its query, since a collapsed
 range's rect can be zeros in WebKit, and clamps to the root element's box.
 The box refuses control characters (`lib/harness/controlChars.ts`): WebKit can
@@ -3258,8 +3468,8 @@ the lecture dock with `SendControls`): the typed text with its chips' paths
 in place, each pasted text's block, then any shelf picture no chip names on
 a trailing line of paths (`withShelf`), blank-line separated, so nothing
 attached is dropped. A send waits while a file is still being written. An
-`unscoped` box still collects chips and shelf pictures and still refuses to
-send.
+`unscoped` box still collects chips and shelf pictures and asks for a
+subject instead of sending.
 
 **The sent bubble draws the same chips in its prose** (`liftPictures`,
 `QuestionBubble`): a click opens a picture in the lightbox and a PDF or text
@@ -3394,48 +3604,70 @@ alike) and records it, so it rides once. A send whose write fails carries it
 again.
 
 **The video card.** A linked thread shows `VideoCard`
-(`components/harness/video/`) above its timeline, outside the row window, so
-scrolling never unmounts it. The app draws it from the link, the folder's
+(`components/harness/video/`) as a row of its timeline (`buildRows`'s
+`video` row, Chat only: `Timeline`'s `videoCard`): under the fold of the last
+run that made a Studio call on the video, before that run's answer, so it
+reads as part of the response and moves down when a later turn works on the
+video again. The row keeps one id, so the move keeps the card's state. Until
+a run has made such a call (a series part's new chat) the card leads the
+timeline. The app draws it from the link, the folder's
 detail (`studio_video_detail`) and `renderStore`; the agent never writes it.
 Collapsed it is the thumbnail, the title and one status line: a brand spinner
 while the agent works ("Writing the script", "Building scenes · 4 of 7",
 "Narrating", "Rendering draft · 64%"), a green check with the length once a
 draft or the final is ready, red when a step failed. A 2px bar on its bottom
 edge fills while scenes build or a render reports a fraction, and sweeps
-(`progress-sweep`) for the agent's own render, which reports none. The
-thumbnail and title open the video's page beside the chat
+(`progress-sweep`) for the agent's own render, which reports none. The thumbnail and title open the video's page beside the chat
 (`openVideoBeside`, as a file chip opens its file; ⌘-click a new tab), and so
 do the card's last button and a button on its player's control bar. Nothing
-opens it on its own, not a render's end nor a turn's. Its other buttons:
+opens it on its own, not a render's end nor a turn's. Its chevron button opens
+the progress timeline (**Script**, **Scenes**, **Narration**, **Draft**,
+**Final**), where each step shows when it finished or what it is doing and
+nests the artifact it produced:
 
-- **Play** grows the player in the card (`InlineVideo`: Studio's
-  `VideoPlayer` without a dock, the newest render, sharing the app's one
-  sound through `useLibraryPlayback`); pressed again it closes.
-- **The eye** is the storyboard: one scene's still at a time (`studio_frame`
+- **Script** (`StepScript`) lists each scene's number, title, length once timed
+  and selectable words from `script.md`.
+- **Scenes** (`Storyboard`) shows one scene's still at a time (`studio_frame`
   through `useSceneStill`), arrows and a numbered chip per scene (dashed while
   the scene's component is not written), the scene's title, start, length and
-  narration, and "Play from this scene", which starts the card's player there.
-- **The chevron** is the progress timeline: Script, Scenes, Narration, Draft
-  and Final, each with when it finished or what it is doing; Final, until
-  it exists, points at Export on the video's page. A failure keeps its sentence there.
+  narration, and "Play from this scene", which opens the rendered video step
+  and starts playback there.
+- **Narration** (`StepNarration`) shows the voice and total length over each
+  scene's start time and duration; clicking a scene jumps playback to that
+  moment once a render exists.
+- **Draft** and **Final** show Play when that preset's render exists and grow
+  the inline player (`InlineVideo`: Studio's `VideoPlayer` without a dock,
+  playing that step's preset and sharing the app's one sound through
+  `useLibraryPlayback`) directly inside the step; Final, until it exists,
+  points at Export on the video's page. A failure keeps its sentence on its
+  step.
 
-**A series' card.** A thread that makes a series (`seriesForThread`; the
-thread is linked to one part's folder) draws the same card for one part at a
-time (`useThreadVideo`): the part being made (`partBeingMade`: the part
-asked for, or a folder without a render while the thread runs), else the
-part whose folder changed last (`cardPartNumber`). The title is the
-series'; the thumbnail, storyboard, progress and bar are that part's, and
-the status line names it ("Part 1/5 ready · 1:48", "Part 2/5 · Narrating";
-"Sending", "Starting" or "Asked for" before the part's folder exists,
+**A series' card.** Each part of a series is made in its own chat (Make
+this part opens one, [studio-page.md](./studio-page.md#videos-and-the-detail),
+or the series' chat hands it to a [subagent](#a-subagent-card-starts-a-child-chat)),
+and that chat's card follows its part (`useThreadVideo`, `seriesForThread`):
+the part whose folder is linked to the thread, else the part the chat was
+opened for (`seriesMakeStore`), whose folder may not exist yet. The chat that
+planned the series is linked to part 1 and reads as part 1's chat. The title
+is the series'; the thumbnail, storyboard, progress and bar are the part's,
+and the status line names it ("Part 1/5 ready · 1:48", "Part 2/5 ·
+Narrating"; "Starting" while the chat runs before the part's folder exists,
 `partStatus`, `seriesStatusLabel`). Under the card's player the series'
 Parts outline is always shown (`SeriesCardParts` over Studio's
-`PartsOutline`, [studio-page.md](./studio-page.md#videos-and-the-detail)):
-a made row plays that part in the card's player (`CardPlayer`, lit
-"Playing") without changing which part the status is about, never beside,
-and **Make this part** on the next part not made sends "Make part N" to the
-thread as an ordinary message (`useMakeSeriesPart`). The open-beside
-buttons open the page of the part the card follows, or, on the player's
-control bar, of the part playing. Thread info's Work row follows the card.
+`PartsOutline`): a made row plays that part in the card's player
+(`CardPlayer`, lit "Playing") without changing which part the status is
+about, never beside, each part being made in its own chat says "Making…",
+and **Make this part** on the next part not made opens a new chat for that
+part with the request in its box, unsent (`useMakeSeriesPart`). A chat keeps
+its first video, so a part asked for by typing in another part's chat is
+proposed as a Subagent card (the brief's series section and the
+`oculus-studio` skill say so): the child's own `studio new --series` links
+the part to the child, whose card follows it, and the series' card lists it
+"Making…" while the child's turn runs. A child chat is never told to
+propose one (`StudioBrief::child`): a subagent cannot start another, so its
+brief points another part to the series' own chat or its Studio page. The open-beside buttons open the page
+of the part the card follows, or, on the player's control bar, of the part playing.
+Thread info's Work row follows the card.
 
 `videoProgress` (`lib/studio/progress.ts`) is the one derivation the card,
 the Work row and a part's page share (`useVideoProgress`), a pure function of the detail, the thread's running
@@ -3468,7 +3700,8 @@ of each video and preset is lifted out of its run's fold as a `render` row
 (`buildRows`), drawn by `RenderTile`: the thumbnail, "Rendered draft",
 the length and size, and Play, which grows the same inline player in the
 tile on that preset. Earlier renders of the same preset wrote the same file,
-so they stay plain tool rows in the fold. A row holding media is never
+so they stay plain tool rows in the fold. Renders of the video the thread's
+card shows get no tile: the card's Play is that render. A row holding media is never
 detached by `useRowVisibility` (only skipped, `content-visibility: hidden`),
 so it pauses the row's `<video>` and `<audio>` as it scrolls out of sight
 (a row holding the focus or a fullscreen player, one a text selection
@@ -3491,13 +3724,17 @@ level, on any of the four agents.
 
 - **`compact` is one bar that never changes shape.** The text with the
   hint cut to one line, then a settings button, the mic and send. Focus and
-  typing change nothing but its height: it grows as the text wraps, its
-  17px corners a pill on one line, and the controls hold the bottom-right
-  corner. A click on the bar outside its buttons puts the caret at the end.
-  Attachments, the stash, notices, a waiting question's panel and the
-  sign-in line sit above the bar; a question's typed answer takes the
-  text's place in it, and dictation's strip takes the controls' place at
-  the bar's own height. Without `compact`, the box is the full composer.
+  typing change nothing but its height: a 44px bar on one line (16px
+  corners, its controls a 32px row: `SendControls` and `DictationMic` take
+  `large`), it grows as the text wraps, and the controls hold the
+  bottom-right corner. Studio's Ask for a change is the same bar
+  ([studio-page.md](./studio-page.md#the-components-playground)). A
+  click on the bar outside its buttons puts the caret at the end.
+  Attachments, the stash, notices and the sign-in line sit above the bar,
+  and a waiting request's tray sits on top of it inside its border; a
+  question's typed answer takes the text's place in it, and dictation's
+  strip takes the controls' place at
+  the same 32px height. Without `compact`, the box is the full composer.
 - **The settings button stands in for the control row**
   (`settings/CompactSettings.tsx`). Its title names agent, model and level
   (`modelSummary`), and it opens one popover whose pages change in place
@@ -3566,10 +3803,32 @@ cannot overwrite a reset or switch. Rewind and thread deletion prune parked
 drafts alongside widget progress. Original snapshots stay in SQLite.
 
 Every start (`send::prompt`, the one place a prompt's text is finalised)
-reads pending cards and newly decided statuses after the
-lecture moment, appending "Cards in this thread" to the provider prompt.
-The user row keeps only the student's typed text. Pending cards repeat on
-every send; decided cards repeat until a send is accepted. A conditional
+reads the cards the session it goes to has not been told, after the
+lecture moment, appending "Cards in this thread" to the provider prompt
+(`app/proposal_context.rs`). The user row keeps only the student's typed
+text. Pending cards repeat on every send. A decided card is listed until a
+send that listed it is accepted, which writes its status to `told` and the
+run to `told_run_id` (migration 67). After that it is left out only of a
+send to the session that heard that run: the run still exists (a rewind
+deletes it and clears `told_run_id` on its cards), it went out on the
+binding this send goes out on (`harness_runs.binding_id`), that binding
+still covers it (`covered_through`), and no full handoff has gone to the
+binding since, as one only goes to a session that has seen nothing. A send
+with no native id to resume whose live session cannot take it as it is
+(`Harness::keeps_session`, asked before the prompt is written: a new
+reasoning level for a session that never named itself) lists every card.
+Nothing clears `told`, so a Stop that withdraws a run before its provider
+hears it neither repeats nor loses a card. Cards told before migration 67
+count as told by the newest run a session had seen.
+
+A continuation's own card is always listed, since its prompt points there
+for the outcome: a sibling card's continuation may have told it already.
+The list holds at most `CARDS_CAP`, 24,000 bytes of JSON: one Subagent
+report at its 12,000-character cap and a few small cards, beside a
+handoff's 16,000. The continued card is always included, then the newest
+first while they fit (at least one, so a card larger than the cap still
+goes out), and a last line says how many older cards are not listed;
+those are not marked told, so they come with a later send. A conditional
 `told` write matches the exact status and state sent, so an edit or Undo while
 a provider accepts the request cannot mark a newer version seen. Queued
 messages read cards when released, after any intervening Create click.
@@ -3597,7 +3856,7 @@ in memory, never in proposal rows. Completion clears `told` so the next message
 reports the outcome. Startup preserves the run identity and start time, marks
 interrupted jobs as errors with the reason, and keeps the card decided. Its
 finish stamp is reconciliation time, so an interrupted card shows no duration.
-Jobs have no Undo or amendments; retry needs a fresh proposal and confirmation.
+Jobs have no Undo or amendments; retry needs a fresh proposal and confirmation, except a Subagent card a quit interrupted ([Start again](#a-subagent-card-starts-a-child-chat)).
 
 `proposals/jobProgress.ts` under `app/src/components/markdown/openui/` maps Sync
 to its owned run's subject and phase, Reparse to parse-store file counts and
@@ -3630,7 +3889,10 @@ A second settle, a second view, or a rewind or thread delete past the card
 claims nothing. The claim then joins the thread's queue like a message, as
 a queued run with origin `continuation`: out at
 once on an idle thread, or behind the running turn and whatever already
-waits, never listed in the composer's queue.
+waits, never listed in the composer's queue. A card settles only once, so
+a claim whose run cannot be queued is not retried: it becomes `skipped` with
+`NOT_QUEUED`, and the card's views are sent its state, which says the agent
+did not continue.
 
 When its turn comes `store::begin` turns the claim into the run in the same
 transaction (`phase: "started"`, `run_id`), or refuses with `NOT_CLAIMED` and
@@ -3653,6 +3915,170 @@ app closed during (`job.interrupted`) is `skipped` too: neither ever runs
 later, and the card shows the reason under its body (`CardFrame`'s `note`).
 
 
+## Subagents are child chats
+
+A chat can hand a piece of work to a **child chat**: a thread of its own, on
+any installed agent and model, whose `harness_threads.parent_thread_id`
+(migration 66) names the chat it came from. `harness/app/children/` makes
+one, waits for its report and stops it, the same way on all four bridges.
+The CLIs' own subagents are another thing: one tool row, their work unseen.
+
+- **Start.** `children::start(state, command_id, Brief { parent, text,
+  provider, model, effort })` builds a `Send` with no thread and puts it
+  through [the one command path](#one-command-path), so the child, its first
+  run and the brief's row land in one commit, and returns the child's
+  thread id once they have; the run goes out after. The send carries the
+  parent's `subject_id`, the parent's permission mode as `start_mode`, and
+  `parent_thread_id`, which only Rust sets (`#[serde(skip)]` on
+  `SendOptions`). The child gets its own binding and session like any new
+  chat. The model is always named. The same `command_id` again returns the
+  same child.
+- **One level deep.** A parent that has a parent is refused with
+  `ONE_LEVEL` ("This chat is a subagent itself, and a subagent cannot start
+  another one."), and nothing is written.
+- **The brief is the parent's.** Its `user` row has `meta.fromThread`, the
+  parent's id, and its `UserMessage` carries `from_thread`, which the live
+  row stores the same way (`UserMeta`, `briefFrom` in
+  `app/src/lib/harness/meta.ts`). Only the creating send is marked: a later
+  message in the child, an edit of the brief, or a brief a restart put back
+  in the queue reads as the student's.
+- **Wait.** `children::wait(state, child)` returns the `Report` of the
+  child's first run: `status` (`completed`, `interrupted`, `failed`),
+  `answer` (the row `store::settle_run` chose; on a stop or a failure, what
+  had arrived) and `reason` (the run's error or notice row, or a fixed
+  sentence). A completed run with no answer reports, in order: the newest
+  error or notice row it left that says more than `NO_ANSWER`; else
+  `NO_ANSWER` when its text was lost on the way (an unresolved delivery
+  gap, with or without a notice row); else `NO_REPORT` ("The subagent
+  finished without a report. Open its chat to see what it did."). It is
+  read from the saved rows. `Waiters`, held by
+  `HarnessState`, is only the wakes per child, which the consumer fires
+  (`ConsumerIo::ended`) after every settle of the thread's runs, after a
+  rewind of its rows, and when the thread is deleted; a woken wait reads
+  the report again, and a wait
+  registers before it reads, so a settle between the two is never missed.
+  A wait that returns drops its wake. The report is one query, so a child
+  deleted while it is read reports deleted, not rewound. A rewind past the
+  brief reports `interrupted` ("taken back past its brief") as it lands, so
+  the card's wait is over before a later run of the child settles; nothing
+  reads that chat's report after its job has ended.
+  Only the run's own settle wakes it, never a raw `TurnFinished`, and later
+  runs (a message the student sends in the child, a turn Claude starts
+  itself) never change the report. A force stop or exit of a shared Codex
+  or opencode server closes the child's open run as it does any chat's
+  (`end_session`), so the wait returns `interrupted` rather than hangs. A
+  deleted child reports `interrupted`.
+- **Stop.** `children::stop(state, command_id, child)` is `Kind::Stop` on
+  the child's first run. The turn ends by its own terminal, and the wait
+  reports `interrupted`.
+- **Waits live in memory.** After a restart none is left. `wait` waits at
+  startup's gate, so a run a quit left open has been closed by `reconcile`
+  and reports `interrupted` with its notice ("Oculus closed before this
+  reply finished. What arrived is kept."); a brief the quit caught before it
+  was sent, held in the child's queue, reports `interrupted` too.
+- **Deleting the parent leaves its children as ordinary chats.**
+  `store::threads::delete` clears their `parent_thread_id`, since the
+  column's `ON DELETE SET NULL` needs `foreign_keys`, and the store's
+  `removed` clears it on the children it lists in the same update. The webview reads the
+  column as `HarnessThread.parent_id` (`THREAD_COLUMNS` in
+  `app/src/lib/harness/reads.ts`); a deleted parent's children are listed
+  at the Chat column's top level.
+
+Nothing caps how many children run, and a child's usage is its own.
+
+**A child reads as a child wherever it is drawn** (`app/src/lib/harness/children.ts`):
+
+- **In the Chat column** a child is listed under its parent and leaves the
+  top level of Recents and of its Subject group (`nestChildren`, one level
+  deep). A child whose parent is not among the threads read, or was
+  deleted, is an ordinary chat. The parent's row is followed by a fold line,
+  a caret and "2 subagents" (`threads/list/ChildRows.tsx`), shut until opened
+  and remembered open per device (`oculus-chat-children-open`, parent ids);
+  opening a child opens its parent's fold. Open, the children are two-line
+  rows (no subject line, which is the parent's) indented on a hairline guide,
+  newest first. Folded, the parent's row takes the most urgent of its
+  children's statuses when it outranks its own (`childAttention`, then
+  `withChildren` in `threadStatus.ts`: Approval, then Question, then Working;
+  a child's Done or Failed stays on its own row), with no timer for a
+  child's Working. A Subject group's folded ring counts a working child.
+- **On its page** the header has a crumb to the parent before the child's
+  title, marked with the parent's agent (`ParentCrumb`), and the brief row
+  (`meta.fromThread`) is drawn full width on the left, on the page's ground,
+  under "From ⟨parent's title⟩", which opens the parent beside the chat
+  (`BriefFrom`), drawn once above the brief's pasted cards and words, so a
+  brief that is only a pasted block still names it. A deleted parent's brief reads "From a chat that was
+  deleted", with no link. A parent not among the threads read is read by id
+  and kept (`useRouteThread`).
+- **In thread info** a parent has an **Agents** group and a child a row
+  naming its parent ([Thread info](#thread-info-sits-beside-the-chat)).
+
+## A Subagent card starts a child chat
+
+The agent hands work to a child with a `Subagent(title, task, then?)` job
+card in an `openui` fence (the `oculus-ui` skill says when one is worth it
+and what its brief needs). Nothing starts a child but the student's Start,
+which is also the consent for the one continuation turn its `then` asks for.
+
+- **The selection is the card's.** Pending, the card shows the parent
+  chat's composer selection (`useComposerSelection`) on its model pill, and
+  a pick writes `provider`, `model` and `effort` into the card's state
+  (`kind_keys` in `db/proposals/state.rs`). Start writes the pill's
+  selection, so the state always names the model the child runs on. Start
+  is off until an agent, a model and a level are named and that agent's
+  catalogue has loaded (`pickReady` in `proposals/subagent.ts`). For a
+  model the catalogue lists, the level must be one it takes, or none when
+  it takes none, and a level it lacks (the parent's, kept when only the
+  model changed) shows as its default, or none (`fitLevel`); a model it
+  does not list needs only a named level, which the pill shows as named
+  (`modelSummary`), so the pill shows the level Start writes. Start again
+  on a card a quit interrupted runs the same check on the saved selection
+  and saves a fitted level first: `proposal_edit` takes a new agent, model
+  and level on such a card, and nothing else. The pill lists catalogues as
+  Settings → Jobs does (`useProviderModels` with `start: false`) and
+  probes nothing.
+- **The job** is `proposal_jobs/subagent.rs`. `claim` refuses a card whose
+  chat is itself a child with `children::ONE_LEVEL` before anything is
+  written, so the card stays pending and says why. `run` starts the child
+  with the card's task as its brief (command id `subagent:<card>:<started_at>`,
+  so a retried start is the same child), writes `job.child` at once and
+  publishes the card, waits on `children::wait` with no timeout of its own,
+  writes `job.ended` (the report's status) and finishes with the answer as
+  `job.result`, or the reason as `job.error`. A completed run with no
+  answer is an error too, with the report's reason. Every job kind's
+  finish (`lifecycle::save_finish`) is one conditional update of the card's
+  state with nothing read first: a card that is gone finishes nothing, and a
+  write that fails is tried again with a doubling wait before it is an error.
+- **What the parent is told.** The result goes under "Cards in this thread"
+  in the card's `job` (`proposal_context.rs`), so the continuation reads
+  the report there ("Subagent finished — continuing"). It is cut at
+  `REPORT_CAP` (12,000 characters), ending with a line saying it was cut and
+  that the whole report is in the subagent's chat.
+- **Cancel** is `proposal_subagent_stop`, `children::stop` on the card's
+  child. A child that does not answer the stop is force stopped from its
+  own chat: the card says so once the stop is overdue
+  ([ui.md](./ui.md#the-subagent-card)). The job then ends as `error` with `ended: interrupted`, and a card
+  with a `then` still continues once, as a cancelled Sync's does: its line
+  reads "Subagent stopped — continuing" and the prompt says the card was
+  stopped, not that it failed.
+- **Several cards in one reply** start one child each, and each one's
+  finish settles its own card: every continuation joins the parent's queue
+  and they run one after another (`testkit/subagent_cards.rs`).
+- **A quit** leaves the job `interrupted` (`proposal_jobs::reconcile`) and
+  its continuation `skipped`. That card alone can be claimed again from
+  `created`: Start again starts a new child under a fresh claim, with a
+  fresh continuation. The first child's chat stays. The webview drops a
+  snapshot whose `job.started_at` is older than the one it shows
+  (`proposalStore.receive`), so a late reply from the first claim never
+  brings its child back.
+- **A rewind past the card** stops its running child: `Change::Truncate`
+  reads the running cards' children before it deletes their rows
+  (`subagent::running`), and the consumer sends each child's first run a
+  stop (`Consumer::stop_child`). The child's chat stays. A rewind between
+  the claim and `job.child` finds the card gone when the child is
+  recorded, and the job stops the child itself (`subagent::keep`); so does
+  a failed write of `job.child`, since a card that cannot name its child
+  has no Cancel, and the job ends with the write's error.
+
 ## Revision writes and submitted answers have separate paths
 
 The `oculus-revision` skill drafts course-style questions as unaccepted items and offers condensed `NewCheatNotes` proposals after concept explanations. The `revisionMarking` job marks a submitted written answer in one tool-less turn, with strict rubric JSON validation. State, scheduling and error behavior are in [revision.md](./revision.md).
@@ -3661,7 +4087,7 @@ Live Task/TaskList, Deadline/Upcoming, Lecture, StudioVideo, CheatNote and Revie
 
 ## Gotchas
 
-- Never pass `agy` `--dangerously-skip-permissions`: it answers every permission request before Rust sees one, and Rust's answer is Antigravity's only containment.
+- Never pass `agy` `--dangerously-skip-permissions`: it would suppress the requests Ask and Don't ask depend on, and those native Auto still forwards.
 - Never put an `Edit` deny on `oculus.db*` in Claude's settings — it cancels the write grant and every board write fails readonly.
 - Never grant the library folder instead of the three database files — it exposes keyd's vault.
 - Never let Settings make a billed call, or start opencode anywhere but its own page or the onboarding opencode card's Connect button — see [No model is ever probed](#no-model-is-ever-probed).
@@ -3683,13 +4109,17 @@ Live Task/TaskList, Deadline/Upcoming, Lecture, StudioVideo, CheatNote and Revie
 
 ## A fresh thread offers skill pills
 
-On a new chat, `SkillPills` sits under the docked composer and inserts `oculus-studio` through
-`Composer.insertSkill`, the same skill chunk as the slash menu. It waits for
-the installed catalogue and never inserts a duplicate; Studio's New video
-arrives with the chip already in the box ([studio-page.md](./studio-page.md#new-video-starts-a-chat)).
-Make a widget and
-Learn are disabled with Coming soon tooltips. Pills have no selected state;
-removing the chip removes the skill from the next send.
+On a new chat, `SkillPills` sits in a fixed-height single-row bar (`h-8`,
+horizontally scrollable at narrow widths) directly
+above the docked composer (`Composer`'s `skillPills` prop) and inserts
+`oculus-studio` as the same skill chunk as the slash menu. Picking a skill
+animates the pills out (`bar-swap-motion`) and swaps `StyleChip` into the same
+bar without shifting the composer; removing the last skill chip animates the
+pills back in. Studio's New video arrives with the chip already in the box
+([studio-page.md](./studio-page.md#new-video-starts-a-chat)), so the bar opens
+straight on the style chip. Make a widget and Learn are disabled with Coming
+soon tooltips. Removing the chip from the box removes the skill from the next
+send.
 
 While that chip is present and the thread has no linked video, the style
 chip carries theme, Video/Reels and length. The local narration setup check

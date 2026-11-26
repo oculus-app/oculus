@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleNotch } from "@phosphor-icons/react";
 
 import { CodeText } from "@/components/markdown/MdComponents";
 import { ChangeBox } from "@/components/studio/components/ChangeBox";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
+import { StickyDock } from "@/components/ui/layout/StickyDock";
 import { InspectorColumn, stageMaxWidth, type InspectorPanel } from "@/components/studio/panel/InspectorColumn";
 import { DuplicateDialog } from "@/components/studio/themes/DuplicateDialog";
 import { ThemeInspector } from "@/components/studio/themes/inspector/ThemeInspector";
 import { SceneStage } from "@/components/studio/themes/SceneStage";
 import { ThemeHead } from "@/components/studio/themes/ThemeHead";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PillTabs } from "@/components/ui/table/PillTabs";
 import type { ComponentsState } from "@/hooks/studio/useComponents";
 import type { useLibraryChange } from "@/hooks/studio/useLibraryChange";
 import type { useThemeDefaults } from "@/hooks/studio/useThemeDefaults";
@@ -18,12 +18,6 @@ import type { ComponentLevel } from "@/lib/studio/components";
 import { copyName, formatTheme, parseThemeText, sameTokens, type Tokens } from "@/lib/studio/themeDraft";
 import { deleteTheme, restoreTheme, writeTheme, type ThemeInfo } from "@/lib/studio/themes";
 import { cn } from "@/lib/utils";
-
-type Tab = "change" | "source";
-const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
-  { value: "change", label: "Ask for a change" },
-  { value: "source", label: "Source" },
-];
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -89,7 +83,7 @@ export function ThemeEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
-  const [tab, setTab] = useState<Tab>("change");
+  const [sourceOpen, setSourceOpen] = useState(false);
 
   const run = async (action: () => Promise<unknown>) => {
     setSaving(true);
@@ -151,19 +145,12 @@ export function ThemeEditor({
             </p>
           )}
           <SceneStage theme={info.name} draftText={draftText} subject={subject} components={components} revision={revision} />
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center gap-3">
-              <PillTabs tabs={TABS} value={tab} onChange={setTab} />
-              {change.working != null && (
-                <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                  <CircleNotch size={12} className="animate-spin text-brand" />
-                  Changing {change.working}
-                </span>
-              )}
-            </div>
-            {tab === "source" ? (
-              <SourceText text={draftText ?? source.source?.text ?? null} error={source.error} />
-            ) : !level ? (
+          <CollapsibleSection title="Source" open={sourceOpen} onOpenChange={setSourceOpen} className="border-t border-b-0">
+            <SourceText text={draftText ?? source.source?.text ?? null} error={source.error} />
+          </CollapsibleSection>
+          {/* As on the Components page: docked in the page's column. */}
+          <StickyDock className="-mt-7">
+            {!level ? (
               <p className="text-[12.5px] leading-snug text-muted-foreground">
                 The built-in theme does not change. Duplicate it, then ask for a change to the copy.
               </p>
@@ -178,11 +165,12 @@ export function ThemeEditor({
                 applied={change.applied}
                 error={change.error}
                 threadId={change.threadId}
-                onSend={(request) => change.send(info.name, level, request)}
+                composer={change.composer}
+                onSend={(request, skills) => change.send(info.name, level, request, skills)}
                 onUndo={change.undo}
               />
             )}
-          </div>
+          </StickyDock>
         </div>
       </section>
       <InspectorColumn panel={panel} label="Theme tokens" title="Tokens">

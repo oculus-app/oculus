@@ -1,11 +1,12 @@
 import { memo, useMemo } from "react";
-import { ShieldCheck, ShieldSlash, ShieldWarning } from "@phosphor-icons/react";
+import { ShieldCheck, ShieldSlash } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { requestDetail, requestState, type HarnessItem, type HarnessRequest, type RequestState } from "@/lib/harness";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { QuestionView } from "./QuestionRow";
 import { RequestBody } from "./RequestBody";
-import { RequestNotes, SettledRow } from "./SettledRow";
+import { SettledRow } from "./SettledRow";
+import { WaitingRow } from "./WaitingRow";
 
 const SETTLED_ICON: Record<Exclude<RequestState["kind"], "waiting">, Icon> = {
   approved: ShieldCheck,
@@ -17,10 +18,10 @@ const SETTLED_ICON: Record<Exclude<RequestState["kind"], "waiting">, Icon> = {
 /**
  * A `request` row: it holds the request's id, and the request itself is
  * read from the store (`harnessStore.requests`), so an answer, a delivery
- * or an ending redraws only this row. While it waits it is a card with
- * everything the agent asked; the answer is given by the composer's bar
- * (`RequestBar`). Settled, it is one quiet line saying how, opening to
- * what was asked. A question is `QuestionView`'s.
+ * or an ending redraws only this row. While it waits it is one line saying
+ * so, opening to everything the agent asked; the answer is given in the
+ * composer's approval tray (`RequestTray`). Settled, it is one quiet line
+ * saying how, opening to what was asked. A question is `QuestionView`'s.
  */
 export const RequestRow = memo(function RequestRow({ item }: { item: HarnessItem }) {
   const id = Number(item.ref_id);
@@ -37,19 +38,18 @@ export function RequestView({ request }: { request: HarnessRequest }) {
 
   if (state.kind === "waiting") {
     return (
-      <div
-        data-request={request.id}
-        data-request-state="waiting"
-        className="flex items-start gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5"
+      <WaitingRow
+        requestId={request.id}
+        tone="warning"
+        label="Waiting for you"
+        subject={detail.subject}
+        code={detail.command != null}
+        notes={state.notes}
+        warn={state.warn}
       >
-        <ShieldWarning size={14} weight="fill" className="mt-0.5 shrink-0 text-warning" aria-hidden />
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="text-xs text-foreground">{detail.title}</div>
-          <RequestBody detail={detail} />
-          {/* The run's fold or the live tail says "Waiting for approval". */}
-          <RequestNotes notes={state.notes} warn={state.warn} />
-        </div>
-      </div>
+        <p className="text-[11px] text-muted-foreground">{detail.title}</p>
+        <RequestBody detail={detail} />
+      </WaitingRow>
     );
   }
 

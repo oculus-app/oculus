@@ -99,7 +99,7 @@ export const CompactSettings = memo(function CompactSettings({
         <Button
           type="button"
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           aria-label={`Settings — ${summary.title}`}
           title={summary.title}
           className="shrink-0 text-muted-foreground hover:text-foreground"

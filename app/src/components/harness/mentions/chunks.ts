@@ -20,10 +20,16 @@ export function chipText(path: string): string {
   return `\`${path}\``;
 }
 
-/** Caret landing strip: WebKit cannot place a caret before a
- *  `contenteditable="false"` that starts a block. Stripped from every read. */
-const ZWSP = "​";
-export const ZWSP_RE = /​/g;
+/** Caret landing strip: WebKit cannot place a visible caret directly before,
+ *  between or after `contenteditable="false"` chips without an editable text
+ *  node on both sides. Stripped from every read. */
+export const ZWSP = "\u200b";
+export const ZWSP_RE = /\u200b/g;
+
+/** An inline `contenteditable="false"` chip: atomic to the caret. */
+export function isAtomic(c: Chunk): boolean {
+  return c.kind !== "text" && c.kind !== "link";
+}
 
 export function chunkText(c: Chunk): string {
   if (c.kind === "chip" || c.kind === "attachment") return chipText(c.path);
@@ -45,21 +51,34 @@ export function maskedText(chunks: Chunk[]): string {
 }
 
 /** No empty or adjacent text runs (the caret maths addresses one DOM node per
- *  chunk by index), plus a ZWSP guard before a leading mention or skill. */
+ *  chunk by index), plus a ZWSP guard on every side of an atomic chip that has
+ *  no adjacent text run. */
 export function normalize(chunks: Chunk[]): Chunk[] {
-  const out: Chunk[] = [];
+  const merged: Chunk[] = [];
   for (const c of chunks) {
     if (c.kind !== "text") {
-      out.push(c);
+      merged.push(c);
       continue;
     }
     const text = c.text.replace(ZWSP_RE, "");
     if (!text) continue;
-    const last = out[out.length - 1];
-    if (last?.kind === "text") out[out.length - 1] = { kind: "text", text: last.text + text };
-    else out.push({ kind: "text", text });
+    const last = merged[merged.length - 1];
+    if (last?.kind === "text") merged[merged.length - 1] = { kind: "text", text: last.text + text };
+    else merged.push({ kind: "text", text });
   }
-  if (out[0] && out[0].kind !== "text" && out[0].kind !== "link") out.unshift({ kind: "text", text: ZWSP });
+  const out: Chunk[] = [];
+  for (let i = 0; i < merged.length; i++) {
+    const c = merged[i];
+    if (isAtomic(c)) {
+      const prev = out[out.length - 1];
+      if (!prev || prev.kind !== "text") out.push({ kind: "text", text: ZWSP });
+      out.push(c);
+      const next = merged[i + 1];
+      if (!next || next.kind !== "text") out.push({ kind: "text", text: ZWSP });
+    } else {
+      out.push(c);
+    }
+  }
   return out;
 }
 
@@ -88,7 +107,10 @@ export function caretChunk(chunks: Chunk[], offset: number): { chunk: number; of
       return { chunk: i, offset: label == null ? inner : Math.max(0, Math.min(label.length, inner - 1)) };
     }
     if (c.kind !== "text") {
-      if (offset <= at + len) return { chunk: i + 1, offset: 0 };
+      if (offset <= at + len) {
+        const next = chunks[i + 1];
+        return { chunk: i + 1, offset: next?.kind === "text" ? domOffset(next.text, 0) : 0 };
+      }
     } else if (offset <= at + len) {
       return { chunk: i, offset: domOffset(c.text, offset - at) };
     }
@@ -113,6 +135,19 @@ export function linkChunks(chunks: Chunk[], scan: LinkScan = "all"): Chunk[] {
   });
 }
 
+/** Whether two chunk lists hold the exact same content (text, paths, skills, links). */
+export function equalChunks(a: Chunk[], b: Chunk[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((c, i) => {
+    const o = b[i];
+    if (c.kind !== o.kind) return false;
+    if (c.kind === "text") return c.text.replace(ZWSP_RE, "") === (o as typeof c).text.replace(ZWSP_RE, "");
+    if (c.kind === "link") return c.raw === (o as typeof c).raw;
+    if (c.kind === "skill") return c.name === (o as typeof c).name;
+    return c.path === (o as typeof c).path;
+  });
+}
+
 /** Whether two chunk lists draw the same nodes. */
 export function sameChunks(a: Chunk[], b: Chunk[]): boolean {
   return (
@@ -127,15 +162,18 @@ export function sameChunks(a: Chunk[], b: Chunk[]): boolean {
   );
 }
 
-/** The chunks before and after message offset `offset`; a chip the offset
- *  falls inside goes before. */
+/** The chunks before and after message offset `offset`; an offset at the exact
+ *  start of a chip splits before it, while one strictly inside goes after. */
 function splitAt(chunks: Chunk[], offset: number): [Chunk[], Chunk[]] {
   let at = 0;
   for (let i = 0; i < chunks.length; i++) {
     const c = chunks[i];
     const len = chunkText(c).length;
     if (offset < at + len || (c.kind === "text" && offset === at + len)) {
-      if (c.kind !== "text") return [chunks.slice(0, i + 1), chunks.slice(i + 1)];
+      if (c.kind !== "text") {
+        if (offset === at) return [chunks.slice(0, i), chunks.slice(i)];
+        return [chunks.slice(0, i + 1), chunks.slice(i + 1)];
+      }
       const cut = domOffset(c.text, offset - at);
       return [
         [...chunks.slice(0, i), { kind: "text", text: c.text.slice(0, cut) }],
@@ -145,6 +183,25 @@ function splitAt(chunks: Chunk[], offset: number): [Chunk[], Chunk[]] {
     at += len;
   }
   return [chunks, []];
+}
+
+/** Removes the `chipOrdinal`-th atomic chip from `chunks` and returns the
+ *  normalized result with the caret at the spot the chip occupied. */
+export function removeChipByOrdinal(chunks: Chunk[], chipOrdinal: number): { chunks: Chunk[]; caret: number } | null {
+  let seen = 0;
+  let at = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    if (isAtomic(c)) {
+      if (seen === chipOrdinal) {
+        const next = normalize([...chunks.slice(0, i), ...chunks.slice(i + 1)]);
+        return { chunks: next, caret: at };
+      }
+      seen++;
+    }
+    at += chunkText(c).length;
+  }
+  return null;
 }
 
 /** `insert` placed at message offset `offset` (the caret), each chip a space
@@ -164,10 +221,16 @@ export function insertAt(chunks: Chunk[], offset: number, insert: Chunk[]): { ch
   return { chunks: next, caret: head.length + chunksText(added).length };
 }
 
-/** Every chip of the attachment `raw` (any spelling) taken out, one space
- *  closing each gap; the caret moves back by what went before it. */
-export function dropAttachment(chunks: Chunk[], raw: string, caret: number): { chunks: Chunk[]; caret: number } {
-  const target = attachmentPath(raw);
+/** `insert` placed at message offset `offset` exactly as copied, with no
+ *  spaces added; the caret lands after it. */
+export function pasteAt(chunks: Chunk[], offset: number, insert: Chunk[]): { chunks: Chunk[]; caret: number } {
+  const [before, after] = splitAt(chunks, offset);
+  return { chunks: normalize([...before, ...insert, ...after]), caret: chunksText(before).length + chunksText(insert).length };
+}
+
+/** Every matching chip taken out, one space closing each gap; the caret moves
+ *  back by what went before it. */
+function dropChips(chunks: Chunk[], match: (c: Chunk) => boolean, caret: number): { chunks: Chunk[]; caret: number } {
   // The guard is not text; `normalize` puts it back where it is needed.
   const plain = chunks.map((c): Chunk => (c.kind === "text" ? { kind: "text", text: c.text.replace(ZWSP_RE, "") } : c));
   const text = chunksText(plain);
@@ -175,7 +238,7 @@ export function dropAttachment(chunks: Chunk[], raw: string, caret: number): { c
   let at = 0;
   for (const c of plain) {
     const len = chunkText(c).length;
-    if (c.kind === "attachment" && attachmentPath(c.path) === target) {
+    if (match(c)) {
       let [from, to] = [at, at + len];
       const before = text.slice(0, from);
       const after = text.slice(to);
@@ -209,6 +272,19 @@ export function dropAttachment(chunks: Chunk[], raw: string, caret: number): { c
     else if (caret > from) moved -= caret - from;
   }
   return { chunks: normalize(out), caret: moved };
+}
+
+/** Every chip of the attachment `raw` (any spelling) taken out, one space
+ *  closing each gap; the caret moves back by what went before it. */
+export function dropAttachment(chunks: Chunk[], raw: string, caret: number): { chunks: Chunk[]; caret: number } {
+  const target = attachmentPath(raw);
+  return dropChips(chunks, (c) => c.kind === "attachment" && attachmentPath(c.path) === target, caret);
+}
+
+/** Every chip of the skill `name` taken out, one space closing each gap; the
+ *  caret moves back by what went before it. */
+export function dropSkill(chunks: Chunk[], name: string, caret: number): { chunks: Chunk[]; caret: number } {
+  return dropChips(chunks, (c) => c.kind === "skill" && c.name === name, caret);
 }
 
 /** Ranges in order, overlapping ones joined. */

@@ -250,3 +250,39 @@
     }
   }
 }
+
+/* Above-composer control bar swapping between skill pills and contextual chips:
+   occupies one fixed-height grid cell so the composer never shifts. Enter fills
+   backwards so no transform outlives it; exit disables pointer events. */
+@utility bar-swap-motion {
+  will-change: opacity, transform;
+  &[data-state="open"] {
+    animation: bar-swap-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) 50ms backwards;
+  }
+  &[data-state="closed"] {
+    pointer-events: none;
+    animation: bar-swap-out 130ms ease-in forwards;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &[data-state="open"] {
+      animation: popup-fade-in 120ms ease-out 40ms backwards;
+    }
+    &[data-state="closed"] {
+      animation: popup-fade-out 110ms ease-in forwards;
+    }
+  }
+}
+
+@keyframes bar-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@keyframes bar-swap-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}

@@ -3,7 +3,7 @@ import { isAnswerable } from "./requests";
 import { providerLabel } from "./registry";
 
 /**
- * What the question panel, the composer and a question's timeline row decide
+ * What the question tray, the composer and a question's timeline row decide
  * for an agent's question (docs/harness.md "Questions keep their native
  * keys"). Rust validates every submission; these only choose what to show
  * and what to send, so each is testable without a DOM.
@@ -43,7 +43,7 @@ export function questionReady(question: AgentQuestion, draft: AnswerDraft | unde
   return draft.selected.length > 0;
 }
 
-/** Where the panel opens: the first question still to answer, so a chat
+/** Where the tray opens: the first question still to answer, so a chat
  *  switch or a reload comes back to the same step. */
 export function firstOpenQuestion(questions: AgentQuestion[], drafts: Record<string, AnswerDraft> | undefined): number {
   const i = questions.findIndex((q) => !questionReady(q, drafts?.[q.id]));
@@ -81,6 +81,13 @@ export function digitOption(key: string, question: AgentQuestion): string | null
   return question.options[Number(key) - 1]?.label ?? null;
 }
 
+/** The digit of the "Something else" card after a question's options:
+ *  only where a typed answer is taken beside them, and only up to 9. */
+export function otherDigit(question: AgentQuestion): number | null {
+  const n = question.options.length + 1;
+  return question.allowsTypedAnswer && question.options.length > 0 && n <= 9 ? n : null;
+}
+
 /** Digits pick options only when focus is not somewhere text is typed. */
 export function typingTarget(el: { tagName?: string; isContentEditable?: boolean } | null | undefined): boolean {
   if (!el) return false;
@@ -107,7 +114,7 @@ export function questionSubmission(
   };
 }
 
-/** The panel's main button: Next until the last question, then the answer,
+/** The tray's main button: Next until the last question, then the answer,
  *  which on a lost session goes as a new message. */
 export function questionPrimaryLabel(index: number, count: number, responder: HarnessRequest["responder"]): string {
   if (index < count - 1) return "Next";
@@ -115,9 +122,19 @@ export function questionPrimaryLabel(index: number, count: number, responder: Ha
   return count > 1 ? "Send answers" : "Send answer";
 }
 
-/** The composer's hint while a question waits. */
+/** The composer's hint while a question waits: beside options a typed
+ *  answer is the other way to answer. */
 export function questionPlaceholder(question: AgentQuestion): string {
-  return question.allowsTypedAnswer ? "Type your answer" : "Choose an option above";
+  if (!question.allowsTypedAnswer) return "Choose an option above";
+  return question.options.length > 0 ? "Or write your own answer" : "Type your answer";
+}
+
+/** An option's label without the agent's "(Recommended)" suffix, and
+ *  whether it had one; only the display changes, the raw label is sent. */
+export function splitRecommended(label: string): { text: string; recommended: boolean } {
+  const m = /^(.*?)\s*\(recommended\)\s*$/i.exec(label);
+  if (!m || !m[1].trim()) return { text: label, recommended: false };
+  return { text: m[1], recommended: true };
 }
 
 /** What a run waits on: an approval outranks a question, as the sidebar's
@@ -149,7 +166,7 @@ export interface AnsweredEntry {
 /** How a question request stands, for its timeline row. */
 export interface QuestionRowState {
   kind: "waiting" | "answered" | "dismissed" | "expired" | "cancelled";
-  /** "Codex asks", "Claude Code asks 2 questions". */
+  /** "Codex asks", "Claude Code asks 2 questions"; answered, "You answered Codex". */
   title: string;
   label: string;
   notes: string[];
@@ -190,5 +207,5 @@ export function questionRowState(request: HarnessRequest): QuestionRowState {
     const a = byId.get(question.id);
     return { question, answers: a?.answers ?? [], dismissed: a ? a.dismissed : true };
   });
-  return { ...base, kind: "answered", label: "Answered", notes, entries };
+  return { ...base, title: `You answered ${who}`, kind: "answered", label: "Answered", notes, entries };
 }

@@ -186,6 +186,47 @@ database and send contracts are in
 
 Revision uses these same cards and Live-mode fields for cheat entries, a focused question surface for reviews, and a widget grid for artifacts. Nothing is added to every reply or to a text selection; the agent offers entries as a card. See [revision.md](./revision.md).
 
+### The Subagent card
+
+`SubagentCard.tsx` in `proposals/` is a single compact bar in the reply,
+leading with a circular provider avatar rather than the tall multi-section
+`CardFrame`. Pending, the bar holds the title beside the inline model pill
+(`ChainPicker` over the composer's `ModelPicker`, the menu's `popup-motion`
+with it; off while not editable, and an open menu closes when it turns off),
+a one-line preview of the brief underneath that expands the Live-mode editor
+inline on click (read-only while not editable), and Discard and Start at the
+right. The spinner, dashed avatar ring and chip name the click in flight,
+Starting… or Discarding…, from the proposal store's `acting`, so every view
+of the card names the same one. Start stays off until an agent, a model and
+a level the model takes are named, and while the agent's catalogue loads;
+the pill never shows a level the model lacks. A model the catalogue does not
+list is the exception: the pill shows the level named, as it goes out.
+In a chat that is itself a subagent the callout underneath gives `ONE_LEVEL`'s
+sentence and Start stays off.
+
+Once started, `SubagentProgress.tsx` renders the child as the same compact
+bar with a floating `HoverCard` (`hover-card.tsx`): the avatar wears a dashed
+spinning brand ring while running or a corner status dot once waiting,
+complete, stopped or failed; the two lines carry the title and the child's
+live line (`activityLine` over its rows, which the card holds in the store,
+else the last streamed line), "Waiting for approval" or "Waiting for an
+answer" when the child has a request open, the report's first line once
+complete, or the error/stop reason; the right shows elapsed time + Cancel
+while running, Approval / Question while waiting, Finished + clock time (or
+duration) once complete, or Start again (with the fitted model and level
+named beside the title) after an app quit. Clicking the bar opens the child
+chat beside (⌘-click a new tab), and the hover card shows the full title,
+agent mark, model and level, toned status with duration, and the report's
+first three lines. The link and chevron are withdrawn once the child reads
+as deleted (`useRouteThread` found nothing by id). The card only asks whether
+its child exists, so a child outside the loaded list is held in the store's
+`known`, not listed: old cards scrolling into view do not add their children
+to the Chat column. A stop the child's run has not answered by the chat's own
+measure (`stopOverdue`, when its Stop offers Force stop) adds a callout below
+the bar, "The subagent hasn’t stopped. Open the chat to force stop it.", whose
+link opens the child, where Force stop is. Approvals are answered in the
+child's chat, never on the card.
+
 ## One colour, two fonts, and a floating card
 
 Quiet and neutral by default: dead-grey whites (no warm or blue cast —
@@ -348,8 +389,9 @@ themes are opt-in and keep the same structure.
 - **An expanded picture Read opens in the image lightbox.** Its thumbnail
   and the zoomed view load the same asset. For notebook page paths and the
   missing-image fallback, see [the harness timeline](./harness.md).
-- **A compact composer is one bar** (the subject Overview's ask bar): the
-  hint on one line, a sliders button, the mic and send. It never reshapes on
+- **A compact composer is one bar** (the subject Overview's ask bar,
+  Studio's Ask for a change): 44px tall, the hint on one line, then a
+  sliders button, the mic and a round send button, all 32px. It never reshapes on
   focus; it only grows taller as text wraps, controls pinned bottom-right.
   The sliders button opens a menu of setting rows (icon, setting, muted
   value, chevron); a row turns that same popover into its page, with a back
@@ -371,15 +413,30 @@ themes are opt-in and keep the same structure.
   that it may not have arrived ([harness.md](./harness.md#steering-from-the-composer)). Notices about
   a held queue or an agent ignoring Stop are `BannerLane` cards, and a failed
   command is said in the card or on a line by the control, never in a toast
-  ([harness.md](./harness.md#one-turn-at-a-time)). An agent's request is
-  answered from a card of the same look just above the box (`RequestBar`:
-  Decline, Approve, More), its refusal on a line inside it; the run then
-  reads "Waiting for approval", steady, never shimmering. An agent's
-  question opens the same card as a panel (`QuestionPanel`): one question at
-  a time with its "1/2" count in `tabular-nums`, radio or checkbox rows with
-  a key cap each (digits pick), the box below as the typed answer, and
-  "Dismiss question without answering" as a muted text link beside the
-  answer button; the run reads "Waiting for your answer"
+  ([harness.md](./harness.md#one-turn-at-a-time)).
+- **A waiting request is a tray in the composer's own frame**
+  (`ComposerFrame`): one rounded border and one focus ring around the tray
+  on `surface` with a hairline under it, then the box; with no tray the box
+  looks as it always does, and the tray coming or going never remounts the
+  editor. In the timeline the request is one line with a steady dot (amber
+  for an approval, brand for a question), opening to the whole of it; the
+  run reads "Waiting for approval" or "Waiting for your answer", steady,
+  never shimmering. The approval tray (`RequestTray`) leads with the
+  agent's mark, its title and risk chips — small tinted pills, green
+  "Read-only", amber facts, red destructive shapes (`requestRisk`) — and a
+  red-washed tray for danger; "1 of 3" in `tabular-nums` with dots, and two
+  card edges peeking above the frame, when more wait. The command, diffs
+  and arguments sit on `card` code surfaces clipped at 140px with
+  `FoldBlock`'s fade, never opened in place: "Show all in the conversation"
+  opens the row instead. Session grants are quiet buttons with their scope
+  in a tooltip; Deny and Allow carry `KeyCap`s (esc, ↵), and on danger ↵
+  moves to a filled Deny while Allow is a red outline with no key. Its
+  refusal is a line inside it. The question tray (`QuestionPanel`) has
+  step pills by header, a ghost Skip, the question at 14px, options as
+  cards (a key chip, the label with a green "Recommended" badge, the
+  description; picked: brand border and tint, filled chip, a check), a
+  dashed "Something else" card that focuses the box, and Back and the
+  answer button with its ↵ cap; the box below is the typed answer
   ([harness.md](./harness.md#in-the-chat)).
 - **A long list's rows can skip layout off screen with `skip-offscreen`**
   (`content-visibility: auto`, remembering each row's drawn height), so a
@@ -453,6 +510,14 @@ themes are opt-in and keep the same structure.
   above the preview in every theme. Rows are tight inside (6px top, 7px
   bottom, no line gap) and 2px apart; a Subject group's heading has 16px
   above and 4px below.
+- **A nested list row sits under its parent's row** (Chat's subagents,
+  `threads/list/ChildRows.tsx`): a 24px fold line in the meta level (a caret
+  that swaps between two icons, never rotating, and the count in
+  `tabular-nums`) is a sibling of the row's button, never inside it. Open,
+  the children are indented 15px on a `border-subtle` hairline guide and drop
+  the meta line their parent already shows. The body eases with
+  `useFoldMotion` and carries `will-change-[opacity,transform]`; the fold
+  line and each child join and leave with `row-presence`.
 - **Subject tabs share `SubjectPage` for width and gutters** under
   `SubjectLayout`'s header row (the toggle, the subject crumb, the tab's
   name) and beside the subject's nav column, `SubjectLoading` for skeleton

@@ -26,7 +26,7 @@ export const ADVANCE_MS = 200;
 
 const NO_DRAFTS: Record<string, AnswerDraft> = {};
 
-/** The oldest waiting question and everything the panel and the composer
+/** The oldest waiting question and everything the tray and the composer
  *  need to answer it; null when none waits. */
 export interface QuestionComposer {
   request: HarnessRequest;
@@ -48,6 +48,8 @@ export interface QuestionComposer {
   pick: (label: string) => void;
   type: (text: string) => void;
   back: () => void;
+  /** Back to an earlier question (a step pill). */
+  goTo: (index: number) => void;
   primary: () => void;
   dismiss: () => void;
   /** The editor's Enter: the answer, never a message. */
@@ -59,7 +61,7 @@ export interface QuestionComposer {
  * lecture dock): one question at a time, the oldest waiting request first.
  * Drafts live in `harnessStore.questionDrafts`, so a chat switch or reload
  * returns to the same step. One `harnessRespond` sends the whole request; a
- * refusal stays in `error` for the panel to say.
+ * refusal stays in `error` for the tray to say.
  */
 export function useQuestionComposer(threadId: number | null, draftKey: string): QuestionComposer | null {
   const waiting = useHarnessStore(useShallow((s) => (threadId == null ? [] : waitingQuestions(s.requests[threadId]))));
@@ -167,6 +169,7 @@ export function useQuestionComposer(threadId: number | null, draftKey: string): 
       save(question, typeAnswer(question, draft, text));
     },
     back: () => goTo(index - 1),
+    goTo,
     primary,
     dismiss: () => {
       if (send.pending) return;

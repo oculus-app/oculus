@@ -24,7 +24,7 @@ export function useStudioStyle(enabled: boolean, threadId: number | null, subjec
   return {
     leading: shown && <StyleChip style={style} themes={themes} defaultTheme={defaults?.effective ?? null}
       onChange={(next) => { setTheme(next.theme); setStored(next); }} />,
-    feedback: shown && <div className="space-y-1 text-[12px] text-destructive" role={error || problems.length ? "alert" : undefined}>
+    feedback: shown && (error || problems.length > 0) && <div className="space-y-1 text-[12px] text-destructive" role="alert">
       {error}
       {problems.map((p) => <p key={p.id}>{p.message}{" "}<button type="button" data-tab-href={p.href}
         className="cursor-pointer text-brand hover:underline" onClick={() => navigateActive(p.href)}>Open settings</button></p>)}

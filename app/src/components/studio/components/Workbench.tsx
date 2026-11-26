@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowCounterClockwise, CircleNotch } from "@phosphor-icons/react";
+import { ArrowCounterClockwise } from "@phosphor-icons/react";
 
 import { ChangeBox } from "@/components/studio/components/ChangeBox";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
+import { StickyDock } from "@/components/ui/layout/StickyDock";
 import { ExamplePills } from "@/components/studio/components/ExamplePills";
 import { Inspector } from "@/components/studio/components/inspector/Inspector";
 import { OwnVersionActions } from "@/components/studio/components/OwnVersionActions";
@@ -12,7 +14,6 @@ import { DURATIONS, TimeBar } from "@/components/studio/components/TimeBar";
 import { StarterMark } from "@/components/studio/LevelMark";
 import { InspectorColumn, stageMaxWidth, type InspectorPanel } from "@/components/studio/panel/InspectorColumn";
 import { Button } from "@/components/ui/button";
-import { PillTabs } from "@/components/ui/table/PillTabs";
 import type { useLibraryChange } from "@/hooks/studio/useLibraryChange";
 import { useComponentSource } from "@/hooks/studio/useComponentSource";
 import { usePlayhead } from "@/hooks/studio/usePlayhead";
@@ -23,12 +24,6 @@ import { displayCode } from "@/lib/format/format";
 import type { ComponentInfo } from "@/lib/studio/components";
 import type { PropValues } from "@/lib/studio/props";
 import { cn } from "@/lib/utils";
-
-type Tab = "change" | "source";
-const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
-  { value: "change", label: "Ask for a change" },
-  { value: "source", label: "Source" },
-];
 
 const clone = (props: PropValues | undefined): PropValues => structuredClone(props ?? {});
 const sameProps = (a: PropValues, b: PropValues) => JSON.stringify(a) === JSON.stringify(b);
@@ -81,7 +76,7 @@ export function Workbench({
   const [duration, setDuration] = useState<number>(DURATIONS[1].value);
   const head = usePlayhead(duration);
   const [stageRef, width] = useStageWidth();
-  const [tab, setTab] = useState<Tab>("change");
+  const [sourceOpen, setSourceOpen] = useState(false);
   const source = useComponentSource(info.name, subject, revision);
 
   const request: FrameRequest | null =
@@ -143,30 +138,23 @@ export function Workbench({
           <ExamplePills names={names} value={example} onChange={pick} />
           <StageView ref={stageRef} frame={frame} problem={info.problem} alt={`${info.name} at ${head.t.toFixed(2)} s`} />
           <TimeBar head={head} duration={duration} onDuration={setDuration} />
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center gap-3">
-              <PillTabs tabs={TABS} value={tab} onChange={setTab} />
-              {change.working != null && (
-                <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                  <CircleNotch size={12} className="animate-spin text-brand" />
-                  Changing {change.working}
-                </span>
-              )}
-            </div>
-            {tab === "change" ? (
-              <ChangeBox
-                name={info.name}
-                working={change.working}
-                applied={change.applied}
-                error={change.error}
-                threadId={change.threadId}
-                onSend={(request) => change.send(info.name, info.level, request)}
-                onUndo={change.undo}
-              />
-            ) : (
-              <SourceView state={source} subject={subject} />
-            )}
-          </div>
+          <CollapsibleSection title="Source" open={sourceOpen} onOpenChange={setSourceOpen} className="border-t border-b-0">
+            <SourceView state={source} subject={subject} />
+          </CollapsibleSection>
+          {/* In the page's column, so it stays docked as the stage scrolls by;
+              -mt-7 takes back the column's gap and most of the dock's fade. */}
+          <StickyDock className="-mt-7">
+            <ChangeBox
+              name={info.name}
+              working={change.working}
+              applied={change.applied}
+              error={change.error}
+              threadId={change.threadId}
+              composer={change.composer}
+              onSend={(request, skills) => change.send(info.name, info.level, request, skills)}
+              onUndo={change.undo}
+            />
+          </StickyDock>
         </div>
       </section>
       <InspectorColumn

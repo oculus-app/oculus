@@ -1,4 +1,12 @@
-export type Landing = { chunk: number; offset: number; focus: boolean };
+export type CaretSpot = { chunk: number; offset: number };
+
+export type Landing = {
+  chunk: number;
+  offset: number;
+  /** Present when preserving a non-collapsed range selection across a redraw. */
+  anchor?: CaretSpot;
+  focus: boolean;
+};
 
 /** The structural edits. Typing, caret, selection and undo stay the browser's;
  *  content comes back through `onEdit`. */
@@ -7,6 +15,8 @@ export interface MentionInputHandle {
   insertMention(start: number, path: string): void;
   /** Swap the `/…` token starting at `start` for a skill chip plus a space. */
   insertSkill(start: number | null, name: string): void;
+  /** Every chip of this skill taken out of the box. */
+  removeSkill(name: string): void;
   /** Attachment chips (each a `./attachments/…` path) at the caret, or at the
    *  end when the box has no caret; the caret lands after them. */
   insertAttachments(paths: string[]): void;

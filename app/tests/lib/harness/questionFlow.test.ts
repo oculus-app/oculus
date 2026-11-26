@@ -3,6 +3,7 @@ import {
   EMPTY_DRAFT,
   digitOption,
   firstOpenQuestion,
+  otherDigit,
   pickOption,
   questionPlaceholder,
   questionPrimaryLabel,
@@ -10,6 +11,7 @@ import {
   questionRowState,
   questionSubmission,
   runWaitingOn,
+  splitRecommended,
   typeAnswer,
   typingTarget,
 } from "@/lib/harness/questions";
@@ -162,9 +164,28 @@ describe("words", () => {
     expect(questionPrimaryLabel(1, 2, "message")).toBe("Answer in a new message");
   });
 
-  test("the composer's hint says whether typing answers", () => {
-    expect(questionPlaceholder(colour)).toBe("Type your answer");
+  test("the composer's hint says whether typing answers, and beside options that it is the other way", () => {
+    expect(questionPlaceholder(colour)).toBe("Or write your own answer");
+    expect(questionPlaceholder({ ...colour, options: [] })).toBe("Type your answer");
     expect(questionPlaceholder(strict)).toBe("Choose an option above");
+  });
+
+  test("Something else takes the digit after the options, only beside them and only up to 9", () => {
+    expect(otherDigit(colour)).toBe(4);
+    expect(otherDigit(strict)).toBeNull();
+    expect(otherDigit({ ...colour, options: [] })).toBeNull();
+    const nine = Array.from({ length: 9 }, (_, i) => ({ label: `O${i}`, description: "" }));
+    expect(otherDigit({ ...colour, options: nine.slice(0, 8) })).toBe(9);
+    expect(otherDigit({ ...colour, options: nine })).toBeNull();
+  });
+
+  test("an agent's (Recommended) is split off the label, whatever its case", () => {
+    expect(splitRecommended("Mixed (Recommended)")).toEqual({ text: "Mixed", recommended: true });
+    expect(splitRecommended("Mixed (recommended)  ")).toEqual({ text: "Mixed", recommended: true });
+    expect(splitRecommended("Mixed")).toEqual({ text: "Mixed", recommended: false });
+    // Only a suffix counts, and a label that is nothing else stays as it is.
+    expect(splitRecommended("(Recommended) Mixed")).toEqual({ text: "(Recommended) Mixed", recommended: false });
+    expect(splitRecommended("(Recommended)")).toEqual({ text: "(Recommended)", recommended: false });
   });
 
   test("a run waits for approval before it waits for an answer", () => {
@@ -207,6 +228,7 @@ describe("the timeline row", () => {
       ["toppings", ["Red", "olives"], false],
     ]);
     expect(state.notes).toEqual(["Sending your answer to Codex…"]);
+    expect(state.title).toBe("You answered Codex");
   });
 
   test("a whole dismissal, an expiry and a cancellation are one quiet line", () => {

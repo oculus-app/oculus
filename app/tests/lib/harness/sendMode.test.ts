@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   busyPlaceholder,
-  DECLINE_PLACEHOLDER,
+  declinePlaceholder,
   deliveryMode,
   enterKey,
   isSlashCommand,
@@ -152,23 +152,24 @@ describe("busyPlaceholder", () => {
   const steer = { kind: "steer", restart: false } as const;
   const queue = { kind: "queue" } as const;
 
-  test("an approval waiting and a message that would steer: send to decline and redirect", () => {
-    expect(busyPlaceholder({ approval: true, plain: steer, steer: "native" })).toBe(DECLINE_PLACEHOLDER);
-    expect(DECLINE_PLACEHOLDER).toBe("Send a message to decline and redirect the agent");
+  test("an approval waiting and a message that would steer: tell the agent what to do instead", () => {
+    expect(busyPlaceholder({ approval: "codex", plain: steer, steer: "native" })).toBe(declinePlaceholder("codex"));
+    expect(declinePlaceholder("codex")).toBe("Or tell Codex what to do instead");
+    expect(declinePlaceholder("claude")).toBe("Or tell Claude Code what to do instead");
     // The dock says it too: it is what a send does.
-    expect(busyPlaceholder({ approval: true, plain: steer, steer: "native", compact: true })).toBe(DECLINE_PLACEHOLDER);
+    expect(busyPlaceholder({ approval: "codex", plain: steer, steer: "native", compact: true })).toBe(declinePlaceholder("codex"));
   });
 
   test("an approval waiting on a bridge that cannot steer: the message waits its turn", () => {
-    expect(busyPlaceholder({ approval: true, plain: queue, steer: null })).toBe(WAITING_PLACEHOLDER);
+    expect(busyPlaceholder({ approval: "codex", plain: queue, steer: null })).toBe(WAITING_PLACEHOLDER);
   });
 
   test("working: the keys are named for what each does", () => {
-    expect(busyPlaceholder({ approval: false, plain: steer, steer: "native", mac: true })).toBe("Working… ↵ to steer, ⌘↵ to queue");
-    expect(busyPlaceholder({ approval: false, plain: queue, steer: "native", mac: true })).toBe("Working… ↵ to queue, ⌘↵ to steer");
-    expect(busyPlaceholder({ approval: false, plain: steer, steer: "restart", mac: false })).toBe("Working… Enter to restart with it, Ctrl+Enter to queue");
-    expect(busyPlaceholder({ approval: false, plain: queue, steer: null })).toBe("Working… your next message waits its turn");
-    expect(busyPlaceholder({ approval: false, plain: steer, steer: "native", compact: true })).toBe("Working…");
+    expect(busyPlaceholder({ approval: null, plain: steer, steer: "native", mac: true })).toBe("Working… ↵ to steer, ⌘↵ to queue");
+    expect(busyPlaceholder({ approval: null, plain: queue, steer: "native", mac: true })).toBe("Working… ↵ to queue, ⌘↵ to steer");
+    expect(busyPlaceholder({ approval: null, plain: steer, steer: "restart", mac: false })).toBe("Working… Enter to restart with it, Ctrl+Enter to queue");
+    expect(busyPlaceholder({ approval: null, plain: queue, steer: null })).toBe("Working… your next message waits its turn");
+    expect(busyPlaceholder({ approval: null, plain: steer, steer: "native", compact: true })).toBe("Working…");
   });
 });
 

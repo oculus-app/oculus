@@ -44,7 +44,9 @@ const usageRing = 'viewBox="0 0 18 18"';
 
 test("a compact box is one bar: hint, the settings button, mic and send", () => {
   const html = render(true);
-  expect(html).toContain("rounded-[17px]");
+  expect(html).toContain("rounded-2xl");
+  // Its controls are a 32px row: the bar is 44px on one line.
+  expect(html).toMatch(/data-size="icon-sm"[^>]*aria-label="Send message"/);
   expect(html).toContain(`aria-placeholder="${HINT}"`);
   // The hint is cut to one line rather than wrapping the bar.
   expect(html).toMatch(/class="[^"]*truncate[^"]*">Ask about COMP30022/);

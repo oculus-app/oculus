@@ -1,6 +1,8 @@
 import { shortcut } from "@/lib/platform";
 import type { Capabilities } from "./capabilities";
 import type { DeliveryMode } from "./commands";
+import type { Provider } from "./providers";
+import { providerLabel } from "./registry";
 import type { HarnessRun, SteerDelivery } from "./types";
 
 /** What Enter does while the agent works (Settings → Chat): write the message
@@ -84,20 +86,21 @@ export const steerHint = (kind: Exclude<SteerKind, null>) => (kind === "restart"
 
 /** The box's hint while an approval waits and a message would steer: Rust
  *  declines the request and writes the message into the turn. */
-export const DECLINE_PLACEHOLDER = "Send a message to decline and redirect the agent";
+export const declinePlaceholder = (provider: Provider) => `Or tell ${providerLabel(provider)} what to do instead`;
 
 /** The box's hint while an approval waits and a message would queue behind
  *  the request. */
 export const WAITING_PLACEHOLDER = "Waiting for your approval… a message waits its turn";
 
 /**
- * The empty box's hint while the agent works or an approval waits. `plain`
+ * The empty box's hint while the agent works or an approval waits.
+ * `approval` is the agent whose approval waits, null for none. `plain`
  * is what Enter would do (`sendAction` unflipped, no command); the keys are
  * named where ⌘↩ does something else. `compact` (the lecture dock) says
  * only that it works.
  */
-export function busyPlaceholder(i: { approval: boolean; plain: SendAction; steer: SteerKind; compact?: boolean; mac?: boolean }): string {
-  if (i.approval) return i.plain.kind === "steer" ? DECLINE_PLACEHOLDER : WAITING_PLACEHOLDER;
+export function busyPlaceholder(i: { approval: Provider | null; plain: SendAction; steer: SteerKind; compact?: boolean; mac?: boolean }): string {
+  if (i.approval) return i.plain.kind === "steer" ? declinePlaceholder(i.approval) : WAITING_PLACEHOLDER;
   if (i.compact) return "Working…";
   if (!i.steer) return "Working… your next message waits its turn";
   const enter = shortcut("enter", i.mac);
