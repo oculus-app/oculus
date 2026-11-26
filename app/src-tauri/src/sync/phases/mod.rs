@@ -10,4 +10,5 @@ mod home;
 mod images;
 mod modules;
 mod output;
+mod placement;
 mod videos;

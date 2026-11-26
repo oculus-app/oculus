@@ -47,9 +47,11 @@ impl Engine {
         on_progress: &dyn Fn(u8),
         cancelled: &dyn Fn() -> bool,
     ) -> Result<String, String> {
-        let inner = layout::synced(SyncedKind::Media, name);
-        let rel = paths::course_rel_path(&c.code, &inner)
-            .ok_or_else(|| format!("invalid file name: {name}"))?;
+        let invalid = || format!("invalid file name: {name}");
+        let inner = self
+            .place_file(c, file_id, SyncedKind::Media, name)?
+            .ok_or_else(invalid)?;
+        let rel = paths::course_rel_path(&c.code, &inner).ok_or_else(invalid)?;
         let dest = self.data_dir.join(&rel);
         let part = dest.with_file_name(format!(
             "{}.part",

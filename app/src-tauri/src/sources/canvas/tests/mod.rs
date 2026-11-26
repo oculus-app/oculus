@@ -7,6 +7,7 @@ mod expiry;
 mod redirects;
 mod requests;
 mod run;
+mod same_name;
 mod source_dates;
 
 use keyd_core::okta::{outcome_to_wire, LoginError};

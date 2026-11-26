@@ -218,14 +218,41 @@ cannot write it — see [cli.md](./cli.md).
 ## Files are fetched once and invalidated by their bytes
 
 - `file-manifest.json` in the data dir maps Canvas file id → (`modified_at`,
-  size); when the metadata call reports the same pair and the file is on disk,
-  nothing is downloaded.
+  size); when the metadata call reports the same pair and the file is on disk
+  at that id's path, nothing is downloaded.
 - Bodies (pages, announcements, tasks, Ed threads and lessons) are always re-fetched;
   the byte-compare in `library::paths::write_course_bytes` decides new/updated/unchanged.
 - An `updated` write purges the parse/embed artifacts
   (`library::paths::purge_parse_artifacts`) and the file's pages, so the parse re-runs.
 - An `application/octet-stream` upload is judged by extension (`office_ext_of`, `is_video`; allowlists).
 - `MAX_FILE_BYTES` (100 MB) skips any larger file except a video, which a sync never downloads.
+
+## Each Canvas file keeps its own path
+
+A subject can hold two Canvas files with one filename, or two names that
+sanitise to one (`Week 1.pdf`, `week_1.pdf`). One id takes the plain path,
+`Course/Files/<name>` (a video's is under `Course/Media/`), and any other takes
+`<name>-<file id>.<ext>`. `Engine::place_file`
+(`app/src-tauri/src/sync/phases/placement.rs`) decides, for the sync and the
+video download alike, and records path → id in `file-paths.json` in the data
+dir, so the order Canvas lists files in never moves one. Paths compare as the
+macOS disk does, ignoring case and Unicode form.
+
+- The first id to ask takes a free plain path.
+- When another id asks for a taken one, Canvas is asked for the recorded owner.
+  A file that is deleted, replaced (the old id answers 404 or as another file)
+  or renamed gives the path up, so a re-upload overwrites it as an `updated`
+  file. One that still has the name, or that the student may not read (401,
+  403), keeps it.
+- A suffixed file already on disk is that id's, record or no record.
+- A plain path with a file and no recorded owner is settled by the manifest's
+  sizes. An id whose recorded size matches the bytes takes it. An id that
+  downloaded another size, where some other id recorded the size on disk, was
+  overwritten: it takes its suffixed path and downloads again, and the bytes on
+  disk stay for their owner. An id new to the library steps aside only for such
+  a file that Canvas still lists under that name. An id that takes the path
+  without its size alone proving the bytes are its own is dropped from the
+  manifest, so it downloads again.
 
 ## Library source dates describe activity at Canvas and Ed
 

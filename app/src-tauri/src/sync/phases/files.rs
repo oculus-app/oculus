@@ -72,14 +72,14 @@ impl Engine {
             return Ok(Fetched::Skipped);
         }
         // A module video lands where the app's download will put it.
-        let inner = layout::synced(
-            if video {
-                SyncedKind::Media
-            } else {
-                SyncedKind::Files
-            },
-            &name,
-        );
+        let kind = if video {
+            SyncedKind::Media
+        } else {
+            SyncedKind::Files
+        };
+        let Some(inner) = self.place_file(c, file_id, kind, &name)? else {
+            return Ok(Fetched::Skipped);
+        };
         let Some(rel) = paths::course_rel_path(&c.code, &inner) else {
             return Ok(Fetched::Skipped);
         };
@@ -242,15 +242,30 @@ impl Engine {
     /// Add one entry to `file-manifest.json` as it is on disk now: a download
     /// runs for minutes, and a sync may have saved the manifest meanwhile.
     pub(in crate::sync) fn record_manifest(&self, file_id: i64, entry: (String, u64)) {
+        self.manifest
+            .borrow_mut()
+            .insert(file_id.to_string(), entry.clone());
+        self.edit_manifest(|m| {
+            m.insert(file_id.to_string(), entry);
+        });
+    }
+
+    /// Drop one entry at once, so that its file downloads again even if this
+    /// run ends before the manifest is saved.
+    pub(in crate::sync) fn forget_download(&self, file_id: i64) {
+        self.manifest.borrow_mut().remove(&file_id.to_string());
+        self.edit_manifest(|m| {
+            m.remove(&file_id.to_string());
+        });
+    }
+
+    fn edit_manifest(&self, edit: impl FnOnce(&mut HashMap<String, (String, u64)>)) {
         let path = self.data_dir.join("file-manifest.json");
         let mut on_disk: HashMap<String, (String, u64)> = std::fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
-        on_disk.insert(file_id.to_string(), entry.clone());
-        self.manifest
-            .borrow_mut()
-            .insert(file_id.to_string(), entry);
+        edit(&mut on_disk);
         if let Ok(json) = serde_json::to_string(&on_disk) {
             let _ = std::fs::write(path, json);
         }
