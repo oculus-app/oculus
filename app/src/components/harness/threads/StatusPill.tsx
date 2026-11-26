@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, Question, ShieldWarning, WarningCircle } from "@phosphor-icons/react";
+import { CheckCircle, CircleDashed, Question, ShieldWarning, WarningCircle } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import {
   elapsedText,
@@ -12,11 +12,12 @@ import {
 import { sqliteUtcToMs } from "@/lib/format/format";
 import { cn } from "@/lib/utils";
 
-/** Each status's glyph (none for Working, which draws a dashed ring), its
- *  text tone and the folded column's dot. Brand means Working only; what
- *  waits on the student (Approval, Question) is the warning yellow. */
-export const STATUS_LOOK: Record<ThreadStatus, { icon: Icon | null; text: string; dot: string }> = {
-  working: { icon: null, text: "text-brand", dot: "bg-brand" },
+/** Each status's glyph, its text tone and the folded column's dot. Every
+ *  glyph is still; Working's ticking timer is what moves. Brand means
+ *  Working only; what waits on the student (Approval, Question) is the
+ *  warning yellow. */
+export const STATUS_LOOK: Record<ThreadStatus, { icon: Icon; text: string; dot: string }> = {
+  working: { icon: CircleDashed, text: "text-brand", dot: "bg-brand" },
   approval: { icon: ShieldWarning, text: "text-warning", dot: "bg-warning" },
   input: { icon: Question, text: "text-warning", dot: "bg-warning" },
   failed: { icon: WarningCircle, text: "text-destructive", dot: "bg-destructive" },
@@ -45,19 +46,6 @@ export function threadRowStatus(thread: HarnessThread, running: boolean): Thread
 export const runStartedMs = (thread: HarnessThread): number | null =>
   sqliteUtcToMs(thread.run_started_at ?? null) ?? null;
 
-/** T3's working mark: a dashed ring turning slowly, still under reduced motion. */
-export function WorkingRing({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "inline-block size-3 shrink-0 rounded-full border-[1.5px] border-dashed border-current motion-safe:animate-[spin_4s_linear_infinite]",
-        className,
-      )}
-    />
-  );
-}
-
 /** "9s", "1m 4s", ticking. Its own component, so the second hand re-renders
  *  this text and not the row or the list. */
 export function Elapsed({ since }: { since: number }) {
@@ -84,7 +72,7 @@ export function StatusPill({
   const IconC = look.icon;
   return (
     <span className={cn("inline-flex h-5 shrink-0 items-center gap-1 text-[11.5px] font-medium", look.text, className)}>
-      {IconC ? <IconC size={12} weight="bold" className="shrink-0" aria-hidden /> : <WorkingRing />}
+      <IconC size={12} weight="bold" className="shrink-0" aria-hidden />
       {THREAD_STATUS_LABEL[status]}
       {status === "working" && since != null && <Elapsed since={since} />}
     </span>

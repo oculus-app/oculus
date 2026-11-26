@@ -1,11 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Books, NotePencil, X } from "@phosphor-icons/react";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
 import type { Subject } from "@/lib/db";
 import { displayCode } from "@/lib/format/format";
 import { stripAttachmentRefs } from "@/lib/harness/attachments";
-import { GENERAL_SCOPE, liveScope } from "@/lib/harness/scope";
+import { GENERAL_SCOPE, liveScope, type ChatScope } from "@/lib/harness/scope";
 import { cn } from "@/lib/utils";
 import { hasDraft, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { useShallow } from "zustand/react/shallow";
@@ -20,42 +20,31 @@ export const DRAFT_MARK = "shrink-0 text-warning";
 /** The faint tint behind such a row while it is not the open one. */
 export const DRAFT_TINT = "bg-warning/[0.07] hover:bg-warning/[0.11]";
 
-/** New chats some tab has left holding something; seeded with every stored
- *  one, since a relaunch left them all. Module-wide, so it outlives a page. */
-const left = new Set(Object.keys(useDraftStore.getState().newChats));
-
 /**
  * The new chats not yet sent, newest first, above the thread list and a
  * divider (both views): every one holding something. The one this tab is
- * writing gets no row until the tab has left it once with something in it,
- * so starting a chat adds nothing to the list. A row is the draft's scope and
- * its first line; hover offers to discard it.
+ * writing has a row only if the tab left it holding something (`activeListed`,
+ * from `useLeftDraft`), and that row stays as the tab found it, so typing in
+ * a new chat draws nothing here. A row is the draft's scope and its first
+ * line; hover offers to discard it.
  */
 export const DraftRows = memo(function DraftRows({
   subjects,
   activeDraft,
+  activeListed,
   onOpen,
   onDiscard,
 }: {
   subjects: Subject[];
   activeDraft: string | null;
+  activeListed: boolean;
   onOpen: (id: string) => void;
   onDiscard: (id: string) => void;
 }) {
-  // Leaving the open new chat lists it if it holds something, else unlists it.
-  useEffect(
-    () => () => {
-      if (!activeDraft) return;
-      if (hasDraft(useDraftStore.getState(), newChatKey(activeDraft))) left.add(activeDraft);
-      else left.delete(activeDraft);
-    },
-    [activeDraft],
-  );
-  // A string key, so typing in a draft re-renders only when a row appears or goes.
   const ids = useDraftStore(
     useShallow((s) =>
       Object.entries(s.newChats)
-        .filter(([id]) => hasDraft(s, newChatKey(id)) && (id !== activeDraft || left.has(id)))
+        .filter(([id]) => (id === activeDraft ? activeListed : hasDraft(s, newChatKey(id))))
         .sort((a, b) => b[1] - a[1])
         .map(([id]) => id),
     ),
@@ -107,7 +96,7 @@ export const DraftRows = memo(function DraftRows({
                   id={id}
                   subjects={subjects}
                   active={id === activeDraft && gone == null}
-                  leaving={gone != null}
+                  still={id === activeDraft || gone != null}
                   onOpen={onOpen}
                   onDiscard={discard}
                 />
@@ -124,28 +113,35 @@ function DraftRow({
   id,
   subjects,
   active,
-  leaving,
+  still,
   onOpen,
   onDiscard,
 }: {
   id: string;
   subjects: Subject[];
   active: boolean;
-  /** Folding away: keeps showing what it held, which a discard has cleared. */
-  leaving: boolean;
+  /** Open in this tab or folding away: it keeps showing what it last drew,
+   *  whatever is typed in it since (or cleared by a discard). */
+  still: boolean;
   onOpen: (id: string) => void;
   onDiscard: (id: string) => void;
 }) {
   const key = newChatKey(id);
-  const live = {
-    text: useDraftStore((s) => s.drafts[key] ?? ""),
-    pastes: useDraftStore((s) => s.pastes[key]?.length ?? 0),
-    pictures: useDraftStore((s) => s.shelves[key]?.length ?? 0),
-    stored: useDraftStore((s) => s.scopes[key]),
-  };
-  const last = useRef(live);
-  if (!leaving) last.current = live;
-  const { text, pastes, pictures, stored } = last.current;
+  const last = useRef<{ text: string; pastes: number; pictures: number; stored: ChatScope | undefined } | null>(null);
+  // While still, the selector answers what it drew, so the store wakes nothing.
+  const shown = useDraftStore(
+    useShallow(
+      (s) =>
+        (still && last.current) || {
+          text: s.drafts[key] ?? "",
+          pastes: s.pastes[key]?.length ?? 0,
+          pictures: s.shelves[key]?.length ?? 0,
+          stored: s.scopes[key],
+        },
+    ),
+  );
+  last.current = shown;
+  const { text, pastes, pictures, stored } = shown;
   const scope = liveScope(stored, subjects);
   const subject = typeof scope === "number" ? subjects.find((s) => s.id === scope) : undefined;
   const line = stripAttachmentRefs(text).split("\n").map((l) => l.trim()).find(Boolean);

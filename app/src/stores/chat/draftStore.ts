@@ -43,7 +43,7 @@ export function newChatKey(id: string): string {
 /** Whether a composer holds anything of the student's: words, a pasted
  *  card or a picture. Blank text is nothing (an emptied box keeps a lone
  *  line break), and neither is a chosen scope alone. */
-export function hasDraft(s: Pick<DraftState, "drafts" | "pastes" | "shelves">, key: string): boolean {
+export function hasDraft(s: Held, key: string): boolean {
   return !!s.drafts[key]?.trim() || !!s.pastes[key]?.length || !!s.shelves[key]?.length;
 }
 
@@ -233,3 +233,33 @@ export const useDraftStore = create<DraftState>((set, get) => ({
   },
   scopeFor: (key, subjects) => liveScope(get().scopes[key], subjects),
 }));
+
+type Held = Pick<DraftState, "drafts" | "pastes" | "shelves">;
+
+/** Every composer key holding something. */
+function holding(s: Held): string[] {
+  const keys = new Set([...Object.keys(s.drafts), ...Object.keys(s.pastes), ...Object.keys(s.shelves)]);
+  return [...keys].filter((key) => hasDraft(s, key));
+}
+
+/** Composers a tab has left holding something; seeded with every stored one,
+ *  since a relaunch left them all. Not state: nothing redraws when it changes. */
+const left = new Set(holding(useDraftStore.getState()));
+
+// One emptied (sent, discarded or cleared) is left no longer, so typing in it
+// again lists nothing.
+useDraftStore.subscribe((s) => {
+  for (const key of left) if (!hasDraft(s, key)) left.delete(key);
+});
+
+/** A tab left the composer `key`: remembered if it holds something. */
+export function leaveDraft(key: string): void {
+  if (hasDraft(useDraftStore.getState(), key)) left.add(key);
+}
+
+/** Whether a thread list shows the draft of the composer its tab has open:
+ *  only one a tab left holding something, until it is emptied. So typing in
+ *  the open composer changes no list. */
+export function listsOpenDraft(s: Held, key: string): boolean {
+  return left.has(key) && hasDraft(s, key);
+}

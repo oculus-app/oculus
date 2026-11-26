@@ -97,9 +97,11 @@ describe("ThreadRow", () => {
     expect(titleClass(failed)).toContain("font-medium");
   });
 
-  test("a working thread shows the dashed ring and its timer, title dimmed, the last message below", () => {
+  test("a working thread shows its dashed circle and timer, title dimmed, the last message below", () => {
     const html = render({ status: "running", run_started_at: sqlite(9_000) }, { running: true });
-    expect(html).toContain("border-dashed");
+    expect(html).toContain("text-brand");
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("animate-");
     expect(html).toMatch(/Working<span class="tabular-nums">(9|10)s<\/span>/);
     expect(titleClass(html)).toContain("text-foreground/80");
     expect(html).toContain("So P(D | +) is about 0.09");

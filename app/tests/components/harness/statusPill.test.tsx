@@ -34,11 +34,11 @@ describe("threadRowStatus", () => {
 });
 
 describe("StatusPill", () => {
-  test("working is a brand dashed ring, turning only when motion is welcome", () => {
+  test("working is a still brand dashed circle", () => {
     const html = renderToStaticMarkup(<StatusPill status="working" />);
     expect(html).toContain("text-brand");
-    expect(html).toContain("border-dashed");
-    expect(html).toContain("motion-safe:animate-");
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("animate-");
     expect(html).toContain("Working");
   });
   test("working with a start shows its elapsed time; without one, only the word", () => {
