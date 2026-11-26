@@ -4,7 +4,7 @@ import { createHarness, key } from './harness';
 
 describe('the rail shortcuts are each tool\'s letter', () => {
   const tools: [string, WhiteboardTool][] = [
-    ['s', 'select'], ['l', 'lasso'], ['g', 'hand'], ['c', 'capture'], ['p', 'freedraw'], ['h', 'highlighter'], ['e', 'eraser'], ['t', 'text'],
+    ['s', 'select'], ['v', 'select'], ['l', 'lasso'], ['g', 'hand'], ['c', 'capture'], ['p', 'freedraw'], ['h', 'highlighter'], ['e', 'eraser'], ['t', 'text'],
     ['r', 'rectangle'], ['o', 'ellipse'], ['d', 'diamond'], ['a', 'arrow'], ['n', 'line'],
   ];
   for (const [letter, tool] of tools) {
@@ -35,10 +35,10 @@ describe('the rail shortcuts are each tool\'s letter', () => {
     h.editor.keyDown(key('c', { meta: true })); h.render();
     expect(h.editor.tool).toBe('select');
   });
-  test('V is not a tool key', () => {
+  test('the paste shortcut is not the Select key', () => {
     const h = createHarness();
     h.editor.setTool('freedraw'); h.render();
-    h.editor.keyDown(key('v')); h.render();
+    h.editor.keyDown(key('v', { meta: true })); h.render();
     expect(h.editor.tool).toBe('freedraw');
   });
   test('I asks the host for the image picker', () => {

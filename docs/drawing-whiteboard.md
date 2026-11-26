@@ -868,8 +868,8 @@ to the root.
   Text, Image, Matrix; Rectangle, Oval, Diamond, Arrow, Line; X-Y axes, X-Y-Z
   axes. It scrolls when the pane is shorter than the column. Each entry's key
   is shown on it and in its tooltip: S L G C, P H E, T I M, R O D A N, Y Z;
-  Shift+G toggles a whiteboard's grid. Grab is the `hand` tool. Image opens the
-  image picker. Matrix inserts nine squares in the current shape style,
+  V also picks Select, and Shift+G toggles a whiteboard's grid. Grab is the
+  `hand` tool. Image opens the image picker. Matrix inserts nine squares in the current shape style,
   and the axes insert arrows in x red, y green and z blue. They are ordinary
   rectangles and arrows placed at the centre of the view, shifted onto the
   page in view if the centre falls on the notebook desk. Each insertion

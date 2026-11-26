@@ -116,9 +116,9 @@ const INK_TOOLS = new Set<WhiteboardTool>(['freedraw', 'highlighter']);
 /** The element type a drawing tool makes: the highlighter draws freehand strokes with a marker pen. */
 const toolType = (tool: WhiteboardTool) => (tool === 'highlighter' ? 'freedraw' : tool) as WhiteboardElement['type'];
 const inkTool = (tool: WhiteboardTool): InkTool | null => tool === 'freedraw' || tool === 'highlighter' ? tool : null;
-/** Rail keys, each its tool's first letter (`WhiteboardToolbar`); Shift+G is the grid, since G is Grab. */
+/** Rail keys, each its tool's first letter (`WhiteboardToolbar`), plus V for Select; Shift+G is the grid, since G is Grab. */
 const TOOL_KEYS: Record<string, WhiteboardTool> = {
-  s: 'select', l: 'lasso', g: 'hand', c: 'capture', p: 'freedraw', h: 'highlighter', e: 'eraser', t: 'text',
+  s: 'select', v: 'select', l: 'lasso', g: 'hand', c: 'capture', p: 'freedraw', h: 'highlighter', e: 'eraser', t: 'text',
   r: 'rectangle', o: 'ellipse', d: 'diamond', a: 'arrow', n: 'line',
 };
 const TEMPLATE_KEYS: Record<string, WhiteboardTemplate> = { m: 'matrix', y: 'axes2', z: 'axes3' };
