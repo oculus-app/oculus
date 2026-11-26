@@ -1,39 +1,55 @@
 import { describe, expect, test } from "bun:test";
 import type { VideoProgress } from "@/lib/studio/progress";
 import {
-  cardPartNumber, partBeingMade, partNav, partPageOffer, partRowKind, partStatus, seriesStatusLabel, videoPageView,
+  partNav, partPageOffer, partRowKind, partsBeingMade, partStatus, partThread, partThreads, seriesStatusLabel, videoPageView,
 } from "@/lib/studio/seriesView";
+import { seriesForThread } from "@/lib/studio/series";
 import type { VideoDetail } from "@/lib/studio/videos";
 import { part, series, video } from "./seriesFixtures";
 
 const made = (n: number, modified = n) => part(n, { exists: true, made: true, video: video(`part-${n}`, { modified, seconds: 100 + n }) });
 const started = (n: number, modified = n) => part(n, { exists: true, video: video(`part-${n}`, { modified }) });
-const fiveParts = () => series({ threadId: 7, parts: [made(1), made(2), part(3), part(4), part(5)] });
+const fiveParts = () => series({ parts: [made(1), made(2), part(3), part(4), part(5)] });
 const progress = (label: string, tone: VideoProgress["tone"]): VideoProgress => ({ label, tone, fraction: null, sweeping: false, steps: [] });
 
-describe("which part is being made", () => {
-  test("the part asked for, while it has no render", () => {
-    expect(partBeingMade(fiveParts(), 3, false)).toBe(3);
-    expect(partBeingMade(fiveParts(), 2, true)).toBeNull();
+describe("a part's chat", () => {
+  test("the chat Make this part opened, else the one linked to its folder", () => {
+    expect(partThread(part(3, { exists: true, video: video("part-3", { threadId: 8 }) }), 9)).toBe(9);
+    expect(partThread(part(3, { exists: true, video: video("part-3", { threadId: 8 }) }), undefined)).toBe(8);
+    expect(partThread(part(3), 9)).toBe(9);
+    expect(partThread(part(3, { exists: true, video: video("part-3") }), undefined)).toBeNull();
   });
-  test("a folder without a render counts only while the thread works", () => {
-    const s = series({ parts: [made(1), started(2, 50), started(3, 10)] });
-    expect(partBeingMade(s, null, true)).toBe(2);
-    expect(partBeingMade(s, null, false)).toBeNull();
+  test("by part number, a part with none left out", () => {
+    const s = series({ parts: [made(1), part(2), part(3)] });
+    s.parts[0] = { ...s.parts[0], video: video("part-1", { threadId: 7 }) };
+    expect(partThreads(s, { "part-3": 9 })).toEqual({ 1: 7, 3: 9 });
   });
 });
 
-describe("the chat card's part", () => {
-  test("follows the part being made, even before its folder exists", () => {
-    expect(cardPartNumber(fiveParts(), 3)).toBe(3);
+describe("which parts are being made", () => {
+  test("a part not made whose own chat runs, before or after its folder exists", () => {
+    const s = series({ parts: [made(1), started(2), part(3), part(4)] });
+    const running = (id: number) => id === 8 || id === 9;
+    expect(partsBeingMade(s, { 1: 7, 2: 8, 3: 9, 4: 10 }, running)).toEqual([2, 3]);
   });
-  test("otherwise the part whose folder changed last", () => {
-    expect(cardPartNumber(series({ parts: [made(1, 90), made(2, 20), part(3)] }), null)).toBe(1);
-    expect(cardPartNumber(series({ parts: [made(1, 20), started(2, 30), part(3)] }), null)).toBe(2);
+  test("a made part is not, though its chat still runs", () => {
+    expect(partsBeingMade(series({ parts: [made(1)] }), { 1: 7 }, () => true)).toEqual([]);
   });
-  test("with no folder at all, the first part; with no parts, none", () => {
-    expect(cardPartNumber(series({ parts: [part(1), part(2)] }), null)).toBe(1);
-    expect(cardPartNumber(series(), null)).toBeNull();
+  test("a part with no chat is not", () => {
+    expect(partsBeingMade(series({ parts: [started(1), part(2)] }), {}, () => true)).toEqual([]);
+  });
+  test("a part a subagent makes follows the child's chat, and the series' chat keeps part 1", () => {
+    const s = series({ parts: [
+      { ...made(1), video: video("part-1", { threadId: 7, seconds: 101 }) },
+      part(2, { exists: true, video: video("part-2", { threadId: 12 }) }),
+      part(3),
+    ] });
+    expect(seriesForThread([s], 7)?.part.number).toBe(1);
+    expect(seriesForThread([s], 12)?.part.number).toBe(2);
+    const threads = partThreads(s, {});
+    expect(threads).toEqual({ 1: 7, 2: 12 });
+    expect(partsBeingMade(s, threads, (id) => id === 12)).toEqual([2]);
+    expect(partsBeingMade(s, threads, (id) => id === 7)).toEqual([]);
   });
 });
 
@@ -61,18 +77,18 @@ describe("Previous and Next", () => {
 describe("what a row offers", () => {
   test("Make this part only on the next part not made", () => {
     const s = fiveParts();
-    expect(s.parts.map((p) => partRowKind(s, p, null))).toEqual(["made", "made", "make", "none", "none"]);
+    expect(s.parts.map((p) => partRowKind(s, p, []))).toEqual(["made", "made", "make", "none", "none"]);
   });
-  test("the part being made says so, and no row offers another", () => {
+  test("each part being made says so; the next part offers nothing while it is one of them", () => {
     const s = fiveParts();
-    expect(s.parts.map((p) => partRowKind(s, p, 3))).toEqual(["made", "made", "making", "none", "none"]);
-    expect(s.parts.map((p) => partRowKind(s, p, 4))).toEqual(["made", "made", "none", "making", "none"]);
+    expect(s.parts.map((p) => partRowKind(s, p, [3, 4]))).toEqual(["made", "made", "making", "making", "none"]);
+    expect(s.parts.map((p) => partRowKind(s, p, [4]))).toEqual(["made", "made", "make", "making", "none"]);
   });
-  test("a later part's own page offers it too, unless another part is being made", () => {
+  test("a later part's own page offers it whatever else is being made", () => {
     const later = fiveParts().parts[3];
-    expect(partPageOffer(later, null)).toEqual({ kind: "make" });
-    expect(partPageOffer(later, 4)).toEqual({ kind: "making" });
-    expect(partPageOffer(later, 3)).toEqual({ kind: "busy", reason: "Part 3 is being made" });
+    expect(partPageOffer(later, [])).toBe("make");
+    expect(partPageOffer(later, [3])).toBe("make");
+    expect(partPageOffer(later, [3, 4])).toBe("making");
   });
 });
 
@@ -95,15 +111,13 @@ describe("the video page's view", () => {
 });
 
 describe("a part's status", () => {
-  test("before its folder exists, where the request is", () => {
-    const p = part(3);
+  test("before its folder exists, its chat has started", () => {
     const idle = progress("Not written yet", "muted");
-    expect(partStatus({ part: p, making: true, sending: true, running: false, progress: idle })).toEqual({ label: "Sending", tone: "busy" });
-    expect(partStatus({ part: p, making: true, sending: false, running: true, progress: idle })).toEqual({ label: "Starting", tone: "busy" });
-    expect(partStatus({ part: p, making: true, sending: false, running: false, progress: idle })).toEqual({ label: "Asked for", tone: "busy" });
+    expect(partStatus({ part: part(3), making: true, progress: idle })).toEqual({ label: "Starting", tone: "busy" });
+    expect(partStatus({ part: part(3), making: false, progress: idle })).toEqual({ label: "Not written yet", tone: "muted" });
   });
   test("once it exists, its video's progress", () => {
-    expect(partStatus({ part: started(3), making: true, sending: false, running: true, progress: progress("Writing the script", "busy") }))
+    expect(partStatus({ part: started(3), making: true, progress: progress("Writing the script", "busy") }))
       .toEqual({ label: "Writing the script", tone: "busy" });
   });
   test("the card names the part", () => {

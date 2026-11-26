@@ -51,6 +51,20 @@ export function madePartCount(series: StudioSeries): number {
   return series.parts.filter((p) => p.made).length;
 }
 
-export function seriesForThread(series: StudioSeries[], threadId: number | null): StudioSeries | null {
-  return threadId == null ? null : series.find((s) => s.threadId === threadId) ?? null;
+/** The series part a thread makes: the part whose folder is linked to it
+ *  (the chat that planned a series is linked to part 1), else the part its
+ *  new chat was opened for (`opened`, from `seriesMakeStore`). */
+export function seriesForThread(
+  series: StudioSeries[],
+  threadId: number | null,
+  opened: { series: string; part: string } | null = null,
+): SeriesMembership | null {
+  if (threadId == null) return null;
+  for (const s of series) {
+    const part = s.parts.find((p) => p.video?.threadId === threadId);
+    if (part) return { series: s, part };
+  }
+  const s = opened ? series.find((x) => x.slug === opened.series) : undefined;
+  const part = s?.parts.find((p) => p.slug === opened?.part);
+  return s && part ? { series: s, part } : null;
 }

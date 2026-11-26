@@ -32,14 +32,22 @@ export function SeriesCells({
   );
 }
 
-/** Mounted only while open, so a closed folder never reads its thread. */
+/** Mounted only while open, so a closed folder never reads its parts' chats. */
 function OpenParts({ series, edges }: { series: StudioSeries; edges: RunCellEdges[] }) {
   return <PartCells series={series} edges={edges} make={useMakeSeriesPart(series)} />;
 }
 
-/** An open folder's part cells, given the series' make state. */
-export function PartCells({ series, edges, make }: { series: StudioSeries; edges: RunCellEdges[]; make: MakeSeriesPartState }) {
-  return seriesPartCells(series, make).map((cell, i) => (
+/** An open folder's part cells, given the series' parts being made. */
+export function PartCells({
+  series,
+  edges,
+  make,
+}: {
+  series: StudioSeries;
+  edges: RunCellEdges[];
+  make: Pick<MakeSeriesPartState, "making" | "make">;
+}) {
+  return seriesPartCells(series, make.making).map((cell, i) => (
     <MediaRunCell key={cell.part.slug} edges={edges[i] ?? null}>
       {cell.kind === "made" ? (
         <VideoCard video={cell.video} part={cell.part.number} />
@@ -49,16 +57,9 @@ export function PartCells({ series, edges, make }: { series: StudioSeries; edges
           state={cell.working ? "working" : "idle"}
           action={
             cell.offer ? (
-              <span className="flex max-w-full flex-col items-center gap-1.5">
-                <Button variant="outline" size="sm" disabled={make.sending} onClick={() => void make.make(series, cell.part.number)}>
-                  Make this part
-                </Button>
-                {make.error && (
-                  <span className="pointer-events-auto line-clamp-2 text-center text-[11.5px] leading-snug text-destructive" title={make.error}>
-                    {make.error}
-                  </span>
-                )}
-              </span>
+              <Button variant="outline" size="sm" onClick={() => make.make(series, cell.part.number)}>
+                Make this part
+              </Button>
             ) : undefined
           }
         />

@@ -57,23 +57,34 @@ export function InfoRow({
 const LIMIT = 5;
 
 /** A headed group of rows that ends in "Show N more" past `LIMIT`; the card
- *  grows to hold them and never scrolls inside itself. */
+ *  grows to hold them and never scrolls inside itself. `leading` draws rows
+ *  above `rows`; when `rows` is empty, the group shows only if `leading`
+ *  renders a `[data-info-row]`. */
 export function InfoGroup<T>({
   heading,
   rows,
   render,
+  leading,
 }: {
   heading: string;
   rows: T[];
   render: (row: T) => ReactNode;
+  leading?: ReactNode;
 }) {
   const [all, setAll] = useState(false);
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && !leading) return null;
   const hidden = rows.length - LIMIT;
   const shown = all || hidden <= 0 ? rows : rows.slice(0, LIMIT);
   return (
-    <section aria-label={heading} className="flex flex-col border-t border-border-subtle py-1">
+    <section
+      aria-label={heading}
+      className={cn(
+        "flex-col border-t border-border-subtle py-1",
+        rows.length === 0 ? "hidden has-[[data-info-row]]:flex" : "flex",
+      )}
+    >
       <h3 className="px-2.5 pt-1.5 pb-0.5 font-sans text-[11px] font-medium text-muted-foreground">{heading}</h3>
+      {leading}
       {shown.map(render)}
       {hidden > 0 && (
         <button

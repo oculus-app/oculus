@@ -3,10 +3,11 @@ import type { Icon } from "@phosphor-icons/react";
 import type { HarnessThread } from "@/lib/harness";
 
 /**
- * Thread info's Work group: what a thread is making, one row per thing,
- * filled by the features that make them. A feature registers a kind once at
- * module load; the kind's hook reads its own state for the thread and
- * returns its rows. With no rows from any kind the group is not drawn.
+ * Thread info's Work rows, shown at the top of Made: what a thread is making,
+ * one row per thing, filled by the features that make them. A feature
+ * registers a kind once at module load; the kind's hook reads its own state
+ * for the thread and returns its rows. With no rows from any kind nothing is
+ * drawn.
  */
 
 export interface WorkRow {

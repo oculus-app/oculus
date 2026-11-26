@@ -1924,10 +1924,12 @@ Outline a series of small videos, one question per part
 Usage: oculus studio series <COMMAND>
 
 Commands:
-  new   Create an empty outline with shared subject and theme
-  add   Add a question to the outline without creating a video folder
-  show  Show each part's number, title, question, slug and render status
-  help  Print this message or the help of the given subcommand(s)
+  new    Create an empty outline with shared subject and theme
+  add    Add a question to the outline without creating a video folder
+  show   Show each part's number, title, question, slug and render status
+  recap  What a part's own chat needs before making it: the outline, this part, and the
+         script of the part before
+  help   Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help
@@ -1997,6 +1999,31 @@ Usage: oculus studio series show <SERIES>
 Arguments:
   <SERIES>
           The series slug
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+#### `oculus studio series recap`
+
+```
+What a part's own chat needs before making it: the outline, this part, and the script of
+the part before
+
+Prints the series' title, subject and theme, every part's line as `show` prints it, this
+part's number, title, slug and question, and the part before's `script.md` in full. When
+the part before is not made yet, or this is the first part, one line says so. Only the
+spoken script is printed, never scene code. Writes nothing.
+
+Usage: oculus studio series recap <SERIES> <PART>
+
+Arguments:
+  <SERIES>
+          The series slug
+
+  <PART>
+          The part's number in the outline, or its slug
 
 Options:
   -h, --help

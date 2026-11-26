@@ -1,64 +1,53 @@
-import {
-  capabilities, getThreadsByIds, harnessSend, liveRunId, waitingQuestions,
-} from "@/lib/harness";
-import { seriesPartRequest, seriesSendMode, seriesSendSelection } from "@/lib/studio/seriesRequest";
-import { useChatPrefsStore } from "@/stores/chat/chatPrefsStore";
+import { getThreadsByIds } from "@/lib/harness";
+import { threadKnown } from "@/lib/studio/threadRunning";
+import { useDraftStore } from "@/stores/chat/draftStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
-import { usePickStore } from "@/stores/chat/pickStore";
 import { useVideosStore } from "./videosStore";
-import { createSeriesMakeStore } from "./seriesMakeState";
+import { createSeriesMakeStore, readPartChats, type PartChats } from "./seriesMakeState";
 
-/** Read by id when the thread is older than Chat's newest page. */
-export async function readSeriesThread(id: number) {
-  const store = useHarnessStore.getState();
-  const known = store.threads.find((t) => t.id === id);
-  if (known) return known;
+const KEY = "oculus.studioPartChats";
+
+/** Reads a part's chat by id when it is older than Chat's newest page; a
+ *  chat that was deleted is forgotten. */
+export async function keepThread(id: number): Promise<void> {
+  if (threadKnown(useHarnessStore.getState(), id)) return;
   const thread = (await getThreadsByIds([id]))[0];
-  if (!thread) throw new Error("This series' chat was deleted. Reload the videos to start a new chat.");
-  store.keep(thread);
-  return useHarnessStore.getState().threads.find((t) => t.id === id) ?? thread;
+  if (thread) useHarnessStore.getState().keep(thread);
+  else useSeriesMakeStore.getState().gone(id);
 }
 
-export function seriesThreadRunning(threadId: number | null): boolean {
-  if (threadId == null) return false;
-  const store = useHarnessStore.getState();
-  return store.live[threadId]?.running ?? store.threads.find((t) => t.id === threadId)?.status === "running";
-}
-
+/** Persisted like Chat's drafts, so a relaunch keeps which chat makes which part. */
 export const useSeriesMakeStore = createSeriesMakeStore({
-  running: seriesThreadRunning,
-  send: async (series, partNumber, dispatching, openDraft) => {
-    const request = seriesPartRequest(series, partNumber);
-    if (series.threadId == null) return openDraft(series.subject, request.draft);
-    const id = series.threadId;
-    await readSeriesThread(id);
-    const store = useHarnessStore.getState();
+  load: () => {
     try {
-      await store.hold(id);
-      await Promise.all([capabilities.load(), useChatPrefsStore.getState().load()]);
-      const current = useHarnessStore.getState();
-      const thread = await readSeriesThread(id);
-      const selection = seriesSendSelection(thread, usePickStore.getState().held[id]);
-      const runId = liveRunId(current.runs[id]);
-      const run = runId == null ? null : current.runs[id]?.[runId] ?? null;
-      const running = seriesThreadRunning(id);
-      const mode = seriesSendMode({
-        running, liveRun: run, caps: capabilities.of(run?.provider ?? thread.provider),
-        questionWaits: waitingQuestions(current.requests[id]).length > 0,
-      }, useChatPrefsStore.getState().followUp);
-      dispatching();
-      await harnessSend(id, selection.provider, request.text, { model: selection.model, reasoningEffort: selection.effort }, mode);
-      usePickStore.getState().sent(id);
-    } finally {
-      store.unhold(id);
-      store.release(id);
+      return readPartChats(localStorage.getItem(KEY));
+    } catch {
+      return {};
     }
   },
+  save: (chats: PartChats) => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(chats));
+    } catch {
+      /* quota or private mode: the in-memory map still serves this launch */
+    }
+  },
+  draftListed: (id) => id in useDraftStore.getState().newChats,
 });
 
-useVideosStore.subscribe((state) => useSeriesMakeStore.getState().observe(state.series));
-useHarnessStore.subscribe((state, previous) => {
-  const ended = new Set(Object.keys(state.live).map(Number).filter((id) =>
-    state.live[id] !== previous.live[id] && !state.live[id].running && state.live[id].ended != null));
-  useSeriesMakeStore.getState().observe(useVideosStore.getState().series, ended);
+/** Chat's new chat `draftId` was sent and became `threadId`. */
+export function noteNewChatSent(draftId: string, threadId: number): void {
+  useSeriesMakeStore.getState().sent(draftId, threadId);
+}
+
+const listed = () => {
+  const s = useVideosStore.getState();
+  return s.loaded && s.error == null ? s.series : null;
+};
+const observe = () => useSeriesMakeStore.getState().observe(listed());
+
+observe();
+useVideosStore.subscribe(observe);
+useDraftStore.subscribe((s, prev) => {
+  if (s.newChats !== prev.newChats) observe();
 });

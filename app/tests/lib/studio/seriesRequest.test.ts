@@ -1,129 +1,186 @@
 import { describe, expect, test } from "bun:test";
-import { seriesPartRequest, seriesSendMode, seriesSendSelection } from "@/lib/studio/seriesRequest";
-import type { HarnessThread } from "@/lib/harness/types";
-import { PROVIDER_IDS, type Provider } from "@/lib/harness/providers";
-import type { SteerInputs } from "@/lib/harness/sendMode";
-import { createSeriesMakeStore } from "@/stores/studio/seriesMakeState";
-import { part, series } from "./seriesFixtures";
+import { seriesPartRequest } from "@/lib/studio/seriesRequest";
+import { createSeriesMakeStore, partChatKey, readPartChats, type PartChats } from "@/stores/studio/seriesMakeState";
+import { part, series, video } from "./seriesFixtures";
 
-const thread = (provider: Provider): HarnessThread => ({
-  id: 7, provider, provider_session_id: null, model: "chosen-model", effort: "high", subject_id: null,
-  lecture_id: null, title: null, status: "idle", usage: null, created_at: "", updated_at: "",
-});
-
-describe("Make this part", () => {
-  test("every provider uses the thread's explicit selection; a held composer pick wins", () => {
-    for (const provider of PROVIDER_IDS) {
-      expect(seriesSendSelection(thread(provider))).toEqual({ provider, model: "chosen-model", effort: "high" });
-    }
-    expect(seriesSendSelection(thread("claude"), { provider: "codex", model: "picked", effort: "low" }))
-      .toEqual({ provider: "codex", model: "picked", effort: "low" });
-    for (const missing of [{ model: null }, { effort: null }, { effort: undefined }, { model: " " }]) {
-      expect(() => seriesSendSelection({ ...thread("codex"), ...missing })).toThrow("Choose a model and reasoning level");
-    }
-    expect(() => seriesSendSelection(thread("codex"), { provider: "claude", model: null, effort: "high" })).toThrow();
-  });
-  test("the existing thread gets ordinary text; a new chat gets an unsent skill draft naming both slugs", () => {
+describe("Make this part's request", () => {
+  test("an unsent skill draft naming both slugs", () => {
     const outline = series({ parts: [part(2)] });
-    expect(seriesPartRequest(outline, 2)).toEqual({ text: "Make part 2", draft: "/oculus-studio Make part 2 of the series `motion` (video `part-2`)." });
+    expect(seriesPartRequest(outline, 2)).toEqual({ draft: "/oculus-studio Make part 2 of the series `motion` (video `part-2`)." });
     expect(() => seriesPartRequest(outline, 0)).toThrow("not in the series");
     expect(() => seriesPartRequest(series({ parts: [part(1, { made: true })] }), 1)).toThrow("already has a render");
   });
-  test("Enter shares the composer's steering, restart, queue and waiting-question decisions", () => {
-    const input: SteerInputs = { running: true, liveRun: { stopping: false }, caps: { activeSteering: true, steerByRestart: false }, questionWaits: false };
-    expect(seriesSendMode(input, "steer")).toBe("steer");
-    expect(seriesSendMode(input, "queue")).toBe("queue");
-    expect(seriesSendMode({ ...input, running: false }, "queue")).toBeUndefined();
-    expect(seriesSendMode({ ...input, caps: { activeSteering: false, steerByRestart: true } }, "steer")).toBe("steer");
-    expect(seriesSendMode({ ...input, caps: { activeSteering: false, steerByRestart: false } }, "steer")).toBe("queue");
-    expect(seriesSendMode({ ...input, questionWaits: true }, "steer")).toBe("queue");
-    expect(seriesSendMode({ ...input, liveRun: null }, "steer")).toBe("queue");
-    expect(seriesSendMode({ ...input, liveRun: { stopping: true } }, "steer")).toBe("queue");
-  });
 });
 
-const deferred = () => {
-  let resolve!: () => void;
-  let reject!: (e: Error) => void;
-  const promise = new Promise<void>((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
-};
-const openDraft = async () => {};
-function setup(initialRunning = false) {
-  const done = deferred();
-  let running = initialRunning;
-  let sends = 0;
-  const outline = series({ threadId: 7, parts: [part(1)] });
+/** A store over fake Chat drafts, threads and storage, as the app wires them. */
+function setup(stored: { raw: string | null } = { raw: null }) {
+  const listed = new Set<string>();
+  const opened: [string | null, string][] = [];
+  const shown: string[] = [];
+  let next = 0;
   const store = createSeriesMakeStore({
-    running: () => running,
-    send: async (_s, _n, dispatching) => { sends++; dispatching(); await done.promise; },
+    load: () => readPartChats(stored.raw),
+    save: (chats: PartChats) => { stored.raw = JSON.stringify(chats); },
+    draftListed: (id) => listed.has(id),
   });
-  return { store, done, outline, sends: () => sends, running: (next: boolean) => { running = next; store.getState().observe([outline]); } };
+  const open = {
+    fresh: (subject: string | null, text: string) => {
+      const id = `d${++next}`;
+      listed.add(id);
+      opened.push([subject, text]);
+      return id;
+    },
+    show: (id: string) => { shown.push(id); },
+  };
+  return { store, listed, opened, shown, open, stored };
 }
 
-describe("shared series request lifetime", () => {
-  test("a request is visible immediately, deduplicated across callers, and survives until its turn ends", async () => {
+const outline = (extra: Parameters<typeof series>[0] = {}) =>
+  series({ parts: [part(1, { exists: true, made: true, video: video("part-1", { threadId: 3 }) }), part(2), part(3)], ...extra });
+const chat = (t: ReturnType<typeof setup>, n: number) => t.store.getState().chats[partChatKey("motion", `part-${n}`)];
+
+describe("a part's chat", () => {
+  test("Make opens a new chat in the series' subject with the request unsent", () => {
     const t = setup();
-    const pending = t.store.getState().make(t.outline, 1, openDraft);
-    expect(t.store.getState().requests.motion).toMatchObject({ requestedPart: 1, sending: true, error: null });
-    expect(await t.store.getState().make(t.outline, 1, openDraft)).toBe(false);
-    expect(t.sends()).toBe(1);
-    t.done.resolve(); await pending;
-    expect(t.store.getState().requests.motion.requestedPart).toBe(1);
-    t.running(true); t.running(false);
-    expect(t.store.getState().requests.motion.requestedPart).toBeNull();
+    t.store.getState().make(outline(), 2, t.open);
+    expect(t.opened).toEqual([["PHYS", "/oculus-studio Make part 2 of the series `motion` (video `part-2`)."]]);
+    expect(chat(t, 2)).toEqual({ series: "motion", part: "part-2", draftId: "d1", threadId: null });
   });
-  test("a render clears the requested part while the agent still runs", async () => {
-    const t = setup(true);
-    const pending = t.store.getState().make(t.outline, 1, openDraft);
-    t.done.resolve(); await pending;
-    t.store.getState().observe([{ ...t.outline, parts: [part(1, { made: true })] }]);
-    expect(t.store.getState().requests.motion.requestedPart).toBeNull();
-  });
-  test("a fast turn ends before send resolves without leaving a stuck request", async () => {
+  test("pressing it again while the draft is unsent shows that draft, not another", () => {
     const t = setup();
-    const pending = t.store.getState().make(t.outline, 1, openDraft);
-    t.store.getState().observe([t.outline], new Set([7]));
-    t.done.resolve(); await pending;
-    expect(t.store.getState().requests.motion).toMatchObject({ requestedPart: null, sending: false });
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().make(outline(), 2, t.open);
+    expect(t.opened).toHaveLength(1);
+    expect(t.shown).toEqual(["d1"]);
   });
-  test("an earlier turn ending during preparation does not end the new request", async () => {
-    const ready = deferred();
-    const done = deferred();
-    const outline = series({ threadId: 7, parts: [part(1)] });
-    const store = createSeriesMakeStore({
-      running: () => false,
-      send: async (_s, _n, dispatching) => { await ready.promise; dispatching(); await done.promise; },
-    });
-    const pending = store.getState().make(outline, 1, openDraft);
-    store.getState().observe([outline], new Set([7]));
-    ready.resolve(); await ready.promise;
-    done.resolve(); await pending;
-    expect(store.getState().requests.motion.requestedPart).toBe(1);
-    store.getState().observe([outline], new Set([7]));
-    expect(store.getState().requests.motion.requestedPart).toBeNull();
-  });
-  test("a queued continuation stays pending while the harness keeps the thread running", async () => {
-    const t = setup(true);
-    const pending = t.store.getState().make(t.outline, 1, openDraft);
-    t.done.resolve(); await pending;
-    t.store.getState().observe([t.outline], new Set([7]));
-    expect(t.store.getState().requests.motion.requestedPart).toBe(1);
-    t.running(false);
-    expect(t.store.getState().requests.motion.requestedPart).toBeNull();
-  });
-  test("a send failure is shared and releases the request for retry", async () => {
+  test("a draft gone from Chat opens a fresh one", () => {
     const t = setup();
-    const pending = t.store.getState().make(t.outline, 1, openDraft);
-    t.done.reject(new Error("Cannot send"));
-    expect(await pending).toBe(false);
-    expect(t.store.getState().requests.motion).toMatchObject({ error: "Cannot send", sending: false, requestedPart: null });
+    t.store.getState().make(outline(), 2, t.open);
+    t.listed.delete("d1");
+    t.store.getState().make(outline(), 2, t.open);
+    expect(t.shown).toEqual([]);
+    expect(chat(t, 2).draftId).toBe("d2");
   });
-  test("opening an unsent draft leaves no pending turn", async () => {
-    let draft: [string | null, string] | null = null;
-    const store = createSeriesMakeStore({ running: () => false, send: async (s, n, _dispatch, open) => open(s.subject, seriesPartRequest(s, n).draft) });
-    expect(await store.getState().make(series({ parts: [part(1)] }), 1, async (subject, text) => { draft = [subject, text]; })).toBe(true);
-    expect(draft).toEqual(["PHYS", "/oculus-studio Make part 1 of the series `motion` (video `part-1`)."]);
-    expect(store.getState().requests.motion.requestedPart).toBeNull();
+  test("a made part opens nothing", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 1, t.open);
+    expect(t.opened).toEqual([]);
+    expect(t.store.getState().chats).toEqual({});
+  });
+  test("the first send records the thread; the draft it leaves behind is not a discard", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().sent("d1", 9);
+    t.listed.delete("d1");
+    t.store.getState().observe([outline()]);
+    expect(chat(t, 2)).toMatchObject({ draftId: "d1", threadId: 9 });
+    // Sent, so pressing again opens a fresh chat rather than showing the old draft.
+    t.store.getState().make(outline(), 2, t.open);
+    expect(t.shown).toEqual([]);
+    expect(chat(t, 2)).toMatchObject({ draftId: "d2", threadId: null });
+  });
+  test("a draft discarded unsent drops the entry", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.listed.delete("d1");
+    t.store.getState().observe(null);
+    expect(chat(t, 2)).toBeUndefined();
+  });
+  test("a sent draft another chat never sent is not touched", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().sent("other", 9);
+    expect(chat(t, 2).threadId).toBeNull();
+  });
+  test("the entry goes once the part's folder is linked to its chat: the link is then the truth", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().sent("d1", 9);
+    const linked = outline();
+    linked.parts[1] = part(2, { exists: true, video: video("part-2", { threadId: 9 }) });
+    t.store.getState().observe([linked]);
+    expect(chat(t, 2)).toBeUndefined();
+  });
+  test("a sent chat with no folder yet stays the part's chat until it is deleted", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().make(outline(), 3, t.open);
+    t.store.getState().sent("d1", 9);
+    t.listed.delete("d1");
+    t.store.getState().observe([outline()]);
+    t.store.getState().observe(null);
+    expect(chat(t, 2)?.threadId).toBe(9);
+    t.store.getState().gone(9);
+    expect(chat(t, 2)).toBeUndefined();
+    expect(chat(t, 3)).toBeDefined();
+  });
+  test("a draft pruned while its send is in flight keeps its part", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.listed.delete("d1");
+    t.store.getState().observe([outline()]);
+    expect(chat(t, 2)).toBeUndefined();
+    t.store.getState().sent("d1", 9);
+    expect(chat(t, 2)).toEqual({ series: "motion", part: "part-2", draftId: "d1", threadId: 9 });
+  });
+  test("a late send leaves a newer chat opened for the same part", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.listed.delete("d1");
+    t.store.getState().observe([outline()]);
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().sent("d1", 9);
+    expect(chat(t, 2)).toMatchObject({ draftId: "d2", threadId: null });
+  });
+  test("a folder with no link keeps the entry", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().sent("d1", 9);
+    const unlinked = outline();
+    unlinked.parts[1] = part(2, { exists: true, video: video("part-2") });
+    t.store.getState().observe([unlinked]);
+    expect(chat(t, 2)?.threadId).toBe(9);
+  });
+  test("a folder an earlier chat left without a render keeps the new chat's entry", () => {
+    const t = setup();
+    const left = outline();
+    left.parts[1] = part(2, { exists: true, video: video("part-2", { threadId: 5 }) });
+    t.store.getState().make(left, 2, t.open);
+    t.store.getState().observe([left]);
+    t.store.getState().make(left, 2, t.open);
+    expect(t.shown).toEqual(["d1"]);
+    t.store.getState().sent("d1", 9);
+    t.listed.delete("d1");
+    t.store.getState().observe([left]);
+    expect(chat(t, 2)?.threadId).toBe(9);
+    left.parts[1] = part(2, { exists: true, made: true, video: video("part-2", { threadId: 5 }) });
+    t.store.getState().observe([left]);
+    expect(chat(t, 2)).toBeUndefined();
+  });
+  test("two parts are made at once, each in its own chat", () => {
+    const t = setup();
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().make(outline(), 3, t.open);
+    t.store.getState().sent("d1", 9);
+    t.store.getState().sent("d2", 10);
+    t.store.getState().observe([outline()]);
+    expect([chat(t, 2).threadId, chat(t, 3).threadId]).toEqual([9, 10]);
+  });
+  test("a reload keeps which chat makes which part", () => {
+    const stored = { raw: null as string | null };
+    const t = setup(stored);
+    t.store.getState().make(outline(), 2, t.open);
+    t.store.getState().sent("d1", 9);
+    expect(setup(stored).store.getState().chats).toEqual(t.store.getState().chats);
+  });
+  test("damaged storage reads as nothing, entry by entry", () => {
+    expect(readPartChats("not json")).toEqual({});
+    expect(readPartChats("[]")).toEqual({});
+    const good = { series: "motion", part: "part-2", draftId: "d1", threadId: 9 };
+    expect(readPartChats(JSON.stringify({
+      "motion/part-2": good,
+      "motion/part-3": { ...good, part: "part-3", threadId: "9" },
+      "wrong/key": { ...good, part: "part-4" },
+    }))).toEqual({ "motion/part-2": good });
   });
 });

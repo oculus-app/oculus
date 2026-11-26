@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { chatHref, chatScope, chatThreadId } from "@/lib/harness/route";
+import { chatChoose, chatHref, chatScope, chatThreadId } from "@/lib/harness/route";
 
 test("a new chat's route carries an entry point's scope, a thread's never does", () => {
   expect(chatHref(null)).toBe("/chat");
@@ -20,4 +20,12 @@ test("chatScope reads General or a subject id off the route, and nothing else", 
 test("the scope and the thread id are read independently", () => {
   expect(chatThreadId(chatHref(null, null, { subject: 12 }).slice(5))).toBeNull();
   expect(chatScope(chatHref(5).slice(5))).toBeNull();
+});
+
+test("a new chat's route can ask for the subject picker, a thread's never does", () => {
+  const href = chatHref(null, null, { draft: "abc", subject: 12, choose: true });
+  expect(href).toBe("/chat?d=abc&s=12&c=1");
+  expect(chatChoose(href.slice(5))).toBe(true);
+  expect(chatChoose(chatHref(null, null, { draft: "abc" }).slice(5))).toBe(false);
+  expect(chatHref(3, null, { choose: true })).toBe("/chat?t=3");
 });

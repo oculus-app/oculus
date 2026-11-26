@@ -95,8 +95,13 @@ export function SubjectChoices({
   const current = Math.min(active, Math.max(0, rows.length - 1));
   const listRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  // Only keys, a search and the opening scroll the highlight into view. A
+  // hover that did would move rows under the pointer, re-hover and loop.
+  const reveal = useRef(true);
 
   useEffect(() => {
+    if (!reveal.current) return;
+    reveal.current = false;
     listRef.current?.querySelector(`[data-index="${current}"]`)?.scrollIntoView({ block: "nearest" });
   }, [current]);
 
@@ -105,6 +110,7 @@ export function SubjectChoices({
       e.preventDefault();
       if (!rows.length) return;
       const step = e.key === "ArrowDown" ? 1 : -1;
+      reveal.current = true;
       setActive((current + step + rows.length) % rows.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
@@ -124,7 +130,10 @@ export function SubjectChoices({
       tabIndex={-1}
       // `mousemove`, not `mouseenter`: arrowing scrolls rows under a resting
       // pointer, which would steal the highlight back.
-      onMouseMove={() => setActive(i)}
+      onMouseMove={() => {
+        reveal.current = false;
+        setActive(i);
+      }}
       onClick={() => onPick(o.scope)}
       className={cn(ROW, i === current ? "bg-accent text-foreground" : "text-foreground/90")}
     >
@@ -148,6 +157,7 @@ export function SubjectChoices({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
+            reveal.current = true;
             setActive(0);
           }}
           onKeyDown={onKeyDown}

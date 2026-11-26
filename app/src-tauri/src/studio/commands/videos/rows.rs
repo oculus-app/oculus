@@ -64,7 +64,6 @@ pub struct VideoList {
 pub struct SeriesView {
     #[serde(flatten)]
     pub outline: SeriesStatus<PartView>,
-    pub thread_id: Option<i64>,
     pub modified: Option<u64>,
 }
 
@@ -118,11 +117,6 @@ pub fn list_in(
             PartView { status, video }
         });
         if matches_subject {
-            let thread_id = view
-                .parts
-                .iter()
-                .filter_map(|p| p.video.as_ref()?.thread_id)
-                .next();
             let modified = crate::library::paths::studio_series_dir(videos)
                 .join(&slug)
                 .join("series.json")
@@ -136,7 +130,6 @@ pub fn list_in(
                 .max();
             series.push(SeriesView {
                 outline: view,
-                thread_id,
                 modified,
             });
         }

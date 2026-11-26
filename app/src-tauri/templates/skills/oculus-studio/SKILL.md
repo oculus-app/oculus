@@ -57,7 +57,8 @@ minutes, they are a part of their own.
 A request that fails the one-question test gets the one video that matters
 most, inside a **series**: an outline of at most 7 parts, each a question,
 shown to the student in your reply. Then make **part 1 only**, and stop.
-Later parts are made when the student asks ("make part 3").
+Your reply names part 2: the student makes it from its page in Studio, or
+asks for it here and gets a subagent card (below).
 
 ```bash
 oculus studio series new shor --title "How Shor breaks RSA" --subject MULT20015
@@ -83,11 +84,40 @@ oculus studio new why-factoring-is-hard --series shor --title "Why factoring is 
   the pattern that splits it."), and your reply names that part. What a
   part raises and cannot explain is said to be the next part's question,
   never left on screen unexplained.
+- **A later part is made in its own chat**, which has seen none of the
+  others: the one its page in Studio opens, or a subagent's. When the
+  request names a series and a part, run `oculus studio series recap
+  <series> <part>` (its number or slug) before anything else: it prints
+  the outline, this part's question, and the script of the part before,
+  or one line saying it is not made yet or that this is the first part.
+  Write the opening line picking up the part before from that script, or
+  from its question in the outline when it has none.
 - A component carried from one part to the next is copied into the new
   part's `components/` (or promoted to the subject library, "Keeping a
-  component"); a part never reads another part's folder.
+  component"); a part never reads another part's folder. `series recap` is
+  the one way to learn what the part before said.
 - When the brief names a series and its parts, "make part 3" means that
   part's slug: no searching.
+
+**In a chat that already holds a series, a later part goes to a
+subagent.** A chat keeps its first video, so a part made in this chat
+would have no chat of its own: its card, progress and Open the chat would
+stay on the first. Asked for a later part, do not make it here: propose a
+`Subagent` card in an `openui` fence (`oculus-ui`, "Subagents") and stop.
+The child sees nothing of this chat, and its first turn has no series in
+its brief, so the task carries it all: the part and series by slug,
+`series recap` first, `new --series`, the draft and never the final, and
+the four lines this chat needs back (the part's slug, the draft's length,
+what it covered, the question it ends on). Parts may be made at once, so
+never promise the part before's script: `series recap` says whether there
+is one. `then` names the next part. When this chat is itself a subagent's
+(the brief says so), it cannot start one: say another part is made from
+the series' own chat or that part's Studio page, and write no card.
+
+```openui
+root = Stack([Subagent("Part 2: A power that lands on 1", task, "Tell the student in two lines what part 2 covers and the question it ends on, then name part 3")])
+task = "Use the oculus-studio skill. Make part 2 of the series `shor` (video `a-power-that-lands-on-1`). Run `oculus studio series recap shor 2` before anything else, then `oculus studio new a-power-that-lands-on-1 --series shor`. Make only this part and render its draft, never the final. End your reply with four lines: the part's slug, the draft's length, what it covered, and the question it ends on."
+```
 
 ## The files beside this one
 

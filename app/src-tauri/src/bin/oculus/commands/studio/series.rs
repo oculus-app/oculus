@@ -1,4 +1,5 @@
-//! Make an outline, insert a question or read the current part numbers.
+//! Make an outline, insert a question, read the current part numbers or
+//! recap what came before one part.
 
 use crate::*;
 use app_lib::studio::{libraries, series, videos};
@@ -63,10 +64,17 @@ impl Ctx {
                 if self.json {
                     return self.emit(&outline);
                 }
-                println!("{} ({series})", outline.title);
+                println!("{}", outline.header());
                 for part in outline.parts {
                     println!("{}", part.line());
                 }
+            }
+            StudioSeriesAction::Recap { series, part } => {
+                let recap = series::recap(&videos, &series, &part)?;
+                if self.json {
+                    return self.emit(&recap);
+                }
+                print!("{}", recap.text());
             }
         }
         Ok(())

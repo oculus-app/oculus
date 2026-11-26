@@ -180,3 +180,35 @@ describe("render tiles", () => {
     expect(tile.kind === "render" && tile.item.id).toBe(items[2].id);
   });
 });
+
+describe("the thread's video card", () => {
+  const run = (id: number): HarnessRun => ({ id, status: "completed", delivery: "send", answer_item_id: null, started_ms: 0, ended_ms: 1000 });
+  const turn = (id: number, ...work: HarnessItem[]): HarnessItem[] => [
+    { ...tool("q"), kind: "user", meta: null, run_id: id },
+    ...work.map((w) => ({ ...w, run_id: id })),
+    { ...tool("Done."), kind: "assistant", meta: null, display_role: "answer", run_id: id },
+  ];
+  const kinds = (items: HarnessItem[], slug: string | null) =>
+    buildRows(items, false, { runs: { 5: run(5), 6: run(6) }, video: { slug } }).map((r) => r.kind);
+
+  test("sits under its run's fold, before the answer, and its own renders get no tile", () => {
+    const items = turn(5, tool("oculus studio new v"), tool("oculus studio render v", true), tool("oculus studio render other", true));
+    expect(kinds(items, "v")).toEqual(["item", "work", "render", "video", "item"]);
+    expect(buildRows(items, false, { runs: { 5: run(5) } }).map((r) => r.kind)).toEqual(["item", "work", "render", "render", "item"]);
+  });
+
+  test("moves to the latest run that worked on the video, under one row id", () => {
+    const first = turn(5, tool("oculus studio new v"));
+    const items = [...first, ...turn(6, tool("ls")), ];
+    expect(kinds(items, "v")).toEqual(["item", "work", "video", "item", "item", "work", "item"]);
+    const later = [...first, ...turn(6, tool("oculus studio lint v"))];
+    expect(kinds(later, "v")).toEqual(["item", "work", "item", "item", "work", "video", "item"]);
+    const ids = [first, later].map((list) => buildRows(list, false, { runs: { 5: run(5), 6: run(6) }, video: { slug: "v" } }).find((r) => r.kind === "video")?.id);
+    expect(ids[0]).toBe(ids[1]!);
+  });
+
+  test("has no row until a run has made a Studio call", () => {
+    expect(kinds(turn(5, tool("ls")), null)).toEqual(["item", "work", "item"]);
+    expect(kinds(turn(5, tool("oculus studio new v")), null)).toEqual(["item", "work", "video", "item"]);
+  });
+});

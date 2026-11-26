@@ -1,6 +1,8 @@
 //! A series owns the order and questions of its videos in a single outline.
 
+mod recap;
 mod view;
+pub use recap::{recap, Before, Recap};
 pub use view::{list, show, PartStatus, SeriesStatus};
 
 use std::collections::HashSet;
@@ -84,8 +86,17 @@ impl Outline {
 
 pub fn read(videos: &Path, slug: &str) -> Result<Outline, String> {
     let path = path(videos, slug)?;
+    let text = match fs::read(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "there is no series `{slug}` ({} is missing)",
+                path.display()
+            ))
+        }
+        Err(e) => return Err(format!("{}: {e}", path.display())),
+    };
     let load = || -> Result<Outline, String> {
-        let text = fs::read(&path).map_err(|e| e.to_string())?;
         let outline: Outline = serde_json::from_slice(&text).map_err(|e| e.to_string())?;
         outline.validate()?;
         Ok(outline)

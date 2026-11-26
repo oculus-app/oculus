@@ -597,7 +597,7 @@ fn list_lengths_match_detail_without_reading_components_and_reject_stale_narrati
 }
 
 #[test]
-fn a_series_uses_the_first_live_link_and_the_newest_outline_or_part_time() {
+fn a_series_part_carries_its_own_link_and_the_series_the_newest_outline_or_part_time() {
     use crate::studio::series::{self, Outline, Part};
     use crate::studio::videos::{create_in, NewVideo};
     let root = Scratch::new("series-link-time");
@@ -654,8 +654,13 @@ fn a_series_uses_the_first_live_link_and_the_newest_outline_or_part_time() {
         ),
     ]);
     let list = list_in(&videos, None, &links).unwrap();
-    let series = &list.series[0];
-    assert_eq!(series.thread_id, Some(7));
+    let threads: Vec<_> = list.series[0]
+        .outline
+        .parts
+        .iter()
+        .map(|p| p.video.as_ref().and_then(|v| v.thread_id))
+        .collect();
+    assert_eq!(threads, [None, Some(7), Some(8)]);
     let own = root.join("series/motion/series.json");
     let newest = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
     std::fs::File::options()
@@ -680,11 +685,11 @@ fn a_series_uses_the_first_live_link_and_the_newest_outline_or_part_time() {
         .unwrap();
     let json = serde_json::to_value(list_in(&videos, None, &links).unwrap()).unwrap();
     assert_eq!(json["series"][0]["modified"], stamp + 60);
-    assert_eq!(json["series"][0]["threadId"], 7);
+    assert!(json["series"][0].get("threadId").is_none());
+    assert_eq!(json["series"][0]["parts"][1]["video"]["threadId"], 7);
     links.remove("speed");
-    links.remove("force");
     let json = serde_json::to_value(list_in(&videos, None, &links).unwrap()).unwrap();
-    assert!(json["series"][0]["threadId"].is_null());
+    assert!(json["series"][0]["parts"][1]["video"]["threadId"].is_null());
 }
 
 #[test]

@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import { parseToolMeta } from "@/lib/harness";
 import { failedStep, lastStudioAction, touchesVideo } from "@/lib/studio/activity";
 import { videoProgress } from "@/lib/studio/progress";
+import { threadRunning } from "@/lib/studio/threadRunning";
 import type { VideoRow } from "@/lib/studio/videos";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
 import { useRenderStore } from "@/stores/studio/renderStore";
@@ -16,7 +17,7 @@ import { useVideoDetail } from "./useVideoDetail";
  * app ran ends (`useVideoDetail`). With no row there is no detail.
  */
 export function useVideoProgress(row: VideoRow | null, threadId: number | null) {
-  const running = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.running);
+  const running = useHarnessStore((s) => threadRunning(s, threadId));
   const items = useHarnessStore((s) => itemsFor(threadId, s.items));
   const slug = row?.slug ?? "";
   const { detail, error, reload } = useVideoDetail(slug);

@@ -15,17 +15,17 @@ video starts that chat. The renderer, the commands and the thread link are
 | The nav column: New video, Videos, Components, Themes | `app/src/components/studio/nav/` |
 | Pages | `app/src/pages/studio/` (`VideosPage`, `VideoPage`, `VideoRedirect`, `ComponentsPage`, `ThemesPage`) |
 | New video: a new Chat thread with the skill chip in its box | `app/src/hooks/studio/useNewVideoChat.ts` |
-| Series grouping, outline navigation and shared part requests | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
+| Series grouping, outline navigation, and the chat each part is made in | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/lib/studio/threadRunning.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
 | A series' part on the video page and in the chat card: the series bar, the Parts outline, the frame of a part not made, and what each decides (`seriesView.ts`) | `app/src/components/studio/series/` (`SeriesBar.tsx`, `PartsOutline.tsx`, `UnmadePart.tsx`), `app/src/lib/studio/seriesView.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
 | Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu, the ⋯ menu that deletes the video and what a delete decides | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`, `VideoMenu.tsx`), `app/src/lib/studio/videoActions.ts`, `app/src/hooks/studio/useExportStatus.ts`, `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
 | The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts`, `app/src/hooks/ui/useGridMotion.ts`, `app/src/lib/ui/gridMotion.ts` |
-| The theme and voice pickers, narrating from the page, the out-of-date note, and what each decides (`videoControls.ts`) | `app/src/components/studio/video/` (`PickerPill.tsx`, `ThemePicker.tsx`, `VoicePicker.tsx`, `RenderBar.tsx`), `app/src/lib/studio/videoControls.ts`, `app/src/lib/studio/narration.ts` |
+| The theme and voice pickers, narrating from the page, the out-of-date note, and what each decides (`videoControls.ts`) | `app/src/components/studio/video/` (`PickerPill.tsx`, `ThemePicker.tsx`, `VoicePicker.tsx`, `RenderBar.tsx`), `app/src/lib/studio/videoControls.ts`, `app/src/lib/studio/narration.ts`, `app/src/hooks/studio/useNarrationStatus.ts` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
 | Render and narration state, the video list, the event bridge | `app/src/stores/studio/` (`renderStore.ts`, `narrateStore.ts`, `videosStore.ts`), `app/src/hooks/backend/useStudioEvents.ts` |
 | The Components playground: list, stage, timeline, inspector, source, change box | `app/src/pages/studio/ComponentsPage.tsx`, `app/src/components/studio/components/` (`inspector/` for the props form) |
 | The inspector column both editors share: fold, width, sections, compact fields | `app/src/components/studio/panel/` (`InspectorColumn.tsx`, `fields.tsx`), `app/src/components/ui/CollapsibleSection.tsx`, `app/src/hooks/studio/useInspectorSections.ts` |
-| The playground's hooks: component list, source, stage frames, playhead, change flow | `app/src/hooks/studio/` (`useComponents`, `useComponentSource`, `useStageFrame`, `useStageWidth`, `usePlayhead`, `useLibraryChange`, `useDefaultModel`), `app/src/lib/studio/props.ts` (the form's sections, tooltips and changed-from-default), `app/src/lib/studio/changeRequest.ts` |
+| The playground's hooks: component list, source, stage frames, playhead, change flow | `app/src/hooks/studio/` (`useComponents`, `useComponentSource`, `useStageFrame`, `useStageWidth`, `usePlayhead`, `useLibraryChange`), `app/src/lib/studio/props.ts` (the form's sections, tooltips and changed-from-default), `app/src/lib/studio/changeRequest.ts` |
 | The library choice both pages share, where an item comes from, own versions | `app/src/hooks/studio/useStudioLibrary.ts`, `app/src/components/studio/LevelMark.tsx`, `app/src/components/studio/components/OwnVersionActions.tsx` |
 | The Themes page: list, sample scenes, header actions, token inspector, copies | `app/src/pages/studio/ThemesPage.tsx`, `app/src/components/studio/themes/` (`inspector/` for the token form), `app/src/hooks/studio/useThemeSource.ts`, `app/src/lib/studio/themeDraft.ts` |
 | The colour control | `app/src/components/ui/color/`, `app/src/lib/ui/color.ts` |
@@ -52,11 +52,12 @@ does not light it); there are no toasts or bars ([ui.md](./ui.md)).
 ## New video starts a chat
 
 **New video** (the nav column's first row and the empty grid's offer) opens a new chat of its own whose box already holds the `oculus-studio`
-skill chip (`useNewVideoChat`): it opens a new chat (`openNewChat`), writes
+skill chip (`useStartVideo` over `useNewVideoChat`): it opens a new chat (`openNewChat`), writes
 `/oculus-studio ` into its draft (`newChatKey`), which the box turns into the
 chip once the skill catalogue loads, and opens `/chat?d=<id>&s=<id>` in the
 subject the Videos grid shows (that course code's current subject, else its
-newest), with no `s` while the grid shows All.
+newest), with no `s` while the grid shows All, and `c=1`, so Chat lands with
+its subject picker (`NewThreadDialog`) open on that subject.
 The agent makes the folder with `oculus studio new` and the app links it to
 the thread ([studio.md](./studio.md#a-video-has-a-thread)).
 
@@ -123,28 +124,66 @@ it) and reloads the video list. Only the page shows it.
 The `studio_videos` response includes video rows and [series outlines](./studio.md#a-series-keeps-its-parts-in-order).
 `listVideosAndSeries` exposes both, and `videosStore` holds `videos` and
 `series` from one read. `listVideos` is a video-only convenience wrapper;
-part rows remain in that array. Rows carry nullable `seconds`; outlines
-carry `threadId`, `modified` and a video row for every matching folder,
-including a part that has no render.
+part rows remain in that array. Rows carry nullable `seconds` and the
+thread linked to them (`threadId`); outlines carry `modified` and a video
+row for every matching folder, including a part that has no render, so each
+part names its own chat.
 
 `lib/studio/series.ts` derives grid items sorted by modification time,
 subjects including empty outlines, part membership, made neighbours, the
-next unmade part, made counts and the series belonging to a thread. Only a
+next unmade part, made counts and the series part a thread makes
+(`seriesForThread`). Only a
 part's actual `video` row claims it from the single-video grid: a missing
 or unreadable outline cannot hide a video. Part lookup also leaves an
 unrelated video at a reserved slug standalone. A series filters by its own subject.
 
-`useMakeSeriesPart` observes a series and exposes the shared requested part,
-sending state, running state and send error. Requests live in a store across
-navigation and clear when the part is made or its turn ends; a queued
-continuation stays pending while the harness keeps the thread running.
-Its `make` uses the composer's `harnessSend`, proposal flush and delivery
-helpers, including Settings → Chat's Enter preference. It uses the thread's
-selection (a pending composer pick takes precedence), never the session's
-model or reasoning fallback. A missing model or reasoning level asks the
-student to choose them in Chat. Threads outside the loaded page are read by
-id. With no thread, `useNewVideoChat` opens an unsent draft with the skill
-chip and the requested series and part slugs, in the series' subject.
+**Each part is made in its own chat.** Every Make this part button (the
+part's frame, the Parts row, the grid's part card and the chat's series
+card) calls `useMakeSeriesPart`'s `make`, which opens a new chat through
+`useNewVideoChat` with the request in its box, unsent, in the series'
+subject: ``/oculus-studio Make part 3 of the series `shor` (video `shor-3`).``
+(`seriesPartRequest`). The leading `/oculus-studio ` becomes the skill chip,
+and the text names both slugs because the chat's first turn has no brief.
+The student adds instructions, picks the model and sends; nothing is sent
+from the Studio page.
+
+A part asked for in a chat that already holds the series is made by a
+subagent instead ([studio.md](./studio.md#agent-flow-a-chat-agent-makes-a-video-with-the-oculus-studio-skill)).
+Nothing here knows it is a child: its `oculus studio new --series` links the
+part to the child chat, and from then on `part.video.threadId` names it, so
+the part's page, the outline, the grid and the series card follow the child
+as they would a part's own chat. Until that command runs, no chat is named
+for the part and it does not read as being made.
+
+`seriesMakeStore` remembers which new chat each part was opened in
+(`{series, part} → {draftId, threadId}`), in localStorage under
+`oculus.studioPartChats` the way `draftStore` keeps drafts (read with
+validation, written in a try/catch). Pressing the button again while that
+draft is unsent shows the same draft (`useShowNewChat`, which refills the box
+only if the student emptied it); a draft gone from Chat opens a fresh one.
+When the draft's first send creates its thread, Chat's `onCreated` calls
+`noteNewChatSent` before the draft is dropped, so the entry keeps its new
+thread id; a draft that leaves `draftStore.newChats` with no thread id was
+discarded and its entry goes. The composer empties a draft before its send
+resolves, so a draft pruned in that moment gets its entry back when
+`noteNewChatSent` arrives. An entry also goes once the part's folder is
+linked to its chat (from then on `part.video.threadId` names the chat), when
+the part is made, and when its chat is deleted (`keepThread` finds no
+thread). A sent chat whose turn stops before the folder exists (a question,
+Stop, narration not set up, a relaunch) stays the part's chat, so its card
+and the part page's Open the chat still lead back to it. A folder with no
+link (a part another part's chat made itself rather than through a
+subagent), or one linked to an earlier chat that left it without a render,
+keeps the entry too. The pure state is
+`createSeriesMakeStore` in `seriesMakeState.ts`, tested without React.
+
+A part's chat (`partThread`) is the one remembered for it, else the thread
+linked to its folder. A part is **being made** (`partsBeingMade`) while it
+has no render and its chat's turn runs, before or after its folder exists,
+so several parts can be made at once. "Runs" is one definition everywhere
+(`threadRunning`: the live map when it holds the thread, else the thread
+row's status); the chat of a part not made that is older than Chat's newest
+page of threads is read by id (`keepThread`).
 
 The grid (`StudioGrid` over `MediaGrid` and `MediaTile`) shows single videos
 and series folders interleaved newest first (`studioGridItems`). A video's
@@ -171,10 +210,10 @@ made part is a video's card with "Part 1" where the subject would be; any
 other is an empty dashed card with its title muted and "Part 3" under it.
 Every part's card opens its page (`videoHref`), made or not. The next part
 not made holds **Make this part** (`useMakeSeriesPart`), a button beside the
-card's own, never inside it; a failed request says why under it. A part is
-being made while it is the one asked for, or while its folder exists without
-a render and the series' thread runs; its frame then reads "Making…" with a
-brand spinner, and no part offers the button meanwhile. Which folders are
+card's own, never inside it. A part card being made (`partsBeingMade`) has
+"Making…" with a brand spinner in its frame in place of the button, and
+another part's card keeps its own state; the folder card itself draws only
+its slots and facts. Which folders are
 open is remembered (`oculus-studio-open-series`, `useOpenSeries`), and a
 folder whose series leaves a successful read is forgotten.
 
@@ -230,37 +269,42 @@ any render of the folder runs, and is off while a narration does), and
 **Export** once it has one.
 
 - **The theme and voice pills** are pickers (`PickerPill`: the facts' pill
-  with a small caret, opening a popover). Both are off while a render or a
-  narration of the folder runs or the video's thread runs a turn, with a
-  tooltip saying which (`pillBlocker`); the setters themselves refuse while
-  a render or a narration runs.
+  with a small caret, opening a popover as wide as its rows, 176px at least,
+  with no title, since the pill names it). Their rows take the model menu's
+  look (`PICKER_ROW`): full-strength 12px text, lit only under the pointer,
+  the current one ticked. A press saves at once and closes; neither has a
+  confirm button. Both are off while a render or a narration of the folder
+  runs or the video's thread runs a turn, with a tooltip saying which
+  (`pillBlocker`); the setters themselves refuse while a render or a
+  narration runs.
   - **Theme** (`ThemePicker`) lists the themes in effect for the video's
-    subject (`useThemes` with the full subject code, `useSubjectCode`) in the
-    style chip's rows (`ThemeList`, swatches and where each comes from), the
-    current one ticked and the subject's default marked. A press saves it at
-    once (`setVideoTheme`, `studio_set_theme`), closes, and reads the detail,
-    the list and the export statuses again; a refusal is a line in the
-    popover. A theme video.json names by path shows as written, with no row
-    ticked. Scene stills and the grid's thumbnail are keyed by the folder's
-    modified time (scene stills by the theme too), so they redraw.
-  - **Voice** (`VoicePicker`) reads `studio_narration_status` (local, nothing
-    synthesises) and the Settings voice when it opens and again when a
-    narration ends. Its first row is the Settings voice ("Default · af_heart"),
-    which clears the video's own (`setVideoVoice(slug, null)`); then, for
-    Kokoro, the downloaded voices named as Settings names them
-    (`kokoroVoiceLabel`), with "More voices in Settings" under them and no
-    download here; for a TTS server, a field for the voice id. It opens on
-    Default when the video narrates with the Settings voice. Choosing a row
-    only selects it. One button applies (`narrateAction`): "Use Michael ·
-    narrate 12 scenes" when the choice differs from the voice narrating now
-    (it sets the voice, then starts the narration through `narrateStore`), or
-    "Narrate 3 scenes" when the voice is the same and clips are stale; with
-    neither, a quiet line says the narration is current. For a server the
-    line under the button says "Sends each scene to your TTS server." A reason
-    narration cannot run now (`problem`) is a warning line with a Settings
-    link, and the button is off. Nothing narrates on open, on a choice or on
-    load, and there is no sample, which would synthesise. A refused voice
-    change shows in the popover; a narration's failure, under the row.
+    subject (`useThemes` with the full subject code, `useSubjectCode`) as
+    `ThemeList`'s `compact` rows: a swatch and the name, with the subject's
+    default noted quietly and no source. A press saves it
+    (`setVideoTheme`, `studio_set_theme`) and reads the detail, the list and
+    the export statuses again; a refusal is a line in the popover. A theme
+    video.json names by path shows as written, with no row ticked. Scene
+    stills and the grid's thumbnail are keyed by the folder's modified time
+    (scene stills by the theme too), so they redraw.
+  - **Voice** (`VoicePicker`) lists Kokoro's downloaded voices, each its name
+    and a muted "female" or "male", the one narrating now ticked (the
+    video's own, else the Settings voice). A Kokoro voice reads by its name
+    ("Heart"), on the pill too; any other id reads as written. A press pins
+    that voice to the video (`setVideoVoice`); there is no "Default" row, so
+    a video always names its voice here. A voice whose file is gone stays
+    listed as "not downloaded". Under a hairline, "More voices in Settings",
+    with a gear in the ticks' column, opens Settings → Narration; nothing downloads here. For a TTS server the
+    popover is a field for the voice id with Save (or Enter); saving it empty
+    goes back to the Settings voice. A reason narration cannot run now
+    (`problem`) is a warning line, and a refused change a red one. The
+    popover never narrates and has no sample, which would synthesise: after
+    a change the clips are stale, so the render bar says the narration is
+    out of date and offers Narrate.
+  - **The narration status** (`useNarrationStatus`, `studio_narration_status`:
+    local, nothing synthesises) is read once in `VideoDetailStage` for the
+    voice picker and the render bar: when the page opens, when the video's
+    voice, script or narration changes, when a narration of the folder ends,
+    and when the voice popover opens.
 
 - **The player** is the app's `MediaPlayer` over the newest video render
   (`draft`, `final` or `small`; `playableRenders`), `mediaSrc(path)` plus `&v=<mtime>` so a re-render of
@@ -275,15 +319,20 @@ any render of the folder runs, and is off while a narration does), and
   ([harness.md](./harness.md#a-studio-thread-carries-its-video)).
 - **The render bar** sits before the row's button: the render pills when
   there are several, and a note on the shown one (`renderNote`,
-  `renderNoteText`): when it was made ("Draft · 6h ago"); "Draft · 6h ago ·
-  out of date" with a small **Re-render** when its file is from an older
-  version (its export state, below), which renders that preset through
-  `renderStore`; or "Narration out of date" with a small **Narrate** while
-  the narration no longer covers the script (`detail.timingProblem`), shown
-  even before any render. Narrate starts the narration through
-  `narrateStore`; it is off while the thread's turn or a render runs, or
-  while `studio_narration_status` gives a reason it cannot run, which is its
-  tooltip (`narrateBlocker`). Rust's own sentence for a preset that cannot
+  `renderNoteWords`): when it was made ("Draft · 6h ago"), muted; after it
+  "Out of date", in the warning colour with its glyph, and **Re-render**
+  when its file is from an older version (its export state, below), which
+  renders that preset through `renderStore`; or "Narration out of date", in
+  the same warning, with **Narrate** while
+  the narration no longer covers the script (`detail.timingProblem`) or the
+  narration status counts stale clips, as after a voice change, shown
+  even before any render. A video never narrated reads "Not narrated" with
+  the same button once its thread is idle. Narrate is the page's one way to
+  narrate: it starts the narration through `narrateStore`, and its tooltip
+  says what it will do (`narrateHint`: "Narrates 5 scenes", or "Sends 5
+  scenes to your TTS server"). It is off while the thread's turn or a render
+  runs, or while the narration status gives a reason it cannot run, which is
+  then its tooltip (`narrateBlocker`). Rust's own sentence for a preset that cannot
   render stays in the Export menu. A render in flight, of any preset (Render
   draft, Export and Re-render start them through `renderStore`), takes the
   bar's place with a bar naming the preset, the percentage and Cancel; a
@@ -291,7 +340,7 @@ any render of the folder runs, and is off while a narration does), and
   A failure shows under the row (`RenderError`, `NarrateError`) and stays
   until the next render or narration starts. Rendering is local (ffmpeg), so
   unlike Settings it may start from the page; a narration starts only from
-  the Narrate buttons.
+  the Narrate button.
 - **The export statuses** (`studio_exports`) are read once for the row and
   the Export menu (`useExportStatus`, coalesced per folder): when the detail
   first loads, when a render or a narration of the folder ends, when the
@@ -328,7 +377,7 @@ any render of the folder runs, and is off while a narration does), and
 - **Export** (`ExportMenu`), the row's button once there is a render, is a pill over a popover of the presets, Draft,
   Final and Small ([studio.md](./studio.md#rendering-a-video)): each row names
   the preset and what it makes for this video's shape (`presetHint`), and its
-  state from the export statuses above: a check when its file is current, "out of date"
+  state from the export statuses above: a check when its file is current, "Out of date" in the warning colour
   when the file is from an older version, the reason when it cannot render
   now. Render (or Re-render) closes the menu and starts it through
   `renderStore`, so its progress is the render bar's; while any render or a
@@ -376,26 +425,23 @@ part not made too. Under the facts, the **Parts outline** (`PartsOutline`,
 at most seven rows, never a scroller) lists every part's number, title and
 question: a made part its length, the part on screen lit ("Watching"), a
 part not made a dashed number. Only the next part not made offers **Make
-this part** (`partRowKind`), and only while no part is being made; a row
-opens that part's page.
-
-A part is **being made** while it is the requested part
-(`useMakeSeriesPart`) or, while the series' thread runs, its folder exists
-without a render (`partBeingMade`). Its row then says "Making…".
+this part** (`partRowKind`), unless it is being made; a row opens that
+part's page. Each part being made (`partsBeingMade`) says "Making…" on its
+row, however many there are.
 
 **A part not made** opens at the usual route with no folder behind it.
 `videoPageView` decides from the list (`seriesPartForSlug`) before a failed
 detail read counts as an error, and shows the skeleton, not an error, while
 the list loads; the detail is read only once the folder exists. The frame
 (`UnmadePart`) holds the part's number, its question and Make this part
-(any part not made offers it on its own page, `partPageOffer`; while another
-part is being made the button is off and its tooltip says which). The press
-sends "Make part N" through `useMakeSeriesPart`. While the part is being
-made the frame says "Making “question”", the status (`partStatus`:
-"Sending", "Starting" or "Asked for" until its folder exists, then its
-video's progress line) and **Open the chat**, which opens the series'
-thread; nothing opens on its own. A failed request shows its sentence under
-the button, never as a toast. There is no dock, no facts, no Export and no ⋯ menu.
+(any part not made offers it on its own page, whatever else is being made,
+`partPageOffer`), which opens the part's new chat. While the part is being
+made the frame says "Making “question”" and the status (`partStatus`:
+"Starting" until its folder exists, then its video's progress line).
+**Open the chat** opens the part's chat (`partThread`) and is offered
+whenever the part has one, working or stopped, under the status or under
+Make this part; nothing opens on its own. There is no dock, no facts, no Export and no ⋯ menu. The page
+follows the part's chat: it reads the detail again when that chat's turn ends.
 The list is re-read whenever a Studio call finishes or a turn ends
 (`useHarnessEvents`), so when the part's folder and then its render appear
 the same page becomes its player.
@@ -487,14 +533,25 @@ command's own sentence under it, and playing pauses so a failing frame is not
 asked again every tick. Frames are not cached: each is an object URL, revoked
 when the next lands.
 
-**Source and Ask for a change** share the area under the timeline. Source is
+**Source and Ask for a change** sit under the timeline. Source is a
+folded row (`CollapsibleSection`, closed when the page opens) holding
 `studio_component_source` in a read-only `CodeText`, with the level it came
-from. Ask for a change is one box that sends the request to the agent
-(`useLibraryChange`): the first send of a page session creates a Chat
-harness thread (provider and model from the harness store, filled from the
-provider's list as the composer does, `useDefaultModel`; its `chatScope` is
-the library select's subject, or General), later sends continue it, and a different subject starts a
-new one since a thread's subject is fixed at creation. The text is
+from. Ask for a change, always shown, (`ChangeBox`) is Chat's `Composer`, `compact`, the
+same bar as the subject Overview's ask bar
+([harness.md](./harness.md#the-subject-overviews-ask-bar-starts-a-thread)):
+its settings button names and changes the agent, model, level and mode,
+and it takes `@` files, `/` skills (sent as the message's `skills`) and
+dictation, with a draft per component (`new:studio-change:<name>`). It
+sends the request to the agent through `useLibraryChange`, which sends with
+Chat's `useThreadActions` under `useComposerSelection`: the first send of a
+page session creates a Chat harness thread under the session's pick (its
+`chatScope` is the library select's subject, or General), later sends
+continue it under that thread's pick, and a different subject starts a new
+one since a thread's subject is fixed at creation. A refused send gives the
+words back with Rust's reason under the bar. On both the Components and Themes pages
+the box is docked at the bottom of the page's scroller
+(`components/ui/layout/StickyDock.tsx`, as the Overview's `AskDock`), so it
+stays in view while the stage scrolls under its fade. The text is
 `changeRequestText` (`lib/studio/changeRequest.ts`): a first line naming the
 component and its level, the request, then the instruction to use the
 oculus-studio skill, make a scratch video (`oculus studio new --scratch`,
@@ -503,7 +560,8 @@ which needs no narration), change the component in its
 level. The Themes page sends a theme's version of the same text. The thread is an ordinary one, so it shows in Chat ("Open thread"); its
 sends carry `libraryChange`, so no scratch video is linked to it
 ([studio.md](./studio.md#a-video-has-a-thread)).
-While its turn runs the box shows a spinner and refuses another send; when
+While its turn runs a line says what the agent is changing and a send is
+handed back to the box with a note to wait; when
 the turn ends the page reads the component's source and history again,
 reloads the list (so props and examples follow the new text) and redraws
 the stage. If a newer snapshot exists at that level the result says the change
@@ -533,8 +591,9 @@ built-in `default` under a name asked for. Three columns:
   Grid: `TitleCard`, `Axes`, `Graph`, `Code`, `Bars`, `Table`, `Grid`),
   each in its first example, drawn by `studio_component_frame` through
   `useStageFrame` (one in flight, edits wait 150 ms, as the playground) with
-  the timeline to play or scrub its motion. Under it, Ask for a change and
-  the theme file (the draft's text while there is one).
+  the timeline to play or scrub its motion. Under it, the theme file in a
+  folded Source row (the draft's text while there is one), and Ask for a
+  change docked below.
 - **The inspector** (`inspector/`, in `InspectorColumn` as on the Components
   page: the header's toggle folds it, the seam resizes it, both remembered
   under `oculus-studio-themes-inspector`) edits the draft in sections that
@@ -579,9 +638,9 @@ source and the stage, and a new saved text replaces the draft.
 the theme's level: the text names the theme's file in its library
 (`../studio/library/themes/<name>.json` or the subject's), and tells the
 agent to change a copy in a scratch video, check it with `gallery --theme`
-and promote it back, so the old text is kept for Undo. It is closed for
-the built-in theme (duplicate it first) and while the draft has unsaved
-edits.
+and promote it back, so the old text is kept for Undo. In the dock, a
+line takes the box's place for the built-in theme (duplicate it first) and
+while the draft has unsaved edits.
 
 **The colour control** (`components/ui/color/`) is a round swatch and its
 hex that opens a popover (`ColorField`; `ColorPopover` is the same popover

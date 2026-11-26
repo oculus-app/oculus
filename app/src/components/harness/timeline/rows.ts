@@ -60,7 +60,10 @@ export type ViewRow =
   /** The widget fences of a folded reply, drawn once outside its fold. */
   | { kind: "artifacts"; id: string; item: HarnessItem }
   /** A finished `oculus studio render`, drawn as a playable tile under its fold. */
-  | { kind: "render"; id: string; item: HarnessItem };
+  | { kind: "render"; id: string; item: HarnessItem }
+  /** The thread's video card, under the fold of the last run that worked on
+   *  the video; `item` is that run's latest Studio call. */
+  | { kind: "video"; id: string; item: HarnessItem };
 
 /** An earlier reply of a settled run (Rust's `RunSettled`): work, not the answer.
  *  A reply carrying an interactive or visual fence stays visible in a runless
@@ -104,6 +107,12 @@ export interface RowContext {
   /** Text is streaming: it, not the latest committed reply, is the run's
    *  provisional answer. */
   streaming?: boolean;
+  /** Reasoning is streaming: the run has moved on from its latest reply. */
+  thinking?: boolean;
+  /** The thread's video card is drawn in its timeline. `slug` is the video's
+   *  folder, null for a series part with none yet; the card plays its
+   *  renders, so they get no tile. */
+  video?: { slug: string | null };
 }
 
 const isFoldable = (i: HarnessItem) => i.kind === "tool" || i.kind === "thinking" || i.kind === "assistant";
@@ -118,8 +127,9 @@ function runRows(
   run: HarnessRun | undefined,
   before: HarnessRun | undefined,
   live: boolean,
-  streaming: boolean,
+  inFlight: boolean,
   renders: ReadonlySet<number>,
+  card: HarnessItem | undefined,
   out: ViewRow[],
 ): void {
   const state: RunState | null = runEnded(run) ? (run!.status as RunState) : live ? "running" : null;
@@ -132,9 +142,12 @@ function runRows(
   const tail = stretches[stretches.length - 1];
   let answer: HarnessItem | undefined;
   if (state === "running") {
-    // Replies before the latest steer answered something the student has
-    // since corrected: they are work, never the provisional answer.
-    answer = streaming ? undefined : [...tail.items].reverse().find((i) => i.kind === "assistant");
+    // A reply is the provisional answer only while it is the newest thing
+    // the run did: once a tool, reasoning or more text follows, it was
+    // narration and folds with the work. Replies before the latest steer
+    // are in an earlier stretch, so never it either.
+    const newest = inFlight ? undefined : [...tail.items].reverse().find(isFoldable);
+    answer = newest?.kind === "assistant" ? newest : undefined;
   } else {
     answer = rest.find((i) => i.id === run!.answer_item_id) ?? rest.find((i) => i.display_role === "answer");
   }
@@ -171,6 +184,8 @@ function runRows(
         if (renders.has(item.id)) out.push({ kind: "render", id: `r-${item.id}`, item });
       }
     }
+    // One id for the thread, so the card keeps its state as it moves to a later run.
+    if (card && n === stretches.length - 1) out.push({ kind: "video", id: "video", item: card });
     for (const item of stretch.items) {
       const key = keys.get(item);
       if (item === answer) out.push({ kind: "item", item, dim: false, role, ...(head?.kind === "user" && { asked: head }), ...(key && { key }) });
@@ -230,15 +245,16 @@ export function streamingReply(items: HarnessItem[]): { run: number; ordinal: nu
 /**
  * The thread as rows. Each run's contiguous rows become: its question (with
  * a divider above it where the run switched or carried a handoff), one
- * fold of its work, the widget fences of folded replies and its latest
- * render tiles, then its answer and outcome rows (notice, stop, error,
+ * fold of its work, the widget fences of folded replies, its latest
+ * render tiles and the thread's video card, then its answer and outcome rows (notice, stop, error,
  * refusal, compaction) in order. Rows with no run keep the step bundles. `running` is the thread's: only its last run
  * can be in flight.
  */
 export function buildRows(items: HarnessItem[], running: boolean, ctx: RowContext = {}): ViewRow[] {
   const out: ViewRow[] = [];
   const runs = ctx.runs ?? {};
-  const renders = latestRenders(items);
+  const renders = latestRenders(items, ctx.video?.slug ?? null);
+  const card = ctx.video ? lastStudioCall(items, ctx.video.slug) : undefined;
   let before: HarnessRun | undefined;
   let i = 0;
   while (i < items.length) {
@@ -250,7 +266,7 @@ export function buildRows(items: HarnessItem[], running: boolean, ctx: RowContex
     } else {
       while (j < items.length && items[j].run_id === runId) j++;
       const run = runs[runId];
-      runRows(items.slice(i, j), run, before, running && j === items.length, !!ctx.streaming, renders, out);
+      runRows(items.slice(i, j), run, before, running && j === items.length, !!ctx.streaming || !!ctx.thinking, renders, card?.run_id === runId ? card : undefined, out);
       before = runs[runId] ?? before;
     }
     i = j;
@@ -258,16 +274,33 @@ export function buildRows(items: HarnessItem[], running: boolean, ctx: RowContex
   return out;
 }
 
+const mayBeStudio = (item: HarnessItem) =>
+  item.kind === "tool" && !!(item.content?.includes("studio") || item.meta?.includes("studio"));
+
 /** The thread's last successful `oculus studio render` per video and preset:
- *  earlier ones wrote the same file, so only the latest gets a tile. */
-function latestRenders(items: HarnessItem[]): Set<number> {
+ *  earlier ones wrote the same file, so only the latest gets a tile. None
+ *  for `carded`, the video the thread's card plays. */
+function latestRenders(items: HarnessItem[], carded: string | null): Set<number> {
   const latest = new Map<string, number>();
   for (const item of items) {
-    if (item.kind !== "tool" || !(item.content?.includes("studio") || item.meta?.includes("studio"))) continue;
+    if (!mayBeStudio(item)) continue;
     const action = studioAction(item);
-    if (action?.action === "render" && action.ok === true && action.slug) latest.set(`${action.slug}:${action.preset}`, item.id);
+    if (action?.action !== "render" || action.ok !== true || !action.slug || action.slug === carded) continue;
+    latest.set(`${action.slug}:${action.preset}`, item.id);
   }
   return new Set(latest.values());
+}
+
+/** The latest Studio call a run made on the video `slug`, or with no folder
+ *  known yet, on any: where the thread's video card is drawn. */
+function lastStudioCall(items: HarnessItem[], slug: string | null): HarnessItem | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item.run_id == null || !mayBeStudio(item)) continue;
+    const action = studioAction(item);
+    if (action && (slug == null || action.slug === slug)) return item;
+  }
+  return undefined;
 }
 
 /** Inside an open fold: earlier replies as they are, and two or more tool or
@@ -665,7 +698,7 @@ export const foldMatches = (text: string, query: string) => {
 /** Every item a row stands for, folded ones included: what the row window,
  *  rail jumps and find match against. */
 export function rowItems(row: ViewRow): HarnessItem[] {
-  return row.kind === "item" || row.kind === "artifacts" || row.kind === "render" ? [row.item] : row.items;
+  return row.kind === "bundle" || row.kind === "work" ? row.items : [row.item];
 }
 
 function plural(n: number, one: string, many = `${one}s`) {

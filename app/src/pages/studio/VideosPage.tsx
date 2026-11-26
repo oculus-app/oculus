@@ -9,7 +9,7 @@ import { MediaGrid } from "@/components/ui/layout/MediaGrid";
 import { EmptyState } from "@/components/ui/layout/PageParts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStoredState } from "@/hooks/ui/useStoredState";
-import { useNewVideoChat } from "@/hooks/studio/useNewVideoChat";
+import { useStartVideo } from "@/hooks/studio/useNewVideoChat";
 import { useOpenSeries } from "@/hooks/studio/useOpenSeries";
 import { studioGridItems, studioSubjects } from "@/lib/studio/series";
 import { useVideosStore } from "@/stores/studio/videosStore";
@@ -27,7 +27,7 @@ export default function VideosPage() {
   const filter = subjects.includes(chosen) ? chosen : ALL;
   const items = useMemo(() => studioGridItems({ videos, series }, filter === ALL ? null : filter), [videos, series, filter]);
   const empty = videos.length === 0 && series.length === 0;
-  const startVideo = useNewVideoChat();
+  const startVideo = useStartVideo();
   // An agent or the CLI may have changed the folders since the layout read them.
   useEffect(() => {
     void useVideosStore.getState().reload();
@@ -53,7 +53,7 @@ export default function VideosPage() {
               title="No videos yet"
               body="Describe one in a chat and the agent scripts, narrates and renders it."
             >
-              <Button size="sm" onClick={() => void startVideo(filter === ALL ? null : filter)}>
+              <Button size="sm" onClick={() => startVideo(filter === ALL ? null : filter)}>
                 New video
               </Button>
             </EmptyState>

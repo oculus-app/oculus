@@ -11,18 +11,19 @@ import {
   SideNavLink,
 } from "@/components/ui/layout/SideNav";
 import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
-import { useNewVideoChat } from "@/hooks/studio/useNewVideoChat";
+import { useStartVideo } from "@/hooks/studio/useNewVideoChat";
 import { COMPONENTS_HREF, THEMES_HREF, VIDEOS_HREF } from "@/lib/studio/routes";
 import { cn } from "@/lib/utils";
 
 /**
  * Studio's nav column: New video, which starts a Chat thread with the
- * `oculus-studio` chip in its box (in the Videos grid's subject, when one is
- * chosen), then Videos, Components and Themes.
+ * `oculus-studio` chip in its box and lands on its subject picker (the Videos
+ * grid's subject highlighted, when one is chosen), then Videos, Components
+ * and Themes.
  */
 export function StudioNav({ panel }: { panel: ReturnType<typeof useResizablePanel> }) {
   const { collapsed } = panel;
-  const newVideo = useNewVideoChat();
+  const newVideo = useStartVideo();
 
   return (
     <>
@@ -33,7 +34,7 @@ export function StudioNav({ panel }: { panel: ReturnType<typeof useResizablePane
         animate={!panel.dragging}
         header={<SideNavHeading icon={FilmSlate}>Studio</SideNavHeading>}
       >
-        <button type="button" data-side-nav-close onClick={() => void newVideo(storedSubject())} className={cn(SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE, "cursor-pointer")}>
+        <button type="button" data-side-nav-close onClick={() => newVideo(storedSubject())} className={cn(SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE, "cursor-pointer")}>
           <Plus size={16} className="shrink-0" />
           <span className={cn("min-w-0 flex-1 truncate text-left", SIDE_NAV_FOLDS)}>New video</span>
         </button>

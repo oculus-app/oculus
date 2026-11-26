@@ -8,29 +8,33 @@ import type { SeriesPart, StudioSeries, VideoDetail } from "./videos";
  * the components only draw what these return.
  */
 
-/** The part being made: the one asked for and not yet made, else, while
- *  the thread works, one whose folder exists without a render (the newest). */
-export function partBeingMade(series: StudioSeries, requestedPart: number | null, running: boolean): number | null {
-  if (requestedPart != null && series.parts.some((p) => p.number === requestedPart && !p.made)) return requestedPart;
-  if (!running) return null;
-  const started = series.parts.filter((p) => p.exists && !p.made);
-  return newest(started)?.number ?? null;
+/** A part's chat: the one Make this part opened for it and that is making
+ *  it (`seriesMakeStore`), else the one linked to its folder, else none. */
+export function partThread(part: SeriesPart, remembered: number | null | undefined): number | null {
+  return remembered ?? part.video?.threadId ?? null;
 }
 
-/** The part a series thread's card is about: the one being made, else the
- *  one whose folder changed last, else the first. */
-export function cardPartNumber(series: StudioSeries, making: number | null): number | null {
-  if (making != null) return making;
-  return newest(series.parts.filter((p) => p.video != null))?.number ?? series.parts[0]?.number ?? null;
+/** Each part's chat by part number; a part with none is absent. */
+export function partThreads(series: StudioSeries, remembered: Readonly<Record<string, number>>): Record<number, number> {
+  const out: Record<number, number> = {};
+  for (const p of series.parts) {
+    const id = partThread(p, remembered[p.slug]);
+    if (id != null) out[p.number] = id;
+  }
+  return out;
 }
 
-function newest(parts: SeriesPart[]): SeriesPart | null {
-  return parts.reduce<SeriesPart | null>((best, p) => {
-    if (!best) return p;
-    const a = p.video?.modified ?? -1;
-    const b = best.video?.modified ?? -1;
-    return a > b || (a === b && p.number < best.number) ? p : best;
-  }, null);
+/** The parts being made, in order: not made, and their own chat's turn runs.
+ *  Each part has its own chat, so several can be made at once. */
+export function partsBeingMade(
+  series: StudioSeries,
+  threads: Readonly<Record<number, number>>,
+  running: (threadId: number) => boolean,
+): number[] {
+  return series.parts
+    .filter((p) => !p.made && threads[p.number] != null && running(threads[p.number]))
+    .map((p) => p.number)
+    .sort((a, b) => a - b);
 }
 
 export interface PartNav {
@@ -56,23 +60,19 @@ export function partNav(series: StudioSeries, number: number): PartNav {
 /** A row's end: its length, "Making…", the Make button, or nothing. */
 export type PartRowKind = "made" | "making" | "make" | "none";
 
-/** Make this part shows only on the next part not made, and not while
- *  another part is being made. */
-export function partRowKind(series: StudioSeries, part: SeriesPart, making: number | null): PartRowKind {
+/** Make this part shows only on the next part not made, unless it is being made. */
+export function partRowKind(series: StudioSeries, part: SeriesPart, making: readonly number[]): PartRowKind {
   if (part.made) return "made";
-  if (making === part.number) return "making";
-  if (making != null) return "none";
+  if (making.includes(part.number)) return "making";
   return nextUnmadePart(series)?.number === part.number ? "make" : "none";
 }
 
 /** What a part not made offers on its own page: any part not made can be
- *  asked for there, unless another part is already being made. */
-export type PartPageOffer = { kind: "make" } | { kind: "making" } | { kind: "busy"; reason: string };
+ *  asked for there, whatever else is being made. */
+export type PartPageOffer = "make" | "making";
 
-export function partPageOffer(part: SeriesPart, making: number | null): PartPageOffer {
-  if (making === part.number) return { kind: "making" };
-  if (making != null) return { kind: "busy", reason: `Part ${making} is being made` };
-  return { kind: "make" };
+export function partPageOffer(part: SeriesPart, making: readonly number[]): PartPageOffer {
+  return making.includes(part.number) ? "making" : "make";
 }
 
 /** What the video page draws for its slug. A part not made has no folder
@@ -102,22 +102,18 @@ export interface PartStatus {
   tone: VideoProgress["tone"];
 }
 
-/** A part being made before its folder exists says where the request is;
+/** A part being made before its folder exists says its chat has started;
  *  once the folder exists, its video's progress speaks. */
 export function partStatus({
   part,
   making,
-  sending,
-  running,
   progress,
 }: {
   part: SeriesPart;
   making: boolean;
-  sending: boolean;
-  running: boolean;
   progress: VideoProgress;
 }): PartStatus {
-  if (making && !part.exists) return { label: sending ? "Sending" : running ? "Starting" : "Asked for", tone: "busy" };
+  if (making && !part.exists) return { label: "Starting", tone: "busy" };
   return { label: progress.label, tone: progress.tone };
 }
 

@@ -49,8 +49,6 @@ export interface StudioSeries {
   subject: string | null;
   theme: string;
   parts: SeriesPart[];
-  /** First linked thread in outline order, skipping deleted threads. */
-  threadId: number | null;
   /** Newest outline or matching part modification, in epoch seconds. */
   modified: number | null;
 }

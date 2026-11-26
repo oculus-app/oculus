@@ -275,6 +275,19 @@ is made when its matching video has an MP4 in `renders/`. A scaffold with
 no render shows as “not made, folder exists”. Deleting the video leaves the
 outline entry available to make again.
 
+`oculus studio series recap <series> <part>` (`series::recap`, in
+`series/recap.rs`) is what a part's own chat reads before making the part,
+since that chat has seen none of the others. `<part>` is a part number, or
+else a slug. It prints the series' title, subject and theme, every part's
+line as `show` prints it, this part's line, and the part before's
+`script.md` in full. Only the spoken script goes out, never scene code, the
+storyboard or the manifest. When the part before has no render, one line
+says it is not made yet; when it has one but its `script.md` is missing or
+blank, one line says its script is empty; for the first part, one line says
+so. `--json` gives the same as one object: the `show` fields, `part`, and
+`before` (null for the first part, its `script` null when there is none to
+print). An unknown series or part is an error naming it.
+
 ## Agent flow: a chat agent makes a video with the `oculus-studio` skill
 
 A video is made in a Chat thread by the student's own CLI agent, through
@@ -290,11 +303,21 @@ writes the script and scenes, then renders a draft.
 scenes, so the depth goes into each scene: one picture taken through
 several big changes. A request that holds more than one question gets a
 series outline of at most 7 parts, each a question, in the reply, and only
-part 1 is made; later parts wait for the student ("make part 3"). Each part
-opens with one line picking up the one before, redraws any picture it
-needs, and ends on one line asking the next part's question; a component
-carried between parts is copied into the new part's folder or promoted to
-the subject library.
+part 1 is made; the reply names part 2, which is made from its page or
+asked for in that chat. A chat keeps its first video, so in a chat that
+already holds a series a later part is never made there: the agent proposes
+a `Subagent` card ([harness.md](./harness.md#a-subagent-card-starts-a-child-chat))
+whose task names the series and the part by slug, says to run `series
+recap` first and `new --series`, and asks the child to end on four lines
+(the part's slug, the draft's length, what it covered, the question it
+ends on); its `then` names the next part. A child never proposes one, since a
+subagent cannot start another. A later part's chat, the page's
+or a child's, runs `series recap` first, and opens with one line picking
+up the part before from its script, or from its question when it has none
+(parts may be made at once); a part never reads another part's folder.
+Each part redraws any picture it needs, and ends on one line asking the
+next part's question; a component carried between parts is copied
+into the new part's folder or promoted to the subject library.
 
 **The steps** (`SKILL.md`'s checklist):
 
@@ -1022,7 +1045,7 @@ suggested for words it doubts, until the student decides on each.
   "fine")` gives `{ lexicon, word, reading }`;
   `studio_pronunciation_wrong(id, note?)` gives the item, a blank note
   stored as none; `studio_pronunciation_sample(id, which: "original" |
-  "suggestion")` synthesises the item's sentence as `studio_voice_sample`
+  "suggestion")` synthesises the item's word as `studio_voice_sample`
   does, in Settings -> Studio -> Narration's voice and speed, reading the subject's
   lexicon with one entry over it that pins the word to the original
   phonemes or to the suggestion (`LexiconFiles::pin`), and gives the WAV's
@@ -1091,13 +1114,16 @@ free, and the only sample is Kokoro's, made on this Mac.
   mount and again whenever the window regains focus, since the CLI adds
   items while the page is open; with none it says "No words waiting for
   review." A row shows the word and its suggested reading, the sentence
-  muted with the word picked out, and `<subject or Library> · <video> ·
-  scene <id>`. On the right, **Original** and **Suggestion** play the
-  sentence read each way (`studio_pronunciation_sample`; "Making…" while
+  muted with the word picked out, and a metadata line with the subject's icon
+  and code (or Library) and the video with its Studio film icon (clicking
+  either opens that subject or video; ⌘-click opens a new tab). On
+  the right, **Original** and **Suggestion** play the
+  word read each way (`studio_pronunciation_sample`; "Making…" while
   Kokoro makes it, a click again stops). One clip plays at a time across
   the section (`useClipPlayer`, which the voice sample also uses; blob URLs
   revoked at the end, on Stop and when the page goes). Beneath, three
-  verdicts: **Suggestion correct** and **Pronunciation is fine** decide,
+  verdicts in order — **Suggestion correct** (green check), **Pronunciation is
+  fine** (thumbs-up) and **Suggestion wrong** (red cross): the first two decide,
   and the row gives way to a muted line saying which lexicon it went into
   and that it applies when the video is next narrated, until the next
   reload; **Suggestion wrong** opens "How is it said? (optional)", a text
@@ -2175,7 +2201,7 @@ The list reads both the video folders and the series outlines. Commands on one v
 
 | Command | Does |
 | --- | --- |
-| `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series`, `part` and nullable `seconds`. Each series has its ordered outline, `threadId` (first non-null part link in outline order), `modified` (newest outline or matching part time), and a nullable video row per part with `exists` and `made` flags. A matching folder has a row before it has a render; `made` means it has an MP4. |
+| `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series`, `part` and nullable `seconds`. Each series has its ordered outline, `modified` (newest outline or matching part time), and a nullable video row per part with `exists` and `made` flags; a part's row carries its own `threadId`. A matching folder has a row before it has a render; `made` means it has an MP4. |
 | `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
 | `studio_video_delete(slug)` | moves the video folder to the Trash and removes its thread link. Its series outline still lists the part, now without a video. |
 | `studio_render_delete(slug, preset)` | moves the preset's MP4 and any WebVTT sidecar to the Trash, then drops its cache record and deletes segments and tracks unused by the remaining records. A missing MP4 is an error. |
@@ -2278,10 +2304,14 @@ Every send reads the link (`StudioBrief::read`, `None` once the folder is
 gone) into "The video being made":
 the absolute folder, format, theme, subject library and optional length
 request. When video.json names a series, the brief also gives its ordered
-questions, slugs and render status. Later parts use this same thread through
-the first video's link. The agent renders the requested part's draft, never
-the final, which the student makes with Export. Chat's style choices ride
-prompt context and user-row metadata.
+questions, slugs and render status, and says the chat makes only its own
+part: another part asked for there is proposed as a Subagent card. A
+child chat's brief says instead that a subagent cannot start another, so
+another part is made from the series' own chat or its Studio page. Each
+part is made in a chat of its own, the one Studio's Make this part opens or
+a child chat, whose `studio new --series` links the part to it. The agent
+renders its part's draft, never the final, which the student makes with Export.
+Chat's style choices ride prompt context and user-row metadata.
 See [harness.md](./harness.md#a-studio-thread-carries-its-video).
 
 

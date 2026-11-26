@@ -3,6 +3,7 @@ import type { Subject } from "@/lib/db";
 import type { HarnessItem, HarnessThread, Provider, ThreadUsage } from "@/lib/harness";
 import { deriveThreadInfo, type InfoEntry } from "@/lib/harness/threadInfo";
 import { cn } from "@/lib/utils";
+import { AgentsGroup, ParentRow } from "./AgentRows";
 import { EntryRow } from "./EntryRow";
 import { InfoGroup } from "./InfoRow";
 import { CARD_WIDTH } from "./layout";
@@ -22,10 +23,11 @@ export interface ThreadInfoProps {
 }
 
 /**
- * Thread info's body: what the thread is making (Work), its subject, model
- * and context (unheaded, as one group with Work), then Read and Made. Every
- * row opens its thing beside the chat; nothing here makes a model call. The
- * same card floats in the chat pane or fills the header button's popover.
+ * Thread info's body: the chat a subagent came from, its subject, model and
+ * context (unheaded), then its subagents (Agents), Read, and Made (leading
+ * with what the thread is making from Work kinds, followed by written files).
+ * Every row opens its thing beside the chat; nothing here makes a model call.
+ * The same card floats in the chat pane or fills the header button's popover.
  */
 export function ThreadInfoCard({
   thread,
@@ -83,7 +85,7 @@ export function ThreadInfoCard({
       )}
     >
       <div className="flex flex-col pb-1">
-        <WorkRows thread={thread} onOpened={onOpened} />
+        {thread.parent_id != null && <ParentRow parentId={thread.parent_id} onOpened={onOpened} />}
         <ThreadRows
           thread={thread}
           subjects={subjects}
@@ -94,8 +96,9 @@ export function ThreadInfoCard({
           onOpened={onOpened}
         />
       </div>
+      <AgentsGroup thread={thread} onOpened={onOpened} />
       <InfoGroup heading="Read" rows={read} render={entry} />
-      <InfoGroup heading="Made" rows={made} render={entry} />
+      <InfoGroup heading="Made" rows={made} render={entry} leading={<WorkRows thread={thread} onOpened={onOpened} />} />
     </div>
   );
 }

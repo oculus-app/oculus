@@ -15,11 +15,13 @@ import { useRowWindow } from "./useRowWindow";
 import { useRowVisibility } from "./useRowVisibility";
 import { RetainedRow } from "./RetainedRow";
 import { RenderTile } from "../video/RenderTile";
+import { VideoCard } from "../video/VideoCard";
 import { ModelNamesProvider, RunDividerRow } from "./ModelNames";
 import { ThreadAnnouncer } from "./ThreadAnnouncer";
 import { AssistantSend } from "@/components/markdown/openui/assistant";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { useThreadViewed } from "@/hooks/agents/useThreadViewed";
+import { useThreadVideoSlug } from "@/hooks/studio/useThreadVideo";
 
 /** A committed row: an anchor for `useStickToBottom`, with off-screen layout
  *  skipped by `useRowVisibility`. Padding on all edges preserves focus rings. */
@@ -31,7 +33,9 @@ export type { PendingActions, QuestionActions } from "./types";
  * The thread as a list. Each run is its question, one "Worked for 12s" fold
  * of its work, the widget fences of folded replies and its render tiles
  * (`RenderTile`), then its one answer and
- * any outcome row (`buildRows`). Rows from before runs, and turns the agent
+ * any outcome row (`buildRows`). With `videoCard`, the video the thread is
+ * making is a card (`VideoCard`) under the fold of the last run that worked
+ * on it, or above the rows before any has. Rows from before runs, and turns the agent
  * started itself, keep the older shape: a finished step of two or more tool
  * or reasoning rows folds into one summary row ("Explored 3 files").
  *
@@ -46,10 +50,13 @@ export const Timeline = memo(function Timeline({
   running,
   questions,
   pending,
+  videoCard = false,
 }: {
   items: HarnessItem[];
   threadId: number | null;
   running: boolean;
+  /** Draw the thread's Studio video as a card among its rows. */
+  videoCard?: boolean;
   /** Stable for the life of the page — see `Item`. */
   questions?: QuestionActions;
   pending?: PendingActions;
@@ -82,10 +89,15 @@ export const Timeline = memo(function Timeline({
     };
     return { key: replyKey(at.run, at.ordinal), item };
   }, [streamsWidget, threadId, items]);
+  // Flips twice a thought, not per token.
+  const thinking = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.thinking);
+  const videoSlug = useThreadVideoSlug(videoCard ? threadId : null);
   const rows = useMemo(
-    () => buildRows(items, running, { runs, streaming }),
-    [items, running, runs, streaming],
+    () => buildRows(items, running, { runs, streaming, thinking, ...(videoSlug !== undefined && { video: { slug: videoSlug } }) }),
+    [items, running, runs, streaming, thinking, videoSlug],
   );
+  // No run has worked on the video yet (a series part's new chat): the card leads.
+  const leadingCard = videoSlug !== undefined && threadId != null && !rows.some((r) => r.kind === "video");
   // The oldest waiting request's row, approval or question: always mounted
   // (`useRowWindow`).
   const waitingRow = useHarnessStore((s) => {
@@ -95,12 +107,9 @@ export const Timeline = memo(function Timeline({
       .sort((a, b) => a.id - b.id)[0];
     return oldest?.item_id ?? null;
   });
-  const last = rows[rows.length - 1];
-  // A working fold already says so; the tail's "Working…" would repeat it.
-  // A waiting request's row sits below its run's fold, which then says
-  // "Waiting for approval" or "Waiting for your answer" for both.
-  const folding = (last?.kind === "work" && last.state === "running") ||
-    (waitingRow != null && rows.some((r) => r.kind === "work" && r.state === "running"));
+  // A working fold already says so; the tail's "Working…" would repeat it,
+  // even with a narration or a waiting request's row drawn below the fold.
+  const folding = rows.some((r) => r.kind === "work" && r.state === "running");
   // Every view of a thread (a Chat tab, the lecture dock) draws it here.
   useThreadViewed(threadId);
   const { start, rootRef, sentinelRef } = useRowWindow(rows, threadId, waitingRow);
@@ -117,6 +126,7 @@ export const Timeline = memo(function Timeline({
         onDragStart={dragAsMarkdown}
       >
         {start > 0 && <div ref={sentinelRef} aria-hidden className="h-px shrink-0" />}
+        {leadingCard && <VideoCard key={threadId} threadId={threadId} />}
         {shown.map((r) =>
           r.kind === "bundle" ? (
             <RetainedRow key={r.id} className={ROW}>
@@ -133,6 +143,10 @@ export const Timeline = memo(function Timeline({
           ) : r.kind === "render" ? (
             <RetainedRow key={r.id} className={ROW}>
               <RenderTile item={r.item} />
+            </RetainedRow>
+          ) : r.kind === "video" ? (
+            <RetainedRow key={r.id} className={ROW}>
+              {threadId != null && <VideoCard threadId={threadId} />}
             </RetainedRow>
           ) : (
             <RetainedRow key={r.key ?? r.item.id} className={ROW} questionId={r.item.kind === "user" ? r.item.id : undefined}>

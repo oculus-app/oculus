@@ -11,12 +11,13 @@ import { VideoDetailStage } from "@/components/studio/video/VideoDetailStage";
 import { VideoMenu } from "@/components/studio/video/VideoMenu";
 import { WithPlayback } from "@/components/studio/video/WithPlayback";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMakeSeriesPart } from "@/hooks/studio/useMakeSeriesPart";
+import { useMakeSeriesPart, type MakeSeriesPartState } from "@/hooks/studio/useMakeSeriesPart";
 import { useVideoDetail } from "@/hooks/studio/useVideoDetail";
 import { playableRenders } from "@/lib/studio/exports";
 import { VIDEOS_HREF, videoHref } from "@/lib/studio/routes";
 import { seriesPartForSlug, type SeriesMembership } from "@/lib/studio/series";
-import { partBeingMade, videoPageView } from "@/lib/studio/seriesView";
+import { videoPageView } from "@/lib/studio/seriesView";
+import { threadRunning } from "@/lib/studio/threadRunning";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { useVideosStore } from "@/stores/studio/videosStore";
 
@@ -43,10 +44,12 @@ export default function VideoPage() {
   const { detail, error, reload } = useVideoDetail(membership && !membership.part.exists ? "" : slug);
   const part = membership?.part ?? null;
   const title = part?.title ?? row?.title ?? detail?.row.title ?? slug;
-  const threadId = membership?.series.threadId ?? row?.threadId ?? detail?.row.threadId ?? null;
+  const make = useMakeSeriesPart(membership?.series ?? null);
+  // A part's chat is its own (`partThread`); a single video's is its link.
+  const threadId = membership ? (make.threads[membership.part.number] ?? null) : (row?.threadId ?? detail?.row.threadId ?? null);
   // The agent may change the files while the page is open beside its chat:
   // read them again when its turn ends, the folder's time moves or the part gets its render.
-  const running = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.running);
+  const running = useHarnessStore((s) => threadRunning(s, threadId));
   const modified = row?.modified;
   const made = part?.made;
   const seen = useRef({ running, modified, made });
@@ -105,7 +108,7 @@ export default function VideoPage() {
           ) : view === "loading" ? (
             <Skeleton className="aspect-video w-full rounded-xl" />
           ) : null}
-          {membership && <SeriesParts membership={membership} unmade={view === "unmade"} />}
+          {membership && <SeriesParts membership={membership} make={make} unmade={view === "unmade"} />}
         </div>
       </div>
     </>
@@ -113,22 +116,18 @@ export default function VideoPage() {
 }
 
 /** A part's frame when it isn't made, and the outline under the page. */
-function SeriesParts({ membership, unmade }: { membership: SeriesMembership; unmade: boolean }) {
+function SeriesParts({ membership, make, unmade }: { membership: SeriesMembership; make: MakeSeriesPartState; unmade: boolean }) {
   const { series, part } = membership;
   const navigate = useNavigate();
-  const { requestedPart, running, sending, error, make } = useMakeSeriesPart(series);
-  const making = partBeingMade(series, requestedPart, running);
-  const onMake = (n: number) => void make(series, n);
+  const onMake = (n: number) => make.make(series, n);
   return (
     <>
       {unmade && (
         <UnmadePart
           series={series}
           part={part}
-          making={making}
-          sending={sending}
-          running={running}
-          error={error}
+          making={make.making}
+          threadId={make.threads[part.number] ?? null}
           onMake={onMake}
         />
       )}
@@ -137,9 +136,7 @@ function SeriesParts({ membership, unmade }: { membership: SeriesMembership; unm
           series={series}
           current={part.number}
           currentLabel="Watching"
-          making={making}
-          sending={sending}
-          error={unmade ? null : error}
+          making={make.making}
           onMake={onMake}
           action={(p) => {
             if (p.number === part.number) return null;

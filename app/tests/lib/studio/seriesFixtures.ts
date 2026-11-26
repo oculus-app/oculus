@@ -8,6 +8,6 @@ export const part = (number: number, extra: Partial<SeriesPart> = {}): SeriesPar
   number, slug: `part-${number}`, title: `Part ${number}`, question: "Why?", exists: false, made: false, video: null, ...extra,
 });
 export const series = (extra: Partial<StudioSeries> = {}): StudioSeries => ({
-  slug: "motion", title: "Motion", subject: "PHYS", theme: "default", parts: [], threadId: null, modified: null, ...extra,
+  slug: "motion", title: "Motion", subject: "PHYS", theme: "default", parts: [], modified: null, ...extra,
 });
 

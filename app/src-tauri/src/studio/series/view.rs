@@ -26,6 +26,13 @@ pub struct PartStatus {
     pub made: bool,
 }
 
+impl<P> SeriesStatus<P> {
+    /// `Title (slug)`, the first line `series show` and `series recap` print.
+    pub fn header(&self) -> String {
+        format!("{} ({})", self.title, self.slug)
+    }
+}
+
 impl PartStatus {
     pub fn new(number: usize, part: Part, video: Option<&VideoRow>) -> Self {
         Self {

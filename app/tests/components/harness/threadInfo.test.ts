@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { File } from "@phosphor-icons/react";
+import { InfoGroup, InfoRow } from "@/components/harness/threadInfo/InfoRow";
 import { MIN_COLUMN, RAIL, RESERVE, threadInfoFloats } from "@/components/harness/threadInfo/layout";
 import { registerWorkKind, workKinds, type WorkKind } from "@/components/harness/threadInfo/work";
 
@@ -53,5 +56,40 @@ describe("Work kinds", () => {
     remove();
     remove();
     expect(workKinds().map((k) => k.id)).toEqual(["quiz"]);
+  });
+});
+
+describe("InfoGroup leading rows", () => {
+  test("renders leading Work rows before file rows and hides an empty group unless leading renders a row", () => {
+    const withFiles = renderToStaticMarkup(
+      createElement(InfoGroup<string>, {
+        heading: "Made",
+        rows: ["script.md"],
+        render: (name) => createElement(InfoRow, { key: name, icon: null, label: name }),
+        leading: createElement(InfoRow, { key: "video", icon: null, label: "Qantas", trailing: "Draft ready" }),
+      }),
+    );
+    expect(withFiles.indexOf("Qantas")).toBeLessThan(withFiles.indexOf("script.md"));
+    expect(withFiles).not.toContain("has-[[data-info-row]]:flex");
+
+    const leadingOnly = renderToStaticMarkup(
+      createElement(InfoGroup<string>, {
+        heading: "Made",
+        rows: [],
+        render: (name) => createElement(InfoRow, { key: name, icon: null, label: name }),
+        leading: createElement(InfoRow, { key: "video", icon: null, label: "Qantas" }),
+      }),
+    );
+    expect(leadingOnly).toContain("has-[[data-info-row]]:flex");
+    expect(leadingOnly).toContain("Qantas");
+
+    const empty = renderToStaticMarkup(
+      createElement(InfoGroup<string>, {
+        heading: "Made",
+        rows: [],
+        render: (name) => createElement(InfoRow, { key: name, icon: null, label: name }),
+      }),
+    );
+    expect(empty).toBe("");
   });
 });

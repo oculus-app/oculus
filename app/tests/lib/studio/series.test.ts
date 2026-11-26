@@ -46,11 +46,19 @@ describe("Studio series data", () => {
     expect(nextUnmadePart(series({ parts: [part(1, { made: true })] }))).toBeNull();
     expect(madePartNeighbours(series(), 1)).toEqual({ previous: null, next: null });
   });
-  test("thread lookup never matches a deleted or CLI-only thread", () => {
-    const outline = series({ threadId: 8 });
-    expect(seriesForThread([series(), outline], 8)).toBe(outline);
-    expect(seriesForThread([series(), outline], null)).toBeNull();
+  test("a thread follows the part linked to it, else the part its new chat was opened for", () => {
+    const outline = series({ parts: [
+      part(1, { exists: true, made: true, video: video("part-1", { threadId: 7 }) }),
+      part(2, { exists: true, video: video("part-2", { threadId: 8 }) }),
+      part(3),
+    ] });
+    expect(seriesForThread([series({ slug: "other" }), outline], 8)).toEqual({ series: outline, part: outline.parts[1] });
+    // The chat that planned the series is linked to part 1.
+    expect(seriesForThread([outline], 7)?.part.number).toBe(1);
+    expect(seriesForThread([outline], 9, { series: "motion", part: "part-3" })?.part.number).toBe(3);
     expect(seriesForThread([outline], 9)).toBeNull();
+    expect(seriesForThread([outline], 9, { series: "gone", part: "part-3" })).toBeNull();
+    expect(seriesForThread([outline], null, { series: "motion", part: "part-3" })).toBeNull();
   });
   test("ties are deterministic and input arrays stay unchanged", () => {
     const list = { videos: [video("b"), video("a")], series: [series({ slug: "a" })] };

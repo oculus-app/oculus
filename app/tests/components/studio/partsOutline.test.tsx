@@ -20,9 +20,7 @@ const draw = (props: Partial<Parameters<typeof PartsOutline>[0]> = {}) =>
       series={shor}
       current={2}
       currentLabel="Watching"
-      making={null}
-      sending={false}
-      error={null}
+      making={[]}
       onMake={() => {}}
       action={(p) => ({ label: `Open part ${p.number}`, onClick: () => {} })}
       {...props}
@@ -47,13 +45,16 @@ describe("PartsOutline", () => {
     expect(html.match(/Make this part/g)).toHaveLength(1);
     expect(html).not.toMatch(/not made/i);
   });
-  test("while a part is being made it says so and offers nothing", () => {
-    const html = draw({ making: 3 });
+  test("the next part being made says so and offers nothing", () => {
+    const html = draw({ making: [3] });
     expect(html).toContain("Making…");
     expect(html).not.toContain("Make this part");
   });
-  test("a failed request shows under the next part, never as a toast", () => {
-    expect(draw({ error: "Choose a model" })).toContain("Choose a model");
+  test("several parts can be made at once, and a later one leaves the next part's button", () => {
+    expect(draw({ making: [3, 4] }).match(/Making…/g)).toHaveLength(2);
+    const later = draw({ making: [4] });
+    expect(later.match(/Making…/g)).toHaveLength(1);
+    expect(later.match(/Make this part/g)).toHaveLength(1);
   });
   test("a row without an action is not a button", () => {
     const html = draw({ action: (p) => (p.made ? { label: `Play part ${p.number}`, onClick: () => {} } : null) });

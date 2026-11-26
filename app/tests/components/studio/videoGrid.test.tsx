@@ -21,7 +21,7 @@ function shor(extra: Parameters<typeof series>[0] = {}) {
     video: video(`shor-${n}`, { title: `Made ${n}`, series: "shor", part: n, scenes: 5, seconds: 100 + n }),
   });
   return series({
-    slug: "shor", title: "How Shor's algorithm breaks RSA", subject: "COMP30026", threadId: 7,
+    slug: "shor", title: "How Shor's algorithm breaks RSA", subject: "COMP30026",
     parts: [made(1), made(2), part(3, { slug: "shor-3", title: "The quantum step" }), part(4, { slug: "shor-4" }), part(5, { slug: "shor-5" })],
     ...extra,
   });
@@ -72,37 +72,27 @@ test("an open folder stays first and its parts follow, with Make this part on th
   expect(body).not.toContain("Not made");
 });
 
-const IDLE = { requestedPart: null, running: false, sending: false, error: null, make: async () => true };
-const partCells = (s: ReturnType<typeof shor>, make: Partial<typeof IDLE>) =>
-  text(html(<PartCells series={s} edges={[]} make={{ ...IDLE, ...make }} />));
+const partCells = (s: ReturnType<typeof shor>, making: number[]) =>
+  text(html(<PartCells series={s} edges={[]} make={{ making, make: () => {} }} />));
 
-test("a requested part shows Making… in place of the button", () => {
-  const body = partCells(shor(), { requestedPart: 3 });
+test("a part being made shows Making… in place of the button", () => {
+  const body = partCells(shor(), [3]);
   expect(body).toContain("Making…");
   expect(body).not.toContain("Make this part");
 });
 
-test("a part whose folder exists counts as being made while the thread runs", () => {
+test("a part not being made offers the button, folder or not", () => {
   const s = shor();
   s.parts[2] = { ...s.parts[2], exists: true, video: video("shor-3", { scenes: 2 }) };
-  expect(partCells(s, {})).toContain("Make this part");
-  const running = partCells(s, { running: true });
-  expect(running).toContain("Making…");
-  expect(running).not.toContain("Make this part");
-  // A running thread alone (no folder, nothing asked for) is not a part being made.
-  expect(partCells(shor(), { running: true })).toContain("Make this part");
+  expect(partCells(s, [])).toContain("Make this part");
+  expect(partCells(shor(), [])).toContain("Make this part");
 });
 
-test("while a later part is being made, the next part offers nothing", () => {
-  const cells = seriesPartCells(shor(), { requestedPart: 4, running: false });
-  expect(cells.map((c) => c.kind === "empty" && c.offer)).toEqual([false, false, false, false, false]);
-  expect(cells.map((c) => c.kind === "empty" && c.working)).toEqual([false, false, false, true, false]);
-});
-
-test("a failed request is said under the button, without a toast", () => {
-  const body = partCells(shor(), { error: "Choose a model in Chat first." });
-  expect(body).toContain("Make this part");
-  expect(body).toContain("Choose a model in Chat first.");
+test("two parts are made at once, and a later one leaves the next part's button", () => {
+  const cells = seriesPartCells(shor(), [4, 5]);
+  expect(cells.map((c) => c.kind === "empty" && c.offer)).toEqual([false, false, true, false, false]);
+  expect(cells.map((c) => c.kind === "empty" && c.working)).toEqual([false, false, false, true, true]);
+  expect(partCells(shor(), [3, 4]).match(/Making…/g)?.length).toBe(2);
 });
 
 test("layout counts an open folder's parts as cells and outlines only them", () => {

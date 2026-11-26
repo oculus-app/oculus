@@ -1,52 +1,59 @@
 import { useMemo } from "react";
 
-import { seriesForThread } from "@/lib/studio/series";
-import { cardPartNumber, partBeingMade, partStatus, seriesStatusLabel, type PartStatus } from "@/lib/studio/seriesView";
-import type { SeriesPart, StudioSeries, VideoRow } from "@/lib/studio/videos";
+import { seriesForThread, type SeriesMembership } from "@/lib/studio/series";
+import { partStatus, seriesStatusLabel, type PartStatus } from "@/lib/studio/seriesView";
+import { threadRunning } from "@/lib/studio/threadRunning";
+import type { VideoRow } from "@/lib/studio/videos";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
+import { chatForThread } from "@/stores/studio/seriesMakeState";
 import { useSeriesMakeStore } from "@/stores/studio/seriesMakeStore";
 import { useVideosStore } from "@/stores/studio/videosStore";
 import { useVideoProgress } from "./useVideoProgress";
 
-/** A thread that makes a series: the card follows one part (`cardPartNumber`). */
-export interface ThreadSeries {
-  series: StudioSeries;
-  part: SeriesPart;
-  /** The part being made, if any (`partBeingMade`). */
-  making: number | null;
+/** Which video a thread's card is about: its series part, else the video
+ *  linked to it. */
+function useThreadVideoRow(threadId: number | null) {
+  const allSeries = useVideosStore((s) => s.series);
+  const videos = useVideosStore((s) => s.videos);
+  const opened = useSeriesMakeStore((s) => (threadId == null ? null : chatForThread(s.chats, threadId)));
+  const inSeries = useMemo<SeriesMembership | null>(
+    () => seriesForThread(allSeries, threadId, opened),
+    [allSeries, threadId, opened],
+  );
+  const single = useMemo(
+    () => (inSeries || threadId == null ? null : (videos.find((v) => v.threadId === threadId) ?? null)),
+    [inSeries, videos, threadId],
+  );
+  const row: VideoRow | null = inSeries ? (inSeries.part?.video ?? null) : single;
+  return { inSeries, row };
+}
+
+/** The folder of the video a thread's card shows: null for a series part
+ *  with no folder yet, undefined for a thread with no card. */
+export function useThreadVideoSlug(threadId: number | null): string | null | undefined {
+  const { inSeries, row } = useThreadVideoRow(threadId);
+  return row ? row.slug : inSeries ? null : undefined;
 }
 
 /**
  * The video a chat thread is making and where it is. A thread that makes a
- * series (`seriesForThread`) follows the part being made, else the part
- * whose folder changed last; its status line names the part. Any other
- * thread has the video linked to it (`VideoRow.threadId`), if any. A video
- * whose folder is gone leaves the list, and the thread has no video.
+ * series' part (`seriesForThread`: the part whose folder is linked to it, or
+ * that its new chat was opened for) follows that part, and its status line
+ * names it. Any other thread has the video linked to it (`VideoRow.threadId`),
+ * if any. A video whose folder is gone leaves the list, and the thread has no video.
  */
 export function useThreadVideo(threadId: number | null) {
-  const series = useVideosStore((s) => seriesForThread(s.series, threadId));
-  const single = useVideosStore((s) =>
-    threadId == null || seriesForThread(s.series, threadId) ? null : (s.videos.find((v) => v.threadId === threadId) ?? null),
-  );
-  const requested = useSeriesMakeStore((s) => (series ? (s.requests[series.slug]?.requestedPart ?? null) : null));
-  const sending = useSeriesMakeStore((s) => (series ? (s.requests[series.slug]?.sending ?? false) : false));
-  const running = useHarnessStore((s) => threadId != null && !!s.live[threadId]?.running);
+  const { inSeries, row } = useThreadVideoRow(threadId);
+  const running = useHarnessStore((s) => threadRunning(s, threadId));
 
-  const making = series ? partBeingMade(series, requested, running) : null;
-  const partNumber = series ? cardPartNumber(series, making) : null;
-  const part = series?.parts.find((p) => p.number === partNumber) ?? null;
-  const row: VideoRow | null = series ? (part?.video ?? null) : single;
+  const part = inSeries?.part ?? null;
   const { detail, progress } = useVideoProgress(row, threadId);
 
   const status = useMemo<PartStatus>(() => {
-    if (!series || !part) return { label: progress.label, tone: progress.tone };
-    const s = partStatus({ part, making: making === part.number, sending, running, progress });
-    return { label: seriesStatusLabel(part, series.parts.length, s), tone: s.tone };
-  }, [series, part, making, sending, running, progress]);
+    if (!inSeries || !part) return { label: progress.label, tone: progress.tone };
+    const s = partStatus({ part, making: !part.made && running, progress });
+    return { label: seriesStatusLabel(part, inSeries.series.parts.length, s), tone: s.tone };
+  }, [inSeries, part, running, progress]);
 
-  const inSeries = useMemo<ThreadSeries | null>(
-    () => (series && part ? { series, part, making } : null),
-    [series, part, making],
-  );
   return { row, detail, progress, status, series: inSeries };
 }
