@@ -295,6 +295,21 @@ fn stop_while_a_request_waits_cancels_it_with_the_turn() {
 }
 
 #[test]
+fn a_stop_the_cli_has_not_answered_refuses_an_approval_and_still_takes_a_decline() {
+    let mut bench = turn_open("request-stopping");
+    let (fake, asked) = ask(&bench, json!(0), &[]);
+    bench.play(vec![asked]);
+    let request = told(&bench, "request_opened")[0]["id"].as_i64().unwrap();
+    let stop = bench.command("stop", Kind::Stop { run_id: None }).0;
+    bench.play(vec![stop]);
+    let refused = answer(&mut bench, "approve", request, "accept").unwrap_err();
+    assert_eq!(refused, respond::STOPPING);
+    assert!(fake.replies().is_empty());
+    answer(&mut bench, "decline", request, "decline").unwrap();
+    assert_eq!(fake.replies(), ["decline"]);
+}
+
+#[test]
 fn a_turn_that_ends_with_a_request_waiting_cancels_it_and_tells_its_cli_no() {
     // A spawned child can still be waiting when its parent's turn ends.
     let mut bench = turn_open("request-turn-end");

@@ -2093,7 +2093,9 @@ CLI is told no, and the request is never shown, when:
 (`harness_respond`) is decided against the saved request: refused when it
 is not this chat's, was already answered, has ended (with its reason), its
 route is gone ("The agent that asked has gone …"), the option is not one it
-offers, or it carries feedback (no bridge takes one yet). The commit's
+offers, or it carries feedback (no bridge takes one yet). While the run is
+being stopped an approval takes only its decline; an allowing option is
+refused ("This turn is being stopped …"). The commit's
 conditional `UPDATE … WHERE status = 'pending'` is the claim, so of two
 panes clicking, one lands and the other is refused; the same command id
 again returns the first result. The commit sets `delivery = 'sending'`;

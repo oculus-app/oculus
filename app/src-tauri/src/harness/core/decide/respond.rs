@@ -3,7 +3,7 @@
 //! here; the commit's conditional write is what claims it, so of two
 //! answers racing from two panes one lands and the other is refused.
 
-use crate::harness::requests::{PermissionMode, Status};
+use crate::harness::requests::{Decision as Grant, PermissionMode, Status};
 
 use super::super::commit::Change;
 use super::super::state::State;
@@ -18,6 +18,8 @@ pub(in crate::harness) const NO_FEEDBACK: &str =
     "This request cannot take a message with its answer.";
 pub(in crate::harness) const MODE_WHILE_PENDING: &str =
     "Answer the waiting request before changing how this chat asks.";
+pub(in crate::harness) const STOPPING: &str =
+    "This turn is being stopped, so nothing more can be approved in it.";
 
 pub(super) fn decide(
     state: &State,
@@ -40,8 +42,12 @@ pub(super) fn decide(
     if !message && (request.responder != "live" || !state.live.route) {
         return Err(GONE.into());
     }
-    if !request.options.iter().any(|o| o.id == option_id) {
-        return Err(NO_SUCH_OPTION.into());
+    let option = request.options.iter().find(|o| o.id == option_id);
+    let option = option.ok_or(NO_SUCH_OPTION)?;
+    // A stop the CLI has not answered yet still lets the student decline.
+    let grants = request.kind != "question" && option.decision != Grant::Decline;
+    if grants && state.open.is_some_and(|open| open.stop_requested) {
+        return Err(STOPPING.into());
     }
     if feedback.is_some_and(|f| !f.trim().is_empty()) {
         return Err(NO_FEEDBACK.into());
