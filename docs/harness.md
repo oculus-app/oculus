@@ -838,8 +838,9 @@ maths-heavy replies mounts a page at a time.
   `JumpToLatest` is shared by Chat, the lecture dock and Studio: an arrow over
   a nearly opaque, blurred surface. It appears after 16px of separation,
   stays at a fixed position, and fades out at the bottom over 150ms (instantly
-  with reduced motion). Native rubber-band overscroll does not reveal it or
-  trigger anchor corrections.
+  with reduced motion). Native rubber-band overscroll does not reveal it,
+  trigger anchor corrections or record an anchor, and input during it only
+  releases following.
   Resize handling samples pending native movement before correcting layout,
   so it cannot undo a scroll whose event has not arrived yet.
 - **The view is anchored by hand**, because WebKit has no `overflow-anchor`.

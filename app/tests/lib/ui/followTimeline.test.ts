@@ -50,6 +50,7 @@ function timeline({ running = true, empty = false } = {}) {
   };
   const control = followTimeline(el as unknown as HTMLElement, content as unknown as HTMLElement, () => g.running, (value) => away.push(value));
   const event = (type: string, fields = {}) => el.dispatchEvent(Object.assign(new Event(type), fields));
+  const dispatch = (e: Event) => el.dispatchEvent(e);
   // The reader touching anything (a scrollbar press, say): only movement soon
   // after input counts as theirs; any other movement is layout.
   const user = () => {
@@ -58,7 +59,7 @@ function timeline({ running = true, empty = false } = {}) {
   };
   resize();
   writes.length = 0;
-  return { g, writes, away, control, resize: () => resize(), event, user, attributes, disconnected: () => disconnected };
+  return { g, writes, away, control, row, resize: () => resize(), event, dispatch, user, attributes, disconnected: () => disconnected };
 }
 
 describe("timeline bottom following", () => {
@@ -327,6 +328,74 @@ describe("timeline bottom following", () => {
       t.resize();
     }
     expect(t.away).toEqual([]);
+    expect(t.writes).toEqual([]);
+  });
+
+  test("top rubber-band overscroll with upward wheel never jumps down or corrupts the anchor", () => {
+    const t = timeline({ running: false });
+    t.user();
+    t.g.top = 0;
+    t.event("scroll");
+    for (const top of [-20, -80, -150, -60]) {
+      t.g.top = top;
+      t.event("wheel", { deltaY: -20 });
+      t.event("scroll");
+      t.resize();
+    }
+    t.g.top = 0;
+    t.event("scroll");
+    t.g.top = 200;
+    t.event("scroll");
+    expect(t.g.top).toBe(200);
+    expect(t.writes).toEqual([]);
+  });
+
+  test("fast scroll straight into top overscroll does not bake rubber-band offset into the anchor", () => {
+    const t = timeline({ running: false });
+    t.user();
+    t.g.top = 40;
+    t.event("scroll");
+    t.g.top = -90;
+    t.event("scroll");
+    t.event("wheel", { deltaY: -10 });
+    t.g.top = 0;
+    t.event("scroll");
+    t.g.top = 180;
+    t.event("scroll");
+    expect(t.g.top).toBe(180);
+    expect(t.writes).toEqual([]);
+  });
+
+  test("upward wheel during bottom rubber-band overscroll releases following without jumping", () => {
+    const t = timeline({ running: true });
+    t.user();
+    t.g.top = 840;
+    t.event("scroll");
+    t.event("wheel", { deltaY: -10 });
+    expect(t.writes).toEqual([]);
+    t.g.top = 800;
+    t.event("scroll");
+    t.g.height += 40;
+    t.resize();
+    expect(t.g.top).toBe(800);
+    expect(t.writes).toEqual([]);
+  });
+
+  test("pointerdown during overscroll does not record a rubber-banded anchor", () => {
+    const t = timeline({ running: false });
+    t.user();
+    t.g.top = 0;
+    t.event("scroll");
+    t.g.top = -80;
+    t.event("scroll");
+    const down = new Event("pointerdown");
+    Object.defineProperty(down, "target", { value: t.row });
+    t.dispatch(down);
+    t.g.top = 0;
+    t.event("scroll");
+    t.g.top = 150;
+    t.event("scroll");
+    expect(t.g.top).toBe(150);
     expect(t.writes).toEqual([]);
   });
 

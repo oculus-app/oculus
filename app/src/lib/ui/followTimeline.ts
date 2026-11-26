@@ -40,6 +40,9 @@ export function followTimeline(
   let opening = true;
   const bottom = () => Math.max(0, el.scrollHeight - el.clientHeight);
   const position = () => Math.max(0, Math.min(bottom(), el.scrollTop));
+  // WebKit exposes rubber-band overscroll in both `scrollTop` and element
+  // rects while `position()` clamps to `[0, bottom()]`.
+  const overscrolled = () => el.scrollTop < 0 || el.scrollTop > bottom();
   let at = position();
   // The scroll range when `at` was taken: an upward move that leaves the
   // reader at a smaller range's bottom is the browser clamping, not input.
@@ -81,6 +84,10 @@ export function followTimeline(
     range = bottom();
   };
   const release = () => {
+    if (overscrolled()) {
+      opening = pinned = trailing = false;
+      return;
+    }
     // Layout that landed since the last frame is corrected first, or
     // re-picking the anchor would bake it in.
     correct();
@@ -121,7 +128,7 @@ export function followTimeline(
    *  scroller's own movement since it was taken, so it holds even mid-scroll.
    *  `at` moves with the write, leaving the native movement for `moved`. */
   const correct = () => {
-    if (opening || (pinned && trailing)) return;
+    if (opening || (pinned && trailing) || overscrolled()) return;
     // A pressed control that re-rendered away falls back to its row.
     if (pressedRow && anchor && !anchor.node.isConnected) anchor = pressedRow;
     const drift = anchor && anchorDrift(el, anchor, content);
@@ -136,7 +143,11 @@ export function followTimeline(
     at += position() - before;
   };
   const onScroll = () => {
-    if (el.scrollTop >= 0 && el.scrollTop <= bottom()) correct();
+    if (overscrolled()) {
+      publish();
+      return;
+    }
+    correct();
     moved();
     // Re-armed short of the bottom during a reply: close the last few pixels.
     if (pinned && (trailing || running()) && !atBottom()) stick();
@@ -158,6 +169,7 @@ export function followTimeline(
   // grows around it rather than shoving it away from the pointer.
   const onInput = (event: Event) => {
     trailing = false;
+    if (overscrolled()) return;
     const target = event.target as Element | null;
     if (typeof target?.closest !== "function") return;
     const row = target.closest(`.${ANCHOR_ROW}`);
@@ -189,7 +201,7 @@ export function followTimeline(
     if (!el.clientHeight) return;
     // WebKit exposes rubber-band overscroll in scrollTop and rects. Its
     // rebound is native motion, so don't correct it or flash the arrow.
-    if (el.scrollTop < 0 || el.scrollTop > bottom()) {
+    if (overscrolled()) {
       publish();
       return;
     }
