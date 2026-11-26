@@ -48,6 +48,10 @@ pub struct SendOptions {
     /// that card (`app/continuation.rs`), not something the student typed.
     #[serde(skip)]
     pub continuation: Option<String>,
+    /// Set by the app, never the webview: the chat a new thread is started
+    /// from as a subagent (`app/children`). Read only on creation.
+    #[serde(skip)]
+    pub parent_thread_id: Option<i64>,
     /// The skills the student picked as chips, by name. Named to the agent
     /// before the prompt (`app/skills.rs`), never in the stored row.
     #[serde(default)]
@@ -218,6 +222,7 @@ mod tests {
         o.scope = Some("COMP1".into());
         o.continuation = Some("12.0".into());
         o.permission_mode = crate::harness::requests::PermissionMode::Auto;
+        o.parent_thread_id = Some(3);
         let stored = serde_json::to_value(&o).unwrap();
         for resolved in [
             "scope",
@@ -225,6 +230,7 @@ mod tests {
             "studioBrief",
             "permissionMode",
             "continuation",
+            "parentThreadId",
         ] {
             assert!(stored.get(resolved).is_none(), "{resolved} was stored");
         }
@@ -241,6 +247,11 @@ mod tests {
             Some(crate::harness::requests::PermissionMode::Quiet)
         );
         assert_eq!(opts("{}").start_mode, None);
+        assert_eq!(
+            opts(r#"{"parentThreadId":3}"#).parent_thread_id,
+            None,
+            "only the app starts a child"
+        );
         assert_eq!(serde_json::to_value(ChatScope::Subject(3)).unwrap(), 3);
     }
 

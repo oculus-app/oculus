@@ -15,6 +15,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use tokio::runtime::Runtime;
 
+use crate::harness::app::children::{self, Brief, Waiters};
 use crate::harness::app::consumer::consume;
 use crate::harness::app::startup::Startup;
 use crate::harness::app::BusMsg;
@@ -24,6 +25,7 @@ use crate::harness::{
     jobs, store, Harness, HarnessEvent, OwnTurns, Provider, SendOptions, Sink, Sinks,
 };
 
+use super::fixture::Fixture;
 use super::io::{Clock, Feed, Io};
 use super::replay::{Bridge, Replay};
 use super::{guard::assert_scratch, outbound::Outbound, scenario::Scenario, snapshot};
@@ -46,6 +48,8 @@ pub(super) struct Rig {
     /// Where the thread's sessions report, as in the app.
     pub sinks: Arc<dyn Sinks>,
     pub own_turns: Arc<Mutex<OwnTurns>>,
+    /// Who waits on a subagent's report, as `HarnessState` holds them.
+    pub children: Arc<Waiters>,
     /// What the consumer's effects run against, for one the test runs.
     effects: Effects,
     kept: Arc<Mutex<Option<Vec<Effect>>>>,
@@ -115,9 +119,21 @@ impl Rig {
             .execute(&pool);
         runtime.block_on(moded).unwrap();
         // A continuation sends its card's prompt where the recording sent the request.
-        let card = scenario
-            .continuation
-            .then(|| runtime.block_on(super::continuation::seed_card(&pool, thread)));
+        let card = scenario.continuation.then(|| {
+            runtime.block_on(async {
+                let sibling = match scenario.already_told {
+                    true => Some(super::continuation::seed_sibling_card(&pool, thread).await),
+                    false => None,
+                };
+                match scenario.subagent_card {
+                    true => {
+                        let beside = sibling.as_deref();
+                        super::continuation::seed_subagent_card(&pool, thread, beside).await
+                    }
+                    false => super::continuation::seed_card(&pool, thread).await,
+                }
+            })
+        });
         // The card's reply came from a session, which a chat that holds one
         // has: without it the reply would be history a new session is owed.
         if card.is_some() {
@@ -129,6 +145,18 @@ impl Rig {
             .bind(provider.as_str())
             .execute(&pool);
             runtime.block_on(seeded).unwrap();
+        }
+        // Told by an earlier run of that session.
+        if card.is_some() && scenario.already_told {
+            let told = sqlx::raw_sql(
+                "INSERT INTO harness_runs (thread_id, ordinal, origin, binding_id, execution_status)
+                 SELECT thread_id, 1, 'student', id, 'completed' FROM harness_bindings;
+                 UPDATE harness_bindings SET covered_through = 1;
+                 UPDATE chat_proposals SET told = status,
+                        told_run_id = (SELECT MAX(id) FROM harness_runs);",
+            )
+            .execute(&pool);
+            runtime.block_on(told).unwrap();
         }
         let mut expected = scenario.fixture.expected_outbound.clone();
         if let Some(card) = &card {
@@ -144,8 +172,7 @@ impl Rig {
             &scratch,
             &outbound,
             thread,
-            provider,
-            &scenario.fixture.native_session,
+            &scenario.fixture,
         );
         Rig {
             scenario,
@@ -161,6 +188,7 @@ impl Rig {
             sink: running.sink,
             sinks: running.sinks,
             own_turns: running.own_turns,
+            children: running.children,
             effects: running.effects,
             kept: running.kept,
             told: running.told,
@@ -200,8 +228,7 @@ impl Rig {
             &self.scratch,
             &self.outbound,
             self.thread,
-            self.provider,
-            &self.scenario.fixture.native_session,
+            &self.scenario.fixture,
         );
         self.startup = Startup::default();
         self.harness = running.harness;
@@ -209,6 +236,7 @@ impl Rig {
         self.sink = running.sink;
         self.sinks = running.sinks;
         self.own_turns = running.own_turns;
+        self.children = running.children;
         self.effects = running.effects;
         self.kept = running.kept;
         self.told = running.told;
@@ -344,6 +372,12 @@ impl Rig {
         self.drain();
     }
 
+    /// Effects run as they come again, after [`Self::hold_effects`].
+    pub fn release_effects(&self) {
+        self.run_effects();
+        *self.kept.lock().unwrap() = None;
+    }
+
     /// Another chat of the same provider, with a recorded session of its
     /// own for its first send: its thread, and the bridge the test feeds.
     pub fn second_chat(&mut self) -> (i64, Bridge) {
@@ -361,24 +395,45 @@ impl Rig {
         let bridge = session(
             &self.harness,
             thread,
-            self.provider,
             &self.outbound,
-            &self.scenario.fixture.native_session,
+            &self.scenario.fixture,
             &self.scratch,
         );
         (thread, bridge)
+    }
+
+    /// A subagent's chat of `brief.parent`, started through the command
+    /// path as `children::start` starts one, with a recorded session of the
+    /// rig's provider for its first run: its thread, and the bridge the test
+    /// feeds. The start step waits until that session is registered.
+    pub fn child(&mut self, receipt: &str, brief: Brief) -> Result<(i64, Bridge), String> {
+        let command = self
+            .runtime
+            .block_on(children::command(&self.pool, receipt, brief))?;
+        self.hold_effects();
+        let made = self.command(command);
+        let effects = self.kept.lock().unwrap().take().unwrap_or_default();
+        let child = made?.thread_id;
+        let bridge = session(
+            &self.harness,
+            child,
+            &self.outbound,
+            &self.scenario.fixture,
+            &self.scratch,
+        );
+        for effect in effects {
+            self.runtime
+                .block_on(effect::run(self.effects.clone(), effect));
+        }
+        self.drain();
+        Ok((child, bridge))
     }
 
     /// Another provider's recording, for the same chat: its frames and what
     /// its bridge is expected to be sent. Nothing is registered yet.
     pub fn recording(&self, name: &str) -> Recording {
         let (fixture, frames) = super::fixture::Fixture::load(name);
-        Recording {
-            provider: fixture.provider,
-            frames,
-            expected: fixture.expected_outbound,
-            native_session: fixture.native_session,
-        }
+        Recording { fixture, frames }
     }
 
     /// A recorded session of `recording`'s provider, which the manager's
@@ -392,7 +447,8 @@ impl Rig {
 
     /// Register a recording without relaxing its outbound prompt checks.
     pub fn session_checked(&mut self, recording: &Recording) -> Bridge {
-        self.outbound.expect(recording.expected.iter().cloned());
+        self.outbound
+            .expect(recording.fixture.expected_outbound.iter().cloned());
         self.register_session(recording)
     }
 
@@ -400,9 +456,8 @@ impl Rig {
         session(
             &self.harness,
             self.thread,
-            recording.provider,
             &self.outbound,
-            &recording.native_session,
+            &recording.fixture,
             &self.scratch,
         )
     }
@@ -411,10 +466,17 @@ impl Rig {
     /// any prompt.
     pub fn expect_turn(&self, recording: &Recording) {
         self.outbound
-            .expect(recording.expected.iter().cloned().map(|mut turn| {
-                turn.any_prompt = true;
-                turn
-            }));
+            .expect(
+                recording
+                    .fixture
+                    .expected_outbound
+                    .iter()
+                    .cloned()
+                    .map(|mut turn| {
+                        turn.any_prompt = true;
+                        turn
+                    }),
+            );
     }
 
     /// The prompts that went out where any was accepted, in order.
@@ -490,9 +552,8 @@ impl Rig {
         let next = session(
             &self.harness,
             self.thread,
-            self.provider,
             &self.outbound,
-            &self.scenario.fixture.native_session,
+            &self.scenario.fixture,
             &self.scratch,
         );
         std::mem::replace(&mut self.bridge, next)
@@ -661,10 +722,8 @@ impl Rig {
 
 /// A recording joined to a rig's chat ([`Rig::recording`]).
 pub(super) struct Recording {
-    pub provider: Provider,
+    pub fixture: Fixture,
     pub frames: Vec<Value>,
-    pub expected: Vec<super::outbound::Expected>,
-    native_session: String,
 }
 
 impl Recording {
@@ -684,6 +743,7 @@ struct Running {
     sink: Sink,
     sinks: Arc<dyn Sinks>,
     own_turns: Arc<Mutex<OwnTurns>>,
+    children: Arc<Waiters>,
     effects: Effects,
     kept: Arc<Mutex<Option<Vec<Effect>>>>,
     told: Arc<Mutex<Vec<Value>>>,
@@ -700,9 +760,9 @@ fn boot(
     scratch: &std::path::Path,
     outbound: &Outbound,
     thread: i64,
-    provider: Provider,
-    native_session: &str,
+    fixture: &Fixture,
 ) -> Running {
+    let provider = fixture.provider;
     let harness = Arc::new(Harness::replay(assert_scratch(scratch, scratch)));
     assert_scratch(&crate::harness::thread_cwd(scratch), scratch);
     // The consumer runs beside the replay, as in the app: a send's run is
@@ -711,6 +771,7 @@ fn boot(
     let sink = crate::harness::app::sink_for(&bus, thread, provider);
     let sinks = crate::harness::app::sinks_for(&bus, thread, provider);
     let own_turns: Arc<Mutex<OwnTurns>> = Arc::default();
+    let children: Arc<Waiters> = Arc::default();
     let effects = Effects {
         harness: harness.clone(),
         bus: bus.clone(),
@@ -737,6 +798,7 @@ fn boot(
             continued: Vec::new(),
             kept: kept.clone(),
             clock: clock.clone(),
+            children: children.clone(),
         };
         std::thread::spawn(move || {
             io.runtime = Some(Runtime::new().unwrap());
@@ -751,20 +813,14 @@ fn boot(
             io
         })
     };
-    let bridge = session(
-        &harness,
-        thread,
-        provider,
-        outbound,
-        native_session,
-        scratch,
-    );
+    let bridge = session(&harness, thread, outbound, fixture, scratch);
     Running {
         harness,
         bus,
         sink,
         sinks,
         own_turns,
+        children,
         effects,
         kept,
         told,
@@ -783,11 +839,12 @@ fn boot(
 fn session(
     harness: &Harness,
     thread: i64,
-    provider: Provider,
     outbound: &Outbound,
-    native_session: &str,
+    fixture: &Fixture,
     scratch: &std::path::Path,
 ) -> Bridge {
+    let provider = fixture.provider;
+    let native_session = fixture.native_session.as_str();
     let opened: Arc<Mutex<Option<Sink>>> = Arc::default();
     let sink: Sink = {
         let opened = opened.clone();
@@ -814,6 +871,9 @@ fn session(
             sink,
             native_session,
             scratch,
+            fixture.settings["recorded_mode"]
+                .as_str()
+                .unwrap_or("default"),
         ),
     };
     let handle = bridge.handle.clone();

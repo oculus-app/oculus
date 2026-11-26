@@ -249,9 +249,10 @@ fn a_lost_session_answer_is_one_new_run_after_exit_or_restart_even_after_retries
                 _ => "claude-ls",
             });
             if rig.provider == crate::harness::Provider::Codex {
-                next.expected[0].frame["params"]["approvalPolicy"] =
+                next.fixture.expected_outbound[0].frame["params"]["approvalPolicy"] =
                     serde_json::json!("on-request");
-                next.expected[0].frame["params"]["approvalsReviewer"] = serde_json::json!("user");
+                next.fixture.expected_outbound[0].frame["params"]["approvalsReviewer"] =
+                    serde_json::json!("user");
             }
             let mut bridge = rig.session_of(&next);
             let q = crate::harness::requests::QuestionPayload::read(&r.payload)

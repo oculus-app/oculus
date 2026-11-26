@@ -6,7 +6,7 @@ import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
 import type { Subject } from "@/lib/db";
 import { displayCode, displayName, sqliteUtcToMs } from "@/lib/format/format";
 import { shortAge } from "@/lib/activity/recents";
-import { chatHref, PROVIDERS, type HarnessThread, type ThreadStatus } from "@/lib/harness";
+import { chatHref, PROVIDERS, withChildren, type HarnessThread, type ThreadStatus } from "@/lib/harness";
 import { activityLine } from "@/lib/harness/activity";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,7 @@ export const ThreadRow = memo(function ThreadRow({
   active,
   running,
   drafted,
+  childStatus = null,
   onOpen,
   onNewTab,
   onAskDelete,
@@ -62,17 +63,22 @@ export const ThreadRow = memo(function ThreadRow({
   running: boolean;
   /** Its composer holds unsent words: the row wears a pencil. */
   drafted: boolean;
+  /** Its folded children's most urgent status (`childAttention`), shown
+   *  when it outranks the row's own. */
+  childStatus?: ThreadStatus | null;
   onOpen: (id: number) => void;
   onNewTab: (thread: HarnessThread) => void;
   /** Asks to delete it; the list confirms in a dialog. */
   onAskDelete: (thread: HarnessThread) => void;
 }) {
   const title = t.title?.trim() || "Untitled";
-  const status = threadRowStatus(t, running);
-  const attention = status != null && ATTENTION.has(status);
+  const own = threadRowStatus(t, running);
+  const status = withChildren(own, childStatus);
+  // A child's Working never dims the parent's own unread Done.
+  const attention = (status != null && ATTENTION.has(status)) || (own != null && ATTENTION.has(own));
   const right = (
     <span className={cn("flex shrink-0", HIDDEN_UNDER_ACTIONS)}>
-      <RightSlot thread={t} status={status} />
+      <RightSlot thread={t} status={status} ownWork={own === "working"} />
     </span>
   );
   return (
@@ -134,9 +140,9 @@ export const ThreadRow = memo(function ThreadRow({
         </span>
         <span className={cn("flex h-[18px] w-full min-w-0 items-center gap-1.5", ROW_PREVIEW, SIDE_NAV_FOLDS)}>
           <span className="min-w-0 flex-1 truncate">
-            {status === "working" ? (
+            {own === "working" ? (
               <LiveLine threadId={t.id} fallback={preview} />
-            ) : status === "input" && question ? (
+            ) : own === "input" && question ? (
               question
             ) : (
               preview
@@ -167,8 +173,9 @@ export const ThreadRow = memo(function ThreadRow({
 });
 
 /** The status in its tone, or the thread's age when it has none. */
-function RightSlot({ thread, status }: { thread: HarnessThread; status: ThreadStatus | null }) {
-  if (status) return <StatusPill status={status} since={status === "working" ? runStartedMs(thread) : null} />;
+function RightSlot({ thread, status, ownWork }: { thread: HarnessThread; status: ThreadStatus | null; ownWork: boolean }) {
+  // A child's Working has no timer here: the run is the child's.
+  if (status) return <StatusPill status={status} since={status === "working" && ownWork ? runStartedMs(thread) : null} />;
   const ms = sqliteUtcToMs(thread.updated_at);
   return ms == null ? null : (
     <span className="h-5 shrink-0 text-[11.5px] leading-5 tabular-nums text-muted-foreground">{shortAge(ms)}</span>

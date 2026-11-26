@@ -63,6 +63,8 @@ export function jobProgress(kind: string, state: Row, sources: JobProgressSource
     const done = typeof p.done === "number" ? p.done : undefined, total = typeof p.total === "number" ? p.total : undefined;
     return { label: CHAPTER_PHASE_LABEL[p.phase as ChapterPhase] ?? "Finding chapters…", done, total, percent: done != null && total != null ? percent(done, total) : undefined };
   }
+  // A subagent's progress is its child chat's (`SubagentProgress.tsx`).
+  if (kind === "Subagent") return { label: "Starting the subagent…" };
   // LectureEnd emits only a terminal event; its configured model reads the transcript.
   return { label: "Reading the lecture transcript…" };
 }

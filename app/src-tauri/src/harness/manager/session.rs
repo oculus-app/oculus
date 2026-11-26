@@ -108,6 +108,19 @@ impl Harness {
         sent
     }
 
+    /// A send of `provider` under `opts` would reach the live session the
+    /// chat has now, kept or told a new model, rather than one started for
+    /// it. The start step asks before writing a prompt (`app/send.rs`).
+    pub fn keeps_session(&self, thread_id: i64, provider: Provider, opts: &SendOptions) -> bool {
+        let live = self.live.lock().unwrap();
+        let caps = self.capabilities(provider);
+        let target = selection(provider, opts);
+        matches!(
+            transition(live.get(&thread_id), &target, opts.permission_mode, &caps),
+            Transition::Reuse | Transition::SwitchModelInSession | Transition::SwitchModeInSession
+        )
+    }
+
     /// The thread's live session has work running in the background that
     /// would end with it (`Handle::has_background_work`).
     pub fn has_background_work(&self, thread_id: i64) -> bool {
@@ -167,23 +180,8 @@ impl Harness {
         opts: &SendOptions,
         sinks: &Arc<dyn Sinks>,
     ) -> Result<(), SendError> {
-        let target = Selection {
-            provider,
-            model: opts.model.clone(),
-            effort: opts.reasoning_effort.clone(),
-        };
-        let mode = opts.permission_mode;
-        let current = live.get(&thread_id).filter(|l| l.is_alive());
-        let transition = decide_transition(
-            current.map(|l| Current {
-                selection: &l.selection,
-                mode: l.mode,
-                background: l.handle.has_background_work(),
-                pending_request: l.handle.has_pending_request(),
-            }),
-            (&target, mode),
-            &caps,
-        );
+        let (target, mode) = (selection(provider, opts), opts.permission_mode);
+        let transition = transition(live.get(&thread_id), &target, mode, &caps);
         match transition {
             Transition::Reuse => return Ok(()),
             Transition::Reject(reason) => return Err(reason.into()),
@@ -222,7 +220,7 @@ impl Harness {
             live.insert(
                 thread_id,
                 Live {
-                    handle: spawn(sink, resume)?.with_mode(mode),
+                    handle: spawn(sink, resume, opts)?.with_mode(mode),
                     selection: target,
                     mode,
                     generation,
@@ -327,6 +325,7 @@ impl Harness {
             Provider::Antigravity => Handle::Antigravity(
                 AcpSession::spawn(
                     AcpSpawn {
+                        mode,
                         base: base(cwd)?,
                         brief: instructions(
                             &self.data_dir,
@@ -423,4 +422,28 @@ fn briefed(resume: Option<&str>, opts: &SendOptions) -> Option<super::studio::St
         Some(_) => None,
         None => opts.studio_brief.clone(),
     }
+}
+
+fn selection(provider: Provider, opts: &SendOptions) -> Selection {
+    Selection {
+        provider,
+        model: opts.model.clone(),
+        effort: opts.reasoning_effort.clone(),
+    }
+}
+
+/// What a send under `target` does to the thread's session, if one is up.
+fn transition(
+    live: Option<&Live>,
+    target: &Selection,
+    mode: crate::harness::requests::PermissionMode,
+    caps: &Capabilities,
+) -> Transition {
+    let current = live.filter(|l| l.is_alive()).map(|l| Current {
+        selection: &l.selection,
+        mode: l.mode,
+        background: l.handle.has_background_work(),
+        pending_request: l.handle.has_pending_request(),
+    });
+    decide_transition(current, (target, mode), caps)
 }

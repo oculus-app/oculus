@@ -6,6 +6,7 @@
 use std::path::Path;
 use std::sync::{Arc, Weak};
 
+use crate::harness::requests::PermissionMode;
 use serde_json::{json, Value};
 
 use crate::harness::child::{ChildProc, ThreadSpawn};
@@ -25,14 +26,14 @@ pub(in crate::harness) fn place(frame: &Value, root: &Path) -> Value {
     }
 }
 
-/// The recorded session, with nothing under a raw log, as a one-off turn
-/// when `one_off`.
+/// The recorded session, with nothing under a raw log, with its native mode, or
+/// a one-off turn when no chat mode is supplied.
 pub(in crate::harness) fn session(
     outbound: Outbound,
     sink: Sink,
     native_session: &str,
     root: &Path,
-    one_off: bool,
+    chat_mode: Option<&str>,
 ) -> Arc<AcpSession> {
     let first_id = outbound.next_rpc_id().unwrap_or(1);
     let base = ThreadSpawn {
@@ -57,9 +58,9 @@ pub(in crate::harness) fn session(
         }
         Ok(())
     }));
-    let session = AcpSession::new(proc, first_id, sink, &base, one_off);
+    let session = AcpSession::new(proc, first_id, sink, &base, chat_mode.is_none(), true);
     *reply_to.lock().unwrap() = Arc::downgrade(&session);
-    session.opened_for_replay();
+    session.opened_for_replay(chat_mode == Some("auto"));
     session
 }
 
@@ -68,8 +69,9 @@ pub(in crate::harness) fn bridge(
     sink: Sink,
     native_session: &str,
     root: &Path,
+    mode: &str,
 ) -> Bridge {
-    let session = session(outbound, sink, native_session, root, false);
+    let session = session(outbound, sink, native_session, root, Some(mode));
     let (reading, closing, root) = (session.clone(), session.clone(), root.to_path_buf());
     Bridge {
         handle: Handle::Antigravity(session),
@@ -86,13 +88,39 @@ pub(in crate::harness) fn open_session(
     resume: Option<&str>,
     root: &Path,
 ) -> Result<Arc<AcpSession>, super::OpenError> {
+    open_session_with_options(outbound, sink, resume, root, &Default::default())
+}
+
+pub(in crate::harness) fn opening_with_options(
+    outbound: Outbound,
+    sink: Sink,
+    resume: Option<&str>,
+    root: &Path,
+    opts: &crate::harness::SendOptions,
+) -> Result<Bridge, super::OpenError> {
+    let session = open_session_with_options(outbound, sink, resume, root, opts)?;
+    let (reading, closing, root) = (session.clone(), session.clone(), root.to_path_buf());
+    Ok(Bridge {
+        handle: Handle::Antigravity(session),
+        inbound: Box::new(move |frame| reading.inbound(&place(frame, &root))),
+        eof: Box::new(move || closing.closed()),
+    })
+}
+
+fn open_session_with_options(
+    outbound: Outbound,
+    sink: Sink,
+    resume: Option<&str>,
+    root: &Path,
+    opts: &crate::harness::SendOptions,
+) -> Result<Arc<AcpSession>, super::OpenError> {
     let base = ThreadSpawn {
         bin: "agy".into(),
         cwd: root.join("agents"),
         library: root.into(),
         resume: resume.map(String::from),
-        model: None,
-        effort: None,
+        model: opts.model.clone(),
+        effort: opts.reasoning_effort.clone(),
         env: Vec::new(),
         raw_log: None,
     };
@@ -111,9 +139,9 @@ pub(in crate::harness) fn open_session(
         }
         Ok(())
     }));
-    let session = AcpSession::new(proc, 1, sink, &base, false);
+    let session = AcpSession::new(proc, 1, sink, &base, false, false);
     *reply_to.lock().unwrap() = Arc::downgrade(&session);
-    if let Err(e) = session.open(&base, "") {
+    if let Err(e) = session.open(&base, "", PermissionMode::Ask) {
         session.kill();
         return Err(e);
     }

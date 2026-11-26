@@ -125,6 +125,7 @@ pub(super) fn intent(thread_id: i64, receipt: &str) -> store::SendIntent {
         continuation: None,
         queued: None,
         options: None,
+        brief_from: None,
     }
 }
 
@@ -252,13 +253,13 @@ async fn bindings_follow_the_native_session_and_rewinds_drop_their_runs() {
         2
     );
     assert!(
-        store::settle_run(&pool, first.run_id, first.attempt_id, "completed")
+        store::settle_run(&pool, first.run_id, first.attempt_id, "completed", None)
             .await
             .unwrap()
             .is_some()
     );
     assert!(
-        store::settle_run(&pool, first.run_id, first.attempt_id, "failed")
+        store::settle_run(&pool, first.run_id, first.attempt_id, "failed", None)
             .await
             .unwrap()
             .is_none(),
@@ -536,7 +537,7 @@ async fn settled(
             .await
             .unwrap();
     }
-    let settlement = store::settle_run(&pool, run.run_id, run.attempt_id, status)
+    let settlement = store::settle_run(&pool, run.run_id, run.attempt_id, status, None)
         .await
         .unwrap();
     (ids, settlement, pool, dir)
@@ -597,6 +598,36 @@ async fn missing_text_is_a_notice_never_a_pretend_answer() {
     // A stop already says what happened: no notice on top of it.
     let (_, s, ..) = settled(&[("partial", None)], true, "interrupted").await;
     assert!(s.unwrap().notice.is_none());
+}
+
+#[tokio::test]
+async fn a_silent_run_uses_its_own_resolved_options_decision() {
+    let (_dir, pool) = scratch_pool("turn-refusal").await;
+    let thread = store::create_thread(&pool, Provider::Claude, None, None, None, "q")
+        .await
+        .unwrap();
+    for (key, decision, expected) in [
+        (
+            "a",
+            "decline",
+            "The agent stopped after its request was declined.",
+        ),
+        ("b", "accept", store::NO_ANSWER),
+    ] {
+        let run = store::begin_run(&pool, &intent(thread, key)).await.unwrap();
+        let options =
+            serde_json::json!([{"id":"provider-option","label":"Choose","decision":decision}]);
+        sqlx::query("INSERT INTO harness_requests
+            (thread_id, run_id, attempt_id, provider, kind, action, payload, options, status, responder, native_ref, response, delivery)
+            VALUES (?1,?2,?3,'claude','approval','tool','{}',?4,'resolved','live','1','provider-option','acknowledged')")
+            .bind(thread).bind(run.run_id).bind(run.attempt_id).bind(options.to_string())
+            .execute(&pool).await.unwrap();
+        let settlement = store::settle_run(&pool, run.run_id, run.attempt_id, "completed", None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(settlement.notice.unwrap().1, expected);
+    }
 }
 
 #[tokio::test]

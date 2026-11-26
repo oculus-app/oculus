@@ -3,6 +3,7 @@
 //! and releases queued messages as turns close. One module per command
 //! family, registered in `lib.rs` by the module that defines it.
 
+pub mod children;
 pub(in crate::harness) mod consumer;
 pub(in crate::harness) mod continuation;
 mod drafts;
@@ -152,6 +153,8 @@ pub struct HarnessState {
     bus: Bus,
     /// Startup's repair, which every thread command waits for.
     startup: Arc<startup::Startup>,
+    /// Who waits on a subagent's report; the consumer wakes them.
+    children: Arc<children::Waiters>,
 }
 
 /// Where the app's own events for a thread go: from no session.

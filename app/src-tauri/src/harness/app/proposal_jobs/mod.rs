@@ -56,6 +56,7 @@ fn validate(kind: &str, state: &Value) -> Result<(), String> {
                 return Err(format!("unknown download {item}"));
             }
         }
+        "Subagent" => subagent::validate(state)?,
         _ => return Err(format!("{kind} is not a job card")),
     }
     Ok(())
@@ -64,4 +65,5 @@ fn validate(kind: &str, state: &Value) -> Result<(), String> {
 pub mod lifecycle;
 pub mod metadata;
 mod runner;
+pub mod subagent;
 pub(super) use lifecycle::reconcile;

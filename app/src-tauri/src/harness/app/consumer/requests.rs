@@ -6,7 +6,7 @@
 
 use crate::harness::core::effect::{Effect, Reply as ReplyEffect};
 use crate::harness::requests::{
-    self, policy, reasons, Action, Delivery, LiveRoute, NewRequest, PermissionMode, Reply,
+    self, policy, reasons, Action, Delivery, LiveRoute, NewRequest, PermissionMode, Refusal, Reply,
     RequestView, Status,
 };
 use crate::harness::{Generation, HarnessEvent, Provider, Release};
@@ -41,11 +41,13 @@ impl Consumer {
         if request.action == Action::Question
             && requests::QuestionPayload::read(&request.payload).is_err()
         {
+            self.runs.declined(thread_id, Refusal::Other);
             return decline(thread_id, &request, "invalid or secret question", route, io);
         }
         let library = io.library();
         let cwd = crate::agents::agents_dir(&library);
         if let Some(path) = policy::protected(&library, &cwd, &request.paths) {
+            self.runs.declined(thread_id, Refusal::ProtectedPath);
             let why = format!("it names the protected path {path}");
             return decline(thread_id, &request, &why, route, io);
         }
@@ -56,6 +58,7 @@ impl Consumer {
         };
         match self.rt.block_on(requests::store::mode(&pool, thread_id)) {
             Ok(PermissionMode::Quiet) if request.action != Action::Question => {
+                self.runs.declined(thread_id, Refusal::Other);
                 return decline(
                     thread_id,
                     &request,
@@ -434,8 +437,8 @@ fn failed() -> Reply {
     Reply::Failed("the request's route was gone".into())
 }
 
-/// Tell the CLI no without showing the request: it goes no further than a
-/// log line, and the agent explains.
+/// Tell the CLI no without showing the request: only a log line and the open
+/// run's refusal reason survive.
 fn decline(
     thread_id: i64,
     request: &NewRequest,

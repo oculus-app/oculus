@@ -1,10 +1,10 @@
-//! What no agent may write, whichever CLI runs it. Each bridge renders these
+//! The library paths Oculus protects. Each bridge renders these
 //! in its own mechanism: Claude (`providers/claude/settings.rs`) as `Edit`
 //! denies its sandbox also takes; Codex (`providers/codex/mod.rs`) as the
 //! writable roots it is given; opencode's copy is static in
 //! `templates/OPENCODE.template.json`, held to these by the test below; Rust
-//! refuses them at every request (`requests/policy.rs`), which is
-//! Antigravity's only gate.
+//! refuses a request naming them (`requests/policy.rs`). Antigravity's macOS
+//! folder guard denies writes to these paths even when native Auto approves them.
 //!
 //! The library's own zone — everything in a subject beside `Course/` and
 //! `.oculus/` (`layout::Zone::Own`) — is writable without a request.

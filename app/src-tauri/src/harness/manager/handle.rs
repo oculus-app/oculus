@@ -87,11 +87,8 @@ impl Handle {
         }
     }
 
-    /// The same session, sending its later turns under `mode`. Only Codex
-    /// reads one, on each `turn/start`. Claude's is fixed at spawn (its
-    /// settings say whether a command may leave the sandbox), so a change
-    /// restarts it (`mode_switch_in_session` is false) and this keeps it as
-    /// it is; the others ask no one and record it.
+    /// Codex takes the mode on turn/start and Antigravity before its prompt.
+    /// Claude takes it at spawn and opencode has no permission callbacks.
     pub(super) fn with_mode(&self, mode: PermissionMode) -> Handle {
         match self {
             Handle::Codex(server, tid, opts) => {
@@ -101,7 +98,11 @@ impl Handle {
                 };
                 Handle::Codex(server.clone(), tid.clone(), Arc::new(opts))
             }
-            Handle::Claude(_) | Handle::Opencode(..) | Handle::Antigravity(_) => self.clone(),
+            Handle::Antigravity(s) => {
+                s.want_mode(mode);
+                self.clone()
+            }
+            Handle::Claude(_) | Handle::Opencode(..) => self.clone(),
         }
     }
 

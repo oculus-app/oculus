@@ -15,8 +15,10 @@ export interface RateWindow {
 type HarnessEvent =
   | { type: "proposal"; proposal: Proposal }
   | { type: "session_started"; provider_session_id: string; model: string | null; cwd: string }
-  /** `at`: playhead second for a message sent from the lecture dock. */
-  | { type: "user_message"; text: string; at?: number | null }
+  /** `at`: playhead second for a message sent from the lecture dock.
+   *  `from_thread`: the parent chat whose brief this is, on a subagent's
+   *  first message; its row keeps it as `UserMeta.fromThread`. */
+  | { type: "user_message"; text: string; at?: number | null; from_thread?: number | null }
   /** A turn the agent started itself (Claude picking up a finished
    *  background task); `after` names those tasks. Holds the thread until its
    *  `turn_finished`, like a sent message. */
@@ -92,6 +94,8 @@ type HarnessEvent =
   /** A restart steer superseded the run's attempt; the run goes on as
    *  `attempt_id`, and `work_item_ids` (the old attempt's replies) are work. */
   | { type: "attempt_restarted"; run_id: number; attempt_id: number; superseded: number; work_item_ids: number[] }
+  /** A one-line note from the session (Antigravity's Auto is unavailable). */
+  | { type: "session_notice"; text: string }
   /** The row saying an answer, or part of it, did not arrive. */
   | { type: "session_restarted"; text: string }
   | { type: "delivery_notice"; text: string }
@@ -166,11 +170,18 @@ export interface HarnessThread {
   /** When the run in flight started, read with the list (`reads.ts`) and
    *  kept by the store's run events; null while none is. */
   run_started_at?: string | null;
+  /** How its latest run that ran ended, read with the list (`reads.ts`) and
+   *  kept by `turn_finished`; null before one has. Thread info's Agents
+   *  group tells Done from Stopped by it. */
+  last_run?: "completed" | "interrupted" | "failed" | null;
+  /** The chat this one was started from as a subagent
+   *  (`harness_threads.parent_thread_id`); null for a chat the student
+   *  started, or once its parent is deleted. */
+  parent_id: number | null;
 }
 
-/** `ask` shows each request; `quiet` ("Don't ask") declines without one;
- *  `auto` hands it to the CLI's reviewer, which asks as `ask` where the
- *  bridge has none (`Capabilities.autoReview`). */
+/** Ask shows approvals, Quiet declines them unseen, and Auto uses the
+ *  provider's native reviewer when available. */
 export type PermissionMode = "ask" | "quiet" | "auto";
 
 /** One answer a request offers (`RequestOption` in
@@ -251,6 +262,14 @@ export interface HarnessRequest {
  *  while it waits for its turn to stop and start again. */
 export type SteerDelivery = "sending" | "written" | "delivered" | "unknown" | "restart";
 
+/** A `user` row's `meta` (`store::begin`). */
+export interface UserMeta {
+  /** The playhead second a lecture-dock question was asked at. */
+  at?: number;
+  /** A subagent's brief: the parent chat's words, not the student's. */
+  fromThread?: number;
+}
+
 /** A `steer` row's `meta`. */
 export interface SteerMeta {
   /** The message's identity: its `steered` run, the queued run it came
@@ -263,6 +282,7 @@ export interface SteerMeta {
 
 /** `interrupted` is an empty marker where a turn was stopped. */
 type ItemKind =
+  /** `meta` is `UserMeta`. */
   | "user"
   | "assistant"
   | "thinking"
@@ -279,6 +299,8 @@ type ItemKind =
   /** Heads a card's continuation run; `content` is its line ("Sync finished —
    *  continuing"), `meta` is `{ proposal: string }`. Never the student's words. */
   | "continuation"
+  /** A note from the session itself; `content` is its one line. */
+  | "session_notice"
   /** A run whose answer, or part of it, never arrived; `content` says which. */
   | "session_restarted"
   | "delivery_notice"

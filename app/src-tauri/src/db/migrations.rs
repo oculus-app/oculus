@@ -1022,6 +1022,38 @@ ALTER TABLE harness_threads DROP COLUMN completed_at;
                         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 66,
+            description: "chats: the chat a subagent's chat was started from",
+            // Set once, when `harness/app/children` starts the child. Deleting
+            // the parent leaves the child as an ordinary chat: the cascade
+            // needs `foreign_keys`, so `store::threads::delete` clears it too.
+            sql: r#"
+ALTER TABLE harness_threads ADD COLUMN parent_thread_id INTEGER
+    REFERENCES harness_threads(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_harness_threads_parent
+    ON harness_threads(parent_thread_id) WHERE parent_thread_id IS NOT NULL;
+                        "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 67,
+            description: "chat cards: the run that told a card its status",
+            // A card counts as told only to the session of the run that told
+            // it (`harness/app/proposal_context.rs`). A card told before this
+            // is taken as told by the newest run a session has seen.
+            sql: r#"
+ALTER TABLE chat_proposals ADD COLUMN told_run_id INTEGER
+    REFERENCES harness_runs(id) ON DELETE SET NULL;
+UPDATE chat_proposals SET told_run_id = (
+    SELECT r.id FROM harness_runs r JOIN harness_bindings b ON b.id = r.binding_id
+     WHERE r.thread_id = chat_proposals.thread_id AND r.ordinal > 0
+       AND r.ordinal <= b.covered_through
+     ORDER BY r.ordinal DESC LIMIT 1)
+ WHERE told IS NOT NULL;
+                        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -1100,6 +1132,91 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(chats, 2);
+    }
+
+    /// 66 gives every chat an empty parent, and with `foreign_keys` on,
+    /// deleting a parent leaves its child as a chat of its own.
+    #[tokio::test]
+    async fn existing_chats_have_no_parent_and_a_deleted_parent_frees_its_child() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let (before, after): (Vec<_>, Vec<_>) = super::all()
+            .into_iter()
+            .partition(|migration| migration.version < 66);
+        for migration in before {
+            sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
+        }
+        sqlx::raw_sql("INSERT INTO harness_threads (id, provider) VALUES (1, 'claude')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for migration in after {
+            sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
+        }
+        let parent: Option<i64> =
+            sqlx::query_scalar("SELECT parent_thread_id FROM harness_threads WHERE id = 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(parent, None);
+        sqlx::raw_sql(
+            "PRAGMA foreign_keys = ON;
+             INSERT INTO harness_threads (id, provider, parent_thread_id) VALUES (2, 'codex', 1);
+             DELETE FROM harness_threads WHERE id = 1;",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let child: (i64, Option<i64>) =
+            sqlx::query_as("SELECT id, parent_thread_id FROM harness_threads")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(child, (2, None));
+    }
+
+    /// 67 takes a told card as told by the newest run a session has seen,
+    /// so an upgrade sends no old card again; an untold card has no run.
+    #[tokio::test]
+    async fn told_cards_are_told_by_the_newest_run_a_session_saw() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let (before, after): (Vec<_>, Vec<_>) = super::all()
+            .into_iter()
+            .partition(|migration| migration.version < 67);
+        for migration in before {
+            sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
+        }
+        // Run 22 was written and never reached its session.
+        sqlx::raw_sql(
+            "INSERT INTO harness_threads (id, provider) VALUES (1, 'claude');
+             INSERT INTO harness_bindings (id, thread_id, provider, native_session, covered_through)
+             VALUES (10, 1, 'claude', 's1', 2);
+             INSERT INTO harness_runs (id, thread_id, ordinal, origin, binding_id, execution_status) VALUES
+               (20, 1, 1, 'student', 10, 'completed'), (21, 1, 2, 'student', 10, 'completed'),
+               (22, 1, 3, 'student', 10, 'failed');
+             INSERT INTO chat_proposals (item_id, block, thread_id, kind, status, state, initial_state, told)
+             VALUES (5, 0, 1, 'NewTasks', 'created', '{}', '{}', 'created'),
+                    (6, 0, 1, 'NewTasks', 'pending', '{}', '{}', NULL);",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        for migration in after {
+            sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
+        }
+        let rows: Vec<(i64, Option<i64>)> =
+            sqlx::query_as("SELECT item_id, told_run_id FROM chat_proposals ORDER BY item_id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(rows, vec![(5, Some(21)), (6, None)]);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 import type { ProposalState } from "@/lib/harness/proposals";
 
 export const PROPOSAL_KINDS = new Set(["EditItems", "NewCheatNotes", "NewTasks", "NewProject", "NewEvents", "NewNote", "TaskChanges", "ProjectChanges", "EventChanges", "TagChanges", "DeleteTasks", "DeleteEvents"]);
-export const JOB_KINDS = new Set(["Sync", "Reparse", "Transcribe", "LectureChapters", "LectureEnd", "Download"]);
+export const JOB_KINDS = new Set(["Sync", "Reparse", "Transcribe", "LectureChapters", "LectureEnd", "Download", "Subagent"]);
 export type Row = Record<string, unknown>;
 export const object = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 export const rows = (value: unknown): Row[] => Array.isArray(value) ? value.map(object) : [];

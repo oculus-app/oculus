@@ -84,6 +84,7 @@ mod tests {
                 effort: effort.map(String::from),
                 subject_code: None,
                 lecture: None,
+                parent_thread_id: None,
             }),
             live: Live {
                 takeover: Takeover::read(|p| matches!(p, Provider::Claude | Provider::Codex)),

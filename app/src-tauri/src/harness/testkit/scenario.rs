@@ -32,6 +32,11 @@ pub(super) struct Scenario {
     pub restart: bool,
     /// The run is a card's continuation, started by its `CardSettled`, not a send.
     pub continuation: bool,
+    /// The continued card is a finished Subagent card, not a Sync.
+    pub subagent_card: bool,
+    /// A sibling card's continuation already carried this card and another
+    /// finished one, so both are told before this continuation goes out.
+    pub already_told: bool,
     /// Labelled frames a [`super::rig::Rig`] pauses before (`Rig::until`).
     pub gates: Vec<(String, usize)>,
 }
@@ -48,6 +53,8 @@ impl Scenario {
             load_race: false,
             restart: false,
             continuation: false,
+            subagent_card: false,
+            already_told: false,
             gates: Vec::new(),
         }
     }

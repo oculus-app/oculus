@@ -257,6 +257,7 @@ mod tests {
             subject: None,
             portrait: Some(false),
             length_secs: Some(90),
+            child: false,
         };
         let plain = instructions(&root, None, None, None);
         let full = instructions(&root, None, None, Some(&video));

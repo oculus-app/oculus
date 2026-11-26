@@ -352,6 +352,10 @@ impl ClaudeSession {
             let line = response(wire_id, &Value::Null, Decision::Decline, DECLINED_UNSEEN);
             if let Err(e) = self.proc.write_line(&line) {
                 elog!("[oculus] claude: declining a prompt: {e}");
+            } else if !self.one_off && !stopping {
+                sink(HarnessEvent::RequestDeclined {
+                    reason: crate::harness::requests::Refusal::Other,
+                });
             }
             return;
         };

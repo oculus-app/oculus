@@ -1,22 +1,26 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ResizeHandle } from "@/components/ui/layout/ResizeHandle";
 import { SideNav } from "@/components/ui/layout/SideNav";
-import { chatHref, type HarnessThread } from "@/lib/harness";
+import { chatHref, childAttention, type HarnessThread } from "@/lib/harness";
+import { nestChildren } from "@/lib/harness/children";
 import type { Subject } from "@/lib/db";
 import type { ChatScope } from "@/lib/harness/scope";
 import { useCollapsedGroups } from "@/hooks/shell/useCollapsedGroups";
 import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
-import { useStoredState } from "@/hooks/ui/useStoredState";
+import { useStoredSet, useStoredState } from "@/hooks/ui/useStoredState";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
-import { draftKey, hasDraft, useDraftStore } from "@/stores/chat/draftStore";
+import { draftKey, hasDraft, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { DeleteThreadDialog } from "./DeleteThreadDialog";
 import { DraftRows } from "./list/DraftRows";
+import { useLeftDraft } from "./list/useLeftDraft";
+import { ChildRows } from "./list/ChildRows";
+import { threadRowStatus } from "./StatusPill";
 import { ThreadRow } from "./ThreadRow";
 import { useThreadPreviews } from "./useThreadPreviews";
-import { COLLAPSED_KEY, VIEW_KEY } from "./order";
+import { CHILDREN_OPEN_KEY, COLLAPSED_KEY, VIEW_KEY } from "./order";
 import { ListHeader, readThreadView } from "./list/Header";
-import { RecentsBody } from "./list/RecentsBody";
+import { byNewest, RecentsBody } from "./list/RecentsBody";
 import { SubjectBody } from "./list/SubjectBody";
 import { SearchResults } from "./search/SearchResults";
 import { useThreadSearch } from "./search/useThreadSearch";
@@ -27,7 +31,9 @@ export { THREAD_LIST_PANEL } from "./order";
  * Chat's nav column on `SideNav`, the subject page's column: search and new
  * chat on top, the view switch under them, then the threads as Recents
  * (newest first) or by Subject, remembered per device; typing a search
- * swaps the view for results. It takes its width and fold from
+ * swaps the view for results. A subagent's chat is listed under its parent
+ * in a fold (`ChildRows`), remembered open per device, never at the top
+ * level. It takes its width and fold from
  * `panel` (`ChatPage` owns it); ⌘⌥B or the page header's toggle folds it
  * away completely. Titles come from `Harness::name_thread`.
  */
@@ -72,13 +78,48 @@ export const ThreadList = memo(function ThreadList({
   const more = useHarnessStore((s) => s.moreThreads);
   // The Subject view's folded groups — not the column's own `collapsed`.
   const { folded, setOpen } = useCollapsedGroups(COLLAPSED_KEY);
+  // Children leave the top level for their parent's fold, shut until opened.
+  // Newest first, so each fold lists its children as Recents lists chats.
+  const nest = useMemo(() => nestChildren(byNewest(threads)), [threads]);
+  const [kidsOpen, setKidsOpen] = useStoredSet(CHILDREN_OPEN_KEY);
+  const toggleKids = useCallback(
+    (parent: number, open: boolean) =>
+      setKidsOpen((prev) => {
+        const key = String(parent);
+        if (open === prev.has(key)) return prev;
+        const next = new Set(prev);
+        if (open) next.add(key);
+        else next.delete(key);
+        return next;
+      }),
+    [setKidsOpen],
+  );
+  // The open chat's parent, when it is a child: its fold opens so the row shows.
+  const activeParent = useMemo(() => {
+    if (activeId == null) return null;
+    for (const [parent, kids] of nest.children) if (kids.some((k) => k.id === activeId)) return parent;
+    return null;
+  }, [nest, activeId]);
+  useEffect(() => {
+    if (activeParent != null) toggleKids(activeParent, true);
+  }, [activeParent, toggleKids]);
+  // A Subject group's working ring and its paging count a family as its parent.
+  const familyRunning = useMemo(() => {
+    const busy = new Set(runningIds);
+    for (const [parent, kids] of nest.children) if (kids.some((k) => runningIds.has(k.id))) busy.add(parent);
+    return busy;
+  }, [nest, runningIds]);
   const newChat = useCallback(() => onNew(), [onNew]);
   const lines = useThreadPreviews(threads);
   const bySubject = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+  // The composer this tab has open shows its draft only once the tab has left it.
+  const openListed = useLeftDraft(
+    activeDraft != null ? newChatKey(activeDraft) : activeId != null ? draftKey(activeId, "chat") : null,
+  );
   // Threads with unsent words, as a string so typing re-renders nothing here.
   const draftedKey = useDraftStore((s) =>
     threads
-      .filter((t) => hasDraft(s, draftKey(t.id, "chat")))
+      .filter((t) => (t.id === activeId ? openListed : hasDraft(s, draftKey(t.id, "chat"))))
       .map((t) => t.id)
       .join(","),
   );
@@ -94,7 +135,7 @@ export const ThreadList = memo(function ThreadList({
     [onOpen],
   );
 
-  const row = (showSubject: boolean) => (t: HarnessThread) => (
+  const threadRow = (t: HarnessThread, showSubject: boolean, childStatus?: ReturnType<typeof childAttention>) => (
     <ThreadRow
       key={t.id}
       thread={t}
@@ -105,11 +146,32 @@ export const ThreadList = memo(function ThreadList({
       active={t.id === activeId}
       running={runningIds.has(t.id)}
       drafted={drafted.has(t.id)}
+      childStatus={childStatus}
       onOpen={onOpen}
       onNewTab={openInNewTab}
       onAskDelete={setDeleting}
     />
   );
+  // A child row drops its subject line: it shares its parent's.
+  const childRow = (t: HarnessThread) => threadRow(t, false);
+  const row = (showSubject: boolean) => (t: HarnessThread) => {
+    const kids = nest.children.get(t.id) ?? [];
+    const open = kidsOpen.has(String(t.id));
+    // Folded, the parent shows what its children most need.
+    const bubbled = open ? null : childAttention(kids.map((k) => threadRowStatus(k, runningIds.has(k.id))));
+    return (
+      <div key={t.id} className="flex flex-col">
+        {threadRow(t, showSubject, bubbled)}
+        <ChildRows
+          parentTitle={t.title?.trim() || "Untitled"}
+          kids={kids}
+          open={open}
+          onToggle={(next) => toggleKids(t.id, next)}
+          row={childRow}
+        />
+      </div>
+    );
+  };
 
   return (
     <>
@@ -131,18 +193,24 @@ export const ThreadList = memo(function ThreadList({
         }
       >
         {!found && (
-          <DraftRows subjects={subjects} activeDraft={activeDraft} onOpen={onOpenDraft} onDiscard={onDiscardDraft} />
+          <DraftRows
+            subjects={subjects}
+            activeDraft={activeDraft}
+            activeListed={openListed}
+            onOpen={onOpenDraft}
+            onDiscard={onDiscardDraft}
+          />
         )}
         {found ? (
           <SearchResults found={found} activeId={activeId} onOpen={openThread} />
         ) : view === "recents" ? (
-          <RecentsBody threads={threads} more={more} onMore={showMore} row={row(true)} />
+          <RecentsBody threads={nest.top} more={more} onMore={showMore} row={row(true)} />
         ) : (
           <SubjectBody
-            threads={threads}
+            threads={nest.top}
             subjects={subjects}
-            activeId={activeId}
-            runningIds={runningIds}
+            activeId={activeParent ?? activeId}
+            runningIds={familyRunning}
             folded={folded}
             onGroupOpen={setOpen}
             collapsed={collapsed}

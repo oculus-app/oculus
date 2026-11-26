@@ -115,6 +115,7 @@ pub fn writes(ev: &HarnessEvent) -> bool {
             | HarnessEvent::DeliveryNotice { .. }
             | HarnessEvent::RateLimits { .. }
             | HarnessEvent::TurnStarted { .. }
+            | HarnessEvent::RequestDeclined { .. }
             | HarnessEvent::RequestAsked { .. }
             | HarnessEvent::RequestOpened { .. }
             | HarnessEvent::RequestUpdated { .. }
@@ -362,6 +363,9 @@ async fn apply_rows(
             .map_err(|e| e.to_string())?;
             Ok(Stored::default())
         }
+        HarnessEvent::SessionNotice { text } => insert_item(
+            conn, thread_id, "session_notice", None, Some(text), None, owner,
+        ).await.map(Stored::row),
         // `meta` records which provider's credentials failed, or that its usage
         // limit is spent, so a reload can redraw the sign-in card or the notice.
         HarnessEvent::SessionRestarted { text } => insert_item(
@@ -485,6 +489,7 @@ async fn apply_rows(
         | HarnessEvent::DeliveryNotice { .. }
         | HarnessEvent::RateLimits { .. }
         // Saved by the consumer through `requests::store`, which owns the table.
+        | HarnessEvent::RequestDeclined { .. }
         | HarnessEvent::RequestAsked { .. }
         | HarnessEvent::RequestOpened { .. }
         | HarnessEvent::RequestUpdated { .. }

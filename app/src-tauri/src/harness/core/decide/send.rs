@@ -122,6 +122,7 @@ mod tests {
             effort: None,
             subject_code: None,
             lecture: None,
+            parent_thread_id: None,
         }
     }
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { threadAdopter } from "./adoptThread";
 import { readQuestionDrafts, saveQuestionDrafts, pruneQuestionDrafts, type QuestionDraft, type QuestionDrafts } from "./questionDrafts";
 import {
   DEFAULT_CHAT_PROVIDER,
@@ -20,6 +21,7 @@ import {
   type RateWindow,
   type Selection,
   type ThreadUsage,
+  type UserMeta,
 } from "@/lib/harness";
 import { getSubjects, type Subject } from "@/lib/db";
 import { sqliteUtcToMs } from "@/lib/format/format";
@@ -101,6 +103,10 @@ interface HarnessState {
    *  hit, a route): listed now, so the page finds it before `hold` and the
    *  next `loadThreads`. */
   keep: (thread: HarnessThread) => void;
+  /** Threads read by id for a view that only needs to know they exist (a
+   *  settled Subagent card's child): never listed, forgotten by `removed`. */
+  known: Record<number, HarnessThread>;
+  know: (thread: HarnessThread) => void;
   /** A view put this thread on screen: count it, and read its rows if nobody
    *  else was. `borrowFrom` is the thread the view showed a moment ago. */
   hold: (id: number, borrowFrom?: number | null) => Promise<void>;
@@ -154,6 +160,48 @@ const LIVE_ONLY = new Set(["assistant_delta", "thinking_delta", "tool_output_del
 /** Events after which the streamed answer text is a row, or over. */
 const TAKES_STREAM = new Set(["assistant_message", "tool_started", "turn_finished"]);
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** What happened to the thread rows while a read of them was in flight:
+ *  the patches events made (to `ids`, or to every row for a list read), the
+ *  threads heard from, and the ones deleted. `overlay` lays them over the
+ *  rows the read returns, so a read never undoes a newer event. */
+interface RowWatch {
+  ids: Set<number> | null;
+  patches: Map<number, Partial<HarnessThread>[]>;
+  heard: Set<number>;
+  removed: Set<number>;
+}
+const watches = new Set<RowWatch>();
+
+function watchRows(ids: number[] | null): RowWatch {
+  const w: RowWatch = { ids: ids && new Set(ids), patches: new Map(), heard: new Set(), removed: new Set() };
+  watches.add(w);
+  return w;
+}
+
+/** A change to a thread's row that every read in flight must keep. */
+function recordPatch(id: number, patch: Partial<HarnessThread>) {
+  for (const w of watches) {
+    if (w.ids && !w.ids.has(id)) continue;
+    const list = w.patches.get(id);
+    if (list) list.push(patch);
+    else w.patches.set(id, [patch]);
+  }
+}
+
+/** The read's rows as they are now: deleted ones dropped, a deleted
+ *  parent's children unparented, and every patch made since laid over. */
+function overlay(w: RowWatch, rows: HarnessThread[]): HarnessThread[] {
+  return rows
+    .filter((t) => !w.removed.has(t.id))
+    .map((t) => {
+      const row = (w.patches.get(t.id) ?? []).reduce<HarnessThread>((r, patch) => ({ ...r, ...patch }), t);
+      return row.parent_id != null && w.removed.has(row.parent_id) ? { ...row, parent_id: null } : row;
+    });
+}
+
+/** Threads heard of before the first `loadThreads` landed: one the list read
+ *  missed is adopted when it does. */
+const unlisted = new Set<number>();
 
 function buffer(threadId: number): PendingDeltas {
   let p = pending.get(threadId);
@@ -166,6 +214,12 @@ function buffer(threadId: number): PendingDeltas {
 }
 
 /** A row from a live event, keyed on the Rust row id when there is one. */
+/** A live `user` row's meta, as `store::begin` stores it; none when empty. */
+function userMeta(at?: number | null, fromThread?: number | null): UserMeta | undefined {
+  const meta: UserMeta = { ...(at != null && { at }), ...(fromThread != null && { fromThread }) };
+  return Object.keys(meta).length ? meta : undefined;
+}
+
 function rowFrom(env: HarnessEnvelope, kind: HarnessItem["kind"], content: string, meta?: unknown): HarnessItem {
   return {
     id: env.itemId ?? -Date.now() - Math.floor(Math.random() * 1000),
@@ -182,6 +236,7 @@ function rowFrom(env: HarnessEnvelope, kind: HarnessItem["kind"], content: strin
 
 export const useHarnessStore = create<HarnessState>((set, get) => ({
   threads: [],
+  known: {},
   threadLimit: THREAD_PAGE,
   moreThreads: false,
   threadsLoaded: false,
@@ -209,21 +264,40 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
 
   loadThreads: async () => {
     const limit = get().threadLimit;
-    // One past the limit says whether there are more.
-    const read = await getHarnessThreads(limit + 1);
-    const newest = read.slice(0, limit);
-    // A held thread older than those read: read it by id so its view keeps
-    // it. A deleted one reads nothing.
-    const listed = new Set(newest.map((t) => t.id));
-    const held = Object.keys(get().holds).map(Number).filter((id) => !listed.has(id));
-    const threads = held.length ? [...newest, ...(await getThreadsByIds(held))] : newest;
+    const w = watchRows(null);
+    let read: HarnessThread[];
+    let rows: HarnessThread[];
+    try {
+      // One past the limit says whether there are more.
+      read = await getHarnessThreads(limit + 1);
+      const newest = read.slice(0, limit);
+      // A held thread older than those read: read it by id so its view keeps
+      // it. A deleted one reads nothing.
+      const listed = new Set(newest.map((t) => t.id));
+      const holds = get().holds;
+      const held = Object.keys(holds).map(Number).filter((id) => !listed.has(id));
+      // A held chat's older children stay listed too: thread info names them.
+      const kids = get().threads.filter((t) => t.parent_id != null && holds[t.parent_id] && !listed.has(t.id) && !holds[t.id]).map((t) => t.id);
+      const older = [...held, ...kids];
+      rows = older.length ? [...newest, ...(await getThreadsByIds(older))] : newest;
+    } finally {
+      watches.delete(w);
+    }
+    const threads = overlay(w, rows);
+    // A thread heard from during the read that it missed (a child started
+    // meanwhile) keeps the row it was adopted with, or is adopted now.
+    const missed = new Set([...unlisted, ...w.heard].filter((id) => !w.removed.has(id) && !threads.some((t) => t.id === id)));
+    unlisted.clear();
     set((s) => {
+      const kept = s.threads.filter((t) => missed.has(t.id));
+      const all = [...threads, ...kept];
       const live = { ...s.live };
-      for (const t of threads) {
+      for (const t of all) {
         if (t.status === "running" && !live[t.id]) live[t.id] = { ...IDLE, running: true };
       }
-      return { threads, live, threadsLoaded: true, moreThreads: read.length > limit };
+      return { threads: all, live, threadsLoaded: true, moreThreads: read.length > limit };
     });
+    for (const id of missed) if (!get().threads.some((t) => t.id === id)) adopt(id);
   },
 
   showMoreThreads: async () => {
@@ -233,6 +307,8 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
 
   keep: (thread) =>
     set((s) => (s.threads.some((t) => t.id === thread.id) ? s : { threads: [...s.threads, thread] })),
+
+  know: (thread) => set((s) => ({ known: { ...s.known, [thread.id]: thread } })),
 
   hold: async (id, borrowFrom) => {
     const first = !get().holds[id];
@@ -315,8 +391,10 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
   },
   setModel: (model) => set({ model }),
   setReasoning: (reasoning) => set({ reasoning }),
-  selected: (id, { provider, model, effort }) =>
-    set((s) => ({ threads: s.threads.map((t) => (t.id === id ? { ...t, provider, model, effort } : t)) })),
+  selected: (id, { provider, model, effort }) => {
+    recordPatch(id, { provider, model, effort });
+    set((s) => ({ threads: s.threads.map((t) => (t.id === id ? { ...t, provider, model, effort } : t)) }));
+  },
   loadSubjects: async () => set({ subjects: await getSubjects(), subjectsLoaded: true }),
 
   release: (id) =>
@@ -333,6 +411,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
     }),
 
   removed: (id) => {
+    for (const w of watches) w.removed.add(id);
     pending.delete(id);
     loaded.delete(id);
     useWidgetStore.getState().prune(id);
@@ -353,10 +432,13 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
       delete holds[id];
       const contextDrift = { ...s.contextDrift };
       delete contextDrift[id];
+      const known = { ...s.known };
+      delete known[id];
       return {
         // A Chat tab still pointing at it notices the thread is gone from
         // this list and walks itself back to the empty composer (`ChatPage`).
-        threads: s.threads.filter((t) => t.id !== id),
+        // Its children are ordinary chats now, as `store::threads::delete` made them.
+        threads: s.threads.filter((t) => t.id !== id).map((t) => (t.parent_id === id ? { ...t, parent_id: null } : t)),
         items,
         runs,
         queued,
@@ -364,6 +446,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
         live,
         holds,
         contextDrift,
+        known,
         questionDrafts: pruneQuestionDrafts(s.questionDrafts, id, () => false),
       };
     });
@@ -403,7 +486,15 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
       lastSequence = env.sequence;
     }
     loading.get(env.threadId)?.push(env);
+    if (!LIVE_ONLY.has(env.event.type)) for (const w of watches) if (!w.ids) w.heard.add(env.threadId);
     get().fold(env);
+    // A thread Rust started itself (a subagent's chat) is listed by its
+    // first event, so its row, status and requests show without a reload.
+    const { threads, threadsLoaded } = get();
+    if (!LIVE_ONLY.has(env.event.type) && !threads.some((t) => t.id === env.threadId)) {
+      if (threadsLoaded) adopt(env.threadId);
+      else unlisted.add(env.threadId);
+    }
   },
 
   fold: (env, rowsOnly = false) => {
@@ -468,10 +559,12 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
         rows = at < 0 ? [...rows, row] : rows.map((r, i) => (i === at ? row : r));
       };
       const touchThread = (patch: Partial<HarnessThread>) => {
+        const touched = { ...patch, updated_at: new Date().toISOString() };
+        recordPatch(threadId, touched);
         const i = threads.findIndex((t) => t.id === threadId);
         if (i >= 0) {
           threads = [...threads];
-          threads[i] = { ...threads[i], ...patch, updated_at: new Date().toISOString() };
+          threads[i] = { ...threads[i], ...touched };
         }
       };
       // The list's Working timer: a run already in flight (a steer, a queued
@@ -480,6 +573,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
       // The list's Approval and Input, for every thread, loaded or not; it does not
       // reorder the list.
       const waiting = (count: number, questions = 0) => {
+        recordPatch(threadId, { pending_requests: count, pending_questions: questions });
         const i = threads.findIndex((t) => t.id === threadId);
         if (i >= 0 && (threads[i].pending_requests !== count || threads[i].pending_questions !== questions)) {
           threads = [...threads];
@@ -490,7 +584,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
       switch (event.type) {
         case "user_message":
           // Live rows carry the same `meta` Rust stores (`store::apply`).
-          push(rowFrom(env, "user", event.text, event.at == null ? undefined : { at: event.at }));
+          push(rowFrom(env, "user", event.text, userMeta(event.at, event.from_thread)));
           // Until `run_settled` brings the stored interval, the clock is ours.
           if (env.runId != null) {
             setRun({ id: env.runId, active_attempt_id: env.attemptId ?? null, status: "running", delivery: "unknown", answer_item_id: null, started_ms: Date.now(), ended_ms: null });
@@ -570,8 +664,9 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
           if (run && run.ended_ms == null) setRun({ ...run, stopping: true, unresponsive: { others: event.others } });
           break;
         }
+        case "session_notice":
         case "session_restarted":
-          push(rowFrom(env, "session_restarted", event.text));
+          push(rowFrom(env, event.type, event.text));
           break;
         case "steer":
           // The row Rust wrote with the message (`store/steer.rs`).
@@ -729,6 +824,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
           touchThread({
             status: event.status === "failed" ? "error" : more ? "running" : "idle",
             settled_at: new Date().toISOString(),
+            last_run: event.status,
             run_started_at: more ? new Date().toISOString() : null,
           });
           break;
@@ -772,3 +868,24 @@ export const runsFor = (id: number | null, runs: Record<number, Record<number, H
   (id != null && runs[id]) || NO_RUNS;
 
 export const anyRunning = (live: Record<number, LiveTurn>) => Object.values(live).some((l) => l.running);
+
+/** Reads threads by id for adoption, as `overlay` leaves them. */
+async function readAdopted(ids: number[]): Promise<HarnessThread[]> {
+  const w = watchRows(ids);
+  try {
+    return overlay(w, await getThreadsByIds(ids));
+  } finally {
+    watches.delete(w);
+  }
+}
+
+/** Lists a thread first heard of through an event (`adoptThread.ts`): the
+ *  fresh row replaces an earlier read of it, and a running one is live. */
+const adopt = threadAdopter(readAdopted, (thread) =>
+  useHarnessStore.setState((s) => {
+    const at = s.threads.findIndex((t) => t.id === thread.id);
+    const threads = at < 0 ? [...s.threads, thread] : s.threads.map((t, i) => (i === at ? thread : t));
+    const live = thread.status === "running" && !s.live[thread.id] ? { ...s.live, [thread.id]: { ...IDLE, running: true } } : s.live;
+    return { threads, live };
+  }),
+);

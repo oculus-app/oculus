@@ -221,12 +221,10 @@ impl CodexServer {
     /// a thread nobody routes, paths that cannot be checked), else handed to
     /// the chat, whose saved mode decides whether it is shown.
     pub(super) fn approval(&self, id: &Value, method: &str, params: &Value) {
-        let decline = |server: &Self| {
-            let permissions = Value::Null;
-            server.respond(id, response(method, &permissions, Decision::Decline));
-        };
+        let decline = || self.respond(id, response(method, &Value::Null, Decision::Decline));
         let Some((route, agent)) = self.asker(&s(params, "threadId")) else {
-            return decline(self);
+            let _ = decline();
+            return;
         };
         let request = {
             let state = route.state.lock().unwrap();
@@ -237,7 +235,12 @@ impl CodexServer {
             }
         };
         let Some(request) = request else {
-            return decline(self);
+            if decline().is_ok() && !route.state.lock().unwrap().one_off {
+                (route.sink)(HarnessEvent::RequestDeclined {
+                    reason: crate::harness::requests::Refusal::Other,
+                });
+            }
+            return;
         };
         route
             .state

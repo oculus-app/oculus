@@ -11,6 +11,7 @@ use sqlx::SqlitePool;
 use tokio::runtime::Runtime;
 
 use crate::harness::event::TurnId;
+use crate::harness::requests::Refusal;
 use crate::harness::{store, Generation, HarnessEvent};
 
 /// Who sent an event.
@@ -45,6 +46,7 @@ struct Open {
     turn: Option<Turn>,
     /// Its terminal was seen; the settle write has not landed yet.
     settling: bool,
+    refusal: Option<Refusal>,
 }
 
 /// A thread's newest session, the turns of it that are over, and how far
@@ -146,6 +148,21 @@ impl RunScope {
             .get(&thread_id)
             .filter(|open| !open.settling)
             .map(|open| open.run_id)
+    }
+
+    pub fn declined(&mut self, thread_id: i64, reason: Refusal) {
+        if self.own.contains_key(&thread_id) {
+            return;
+        }
+        if let Some(open) = self.open.get_mut(&thread_id).filter(|o| !o.settling) {
+            if open.refusal != Some(Refusal::ProtectedPath) {
+                open.refusal = Some(reason);
+            }
+        }
+    }
+
+    pub fn refusal(&self, thread_id: i64) -> Option<Refusal> {
+        self.open.get(&thread_id)?.refusal
     }
 
     /// The run open on the thread, its terminal seen or not: the run whose
@@ -276,6 +293,7 @@ impl RunScope {
                         next: 0,
                         turn: None,
                         settling: false,
+                        refusal: None,
                     },
                 );
             }
@@ -413,6 +431,7 @@ mod tests {
             &HarnessEvent::UserMessage {
                 text: "q".into(),
                 at: None,
+                from_thread: None,
                 run: Some(run),
             },
         );

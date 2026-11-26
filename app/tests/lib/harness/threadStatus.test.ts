@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { threadStatus, threadUnread, type ThreadStatusInputs } from "@/lib/harness";
+import { childAttention, threadStatus, threadUnread, withChildren, type ThreadStatusInputs } from "@/lib/harness";
 
 const quiet: ThreadStatusInputs = { running: false, failed: false, unread: false, approval: false, input: false };
 
@@ -44,5 +44,27 @@ describe("threadUnread", () => {
   });
   test("never viewed, with a run ended: unread", () => {
     expect(threadUnread({ settled_at: "2026-11-15 10:00:05", viewed_at: null })).toBe(true);
+  });
+});
+
+describe("a folded parent's children", () => {
+  test("the most urgent child wins: Approval, then Input, then Working", () => {
+    expect(childAttention(["working", "input", null])).toBe("input");
+    expect(childAttention(["working", "approval", "input"])).toBe("approval");
+    expect(childAttention([null, "working"])).toBe("working");
+  });
+
+  test("a child's Done or Failed stays on its own row", () => {
+    expect(childAttention(["done", "failed", null])).toBeNull();
+    expect(childAttention([])).toBeNull();
+  });
+
+  test("the parent shows whichever of its own and its children's comes first", () => {
+    expect(withChildren("done", "approval")).toBe("approval");
+    expect(withChildren("done", "working")).toBe("working");
+    expect(withChildren("approval", "working")).toBe("approval");
+    expect(withChildren(null, "input")).toBe("input");
+    expect(withChildren("failed", null)).toBe("failed");
+    expect(withChildren(null, null)).toBeNull();
   });
 });

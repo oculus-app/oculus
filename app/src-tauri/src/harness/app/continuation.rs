@@ -23,6 +23,9 @@ pub(in crate::harness) const STOPPED: &str = "Stopped before the agent continued
 /// The turn it waited behind failed, which holds the queue.
 pub(in crate::harness) const FAILED_BEFORE: &str =
     "The turn before this failed, so the agent did not continue.";
+/// The claim's run could not be written to the thread's queue.
+pub(in crate::harness) const NOT_QUEUED: &str =
+    "Oculus could not queue the agent's next turn, so it did not continue.";
 
 /// Hold the thread's queue (`store::queue::hold`) and write `reason` on
 /// every card whose waiting continuation that cancelled. Returns those
@@ -68,7 +71,7 @@ pub(in crate::harness) async fn claim(
     card: &str,
 ) -> Result<Option<String>, String> {
     let (item, block) = key(card)?;
-    let claimed = sqlx::query(&format!(
+    let row = sqlx::query(&format!(
         "UPDATE chat_proposals SET state = json_set(state, '$.continuation', json('{{\"phase\":\"queued\"}}'))
           WHERE item_id = ?1 AND block = ?2 AND thread_id = ?3
             AND json_type(state, '$.then') = 'text' AND trim(json_extract(state, '$.then')) != ''
@@ -77,26 +80,16 @@ pub(in crate::harness) async fn claim(
                  OR (status = 'created'
                      AND COALESCE(json_extract(state, '$.job.phase'), 'complete') IN ('complete', 'error')
                      AND json_type(state, '$.job.interrupted') IS NULL))
-            AND {ROW_EXISTS}"
+            AND {ROW_EXISTS}
+          RETURNING kind, status, state"
     ))
     .bind(item)
     .bind(block)
     .bind(thread_id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .rows_affected();
-    if claimed == 0 {
-        return Ok(None);
-    }
-    let row = sqlx::query(
-        "SELECT kind, status, state FROM chat_proposals WHERE item_id = ?1 AND block = ?2",
-    )
-    .bind(item)
-    .bind(block)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
     .map_err(|e| e.to_string())?;
+    let Some(row) = row else { return Ok(None) };
     let state: Value = serde_json::from_str(&row.get::<String, _>("state")).unwrap_or_default();
     Ok(Some(line(
         &row.get::<String, _>("kind"),
@@ -203,6 +196,7 @@ pub(in crate::harness) async fn prompt(pool: &SqlitePool, card: &str) -> Result<
         proposal.state.pointer("/job/phase").and_then(Value::as_str),
     ) {
         ("discarded", _) => "was discarded by the student",
+        (_, Some("error")) if stopped(&proposal.state) => "was stopped",
         (_, Some("error")) => "failed",
         (_, Some(_)) => "finished",
         _ => "was applied by the student",
@@ -211,6 +205,11 @@ pub(in crate::harness) async fn prompt(pool: &SqlitePool, card: &str) -> Result<
         "(From Oculus, not typed by the student.) Your {} card {card} {outcome}; its outcome is under Cards in this thread. When you proposed it, you asked to continue afterwards with:\n\n{then}",
         proposal.kind
     ))
+}
+
+/// A Subagent whose child was stopped (`job.ended`), not one that failed.
+fn stopped(state: &Value) -> bool {
+    state.pointer("/job/ended").and_then(Value::as_str) == Some("interrupted")
 }
 
 /// The timeline's line for the run: what settled, then "continuing".
@@ -225,14 +224,15 @@ fn line(kind: &str, status: &str, state: &Value) -> String {
             "LectureChapters" => "Chapter search",
             "LectureEnd" => "Lecture end search",
             "Download" => "Download",
+            "Subagent" => "Subagent",
             _ => "Job",
         };
         format!(
             "{job} {}",
-            if phase == "error" {
-                "failed"
-            } else {
-                "finished"
+            match phase {
+                "error" if stopped(state) => "stopped",
+                "error" => "failed",
+                _ => "finished",
             }
         )
     } else {

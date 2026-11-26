@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Books, CaretRight, Plus } from "@phosphor-icons/react";
+import { Books, CaretRight, CircleDashed, Plus } from "@phosphor-icons/react";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { SIDE_NAV_FOLDS, SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE } from "@/components/ui/layout/SideNav";
 import type { HarnessThread } from "@/lib/harness";
@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 import { arrange, ORDER_KEY, PAGE } from "../order";
 import { SECTION_HEAD } from "../rowType";
 import { DropLine } from "../parts";
-import { WorkingRing } from "../StatusPill";
 import { byNewest } from "./RecentsBody";
+import { GroupRows } from "./GroupRows";
 
 /**
  * The Subject view: the threads the store has read, grouped by subject
@@ -105,9 +105,10 @@ export function SubjectBody({
   };
 
   const setOpen = (key: string, open: boolean) => {
+    // A folded group reopens at one page. Reset on the open, not the fold,
+    // so a long group doesn't snap short as it eases shut.
+    if (open && folded.has(key)) setShown(({ [key]: _dropped, ...rest }) => rest);
     onGroupOpen(key, open);
-    // Folding resets the group to one page.
-    if (!open) setShown(({ [key]: _dropped, ...rest }) => rest);
   };
 
   return (
@@ -183,9 +184,9 @@ export function SubjectBody({
                 >
                   <Plus size={11} weight="bold" />
                 </button>
-                {/* Folded, the rows' rings are hidden, so the header shows one. */}
+                {/* Folded, the rows' Working marks are hidden, so the header shows one. */}
                 {busy && !open ? (
-                  <WorkingRing className="size-[11px] text-brand group-hover/head:hidden" />
+                  <CircleDashed size={11} weight="bold" aria-hidden className="shrink-0 text-brand group-hover/head:hidden" />
                 ) : (
                   <span className="text-[11px] tabular-nums text-muted-foreground opacity-70 group-hover/head:hidden">
                     {g.items.length || ""}
@@ -193,38 +194,36 @@ export function SubjectBody({
                 )}
               </div>
             </div>
-            {open && (
-              <div className="flex flex-col gap-0.5">
-                {g.items.slice(0, limit).map(row)}
-                {(rest > 0 || more) && (
-                  <button
-                    type="button"
-                    tabIndex={collapsed ? -1 : undefined}
-                    onClick={() => {
-                      setShown((prev) => ({ ...prev, [g.key]: limit + PAGE }));
-                      // Every thread read is shown: read older ones, which may
-                      // hold more of this subject's.
-                      if (rest <= 0) onMore();
-                    }}
-                    className={cn(
-                      SIDE_NAV_ROW,
-                      SIDE_NAV_ROW_IDLE,
-                      SIDE_NAV_FOLDS,
-                      "px-2.5 text-[11.5px] group-data-[collapsed=true]/nav:pointer-events-none",
-                    )}
-                  >
-                    {/* One child: the row's flex gap would split the words. */}
-                    {rest > 0 ? (
-                      <span>
-                        Show <span className="tabular-nums">{Math.min(PAGE, rest)}</span> more
-                      </span>
-                    ) : (
-                      "Show more"
-                    )}
-                  </button>
-                )}
-              </div>
-            )}
+            <GroupRows open={open}>
+              {g.items.slice(0, limit).map(row)}
+              {(rest > 0 || more) && (
+                <button
+                  type="button"
+                  tabIndex={collapsed ? -1 : undefined}
+                  onClick={() => {
+                    setShown((prev) => ({ ...prev, [g.key]: limit + PAGE }));
+                    // Every thread read is shown: read older ones, which may
+                    // hold more of this subject's.
+                    if (rest <= 0) onMore();
+                  }}
+                  className={cn(
+                    SIDE_NAV_ROW,
+                    SIDE_NAV_ROW_IDLE,
+                    SIDE_NAV_FOLDS,
+                    "px-2.5 text-[11.5px] group-data-[collapsed=true]/nav:pointer-events-none",
+                  )}
+                >
+                  {/* One child: the row's flex gap would split the words. */}
+                  {rest > 0 ? (
+                    <span>
+                      Show <span className="tabular-nums">{Math.min(PAGE, rest)}</span> more
+                    </span>
+                  ) : (
+                    "Show more"
+                  )}
+                </button>
+              )}
+            </GroupRows>
           </div>
         );
       })}

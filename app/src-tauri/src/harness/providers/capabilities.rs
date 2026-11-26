@@ -48,8 +48,7 @@ pub struct Capabilities {
     pub approvals: bool,
     /// Native question callbacks can be answered by the student.
     pub questions: bool,
-    /// The CLI's own reviewer decides requests in the chat's Auto mode,
-    /// and the student is never asked. Where false, Auto behaves as Ask.
+    /// Auto uses the CLI's native reviewer. It may still ask the student.
     pub auto_review: bool,
     /// An answer can allow more than the one call ("Always allow this
     /// exact command in this chat"); each option's `scope` says how much.
@@ -86,13 +85,6 @@ pub const fn of(provider: Provider) -> Capabilities {
             provider,
             Provider::Claude | Provider::Codex | Provider::Antigravity
         ),
-        // Codex: recorded on 0.169.0 (`codex-approval-*`, `codex-auto-review*`,
-        // `codex-session-grant`, `codex-mode-switch`). Claude: on 2.1.325
-        // (`claude-approval-*`, `claude-auto-*`), approve once only; its
-        // mode is fixed at spawn, so a change restarts the session.
-        // Antigravity over ACP: on 1.5.9 (`antigravity-acp-*`), approve
-        // once only, no reviewer; the CLI holds no mode, so a change needs
-        // no restart. opencode's probe is stage 2.4.
         approvals: matches!(
             provider,
             Provider::Codex | Provider::Claude | Provider::Antigravity
@@ -101,7 +93,8 @@ pub const fn of(provider: Provider) -> Capabilities {
             provider,
             Provider::Codex | Provider::Claude | Provider::Antigravity
         ),
-        auto_review: matches!(provider, Provider::Codex | Provider::Claude),
+        auto_review: matches!(provider, Provider::Codex | Provider::Claude)
+            || (cfg!(target_os = "macos") && matches!(provider, Provider::Antigravity)),
         session_grants: matches!(provider, Provider::Codex),
         mode_switch_in_session: matches!(provider, Provider::Codex | Provider::Antigravity),
     }
@@ -137,6 +130,7 @@ pub const fn fixture(provider: Provider, flag: Flag) -> Option<&'static str> {
         (Provider::Claude, Flag::Approvals) => Some("claude-approval-escape"),
         (Provider::Claude, Flag::AutoReview) => Some("claude-auto-classifier"),
         (Provider::Antigravity, Flag::Interrupt) => Some("antigravity-acp-cancel"),
+        (Provider::Antigravity, Flag::AutoReview) => Some("antigravity-acp-auto-command"),
         (Provider::Antigravity, Flag::Approvals) => Some("antigravity-acp-full-turn"),
         (Provider::Antigravity, Flag::ModeSwitchInSession) => {
             Some("antigravity-acp-command-decline")
@@ -275,9 +269,9 @@ mod tests {
             [Provider::Codex, Provider::Opencode, Provider::Antigravity]
         );
         assert!(of(Provider::Antigravity).approvals);
-        assert!(
-            !of(Provider::Antigravity).auto_review,
-            "agy has no reviewer"
+        assert_eq!(
+            of(Provider::Antigravity).auto_review,
+            cfg!(target_os = "macos")
         );
     }
 }

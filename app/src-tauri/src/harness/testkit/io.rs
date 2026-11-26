@@ -39,6 +39,8 @@ pub(super) struct Io {
     /// (`Rig::hold_effects`); `None` runs each as it is asked for.
     pub kept: Arc<Mutex<Option<Vec<Effect>>>>,
     pub clock: Arc<Clock>,
+    /// Who waits on a subagent's report, woken as the app's are.
+    pub children: Arc<crate::harness::app::children::Waiters>,
 }
 
 /// The consumer's time in a replay. It moves only when the feed, finding
@@ -122,6 +124,9 @@ impl ConsumerIo for Io {
         }
         let runtime = self.runtime.as_ref().unwrap();
         runtime.block_on(effect::run(self.effects.clone(), effect));
+    }
+    fn ended(&mut self, thread_id: i64) {
+        self.children.ended(thread_id);
     }
     fn emit(&mut self, envelope: Envelope) {
         self.snapshots.push(

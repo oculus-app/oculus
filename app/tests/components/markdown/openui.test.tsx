@@ -153,6 +153,7 @@ describe("proposal signatures", () => {
     `EventChanges([Change("local_5", {start: "2026-10-27"}, {start: "2026-10-28"})])`,
     `TagChanges([NewTag("Exam", "indigo"), Change(2, {color: "slate"}, {color: "green"}), DeleteTag(3)])`,
     `DeleteTasks([1, 2])`, `DeleteEvents(["local_5"])`, `Sync(["COMP30026"], null)`, `Reparse(["courses/COMP30026/Week1.pdf"])`, `Transcribe("courses/COMP30026/Week1.mp4")`, `LectureChapters("lecture-1")`, `LectureEnd("lecture-1")`, `Download("aligner")`,
+    `Subagent("Week 3", "Read the week 3 PDFs and summarise them", "Use the summary")`,
   ];
   for (const component of examples) test(component.split("(")[0] + " signature parses, including null skips", () => {
     const verdict = parseProgram(`root = Stack([${component}])`);
@@ -177,9 +178,20 @@ describe("proposal signatures", () => {
     `NewEvents([Event("Wrong span", "2026-10-27", "2026-10-28", "note")])`,
     `NewTasks(null, [Task("Wrong date", "tomorrow")])`,
   ]) test("malformed final proposal is rejected: " + source.slice(0, 70), () => expect(parseProgram(`root = Stack([${source}])`).ok).toBe(false));
+  test("the oculus-studio skill's openui fences parse, its series part as a Subagent with a then", async () => {
+    const skill = await Bun.file(new URL("../../../src-tauri/templates/skills/oculus-studio/SKILL.md", import.meta.url)).text();
+    const fences = [...skill.matchAll(/```openui\n([\s\S]*?)```/g)].map((m) => m[1]);
+    expect(fences.length).toBeGreaterThan(0);
+    for (const source of fences) {
+      const verdict = parseProgram(source);
+      if (!verdict.ok) throw new Error(verdict.errors.join("; "));
+    }
+    expect(fences.some((f) => /Subagent\("[^"]+", task, "[^"]+"\)/.test(f) && f.includes("series recap"))).toBe(true);
+  });
   test("two proposals or jobs in one fence refuse the complete fence", () => {
     expect(parseProgram(`root = Stack([NewTasks(null, [Task("A")]), DeleteTasks([1])])`).ok).toBe(false);
     expect(parseProgram(`root = Stack([Sync(["COMP30026"]), Download("aligner")])`).ok).toBe(false);
+    expect(parseProgram(`root = Stack([Subagent("A", "One"), Subagent("B", "Two")])`).ok).toBe(false);
   });
   test("the required null-capable slots cannot be omitted from decoded state", () => {
     expect(() => validateProposal("NewTasks", { items: [] })).toThrow("requires project");
@@ -332,7 +344,7 @@ test("the oculus-ui skill matches its generated prompt, omits layout components,
     "PageRef", "Ask",
     "NewTasks", "NewProject", "Task", "Under", "NewEvents", "Event", "NewNote", "NewCheatNotes", "CheatEntry",
     "Change", "TaskChanges", "ProjectChanges", "EventChanges", "TagChanges", "NewTag", "DeleteTag", "DeleteTasks", "DeleteEvents", "EditItems", "Edit",
-    "Sync", "Reparse", "Transcribe", "LectureChapters", "LectureEnd", "Download",
+    "Sync", "Reparse", "Transcribe", "LectureChapters", "LectureEnd", "Download", "Subagent",
   ];
   for (const kept of keptComponents) {
     expect(prompt).toContain(`${kept}(`);

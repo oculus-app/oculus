@@ -111,3 +111,44 @@ test("a late job start response cannot erase the sync run identity event", async
   await starting;
   expect(store.getState().rows["10.0"].state.job).toEqual({ phase: "running", run_id: 42 });
 });
+
+test("a late job start response cannot erase a Subagent card's child, and Start again's run begins without one", async () => {
+  const card = { title: "Week 3", task: "Summarise week 3", provider: "codex", model: "gpt-6.2-sol", effort: "medium" };
+  const response = deferred<Proposal>();
+  const store = createProposalStore(api({ start: async () => response.promise }));
+  store.getState().receive(row({ kind: "Subagent", state: card }));
+  const starting = store.getState().act("10.0", "start");
+  await Promise.resolve();
+  store.getState().receive(row({ kind: "Subagent", status: "created", state: { ...card, job: { phase: "running", started_at: "t1", child: 8 } } }));
+  response.resolve(row({ kind: "Subagent", status: "created", state: { ...card, job: { phase: "running", started_at: "t1" } } }));
+  await starting;
+  expect(store.getState().rows["10.0"].state.job).toEqual({ phase: "running", started_at: "t1", child: 8 });
+  // A new claim has a start of its own and no child yet.
+  store.getState().receive(row({ kind: "Subagent", status: "created", state: { ...card, job: { phase: "running", started_at: "t2" } } }));
+  expect(store.getState().rows["10.0"].state.job).toEqual({ phase: "running", started_at: "t2" });
+});
+
+test("start saves a waiting edit first, so a job starts from what its card shows", async () => {
+  const calls: string[] = [];
+  const job = { phase: "running", started_at: "2026-11-22T01:00:00Z" };
+  const store = createProposalStore(api({
+    edit: async (_id, state) => { calls.push(`edit ${String(state.model)}`); return row({ kind: "Subagent", state }); },
+    start: async () => { calls.push("start"); return row({ kind: "Subagent", status: "created", state: { model: "sonnet", job } }); },
+  }), 60_000);
+  store.getState().receive(row({ kind: "Subagent", state: { task: "Go" } }));
+  store.getState().edit("10.0", { task: "Go", model: "sonnet" });
+  await store.getState().act("10.0", "start");
+  expect(calls).toEqual(["edit sonnet", "start"]);
+  expect(store.getState().drafts["10.0"]).toBeUndefined();
+  expect(store.getState().rows["10.0"].status).toBe("created");
+});
+
+test("Start again's running row replaces an interrupted job; a late one of the same run does not", () => {
+  const store = createProposalStore(api(), 60_000);
+  const at = (phase: string, started_at: string) => row({ kind: "Subagent", status: "created", state: { job: { phase, started_at } } });
+  store.getState().receive(at("error", "2026-11-22T01:00:00Z"));
+  store.getState().receive(at("running", "2026-11-22T01:00:00Z"));
+  expect((store.getState().rows["10.0"].state.job as { phase: string }).phase).toBe("error");
+  store.getState().receive(at("running", "2026-11-22T02:00:00Z"));
+  expect((store.getState().rows["10.0"].state.job as { phase: string }).phase).toBe("running");
+});

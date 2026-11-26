@@ -26,6 +26,7 @@ export function ChainPicker({
   emptyIcon,
   keepEmptyTrigger,
   onOpenChange,
+  disabled,
   className,
 }: {
   providers: PickerProvider[];
@@ -41,6 +42,7 @@ export function ChainPicker({
   emptyIcon?: ReactNode;
   keepEmptyTrigger?: boolean;
   onOpenChange?: (open: boolean) => void;
+  disabled?: boolean;
   className?: string;
 }) {
   const committed = entry?.provider ?? fallbackProvider;
@@ -91,6 +93,7 @@ export function ChainPicker({
       emptyLabel={emptyLabel}
       emptyIcon={emptyIcon}
       keepEmptyTrigger={keepEmptyTrigger}
+      disabled={disabled}
       className={className}
     />
   );

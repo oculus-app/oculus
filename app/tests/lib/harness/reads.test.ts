@@ -1,10 +1,11 @@
 import { afterAll, expect, test } from "bun:test";
 import { Database as SQLite } from "bun:sqlite";
-import { flattenPreview, previewsSql, questionsSql, SUBJECT_THREADS_SQL, THREADS_SQL } from "@/lib/harness/reads";
+import { CHILD_THREADS_SQL, flattenPreview, previewsSql, questionsSql, SUBJECT_THREADS_SQL, THREADS_SQL } from "@/lib/harness/reads";
 
 /** The columns the two reads touch, as the migrations leave them. */
 const sqlite = new SQLite(":memory:");
-sqlite.run(`CREATE TABLE harness_threads (id INTEGER PRIMARY KEY, title TEXT, subject_id INTEGER, updated_at TEXT NOT NULL DEFAULT '2026-11-15 00:00:00')`);
+sqlite.run(`CREATE TABLE harness_threads (id INTEGER PRIMARY KEY, title TEXT, subject_id INTEGER, parent_thread_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT '2026-11-15 00:00:00', updated_at TEXT NOT NULL DEFAULT '2026-11-15 00:00:00')`);
 sqlite.run(`CREATE TABLE harness_items (id INTEGER PRIMARY KEY, thread_id INTEGER, kind TEXT, content TEXT, run_id INTEGER)`);
 sqlite.run(`CREATE TABLE harness_runs (id INTEGER PRIMARY KEY, thread_id INTEGER, execution_status TEXT,
   initiating_item_id INTEGER, answer_item_id INTEGER, requested_at TEXT, started_at TEXT, ended_at TEXT)`);
@@ -100,4 +101,31 @@ test("a subject's threads page newest first, General as null", () => {
   expect(first.map((t) => t.id)).toEqual([1004, 1003, 1002]);
   expect(all<{ id: number }>(SUBJECT_THREADS_SQL, [7, 3, 3]).map((t) => t.id)).toEqual([1001, 1000]);
   expect(all<{ id: number }>(SUBJECT_THREADS_SQL, [null, -1, 0]).some((t) => t.id === 1000)).toBe(false);
+});
+
+test("a subagent's chat reads its parent as parent_id; a chat the student started reads none", () => {
+  sqlite.run(`INSERT INTO harness_threads (id, title, parent_thread_id) VALUES (40, 'brief', 1)`);
+  const threads = all<{ id: number; parent_id: number | null }>(THREADS_SQL, [-1]);
+  const parents = Object.fromEntries(threads.map((t) => [t.id, t.parent_id]));
+  expect(parents[40]).toBe(1);
+  expect(parents[1]).toBeNull();
+});
+
+test("a thread reads how its latest run that ran ended, never a later one that only waits", () => {
+  sqlite.run(`INSERT INTO harness_threads (id, title) VALUES (300, 'stopped'), (301, 'done then failed'), (302, 'never ran')`);
+  sqlite.run(`INSERT INTO harness_runs (id, thread_id, execution_status, initiating_item_id, ended_at) VALUES
+    (300, 300, 'interrupted', 1, '2026-11-15 06:00:00'), (301, 300, 'queued', NULL, NULL),
+    (302, 301, 'completed', 2, '2026-11-15 06:00:00'), (303, 301, 'failed', 3, '2026-11-15 07:00:00'),
+    (304, 302, 'cancelled', NULL, '2026-11-15 07:00:00')`);
+  const rows = all<{ id: number; last_run: string | null }>(THREADS_SQL, [-1]);
+  const last = Object.fromEntries(rows.filter((t) => t.id >= 300 && t.id < 400).map((t) => [t.id, t.last_run]));
+  expect(last).toEqual({ 300: "interrupted", 301: "failed", 302: null });
+});
+
+test("a chat's children read by parent, newest started first, with parent_id", () => {
+  sqlite.run(`INSERT INTO harness_threads (id, title, parent_thread_id, created_at) VALUES
+    (400, 'parent', NULL, '2026-11-20 00:00:00'), (401, 'older child', 400, '2026-11-20 01:00:00'),
+    (402, 'newer child', 400, '2026-11-20 02:00:00'), (403, 'someone else', 999, '2026-11-20 03:00:00')`);
+  const rows = all<{ id: number; parent_id: number }>(CHILD_THREADS_SQL, [400]);
+  expect(rows.map((t) => [t.id, t.parent_id])).toEqual([[402, 400], [401, 400]]);
 });

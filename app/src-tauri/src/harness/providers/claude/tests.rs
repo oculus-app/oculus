@@ -311,7 +311,17 @@ fn a_question_and_a_file_tool_naming_no_file_are_declined_unseen() {
         "w",
         json!({ "tool_name": "Write", "input": { "content": "x" } }),
     ));
-    assert!(rig.told().is_empty(), "nobody is asked");
+    let told = rig.told();
+    assert_eq!(told.len(), 2, "each unseen decline reports RequestDeclined");
+    assert!(
+        told.iter().all(|e| matches!(
+            e,
+            HarnessEvent::RequestDeclined {
+                reason: crate::harness::requests::Refusal::Other
+            }
+        )),
+        "nobody is asked: {told:?}"
+    );
     assert!(!rig.session.has_pending_request());
     let written = rig.written();
     assert_eq!(written.len(), 2);

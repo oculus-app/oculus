@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import {
-  messageAt, parseErrorMeta, parseItemMeta, parsePermissionMeta, parseToolMeta,
+  briefFrom, messageAt, parseErrorMeta, parseItemMeta, parsePermissionMeta, parseToolMeta,
   type HarnessItem, type ToolMeta,
 } from "@/lib/harness";
 
@@ -14,6 +14,7 @@ test("malformed metadata never exposes an approval or crashes a tool update", ()
     const item = row(meta);
     expect(parseToolMeta(item)).toEqual({});
     expect(messageAt(item)).toBeNull();
+    expect(briefFrom(item)).toBeNull();
     expect(parseErrorMeta(item)).toEqual({});
     expect(parsePermissionMeta(item).rule).toBeNull();
   }
@@ -37,4 +38,10 @@ test("only recognized auth providers and non-empty permission strings survive", 
   expect(messageAt(row('{"at":"3"}'))).toBeNull();
   expect(parsePermissionMeta(row('{"tool":"bash","action":false,"rule":"","target":0}')))
     .toEqual({ tool: "bash", action: undefined, rule: null, target: null });
+});
+
+test("a subagent's brief names the chat it came from; the student's own message names none", () => {
+  expect(briefFrom(row('{"fromThread":12}'))).toBe(12);
+  expect(briefFrom(row('{"at":3}'))).toBeNull();
+  expect(briefFrom(row('{"fromThread":"12"}'))).toBeNull();
 });

@@ -157,6 +157,7 @@ pub fn run() {
             proposals::proposal_inspect,
             harness::app::proposal_jobs::metadata::proposal_job_info,
             harness::app::proposal_jobs::lifecycle::proposal_job_start,
+            harness::app::proposal_jobs::subagent::proposal_subagent_stop,
             auth::commands::get_auth_status,
             auth::commands::check_canvas_session,
             auth::commands::launch_canvas_auth,

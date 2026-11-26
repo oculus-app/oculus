@@ -6,6 +6,11 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<Proposal, String> {
     let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
     state::on(&mut conn, id).await
 }
+/// The card, or None when its row is gone; a failed read is an error.
+pub async fn find(pool: &SqlitePool, id: &str) -> Result<Option<Proposal>, String> {
+    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    state::find_on(&mut conn, id).await
+}
 pub async fn list(pool: &SqlitePool, thread: i64) -> Result<Vec<Proposal>, String> {
     let ids = sqlx::query(
         "SELECT item_id,block FROM chat_proposals WHERE thread_id=?1 ORDER BY item_id,block",
@@ -101,16 +106,36 @@ pub async fn open(
     get(pool, &id).await
 }
 
+/// A pending card's new state; or a new agent, model and level for a
+/// Subagent card a quit interrupted, which Start again runs on.
 pub async fn edit(pool: &SqlitePool, id: &str, value: &Value) -> Result<Proposal, String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     let (item, block) = state::key(id)?;
     // Write first: no deferred read-to-write upgrade can race another view.
-    let n=sqlx::query("UPDATE chat_proposals SET updated_at=datetime('now') WHERE item_id=?1 AND block=?2 AND status='pending'").bind(item).bind(block).execute(&mut *tx).await.map_err(|e|e.to_string())?.rows_affected();
+    let n=sqlx::query("UPDATE chat_proposals SET updated_at=datetime('now') WHERE item_id=?1 AND block=?2 AND (status='pending' OR (kind='Subagent' AND status='created' AND json_type(state,'$.job.interrupted')='true'))").bind(item).bind(block).execute(&mut *tx).await.map_err(|e|e.to_string())?.rows_affected();
     if n != 1 {
         return Err("this proposal is already decided".into());
     }
     let row = state::on(&mut tx, id).await?;
-    state::validate_shape(&row.kind, value)?;
+    let without = |state: &Value, keys: &[&str]| {
+        let mut rest = state.clone();
+        if let Some(card) = rest.as_object_mut() {
+            for key in keys {
+                card.remove(*key);
+            }
+        }
+        rest
+    };
+    // A started card's job is Rust's; only its selection may change.
+    let selection = ["provider", "model", "effort"];
+    let started = row.status != "pending";
+    if started && without(value, &selection) != without(&row.state, &selection) {
+        return Err("this proposal is already decided".into());
+    }
+    match started {
+        true => state::validate_shape(&row.kind, &without(value, &["job"]))?,
+        false => state::validate_shape(&row.kind, value)?,
+    }
     sqlx::query("UPDATE chat_proposals SET state=?1 WHERE item_id=?2 AND block=?3")
         .bind(value.to_string())
         .bind(item)

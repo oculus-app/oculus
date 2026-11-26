@@ -27,8 +27,7 @@ export interface Capabilities {
   /** The CLI asks before what its sandbox blocks and the student answers in
    *  the chat (`HarnessRequest`). Where false such a step is declined. */
   approvals: boolean;
-  /** Auto hands requests to the CLI's own reviewer and the student is never
-   *  asked. Where false, Auto behaves as Ask and the mode control says so. */
+  /** Auto uses the CLI's native reviewer. It may still ask the student. */
   autoReview: boolean;
   /** Some answers reach past one call; each option's `scope` says how far. */
   sessionGrants: boolean;

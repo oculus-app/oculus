@@ -22,7 +22,9 @@ import { QUESTION_MAX_H, useOverflows } from "./useOverflows";
 const EDIT_MAX_H = 240;
 
 /** A question, on the right. Editing (a sent or a queued one) happens in the
- *  bubble itself, grown to the column's width. */
+ *  bubble itself, grown to the column's width. A subagent's brief (`from`)
+ *  is the parent chat's, not the student's: full width on the left, on the
+ *  page's ground under its "From ⟨chat⟩" line. */
 export function QuestionBubble({
   msgId,
   text,
@@ -33,6 +35,7 @@ export function QuestionBubble({
   onRemove,
   onRewind,
   status,
+  from,
 }: {
   /** The row id, for the rail to measure. Absent on a queued message. */
   msgId?: number;
@@ -48,6 +51,8 @@ export function QuestionBubble({
   /** An always-visible line right under the bubble, above its hover row
    *  (a steer's delivery), so it reads as this message's. */
   status?: ReactNode;
+  /** The line naming the chat this brief came from (`BriefFrom`). */
+  from?: ReactNode;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -125,12 +130,14 @@ export function QuestionBubble({
         <PastedTextViewer text={pasted[viewing]} onClose={() => setViewing(null)} />
       )}
       {/* What the rail measures: attachments and words, not the action row. */}
-      <div data-msg-id={msgId} className="flex w-full flex-col items-end gap-1.5">
+      <div data-msg-id={msgId} className={cn("flex w-full flex-col gap-1.5", from ? "items-start" : "items-end")}>
+        {/* Above pasted cards and words alike: a brief may be only a pasted block. */}
+        {from}
         {(pasted.length > 0 || pictures.length > 0) && (
           // Pasted text cards first, in the order sent. One picture at its own
           // size; several in a three-across grid, letterboxed rather than
           // cropped — they are usually screenshots.
-          <div className="flex max-w-[70%] flex-wrap items-end justify-end gap-1.5">
+          <div className={cn("flex max-w-[70%] flex-wrap items-end gap-1.5", !from && "justify-end")}>
             {pasted.map((t, i) => (
               <PastedTextCard key={`t${i}`} text={t} onOpen={() => setViewing(i)} />
             ))}
@@ -164,10 +171,13 @@ export function QuestionBubble({
         {(prose.length > 0 || (pictures.length === 0 && pasted.length === 0)) && (
           <div
             className={cn(
-              "max-w-[70%] min-w-0 rounded-xl border px-3.5 py-2 text-[13px] leading-relaxed",
+              "min-w-0 rounded-xl border px-3.5 py-2 text-[13px] leading-relaxed",
+              from ? "w-full" : "max-w-[70%]",
               pending
                 ? "border-dashed border-border bg-transparent text-muted-foreground"
-                : "border-border bg-surface text-foreground",
+                : from
+                  ? "border-border-subtle bg-transparent text-foreground"
+                  : "border-border bg-surface text-foreground",
             )}
           >
             <div
@@ -217,7 +227,7 @@ export function QuestionBubble({
         )}
       </div>
       {status}
-      <MessageActions when={pending ? "Queued" : when} at={pending ? null : at} side="right">
+      <MessageActions when={pending ? "Queued" : when} at={pending ? null : at} side={from ? "left" : "right"}>
         <CopyAction text={text} />
         {onSubmit && <Action label="Edit" icon={PencilSimple} onClick={() => setEditing(text)} />}
         {onRewind && <Action label="Rewind to here" icon={ArrowCounterClockwise} onClick={onRewind} />}

@@ -121,6 +121,7 @@ pub(super) async fn run(
             )
             .await
         }
+        "Subagent" => super::subagent::run(app, proposal_id, state).await,
         _ => Err("unknown job".into()),
     }
 }

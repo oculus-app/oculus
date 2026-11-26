@@ -249,6 +249,7 @@ impl Consumer {
                     text,
                     at,
                     continuation,
+                    brief_from,
                     waited,
                 } = *began;
                 // It left the queue before its question appears.
@@ -267,6 +268,7 @@ impl Consumer {
                     None => HarnessEvent::UserMessage {
                         text,
                         at,
+                        from_thread: brief_from,
                         run: Some(run),
                     },
                 };
@@ -319,6 +321,7 @@ impl Consumer {
                 item_id,
                 context,
                 stale,
+                children,
             } => {
                 let rewound = HarnessEvent::Rewound {
                     from_item_id: item_id,
@@ -332,6 +335,12 @@ impl Consumer {
                         provider,
                     });
                 }
+                for child in children {
+                    self.stop_child(thread_id, item_id, child, io);
+                }
+                // A rewind past a subagent's brief ends its report: its card's
+                // wait reads it now, not at the chat's next settle.
+                io.ended(thread_id);
             }
             Applied::Responded(request) => self.responded(thread_id, provider, *request, io),
             Applied::Mode(mode) => {
@@ -351,7 +360,29 @@ impl Consumer {
                     thread_id,
                     reason: Release::Deleted,
                 });
+                io.ended(thread_id);
             }
+        }
+    }
+
+    /// A rewind took a Subagent card whose child still runs: stop the
+    /// child's first run as its Cancel would. The child's chat stays.
+    fn stop_child(&mut self, parent: i64, item_id: i64, child: i64, io: &mut impl ConsumerIo) {
+        let Some(pool) = self.pool.clone() else {
+            return;
+        };
+        let id = format!("rewound:{parent}:{item_id}:{child}");
+        match self
+            .rt
+            .block_on(crate::harness::app::children::stop_command(
+                &pool, &id, child,
+            )) {
+            Ok(Some(stop)) => {
+                let (reply, _) = tokio::sync::oneshot::channel();
+                self.command(stop, reply, io);
+            }
+            Ok(None) => {}
+            Err(e) => elog!("[oculus] harness thread {parent}: stopping subagent {child}: {e}"),
         }
     }
 

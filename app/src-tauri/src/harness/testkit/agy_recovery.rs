@@ -117,6 +117,10 @@ fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id(
                 .bind(rig.thread).bind(kind).bind(text).bind(old).fetch_one(&rig.pool).await.unwrap();
             sqlx::query(&format!("UPDATE harness_runs SET {column} = ?2 WHERE id = ?1")).bind(old).bind(item).execute(&rig.pool).await.unwrap();
         }
+        // A card the old session was told, which the new one must hear again.
+        sqlx::query("INSERT INTO chat_proposals (item_id,block,thread_id,kind,status,state,initial_state,told,told_run_id) SELECT answer_item_id,0,thread_id,'Subagent','created',?2,?2,'created',id FROM harness_runs WHERE id = ?1")
+            .bind(old).bind(json!({"title":"Locker","task":"Find the locker","job":{"phase":"complete","result":"Locker 19 is in building 7"}}).to_string())
+            .execute(&rig.pool).await.unwrap();
     });
     let (opened, bridge) = mpsc::channel();
     let (harness, thread, outbound, root) = (
@@ -147,6 +151,7 @@ fn a_failed_load_starts_new_with_one_full_handoff_and_the_next_send_uses_its_id(
     assert!(prompt.contains("Remember locker 19"));
     assert!(prompt.contains("Your locker is 19"));
     assert_eq!(prompt.matches("Which locker?").count(), 1);
+    assert!(prompt.contains("Locker 19 is in building 7"), "{prompt}");
     let reply = |id| json!({"id":id,"result":{"stopReason":"end_turn"}});
     let session = bridge.try_recv().unwrap();
     session.inbound(&reply(4));

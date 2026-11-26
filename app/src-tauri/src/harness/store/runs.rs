@@ -8,6 +8,7 @@ use sqlx::{Row, SqliteConnection, SqlitePool};
 
 use crate::harness::event::answer::{select, Candidate};
 use crate::harness::event::Provider;
+use crate::harness::requests::Refusal;
 
 /// What [`begin`] wrote: the run, its first attempt, the binding it runs on
 /// and the question's row.
@@ -50,6 +51,9 @@ pub struct SendIntent {
     /// The send's options as the run keeps them (`queue::stored`), which is
     /// what its start step reads; `None` keeps what a waiting run holds.
     pub options: Option<String>,
+    /// The chat whose brief this is: the first run of a subagent's chat
+    /// (`app/children`), marked on its row as `meta.fromThread`.
+    pub brief_from: Option<i64>,
 }
 
 /// [`begin`]'s refusal of a continuation its card no longer holds a claim
@@ -124,6 +128,10 @@ pub async fn begin(tx: &mut SqliteConnection, send: &SendIntent) -> Result<RunSt
             let mut meta = serde_json::Map::new();
             if let Some(at) = send.at {
                 meta.insert("at".into(), at.into());
+            }
+            // A subagent's brief is its parent's words, not the student's.
+            if let Some(parent) = send.brief_from {
+                meta.insert("fromThread".into(), parent.into());
             }
             let options = super::queue::restored(send.options.clone());
             if options.library_change {
@@ -333,6 +341,9 @@ pub struct Settlement {
     pub ended_at: Option<String>,
 }
 
+const PROTECTED_WRITE_REFUSED: &str =
+    "The agent stopped after Oculus refused a write to a protected folder.";
+const REQUEST_DECLINED: &str = "The agent stopped after its request was declined.";
 pub const NO_ANSWER: &str = "The agent finished, but its answer did not reach Oculus.";
 pub const PART_MISSING: &str =
     "Some earlier reply text did not reach Oculus. This reply may be incomplete.";
@@ -346,6 +357,7 @@ pub async fn settle(
     run_id: i64,
     attempt_id: i64,
     status: &str,
+    refusal: Option<Refusal>,
 ) -> Result<Option<Settlement>, String> {
     let err = |e: sqlx::Error| e.to_string();
     let status: &'static str = match status {
@@ -461,10 +473,32 @@ pub async fn settle(
     .map_err(err)?;
     // A stop, a failure or an error row already says what happened.
     let notice = if status == "completed" && delivery == "incomplete" && !has("error") {
-        let text = if answer.is_some() {
-            PART_MISSING
-        } else {
-            NO_ANSWER
+        let text = match (answer, refusal) {
+            (Some(_), _) => PART_MISSING,
+            (None, Some(Refusal::ProtectedPath)) => PROTECTED_WRITE_REFUSED,
+            (None, Some(Refusal::Other)) => REQUEST_DECLINED,
+            (None, None) => {
+                // Response IDs are provider-specific. The selected option says
+                // whether the student declined the live request.
+                let declined: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (
+                        SELECT 1 FROM harness_requests r, json_each(r.options) o
+                         WHERE r.thread_id = ?1 AND r.run_id = ?2 AND r.status = 'resolved'
+                           AND r.responder = 'live' AND r.delivery IN ('sending', 'acknowledged')
+                           AND o.value ->> 'id' = r.response AND o.value ->> 'decision' = 'decline'
+                    )",
+                )
+                .bind(thread_id)
+                .bind(run_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(err)?;
+                if declined {
+                    REQUEST_DECLINED
+                } else {
+                    NO_ANSWER
+                }
+            }
         };
         let id = sqlx::query(
             "INSERT INTO harness_items (thread_id, kind, content, run_id, attempt_id)

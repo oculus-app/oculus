@@ -23,6 +23,12 @@ export function toolVerb(kind: ToolKind, done: boolean, name?: string | null): s
   }
 }
 
+/** A call an approval holds has not started: a command "Wants to run";
+ *  any other keeps its verb. */
+export function awaitedToolVerb(kind: ToolKind, name?: string | null): string {
+  return kind === "bash" ? "Wants to run" : toolVerb(kind, false, name);
+}
+
 export function parseUsage(t: HarnessThread | null): ThreadUsage | null {
   if (!t?.usage) return null;
   try {
@@ -72,6 +78,13 @@ export function parseToolMeta(item: HarnessItem): ToolMeta {
 export function messageAt(item: HarnessItem): number | null {
   const { at } = parseItemMeta(item);
   return typeof at === "number" ? at : null;
+}
+
+/** The parent chat whose brief a subagent's first `user` row is
+ *  (`{"fromThread": 12}`); null for the student's own message. */
+export function briefFrom(item: HarnessItem): number | null {
+  const { fromThread } = parseItemMeta(item);
+  return typeof fromThread === "number" ? fromThread : null;
 }
 
 /** The agent a credentials-failure error row is about (`{"auth":"claude"}`);

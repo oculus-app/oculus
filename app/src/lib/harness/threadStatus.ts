@@ -30,6 +30,30 @@ export function threadStatus(i: ThreadStatusInputs): ThreadStatus | null {
   return null;
 }
 
+/** `threadStatus`' order, most urgent first. */
+const URGENCY: readonly ThreadStatus[] = ["approval", "input", "working", "failed", "done"];
+/** What a folded parent row takes from its children: what waits on the
+ *  student, then what runs. A child's Done or Failed stays on its own row. */
+const BUBBLES: ReadonlySet<ThreadStatus> = new Set(["approval", "input", "working"]);
+
+/** The most urgent of its children's statuses a folded parent row shows:
+ *  Approval, then Input, then Working; null when no child has one. */
+export function childAttention(children: readonly (ThreadStatus | null)[]): ThreadStatus | null {
+  let best: ThreadStatus | null = null;
+  for (const s of children) {
+    if (s && BUBBLES.has(s) && (best == null || URGENCY.indexOf(s) < URGENCY.indexOf(best))) best = s;
+  }
+  return best;
+}
+
+/** A parent row's status with its children's bubbled in: whichever comes
+ *  first in `threadStatus`' order, so a child waiting on approval outranks
+ *  the parent's own unread Done. */
+export function withChildren(own: ThreadStatus | null, children: ThreadStatus | null): ThreadStatus | null {
+  if (own == null || children == null) return own ?? children;
+  return URGENCY.indexOf(children) < URGENCY.indexOf(own) ? children : own;
+}
+
 export const THREAD_STATUS_LABEL: Record<ThreadStatus, string> = {
   approval: "Approval",
   input: "Question",

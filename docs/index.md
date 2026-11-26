@@ -18,7 +18,7 @@ the root `CLAUDE.md` holds only the rules.
 | [auth.md](./auth.md) | Canvas session in keyd's vault, sign-in on demand, Okta sign-in and its attempt guard, Ed `x-token`, Echo360 LTI, WebKit's WebCrypto master key in keyd and the data-store delegate that hands it to WebKit |
 | [parsing.md](./parsing.md) | PDFs to markdown: the parser seam, the two MinerU engines, failures |
 | [retrieval.md](./retrieval.md) | Page-image embeddings, the `pages` table, query flow |
-| [harness.md](./harness.md) | Chat as a CLI agent: the four bridges, containment, the timeline, a thread's Studio video (its card, render tiles and inline player), per-job models and subagents |
+| [harness.md](./harness.md) | Chat as a CLI agent: the four bridges, containment, the timeline, a thread's Studio video (its card, render tiles and inline player), per-job models, and subagents: child chats a Subagent card starts, whose report continues the parent |
 | [harness-replay.md](./harness-replay.md) | Offline provider-frame replay, fixture manifests, scratch isolation and executable turn-model release gates |
 | [widgets.md](./widgets.md) | ` ```widget ` fences: agent-written TSX in a sandboxed frame, the `oculus/*` kit, its CSP and messages, sizing without scroll, state and Ask to fix, `oculus/ask` (a model call or a chat message the student allows, the Widget questions job, the schema subset), and the `oculus-widgets` skill, its gallery and `oculus widget check` |
 | [generative-ui.md](./generative-ui.md) | ` ```ui ` fences: streamed sanitised HTML and inline SVG drawn in place via repair, allow-list sanitisation and DOM morphing, static vocabulary on semantic tokens, maths, tables, folded replies, copy and find |

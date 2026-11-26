@@ -19,15 +19,22 @@ describe("the mode control's lines per bridge", () => {
     expect(choices[0].line).toBe("You approve what the sandbox blocks");
   });
 
-  test("no reviewer: Auto says it asks as Ask", () => {
-    const { note, choices } = modeChoices({ provider: "opencode", approvals: true, autoReview: false });
-    expect(note).toBeNull();
-    expect(choices[1].line).toBe("opencode has no reviewer, so it asks");
+  test("Antigravity names native Auto and explains its access to the library", () => {
+    const { note, choices } = modeChoices({ provider: "antigravity", approvals: true, autoReview: true });
+    expect(choices[1].line).toBe("Antigravity's own Auto decides");
+    expect(note).toBe("In Auto, Antigravity approves its own edits and commands. Course folders stay read-only. Oculus cannot keep it out of the database or other files on this Mac.");
   });
 
-  test("no approvals: the control says the agent cannot ask yet", () => {
-    const { note } = modeChoices({ provider: "claude", approvals: false, autoReview: false });
-    expect(note).toBe("Claude Code cannot ask yet: anything its sandbox blocks is declined, whichever you choose.");
+  test("Antigravity asks on platforms without the folder guard", () => {
+    const { note, choices } = modeChoices({ provider: "antigravity", approvals: true, autoReview: false });
+    expect(choices[1].line).toBe("Antigravity has no reviewer, so it asks");
+    expect(note).toBeNull();
+  });
+
+  test("opencode has no reviewer and cannot open an approval", () => {
+    const { note, choices } = modeChoices({ provider: "opencode", approvals: false, autoReview: false });
+    expect(choices[1].line).toBe("opencode has no reviewer");
+    expect(note).toBe("opencode cannot ask yet: anything its sandbox blocks is declined, whichever you choose.");
   });
 
   test("a chat with no saved mode asks", () => {

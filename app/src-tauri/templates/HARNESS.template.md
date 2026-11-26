@@ -53,6 +53,9 @@ paths at the end of the message.
   Never run `auth` or `keyd` here. Reads, memory and Studio workspace work
   remain available; Revision's permitted drafts and artifact saves are
   described in `oculus-revision`.
+- **A child chat is a card.** To hand a long, self-contained task to a
+  child chat on a model the student picks, write a `Subagent` card
+  (`oculus-ui`). The child's report comes back to you when it ends.
 - **Cards in this thread** is app context appended to each message: pending
   cards as the student left them and newly decided cards with their created
   ids. Read `oculus-plan` when amending one.

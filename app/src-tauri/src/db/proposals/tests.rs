@@ -695,3 +695,39 @@ fn every_card_takes_an_optional_text_follow_up() {
     assert!(validate_shape("Sync", &json!({"subjects": [], "then": long})).is_err());
     assert!(validate_shape("Sync", &json!({"subjects": [], "next": then})).is_err());
 }
+
+/// A Subagent card a quit interrupted takes a new agent, model and level
+/// for Start again, and nothing else; any other decided card takes none.
+#[tokio::test]
+async fn an_interrupted_subagent_card_takes_a_new_selection_only() {
+    let (pool, thread, item) = setup().await;
+    let state = json!({"title": "Week 3", "task": "Summarise week 3", "provider": "codex",
+                       "model": "gpt-6.2-sol", "effort": "minimal"});
+    let p = card(&pool, thread, item, "Subagent", &state).await;
+    let mut interrupted = state.clone();
+    interrupted["job"] = json!({"phase": "error", "interrupted": true});
+    sqlx::query("UPDATE chat_proposals SET status = 'created', state = ?1")
+        .bind(interrupted.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+    let mut fitted = interrupted.clone();
+    fitted["effort"] = json!("medium");
+    assert_eq!(
+        edit(&pool, &p.id, &fitted).await.unwrap().state["effort"],
+        "medium"
+    );
+    let mut briefed = fitted.clone();
+    briefed["task"] = json!("Something else");
+    assert!(edit(&pool, &p.id, &briefed).await.is_err());
+    let mut finished = fitted.clone();
+    finished["job"] = json!({"phase": "error", "ended": "failed"});
+    sqlx::query("UPDATE chat_proposals SET state = ?1")
+        .bind(finished.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+    let mut other = finished.clone();
+    other["effort"] = json!("high");
+    assert!(edit(&pool, &p.id, &other).await.is_err());
+}

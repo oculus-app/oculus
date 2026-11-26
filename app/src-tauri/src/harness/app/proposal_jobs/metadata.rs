@@ -23,6 +23,7 @@ pub async fn proposal_job_info(kind: String, state: Value) -> Result<Value, Stri
             let bytes = if item == "aligner" { crate::studio::timing::PACK.bytes() } else if item == "voices" { crate::studio::tts::kokoro::packs().iter().map(|p| p.bytes()).sum::<u64>() + ["af_heart","am_michael"].iter().filter_map(|id| crate::studio::tts::kokoro::voices::find(id)).map(|v| v.bytes()).sum::<u64>() } else { crate::studio::tts::kokoro::voices::find(item).unwrap().bytes() };
             format!("Download {item} ({:.1} MB).",bytes as f64 / 1_000_000.0)
         },
+        "Subagent" => "Runs the task in a new chat on the chosen agent and model, which uses that agent's own usage or credits.".into(),
         _ => unreachable!(),
     };
     Ok(json!({"description":description}))

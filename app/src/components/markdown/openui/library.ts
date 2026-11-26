@@ -81,5 +81,14 @@ export const library = createLibrary({
     { name: "Create", components: ["NewTasks", "NewProject", "Task", "Under", "NewEvents", "Event", "NewNote", "NewCheatNotes", "CheatEntry"], notes: ["- Use one proposal per openui fence. Nothing is written until the student clicks Create.", "- Look up existing ids in the CLI; never guess. Optional arguments may be null to skip a middle argument.", "- amends is the app's pending card id from Cards in this thread; then, the optional follow-up, is the only argument after it."] },
     { name: "Change", components: ["Change", "TaskChanges", "ProjectChanges", "EventChanges", "TagChanges", "NewTag", "DeleteTag", "DeleteTasks", "DeleteEvents", "EditItems", "Edit"], notes: ["- Change(id, from, to) uses the same keys in from and to. Null clears a field.", "- Task keys: title, body, due, starts, estimate, tags, files, column, project. Project keys: name, subject, due, starts, brief, tags, event, status. Event keys: title, start, end, kind, subject, notes. Tag keys: name, color.", "- Only local_<id> events may be changed/deleted; Canvas events are read-only."] },
     { name: "Jobs", components: ["Sync", "Reparse", "Transcribe", "LectureChapters", "LectureEnd", "Download"], notes: ["- Ask with a job card before starting long, billed or downloaded work. One job per fence. No Undo.", "- then, the optional last argument, is what you do once the job finishes; the student's click starts that one turn."] },
+    {
+      name: "Subagents", components: ["Subagent"], notes: [
+        "- Hand work to a subagent when it is long and self-contained (one part of a series, a separate file, a survey you only need the summary of) and can run beside this chat. Do small or step-by-step work yourself.",
+        "- The child sees nothing of this chat: task is its whole brief, so name the files, paths, ids and decisions it needs, and what it must not touch.",
+        "- Several children at once must write different files; never give two the same file.",
+        "- Ask for the report you want back (a list, the paths written, open questions). It returns to you under Cards in this thread when the child ends; then is what you do with it.",
+        "- The student picks the child's agent and model on the card. A subagent cannot start another.",
+      ],
+    },
   ],
 });

@@ -1,6 +1,6 @@
 ---
 name: oculus-ui
-description: Draws interactive study cards, live student-data views and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for formula sliders (Explorer), live Query summaries, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, and confirming sync, parse, transcription, lecture or download jobs.
+description: Draws interactive study cards, live student-data views and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for formula sliders (Explorer), live Query summaries, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, confirming sync, parse, transcription, lecture or download jobs, and handing a self-contained task to a subagent.
 ---
 
 # Chat widgets and proposal cards
@@ -36,7 +36,7 @@ Props typed `ActionExpression` accept one @step, or Action([@steps...]) for seve
 Props marked `$binding<type>` accept a `$variable` reference for two-way binding.
 
 ### Root
-Stack(items: (Task | TaskList | Deadline | Upcoming | Lecture | StudioVideo | CheatNote | ReviewDue | NewCheatNotes | EditItems | Flashcards | Quiz | Question | Steps | Explorer | Text | Slider | Value | Toggle | Select | Input | Button | PageRef | Ask | NewTasks | NewProject | NewEvents | NewNote | TaskChanges | ProjectChanges | EventChanges | TagChanges | DeleteTasks | DeleteEvents | Sync | Reparse | Transcribe | LectureChapters | LectureEnd | Download)[]) — The root: items top to bottom. Ask and PageRef items line up in a row.
+Stack(items: (Task | TaskList | Deadline | Upcoming | Lecture | StudioVideo | CheatNote | ReviewDue | NewCheatNotes | EditItems | Flashcards | Quiz | Question | Steps | Explorer | Text | Slider | Value | Toggle | Select | Input | Button | PageRef | Ask | NewTasks | NewProject | NewEvents | NewNote | TaskChanges | ProjectChanges | EventChanges | TagChanges | DeleteTasks | DeleteEvents | Sync | Reparse | Transcribe | LectureChapters | LectureEnd | Download | Subagent)[]) — The root: items top to bottom. Ask and PageRef items line up in a row.
 Text(text: string, tone?: "normal" | "muted") — A short line of markdown; $…$ for maths. Strings may be built with + from $variables.
 
 ### Recall
@@ -129,6 +129,14 @@ LectureEnd(lecture: string, then?: string) — Ask before finding a lecture's co
 Download(item: string, then?: string) — Ask before downloading aligner, voices starter pack or a voice id.
 - Ask with a job card before starting long, billed or downloaded work. One job per fence. No Undo.
 - then, the optional last argument, is what you do once the job finishes; the student's click starts that one turn.
+
+### Subagents
+Subagent(title: string, task: string, then?: string) — Propose handing a self-contained task to a child chat. task is the whole brief the child gets; the student picks its agent and model and clicks Start, and its report comes back to you.
+- Hand work to a subagent when it is long and self-contained (one part of a series, a separate file, a survey you only need the summary of) and can run beside this chat. Do small or step-by-step work yourself.
+- The child sees nothing of this chat: task is its whole brief, so name the files, paths, ids and decisions it needs, and what it must not touch.
+- Several children at once must write different files; never give two the same file.
+- Ask for the report you want back (a list, the paths written, open questions). It returns to you under Cards in this thread when the child ends; then is what you do with it.
+- The student picks the child's agent and model on the card. A subagent cannot start another.
 
 ## Built-in Functions
 

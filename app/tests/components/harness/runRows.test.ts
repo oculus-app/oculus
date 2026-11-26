@@ -204,7 +204,7 @@ describe("states", () => {
     expect(rows.filter((r) => r.kind === "item" && r.item.kind === "compaction").length).toBe(1);
   });
 
-  test("a running run folds its work open with the latest reply as the provisional answer", () => {
+  test("a running run folds its work open, a reply the run has moved past with it", () => {
     const c = load("claude-144-duplicate-a");
     const tool = c.envelopes.findIndex((e) => e.event.type === "tool_started");
     const { rows } = liveRows(c, tool + 1);
@@ -212,9 +212,26 @@ describe("states", () => {
     expect(fold.state).toBe("running");
     expect(fold.endedMs).toBeNull();
     expect(foldOpens(fold.state)).toBe(true);
-    const [shown] = replies(rows);
-    expect(shown.role).toBe("provisional");
-    expect(fold.items.map((i) => i.kind)).toEqual(["tool"]);
+    expect(replies(rows)).toEqual([]);
+    expect(fold.items.map((i) => i.kind)).toEqual(["assistant", "tool"]);
+  });
+
+  test("a reply is the provisional answer only while it is the newest thing the run did", () => {
+    const items = [
+      { id: 1, thread_id: THREAD, kind: "user", run_id: 9 },
+      { id: 2, thread_id: THREAD, kind: "tool", content: "ls", run_id: 9 },
+      { id: 3, thread_id: THREAD, kind: "assistant", content: "Found it.", run_id: 9 },
+    ] as HarnessItem[];
+    const newest = buildRows(items, true);
+    expect(replies(newest).map((r) => [r.item.id, r.role])).toEqual([[3, "provisional"]]);
+    expect(works(newest)[0].items.map((i) => i.id)).toEqual([2]);
+    // Reasoning starts, or a tool follows: it was narration.
+    const thinking = buildRows(items, true, { thinking: true });
+    expect(replies(thinking)).toEqual([]);
+    expect(works(thinking)[0].items.map((i) => i.id)).toEqual([2, 3]);
+    const next = buildRows([...items, { id: 4, thread_id: THREAD, kind: "tool", content: "cat", run_id: 9 } as HarnessItem], true);
+    expect(replies(next)).toEqual([]);
+    expect(works(next)[0].items.map((i) => i.id)).toEqual([2, 3, 4]);
   });
 
   test("while text streams, it is the provisional answer and earlier replies are work", () => {
@@ -459,11 +476,13 @@ describe("a request's row", () => {
   });
 });
 
-test("a restarted Antigravity session stays a note outside the work fold", () => {
-  const text = "Antigravity started a new session because the saved conversation could not be loaded.";
-  useHarnessStore.getState().apply({ threadId: THREAD, provider: "antigravity", itemId: 90, runId: 9, event: { type: "session_restarted", text } });
+test.each([
+  ["session_restarted", "Antigravity started a new session because the saved conversation could not be loaded."],
+  ["session_notice", "Antigravity's Auto is not available on this sign-in, so it asks."],
+] as const)("Antigravity's %s note stays outside the work fold", (type, text) => {
+  useHarnessStore.getState().apply({ threadId: THREAD, provider: "antigravity", itemId: 90, runId: 9, event: { type, text } });
   const item = useHarnessStore.getState().items[THREAD][0];
-  expect(item.kind).toBe("session_restarted");
+  expect(item.kind).toBe(type);
   const rows = buildRows([item], false, { runs: { 9: { id: 9, status: "completed", delivery: "delivered", answer_item_id: null } } });
   expect(rows).toHaveLength(1);
   expect(rows[0].kind).toBe("item");

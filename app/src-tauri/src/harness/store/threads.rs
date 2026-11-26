@@ -110,6 +110,9 @@ pub struct ThreadRow {
     /// The dock conversation's recording, joined likewise. Deleting the
     /// recording clears the column, not the conversation.
     pub lecture: Option<LectureRef>,
+    /// The chat this one was started from as a subagent (`app/children`);
+    /// `None` for a chat the student started, or whose parent was deleted.
+    pub parent_thread_id: Option<i64>,
 }
 
 /// What a lecture thread's instructions name: the recording and its transcript.
@@ -128,7 +131,7 @@ pub struct LectureRef {
 
 pub async fn thread(pool: &SqlitePool, id: i64) -> Result<ThreadRow, String> {
     let r = sqlx::query(
-        "SELECT t.id, t.provider, t.model, t.effort, s.code AS subject_code,
+        "SELECT t.id, t.provider, t.model, t.effort, t.parent_thread_id, s.code AS subject_code,
                 l.id AS lecture_id, l.title AS lecture_title, l.date AS lecture_date,
                 l.folder_rel AS lecture_folder, l.transcript_path
          FROM harness_threads t
@@ -165,6 +168,7 @@ pub async fn thread(pool: &SqlitePool, id: i64) -> Result<ThreadRow, String> {
         effort: r.get("effort"),
         subject_code: r.get("subject_code"),
         lecture,
+        parent_thread_id: r.get("parent_thread_id"),
     })
 }
 
@@ -217,9 +221,11 @@ pub async fn delete_thread(pool: &SqlitePool, id: i64) -> Result<(), String> {
     tx.commit().await.map_err(|e| e.to_string())
 }
 
-/// [`delete_thread`] inside the caller's transaction.
+/// [`delete_thread`] inside the caller's transaction. The chat's subagent
+/// chats stay, as chats of their own.
 pub async fn delete(conn: &mut SqliteConnection, id: i64) -> Result<(), String> {
     for sql in [
+        "UPDATE harness_threads SET parent_thread_id = NULL WHERE parent_thread_id = ?1",
         "DELETE FROM chat_proposals WHERE thread_id = ?1",
         "DELETE FROM harness_items WHERE thread_id = ?1",
         "DELETE FROM harness_command_receipts WHERE thread_id = ?1",

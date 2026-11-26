@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from "react";
-import { useProposalStore } from "@/stores/chat/proposalStore";
+import { useProposalStore, type ProposalAction } from "@/stores/chat/proposalStore";
 import { proposalInspect } from "@/lib/harness/proposals";
 import { WidgetFence, useWidgetRow } from "../state";
 import { initialProposal, object, rowId, rowKey, rows, entityFor, type Row } from "./model";
@@ -15,15 +15,16 @@ export function useProposal(kind: string, input: Row) {
   const proposal = useProposalStore((s) => id ? s.rows[id] : undefined);
   const draft = useProposalStore((s) => id ? s.drafts[id] : undefined);
   const busy = useProposalStore((s) => id ? !!s.busy[id] : false);
+  const acting = useProposalStore((s) => id ? s.acting[id] : undefined);
   const error = useProposalStore((s) => id ? s.errors[id] : undefined);
   useEffect(() => {
     if (!id || !row) return;
     void useProposalStore.getState().open(row.thread, row.row, block, kind, initial, typeof initial.amends === "string" ? initial.amends : null);
   }, [id, row?.thread, row?.row, block, kind, initial]);
   return {
-    id, proposal, busy, error, initial, amended: proposal?.amended_from, state: draft ?? proposal?.state ?? initial,
+    id, proposal, busy, acting, error, initial, amended: proposal?.amended_from, state: draft ?? proposal?.state ?? initial,
     edit: (state: Row) => { if (id) useProposalStore.getState().edit(id, state); },
-    act: (action: "apply" | "discard" | "undo" | "start") => { if (id) void useProposalStore.getState().act(id, action); },
+    act: (action: ProposalAction) => { if (id) void useProposalStore.getState().act(id, action); },
     retry: () => { if (row) void useProposalStore.getState().open(row.thread, row.row, block, kind, initial, typeof initial.amends === "string" ? initial.amends : null); },
   };
 }

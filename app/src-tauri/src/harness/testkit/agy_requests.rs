@@ -1,7 +1,5 @@
-//! Antigravity over ACP, replayed from the stage 5 probe recordings (agy
-//! 1.5.9): Rust's policy answers first, the student answers the rest, each
-//! answer goes to the request's own id as the manifest has it, and Stop is
-//! `session/cancel`.
+//! Recorded ACP turns through the bridge and the request consumer. The
+//! manifest checks every reply against what the probe wrote.
 
 use std::sync::{Arc, Mutex};
 
@@ -33,7 +31,7 @@ fn reply(frame: &Value) -> bool {
     frame.get("result").is_some() && frame.get("method").is_none()
 }
 
-pub(super) const NAMES: [Recorded; 5] = [
+pub(super) const NAMES: [Recorded; 7] = [
     // The write is in the chat's folder: Rust allows it, so only pwd and
     // false are asked.
     (
@@ -42,6 +40,12 @@ pub(super) const NAMES: [Recorded; 5] = [
         None,
     ),
     ("antigravity-acp-write-decline", &[(0, "decline")], None),
+    ("antigravity-acp-auto-command", &[], None),
+    (
+        "antigravity-acp-auto-outside-write",
+        &[(0, "decline")],
+        None,
+    ),
     ("antigravity-acp-command-decline", &[(0, "decline")], None),
     (
         "antigravity-acp-cancel",
@@ -319,6 +323,11 @@ fn a_write_outside_is_asked_as_a_file_change_and_a_declined_one_is_not_made() {
     );
     let tools = rows(&rig, "tool");
     assert_eq!(tools[0].2["ok"], false, "the declined write failed");
+    assert!(tools[0].2["review"].is_null());
+    assert_eq!(
+        rows(&rig, "delivery_notice")[0].1,
+        "The agent stopped after its request was declined."
+    );
     assert!(
         !rows(&rig, "thinking").is_empty(),
         "high effort's thought is kept"
@@ -380,6 +389,22 @@ fn a_write_naming_a_protected_path_or_the_database_never_reaches_the_student() {
         assert!(requests(&rig).is_empty(), "{file}: nobody was asked");
         assert_eq!(opened(&rig), 0, "{file}");
         assert_eq!(run_status(&rig), "completed", "{file}");
+        let protected = !file.starts_with("oculus.db");
+        let review = &rows(&rig, "tool")[0].2["review"];
+        if protected {
+            assert_eq!(review["source"], "rule");
+            assert_eq!(review["status"], "denied");
+            assert_eq!(
+                rows(&rig, "delivery_notice")[0].1,
+                "The agent stopped after Oculus refused a write to a protected folder."
+            );
+        } else {
+            assert!(review.is_null());
+            assert_eq!(
+                rows(&rig, "delivery_notice")[0].1,
+                "The agent stopped after its request was declined."
+            );
+        }
         let replay = rig.finish();
         assert_eq!(
             replay.outbound[1]["result"]["outcome"]["optionId"], "deny",
@@ -389,7 +414,7 @@ fn a_write_naming_a_protected_path_or_the_database_never_reaches_the_student() {
 }
 
 #[test]
-fn dont_ask_declines_a_request_unseen_and_auto_asks_as_ask_does() {
+fn dont_ask_declines_a_request_unseen() {
     let mut scenario = Scenario::recorded("antigravity-acp-command-decline");
     scenario.fixture.permission_mode = Some(PermissionMode::Quiet);
     let rig = finished({
@@ -398,16 +423,70 @@ fn dont_ask_declines_a_request_unseen_and_auto_asks_as_ask_does() {
         rig
     });
     assert!(requests(&rig).is_empty(), "nobody was asked");
+    assert_eq!(
+        rows(&rig, "delivery_notice")[0].1,
+        "The agent stopped after its request was declined."
+    );
     assert_eq!(run_status(&rig), "completed");
     rig.finish();
+}
 
-    let mut scenario = Scenario::recorded("antigravity-acp-command-decline");
-    scenario.fixture.permission_mode = Some(PermissionMode::Auto);
-    let mut rig = at_request(scenario, 0);
+#[test]
+fn a_failed_auto_write_without_a_permission_callback_is_reviewed_on_its_tool_row() {
+    let mut scenario = Scenario::recorded("antigravity-acp-auto-command");
+    let update = |body: Value| json!({"method":"session/update","params":{"update":body}});
+    let end = scenario.frames.pop().unwrap();
+    assert!(reply(&end));
+    scenario.frames = vec![
+        update(
+            json!({"sessionUpdate":"tool_call","toolCallId":"write-1","name":"write_file","rawInput":{"Path":"$LIBRARY/courses/X/Course/notes.md"}}),
+        ),
+        update(
+            json!({"sessionUpdate":"tool_call_update","toolCallId":"write-1","status":"failed","rawOutput":{"output":"Operation not permitted"}}),
+        ),
+        end,
+    ];
+    let mut rig = Rig::start(scenario);
+    rig.open();
+    let rig = finished(rig);
+    assert!(requests(&rig).is_empty());
+    let tool = &rows(&rig, "tool")[0].2;
+    assert_eq!(tool["ok"], false);
+    assert_eq!(tool["review"]["source"], "rule");
+    assert_eq!(tool["review"]["status"], "denied");
+    rig.finish();
+}
+
+#[test]
+fn auto_completes_the_recorded_command_without_opening_a_request() {
+    let mut rig = Rig::start(Scenario::recorded("antigravity-acp-auto-command"));
+    rig.open();
+    let rig = finished(rig);
+    assert_eq!(opened(&rig), 0);
+    assert!(requests(&rig).is_empty());
+    let tools = rows(&rig, "tool");
+    assert_eq!(tools.len(), 1);
+    assert_eq!(tools[0].2["ok"], true);
+    rig.finish();
+}
+
+#[test]
+fn auto_shows_the_outside_write_agy_asks_about_and_declining_fails_the_tool() {
+    let mut rig = at_request(Scenario::recorded("antigravity-acp-auto-outside-write"), 0);
+    assert_eq!(opened(&rig), 1);
     let asked = requests(&rig);
-    assert_eq!(asked.len(), 1, "no reviewer: Auto asks");
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].1, "file_change");
+    assert_eq!(
+        payload(&rig, asked[0].0)["changes"][0]["path"],
+        "/private/tmp/oculus-agy-auto-out-3Lkb0Q/new.txt"
+    );
     respond(&mut rig, "no", asked[0].0, "decline").unwrap();
-    finished(rig).finish();
+    let rig = finished(rig);
+    let tools = rows(&rig, "tool");
+    assert_eq!(tools.len(), 1);
+    assert_eq!(tools[0].2["ok"], false);
+    rig.finish();
 }
 
 #[test]
@@ -616,7 +695,7 @@ fn a_one_off_turn_answers_by_policy_alone_and_finishes_without_asking() {
         sink,
         &scenario.fixture.native_session,
         &root,
-        true,
+        None,
     );
     session
         .send("Replay request", &crate::harness::event::unbound())
@@ -673,7 +752,7 @@ fn a_one_off_bypassed_oculus_command_is_allowed_without_a_question() {
         Arc::new(move |e| heard.lock().unwrap().push(e)),
         &scenario.fixture.native_session,
         &scratch,
-        true,
+        None,
     );
     session
         .send("Replay request", &crate::harness::event::unbound())
@@ -784,7 +863,7 @@ fn a_write_into_a_subjects_own_files_is_allowed_unasked() {
             Arc::new(move |e| heard.lock().unwrap().push(e)),
             &scenario.fixture.native_session,
             &scratch,
-            false,
+            Some("default"),
         );
         session
             .send("Replay request", &crate::harness::event::unbound())

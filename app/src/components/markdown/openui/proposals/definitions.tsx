@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { LiveTask } from "../components/LiveTasks";
 import { ProposalCard } from "./ProposalCard";
 import { JobCard } from "./JobCard";
+import { SubagentCard } from "./SubagentCard";
 
 const text = () => z.string().nullish();
 const list = () => z.array(z.string()).nullish();
@@ -112,5 +113,7 @@ export const LectureChapters = defineComponent({ name: "LectureChapters", descri
 export const LectureEnd = defineComponent({ name: "LectureEnd", description: "Ask before finding a lecture's content end using the configured model.", props: z.object({ lecture: z.string(), then: then() }), component: ({ props }) => <JobCard kind="LectureEnd" input={props} /> });
 export const Download = defineComponent({ name: "Download", description: "Ask before downloading aligner, voices starter pack or a voice id.", props: z.object({ item: z.string(), then: then() }), component: ({ props }) => <JobCard kind="Download" input={props} /> });
 
+export const Subagent = defineComponent({ name: "Subagent", description: "Propose handing a self-contained task to a child chat. task is the whole brief the child gets; the student picks its agent and model and clicks Start, and its report comes back to you.", props: z.object({ title: z.string(), task: z.string(), then: then() }), component: ({ props }) => <SubagentCard input={props} /> });
+
 export const proposalComponents = [CheatEntry, NewCheatNotes, Task, Under, NewTasks, NewProject, Event, NewEvents, NewNote, Change, Edit, EditItems, NewTag, DeleteTag, TaskChanges, ProjectChanges, EventChanges, TagChanges, DeleteTasks, DeleteEvents];
-export const jobComponents = [Sync, Reparse, Transcribe, LectureChapters, LectureEnd, Download];
+export const jobComponents = [Sync, Reparse, Transcribe, LectureChapters, LectureEnd, Download, Subagent];

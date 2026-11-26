@@ -27,17 +27,81 @@ pub(super) async fn seed_card(pool: &SqlitePool, thread: i64) -> String {
     card(pool, thread, "Sync", "created", &state).await
 }
 
-async fn card(pool: &SqlitePool, thread: i64, kind: &str, status: &str, state: &Value) -> String {
-    let item = sqlx::query(
-        "INSERT INTO harness_items (thread_id, kind, content) VALUES (?1, 'assistant', 'A card')",
-    )
-    .bind(thread)
-    .execute(pool)
-    .await
-    .unwrap()
-    .last_insert_rowid();
-    sqlx::query("INSERT INTO chat_proposals (item_id, block, thread_id, kind, status, state, initial_state) VALUES (?1, 0, ?2, ?3, ?4, ?5, ?5)")
+/// The report a finished Subagent card carries.
+pub(super) const REPORT: &str = "Week 3 covers DFAs; the closure proofs are in lecture 6.";
+
+/// A reply holding a Subagent card whose child reported, with a follow-up:
+/// a reply of its own, or the next block of `beside`'s.
+pub(super) async fn seed_subagent_card(
+    pool: &SqlitePool,
+    thread: i64,
+    beside: Option<&str>,
+) -> String {
+    let state = json!({
+        "title": "Summarise week 3", "task": "Read week 3 and summarise it",
+        "provider": "codex", "model": "gpt-6.2-sol", "effort": "medium", "then": THEN,
+        "job": {"phase": "complete", "started_at": "2026-11-08T01:00:00Z", "child": 99,
+                "ended": "completed", "finished_at": "2026-11-08T01:02:00Z", "result": REPORT},
+    });
+    let reply = beside.and_then(|id| id.split_once('.')?.0.parse().ok());
+    card_in(pool, thread, reply, "Subagent", "created", &state).await
+}
+
+/// The report of a second Subagent card in the same reply.
+pub(super) const SIBLING_REPORT: &str = "Week 4 covers NFAs and the subset construction.";
+
+/// A second finished Subagent card, the first block of a reply that
+/// [`seed_subagent_card`] can add its card to.
+pub(super) async fn seed_sibling_card(pool: &SqlitePool, thread: i64) -> String {
+    let state = json!({
+        "title": "Summarise week 4", "task": "Read week 4 and summarise it",
+        "provider": "codex", "model": "gpt-6.2-sol", "effort": "medium", "then": THEN,
+        "job": {"phase": "complete", "started_at": "2026-11-08T01:00:00Z", "child": 98,
+                "ended": "completed", "finished_at": "2026-11-08T01:02:00Z",
+                "result": SIBLING_REPORT},
+    });
+    card(pool, thread, "Subagent", "created", &state).await
+}
+
+/// A card on a reply of its own.
+pub(super) async fn card(
+    pool: &SqlitePool,
+    thread: i64,
+    kind: &str,
+    status: &str,
+    state: &Value,
+) -> String {
+    card_in(pool, thread, None, kind, status, state).await
+}
+
+/// A card as the next block of `reply`, or of a new reply.
+async fn card_in(
+    pool: &SqlitePool,
+    thread: i64,
+    reply: Option<i64>,
+    kind: &str,
+    status: &str,
+    state: &Value,
+) -> String {
+    let item = match reply {
+        Some(item) => item,
+        None => sqlx::query(
+            "INSERT INTO harness_items (thread_id, kind, content) VALUES (?1, 'assistant', 'A card')",
+        )
+        .bind(thread)
+        .execute(pool)
+        .await
+        .unwrap()
+        .last_insert_rowid(),
+    };
+    let block: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chat_proposals WHERE item_id = ?1")
         .bind(item)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO chat_proposals (item_id, block, thread_id, kind, status, state, initial_state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)")
+        .bind(item)
+        .bind(block)
         .bind(thread)
         .bind(kind)
         .bind(status)
@@ -45,16 +109,27 @@ async fn card(pool: &SqlitePool, thread: i64, kind: &str, status: &str, state: &
         .execute(pool)
         .await
         .unwrap();
-    format!("{item}.0")
+    format!("{item}.{block}")
 }
 
-/// What a continuation sends the provider, read before it starts.
+/// What a continuation sends the provider, read before it starts: on the
+/// chat's current session, which it resumes.
 pub(super) async fn prompt_for(pool: &SqlitePool, thread: i64, card: &str) -> String {
-    let prompt = continuation::prompt(pool, card).await.unwrap();
-    let cards = crate::harness::app::proposal_context::read(pool, thread)
+    let binding: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM harness_bindings WHERE thread_id = ?1 AND current = 1 ORDER BY id DESC",
+    )
+    .bind(thread)
+    .fetch_optional(pool)
+    .await
+    .unwrap();
+    let audience = crate::harness::app::proposal_context::Audience {
+        binding,
+        fresh: false,
+    };
+    crate::harness::app::send::prompt(pool, thread, "", Some(card), None, audience)
         .await
-        .unwrap();
-    format!("{prompt}{}", cards.section)
+        .unwrap()
+        .0
 }
 
 /// A recorded frame, sending `prompt` where the recording sent its request.
@@ -105,6 +180,7 @@ fn intent(thread: i64, card: &str, receipt: &str) -> store::SendIntent {
         continuation: Some(card.into()),
         queued: None,
         options: None,
+        brief_from: None,
     }
 }
 
@@ -220,6 +296,18 @@ async fn only_a_settled_card_with_a_follow_up_continues() {
     )
     .await;
     let discarded = card(&pool, thread, "Sync", "discarded", &then(json!({}))).await;
+    let subagent = |ended: &str| {
+        then(json!({"job": {"phase": "error", "ended": ended, "error": "No report."}}))
+    };
+    let stopped = card(
+        &pool,
+        thread,
+        "Subagent",
+        "created",
+        &subagent("interrupted"),
+    )
+    .await;
+    let broke = card(&pool, thread, "Subagent", "created", &subagent("failed")).await;
     let tasks = card(
         &pool,
         thread,
@@ -231,6 +319,8 @@ async fn only_a_settled_card_with_a_follow_up_continues() {
     for (id, line) in [
         (&failed, "Sync failed — continuing"),
         (&discarded, "Card discarded — continuing"),
+        (&stopped, "Subagent stopped — continuing"),
+        (&broke, "Subagent failed — continuing"),
         (&tasks, "Tasks created — continuing"),
     ] {
         assert_eq!(
@@ -251,6 +341,13 @@ async fn only_a_settled_card_with_a_follow_up_continues() {
     let prompt = continuation::prompt(&pool, &discarded).await.unwrap();
     assert!(prompt.starts_with("(From Oculus, not typed by the student.)"));
     assert!(prompt.contains("was discarded by the student") && prompt.ends_with(THEN));
+    for (id, outcome) in [
+        (&stopped, "card {} was stopped;"),
+        (&broke, "card {} failed;"),
+    ] {
+        let prompt = continuation::prompt(&pool, id).await.unwrap();
+        assert!(prompt.contains(&outcome.replace("{}", id)), "{prompt}");
+    }
     pool.close().await;
 }
 

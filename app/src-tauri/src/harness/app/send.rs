@@ -10,7 +10,7 @@ use crate::harness::{handoff, store};
 use crate::harness::{LectureBrief, SendError, SendOptions, StudioBrief};
 use crate::runtime::blocking::run as blocking;
 
-use super::proposal_context::{self, Cards};
+use super::proposal_context::{self, Audience, Cards};
 use super::{sinks_for, BusMsg};
 
 /// Send a run the consumer has written as `starting`, and tell the
@@ -79,12 +79,13 @@ pub(super) async fn lecture_brief(
 /// The Studio section of a thread's brief, read off the video's link and
 /// folder on every send. `None` for a thread that makes no video, or whose
 /// video's folder is gone.
-pub(super) async fn studio_brief(pool: &SqlitePool, thread_id: i64) -> Option<StudioBrief> {
-    let link = crate::db::store::studio_link_of_thread(pool, thread_id)
+pub(super) async fn studio_brief(pool: &SqlitePool, row: &store::ThreadRow) -> Option<StudioBrief> {
+    let link = crate::db::store::studio_link_of_thread(pool, row.id)
         .await
         .ok()
         .flatten()?;
-    StudioBrief::read(&crate::studio::videos::videos_dir(), &link)
+    let child = row.parent_thread_id.is_some();
+    StudioBrief::read(&crate::studio::videos::videos_dir(), &link, child)
 }
 
 /// Why a start step did not hand its run to the provider.
@@ -119,7 +120,7 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
     // the chat's selection may have moved on. What that does to a live
     // session is `Harness::ensure`'s call (`manager/transition.rs`).
     let lecture = lecture_brief(&pool, &row).await;
-    let studio_brief = studio_brief(&pool, thread_id).await;
+    let studio_brief = studio_brief(&pool, &row).await;
     let permission_mode = crate::harness::requests::store::mode(&pool, thread_id).await?;
     let opts = SendOptions {
         model,
@@ -132,18 +133,21 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
     };
     // The session to resume is the run's binding's, the provider's current
     // one in this chat when the run was written.
-    let mut resume = store::bindings::of_run(&pool, run.run_id)
-        .await?
-        .and_then(|binding| binding.native_session);
-    let (text, cards) = prompt(
-        &pool,
-        thread_id,
-        &text,
-        opts.continuation.as_deref(),
-        opts.context.as_deref(),
-    )
-    .await?;
-    let text = super::skills::name_picked_skills(provider, &opts.skills, text);
+    let binding = store::bindings::of_run(&pool, run.run_id).await?;
+    let mut resume = binding.as_ref().and_then(|b| b.native_session.clone());
+    let typed = text;
+    // Which cards the prompt lists depends on whether this send reaches the
+    // session that heard the binding's earlier runs (`proposal_context`).
+    let keeps = {
+        let (h, opts) = (rt.harness.clone(), opts.clone());
+        blocking(move || Ok(h.keeps_session(thread_id, provider, &opts))).await?
+    };
+    let audience = Audience {
+        binding: binding.map(|b| b.id),
+        fresh: resume.is_none() && !keeps,
+    };
+    let (mut text, mut cards) =
+        run_prompt(&pool, thread_id, provider, &typed, &opts, audience).await?;
     // Claim once; recovery below is safe only before the provider heard a
     // prompt. A failed prompt write is uncertain and is never retried.
     if !store::claim_start(&pool, &run).await? {
@@ -179,6 +183,9 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
                 }
                 recovered = true;
                 resume = None;
+                // A new binding and a session that has heard nothing.
+                (text, cards) =
+                    run_prompt(&pool, thread_id, provider, &typed, &opts, Audience::NEW).await?;
             }
             Err(SendError::Unsent(e) | SendError::ResumeFailed(e)) => {
                 return Err(Failure::Unsent(e))
@@ -194,8 +201,30 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
     if let Err(e) = store::mark_sent(&pool, &run).await {
         elog!("[oculus] harness run {}: {e}", run.run_id);
     }
-    proposal_context::accepted(&pool, cards).await?;
+    proposal_context::accepted(&pool, cards, run.run_id).await?;
     Ok(true)
+}
+
+/// [`prompt`] for a run, with the skills its send picked named.
+async fn run_prompt(
+    pool: &SqlitePool,
+    thread_id: i64,
+    provider: crate::harness::Provider,
+    typed: &str,
+    opts: &SendOptions,
+    audience: Audience,
+) -> Result<(String, Cards), String> {
+    let (text, cards) = prompt(
+        pool,
+        thread_id,
+        typed,
+        opts.continuation.as_deref(),
+        opts.context.as_deref(),
+        audience,
+    )
+    .await?;
+    let text = super::skills::name_picked_skills(provider, &opts.skills, text);
+    Ok((text, cards))
 }
 
 /// What the provider is sent for a run, and the one place its text is
@@ -203,13 +232,15 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
 /// (a lecture's moment, a notebook) rides the prompt, or the timeline would
 /// show it. A continuation's row is its line ("Sync finished — continuing");
 /// its prompt is the card's outcome and the agent's own follow-up. "Cards in
-/// this thread" comes last, read now (after any click made while it waited).
+/// this thread" comes last, read now (after any click made while it waited)
+/// for the session `audience` names.
 pub(in crate::harness) async fn prompt(
     pool: &SqlitePool,
     thread_id: i64,
     typed: &str,
     card: Option<&str>,
     context: Option<&str>,
+    audience: Audience,
 ) -> Result<(String, Cards), String> {
     let text = match (card, context) {
         (Some(card), _) => super::continuation::prompt(pool, card).await?,
@@ -218,7 +249,7 @@ pub(in crate::harness) async fn prompt(
         }
         (None, None) => typed.to_string(),
     };
-    let cards = proposal_context::read(pool, thread_id).await?;
+    let cards = proposal_context::read(pool, thread_id, card, audience).await?;
     let text = format!("{text}{}", cards.section);
     Ok((text, cards))
 }

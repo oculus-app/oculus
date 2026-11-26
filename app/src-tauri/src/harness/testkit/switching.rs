@@ -468,6 +468,53 @@ fn a_switch_hands_over_the_chat_and_a_switch_back_only_what_was_missed() {
     rig.finish();
 }
 
+/// A card told to Claude's session rode a prompt, not a row, so the
+/// handoff cannot carry it: Codex's session, on another binding, is told it.
+#[test]
+fn a_switch_tells_the_new_session_every_card_again() {
+    let mut rig = Rig::start(Scenario::recorded("claude-ls"));
+    rig.harness.allow_handoff_everywhere();
+    let first = rig.send("replay-send").unwrap();
+    rig.resume();
+    rig.drain();
+    assert_eq!(status_of(&rig, first.run_id), "completed");
+    let report = "Week 3 covers DFAs";
+    let state = serde_json::json!({"title": "Week 3", "task": "Summarise week 3",
+        "job": {"phase": "complete", "result": report}});
+    let seeded = sqlx::query(
+        "INSERT INTO chat_proposals (item_id, block, thread_id, kind, status, state, initial_state, told, told_run_id)
+         SELECT id, 0, thread_id, 'Subagent', 'created', ?2, ?2, 'created', ?3 FROM harness_items
+          WHERE thread_id = ?1 AND kind = 'assistant' ORDER BY id DESC LIMIT 1",
+    )
+    .bind(rig.thread)
+    .bind(state.to_string())
+    .bind(first.run_id)
+    .execute(&rig.pool);
+    rig.runtime.block_on(seeded).unwrap();
+
+    let codex = rig.recording("codex-ls");
+    let mut on_codex = rig.session_of(&codex);
+    let none = SendOptions::default();
+    rig.say("second", Provider::Codex, "And what does Codex see?", &none)
+        .unwrap();
+    let prompts = rig.prompts();
+    let (_, message) = split(&prompts[0]);
+    assert!(message.starts_with("And what does Codex see?"));
+    assert!(message.contains("Cards in this thread"), "{message}");
+    assert!(message.contains(report), "{message}");
+    codex.play(&mut on_codex);
+    rig.drain();
+    assert_eq!(
+        count(
+            &rig,
+            "SELECT COUNT(*) FROM chat_proposals WHERE told = 'created'"
+        ),
+        1,
+        "told again once the new session has it"
+    );
+    rig.finish();
+}
+
 /// A chat too long for the budget: the student's first message and the
 /// newest exchange go, the middle is dropped whole, and the block says how
 /// many messages that was.

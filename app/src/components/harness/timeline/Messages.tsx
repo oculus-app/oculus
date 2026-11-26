@@ -8,12 +8,13 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { fmtClock, sqliteUtcToMs } from "@/lib/format/format";
-import { answerModel, messageAt, questionProvider, unpromptedAfter, type HarnessItem, type Provider } from "@/lib/harness";
+import { answerModel, briefFrom, messageAt, questionProvider, unpromptedAfter, type HarnessItem, type Provider } from "@/lib/harness";
 import { useCapabilities } from "@/hooks/agents/useCapabilities";
 import { ProviderMark } from "@/components/icons/ProviderMark";
 import { useModelName } from "./ModelNames";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { Action, Assistant, CopyAction, MessageActions } from "./MessageActions";
+import { BriefFrom } from "./BriefFrom";
 import { QuestionBubble } from "./QuestionBubble";
 import { SystemDivider } from "./SystemDivider";
 import type { QuestionActions } from "./types";
@@ -50,6 +51,8 @@ export const User = memo(function User({
   const text = item.content ?? "";
   const edit = busy || !rewinds ? undefined : actions?.edit;
   const rewind = busy || !rewinds ? undefined : actions?.rewind;
+  // A subagent's brief reads as its parent chat's, not the student's.
+  const from = briefFrom(item);
   return (
     <QuestionBubble
       msgId={item.id}
@@ -58,6 +61,7 @@ export const User = memo(function User({
       at={messageAt(item)}
       onSubmit={edit ? (next) => edit(item.id, next) : undefined}
       onRewind={rewind ? () => rewind(item.id) : undefined}
+      from={from == null ? undefined : <BriefFrom parentId={from} />}
     />
   );
 });

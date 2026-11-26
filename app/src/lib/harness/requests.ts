@@ -2,7 +2,7 @@ import { providerLabel } from "./registry";
 import type { HarnessRequest, RequestOption, ToolReview } from "./types";
 
 /**
- * What a request row, the composer's answer bar and the sidebar show for an
+ * What a request row, the composer's approval tray and the sidebar show for an
  * agent's request (`HarnessRequest`, docs/harness.md "Requests"). Rust owns
  * the state; these only read it, so every choice here is testable without
  * a DOM.
@@ -41,8 +41,8 @@ export interface RequestDetail {
   tool: RequestTool | null;
   /** The agent's own reason, as it gave it. */
   reason: string | null;
-  /** One short line naming what is asked, for the composer bar and a
-   *  settled row: the command, the file, or the access. */
+  /** One short line naming what is asked, for a waiting or settled row:
+   *  the command, the file, or the access. */
   subject: string;
 }
 
@@ -171,7 +171,7 @@ function toolTitle(payload: Record<string, unknown>): string {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const baseName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
-/** What the row and the bar say about a request, from its payload. */
+/** What the row and the tray say about a request, from its payload. */
 export function requestDetail(request: HarnessRequest): RequestDetail {
   const p = request.payload ?? {};
   const who = providerLabel(request.provider);
@@ -259,6 +259,17 @@ export function diffLines(diff: string): DiffLine[] {
   }));
 }
 
+/** A diff's added and removed line counts, for "+3 −1" beside its path. */
+export function diffStat(diff: string): { add: number; remove: number } {
+  let add = 0;
+  let remove = 0;
+  for (const line of diffLines(diff)) {
+    if (line.tone === "add") add += 1;
+    else if (line.tone === "remove") remove += 1;
+  }
+  return { add, remove };
+}
+
 /** A request the student can still answer: pending, on a live route. */
 export const isAnswerable = (r: HarnessRequest) => r.status === "pending" && (r.responder === "live" || (r.kind === "question" && r.responder === "message"));
 
@@ -319,9 +330,9 @@ export function requestState(request: HarnessRequest): RequestState {
 const uncertainNote = (who: string) =>
   `Delivery uncertain: the connection to ${who} broke while your answer was sent, so it may not have arrived. It was not sent again.`;
 
-/** The answers the composer offers for a request: Decline and Approve
- *  inline, any answer that reaches past this call (a session grant) under
- *  More with its scope. None for a request that cannot be answered. */
+/** The answers the composer's tray offers for a request: Deny and Allow,
+ *  and any answer that reaches past this call (a session grant) beside
+ *  them with its scope. None for a request that cannot be answered. */
 export interface RequestActions {
   decline: RequestOption | null;
   approve: RequestOption | null;
@@ -351,6 +362,20 @@ export function awaitsApproval(requests: Record<number, HarnessRequest> | undefi
   if (!requests) return false;
   for (const r of Object.values(requests)) {
     if (r.kind === "approval" && isAnswerable(r) && (runId === undefined || r.run_id === runId)) return true;
+  }
+  return false;
+}
+
+/** Whether a waiting approval names this tool call (`payload.tool`, the id
+ *  its row's `ref_id` holds): the call has not started, it waits on the
+ *  student. */
+export function toolAwaitsApproval(
+  requests: Record<number, HarnessRequest> | undefined,
+  toolId: string | null | undefined,
+): boolean {
+  if (!requests || !toolId) return false;
+  for (const r of Object.values(requests)) {
+    if (r.kind === "approval" && r.payload?.tool === toolId && isAnswerable(r)) return true;
   }
   return false;
 }
@@ -395,6 +420,6 @@ export function reviewView(review: ToolReview | undefined | null): ReviewView | 
     tone,
     risk: risk ? `${risk.charAt(0).toUpperCase()}${risk.slice(1)} risk` : null,
     rationale: text(review.rationale),
-    note: source === "rule" ? "Oculus keeps agents out of this in every mode" : "you were not asked (Auto)",
+    note: source === "rule" ? "This rule applies in every permission mode" : "you were not asked (Auto)",
   };
 }

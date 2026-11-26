@@ -1,5 +1,7 @@
 export const COLLAPSED_KEY = "oculus-chat-groups-collapsed";
 export const ORDER_KEY = "oculus-chat-groups-order";
+/** The parents whose subagents' fold is open; any other is shut. */
+export const CHILDREN_OPEN_KEY = "oculus-chat-children-open";
 /** The column's view, Recents or Subject, beside its width and folds. */
 export const VIEW_KEY = "oculus-chat-list-view";
 

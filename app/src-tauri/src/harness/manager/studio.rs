@@ -21,12 +21,15 @@ pub struct StudioBrief {
     pub portrait: Option<bool>,
     /// Narration length asked for, in seconds.
     pub length_secs: Option<i64>,
+    /// The chat is itself a subagent, which cannot start another
+    /// (`children::ONE_LEVEL`), so it is never told to propose one.
+    pub child: bool,
 }
 
 impl StudioBrief {
     /// The brief for `link`'s video under `videos`; `None` once its folder
     /// is gone, so a deleted video is never briefed.
-    pub fn read(videos: &Path, link: &StudioLink) -> Option<Self> {
+    pub fn read(videos: &Path, link: &StudioLink, child: bool) -> Option<Self> {
         let dir = crate::studio::videos::video_in(videos, &link.slug).ok()?;
         let video = std::fs::read_to_string(dir.join("video.json"))
             .ok()
@@ -42,12 +45,14 @@ impl StudioBrief {
             portrait: video.as_ref().map(|v| v.size.height > v.size.width),
             length_secs: link.length_secs,
             dir,
+            child,
         })
     }
 }
 
 /// What the agent is told about the video: its folder (so `oculus studio
-/// new` is ruled out) and, for a series, the parts the student can request.
+/// new` is ruled out) and, for a series, its parts, any other of which goes
+/// to a subagent, except from a subagent's own chat, which cannot start one.
 /// The draft is the hand-back; the final is the student's Export.
 pub fn section(video: &StudioBrief) -> String {
     let StudioBrief {
@@ -58,6 +63,7 @@ pub fn section(video: &StudioBrief) -> String {
         subject,
         portrait,
         length_secs,
+        child,
     } = video;
     let mut s = match series {
         Some(series) => format!(
@@ -100,12 +106,18 @@ pub fn section(video: &StudioBrief) -> String {
         for part in &series.parts {
             s.push_str(&format!("- {}\n", part.line()));
         }
+        let other_parts = if *child {
+            "This chat is a subagent's, and a subagent cannot start another: another part \
+             is made from the series' own chat or from that part's Studio page, so say so \
+             and never write a Subagent card."
+        } else {
+            "A chat keeps its first video, so another part asked for here is proposed as a \
+             Subagent card (the `oculus-studio` skill's series section)."
+        };
         s.push_str(&format!(
-            "Make only the requested part. For an entry with no folder, run \
-             `oculus studio new <part-slug> --series {}`. Use that part's slug for its Studio \
-             commands. Follow the `oculus-studio` skill and render its draft; never render \
-             the final, which the student makes with Export.\n",
-            series.slug
+            "This conversation makes only `{slug}`; do not run `oculus studio new`. \
+             {other_parts} Follow the skill and render `{slug}`'s draft; never render the \
+             final, which the student makes with Export.\n"
         ));
         return s;
     }
@@ -152,7 +164,7 @@ mod tests {
         )
         .unwrap();
 
-        let brief = StudioBrief::read(&root, &link("bayes", Some(60))).unwrap();
+        let brief = StudioBrief::read(&root, &link("bayes", Some(60)), false).unwrap();
         assert_eq!(brief.theme.as_deref(), Some("warm"));
         assert_eq!(brief.portrait, Some(true));
         let text = section(&brief);
@@ -218,12 +230,12 @@ mod tests {
             &NewVideo::from_part(&videos, "motion", "speed").unwrap(),
         )
         .unwrap();
-        let before_render = StudioBrief::read(&videos, &linked).unwrap();
+        let before_render = StudioBrief::read(&videos, &linked, false).unwrap();
         assert!(section(&before_render)
             .contains("2. Speed (speed) — How fast? [not made, folder exists]"));
         fs::create_dir(dir.join("renders")).unwrap();
         fs::write(dir.join("renders/draft.mp4"), b"render").unwrap();
-        let before = StudioBrief::read(&videos, &linked).unwrap();
+        let before = StudioBrief::read(&videos, &linked, false).unwrap();
         assert!(late_section(Some(&before_render), Some(&before))
             .unwrap()
             .contains("How fast? [made]"));
@@ -242,9 +254,23 @@ mod tests {
         let shown = series::show(&videos, "motion").unwrap();
         assert_eq!(shown.parts[2].number, 3);
         assert_eq!(shown.parts[2].part.slug, "speed");
-        let after = StudioBrief::read(&videos, &linked).unwrap();
+        let after = StudioBrief::read(&videos, &linked, false).unwrap();
         let text = late_section(Some(&before), Some(&after)).unwrap();
         assert!(text.contains("series **Motion** (`motion`)"));
+        assert!(text.contains("makes only `speed`; do not run `oculus studio new`"));
+        assert!(text.contains("proposed as a Subagent card"), "{text}");
+        let child = StudioBrief::read(&videos, &linked, true).unwrap();
+        let in_child = section(&child);
+        assert!(in_child.contains("from the series' own chat"), "{in_child}");
+        assert!(
+            in_child.contains("never write a Subagent card"),
+            "{in_child}"
+        );
+        assert!(
+            !in_child.contains("proposed as a Subagent card"),
+            "{in_child}"
+        );
+        assert!(late_section(Some(&after), Some(&child)).is_some());
         for line in [
             "1. Position (motion) — Where is it? [not made]",
             "2. Time (time) — How long? [not made]",
@@ -260,12 +286,12 @@ mod tests {
         let root = Scratch::new("studio-brief-broken");
         std::fs::create_dir_all(root.join("broken")).unwrap();
         std::fs::write(root.join("broken/video.json"), "{").unwrap();
-        let text = section(&StudioBrief::read(&root, &link("broken", None)).unwrap());
+        let text = section(&StudioBrief::read(&root, &link("broken", None), false).unwrap());
         assert!(text.contains("**broken**"));
         assert!(!text.contains("Format:") && !text.contains("Theme:"));
         assert!(!text.contains("Length:"));
         assert!(
-            StudioBrief::read(&root, &link("deleted", None)).is_none(),
+            StudioBrief::read(&root, &link("deleted", None), false).is_none(),
             "a link whose folder is gone briefs nothing"
         );
     }
@@ -274,7 +300,7 @@ mod tests {
     fn a_video_linked_after_spawn_rides_the_next_send_once() {
         let root = Scratch::new("studio-brief-late");
         std::fs::create_dir_all(root.join("bayes")).unwrap();
-        let brief = StudioBrief::read(&root, &link("bayes", None)).unwrap();
+        let brief = StudioBrief::read(&root, &link("bayes", None), false).unwrap();
         let late = late_section(None, Some(&brief)).unwrap();
         assert!(late.starts_with("## The video being made"), "{late}");
         assert_eq!(late_section(Some(&brief), Some(&brief)), None);

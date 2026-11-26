@@ -124,6 +124,7 @@ mod tests {
                 effort: Some("high".into()),
                 subject_code: None,
                 lecture: None,
+                parent_thread_id: None,
             }),
             live: Live {
                 held: busy,

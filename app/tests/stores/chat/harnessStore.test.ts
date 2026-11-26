@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "bun:test";
 import { anyRunning, useHarnessStore } from "@/stores/chat/harnessStore";
-import { lastTurnEnd, runFromRow, runModel, spokenStatus, type HarnessEnvelope, type HarnessItem, type HarnessThread } from "@/lib/harness";
+import { briefFrom, lastTurnEnd, messageAt, runFromRow, runModel, spokenStatus, type HarnessEnvelope, type HarnessItem, type HarnessThread } from "@/lib/harness";
 
 const idle = { running: false, streaming: "", thinking: "", toolOutput: {} };
 beforeEach(() => {
@@ -170,6 +170,18 @@ test("a pick changes the thread's selection and leaves its runs alone", () => {
   const state = useHarnessStore.getState();
   expect(state.threads[0]).toMatchObject({ provider: "codex", model: "gpt-6.1", effort: null });
   expect(state.runs[1][7]).toMatchObject({ provider: "claude", model: "opus", effort: "high" });
+});
+
+test("a live brief row carries its parent as a reload reads it, and a dock question its moment", () => {
+  useHarnessStore.setState({ threads: [{ id: 2, status: "idle", provider: "claude", parent_id: 1 }] as HarnessThread[], items: { 2: [] }, runs: {} });
+  const apply = useHarnessStore.getState().apply;
+  apply({ threadId: 2, provider: "claude", itemId: 40, runId: 7, event: { type: "user_message", text: "Summarise week 3", from_thread: 1 } });
+  apply({ threadId: 2, provider: "claude", itemId: 41, runId: 8, event: { type: "user_message", text: "and week 4", at: 220 } });
+  const [brief, typed] = useHarnessStore.getState().items[2];
+  expect(JSON.parse(brief.meta ?? "null")).toEqual({ fromThread: 1 });
+  expect(briefFrom(brief)).toBe(1);
+  expect(briefFrom(typed)).toBeNull();
+  expect(messageAt(typed)).toBe(220);
 });
 
 test("a run's handoff is told as pending, then as delivered, and outlives its settlement", () => {

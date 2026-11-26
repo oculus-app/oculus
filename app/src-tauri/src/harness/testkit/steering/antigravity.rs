@@ -313,7 +313,7 @@ fn the_cancel_fixture_replays_without_relying_on_the_restart_capability() {
         Arc::new(move |e| heard.lock().unwrap().push(e)),
         &fixture.native_session,
         &scratch,
-        false,
+        Some("default"),
     );
     session.send("Replay request", &unbound()).unwrap();
     for frame in &frames[..3] {

@@ -59,7 +59,7 @@ async fn spawn_options(
     Ok(SendOptions {
         scope: row.subject_code.clone(),
         lecture: lecture_brief(pool, &row).await,
-        studio_brief: studio_brief(pool, thread_id).await,
+        studio_brief: studio_brief(pool, &row).await,
         permission_mode: crate::harness::requests::store::mode(pool, thread_id).await?,
         ..options
     })

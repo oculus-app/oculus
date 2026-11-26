@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 
 use crate::harness::child::{self, ChildProc, ThreadSpawn};
 use crate::harness::event::{Bound, HarnessEvent, Provider, Turns};
-use crate::harness::requests::LiveRoute;
+use crate::harness::requests::{LiveRoute, PermissionMode, Refusal};
 use crate::harness::Sink;
 
 use super::super::models::model_slug;
@@ -55,6 +55,7 @@ pub struct AcpSpawn {
     /// `_meta.antigravity.systemPrompt.append`, on a new session and on a
     /// load.
     pub brief: String,
+    pub mode: PermissionMode,
     /// A turn outside any chat: nobody is asked, so a request Rust's policy
     /// does not allow is refused.
     pub one_off: bool,
@@ -66,6 +67,14 @@ pub(super) struct Models {
     pub(super) wanted: Option<String>,
     /// What the agent was last told.
     pub(super) applied: Option<String>,
+}
+
+#[derive(Default)]
+struct Modes {
+    available: Vec<String>,
+    wanted: PermissionMode,
+    applied: Option<&'static str>,
+    warned: bool,
 }
 
 pub(super) struct Callback {
@@ -101,6 +110,8 @@ pub struct AcpSession {
     /// Fixed for the process: a change restarts the session.
     pub(super) effort: Option<String>,
     pub(super) models: Mutex<Models>,
+    guarded: bool,
+    modes: Mutex<Modes>,
     pub(super) me: Weak<AcpSession>,
 }
 
@@ -119,18 +130,15 @@ pub(super) fn too_old(version: &str) -> bool {
     }
 }
 
-/// `agy`'s argv after the binary. `--sandbox` bounds its shell commands
-/// (and lets `oculus` reach keyd's socket); never
-/// `--dangerously-skip-permissions`, which would answer every request
-/// before Rust sees it. `agy acp` takes no `--model` or `--effort`: they are
-/// session settings ([`AcpSession::configure`]).
-pub(super) fn launch_args(base: &ThreadSpawn) -> Vec<String> {
-    vec![
-        "acp".into(),
-        "--sandbox".into(),
-        "--add-dir".into(),
-        base.library.display().to_string(),
-    ]
+/// With Oculus's folder guard, agy's terminal sandbox cannot nest inside it.
+/// Other sessions use agy's own command sandbox.
+pub(super) fn launch_args(base: &ThreadSpawn, guarded: bool) -> Vec<String> {
+    let mut args = vec!["acp".into()];
+    if !guarded {
+        args.push("--sandbox".into());
+    }
+    args.extend(["--add-dir".into(), base.library.display().to_string()]);
+    args
 }
 
 impl AcpSession {
@@ -140,6 +148,7 @@ impl AcpSession {
         sink: Sink,
         base: &ThreadSpawn,
         one_off: bool,
+        guarded: bool,
     ) -> Arc<Self> {
         let turns = Arc::new(Turns::default());
         Arc::new_cyclic(|me| AcpSession {
@@ -154,6 +163,7 @@ impl AcpSession {
             opened: AtomicBool::new(false),
             callbacks: Mutex::new((0, HashMap::new())),
             one_off,
+            guarded,
             library: base.library.clone(),
             cwd: base.cwd.clone(),
             effort: base.effort.clone(),
@@ -161,26 +171,36 @@ impl AcpSession {
                 wanted: base.model.clone(),
                 applied: None,
             }),
+            modes: Mutex::default(),
             me: me.clone(),
         })
     }
 
     pub fn spawn(cfg: AcpSpawn, sink: Sink) -> Result<Arc<Self>, OpenError> {
         let base = cfg.base;
-        let mut cmd = crate::runtime::platform::cli_command(&base.bin)?;
-        cmd.args(launch_args(&base))
+        let profile = super::guard::for_library(&base.library)?;
+        let guarded = profile.is_some();
+        let mut cmd = match profile {
+            Some(profile) => {
+                let mut cmd = crate::runtime::platform::command(super::guard::PROGRAM);
+                cmd.arg("-p").arg(profile).arg(&base.bin);
+                cmd
+            }
+            None => crate::runtime::platform::cli_command(&base.bin)?,
+        };
+        cmd.args(launch_args(&base, guarded))
             .current_dir(&base.cwd)
             .env_clear()
             .envs(base.env.iter().map(|(k, v)| (k, v)));
         let (proc, stdout) = ChildProc::spawn("agy", &mut cmd, true)?;
-        let session = Self::new(proc, 1, sink, &base, cfg.one_off);
+        let session = Self::new(proc, 1, sink, &base, cfg.one_off, guarded);
         let reader = session.clone();
         let raw_log = base.raw_log.clone();
         std::thread::spawn(move || {
             child::read_json_lines(stdout, raw_log.as_ref(), |v| reader.inbound(&v));
             reader.closed();
         });
-        if let Err(e) = session.open(&base, &cfg.brief) {
+        if let Err(e) = session.open(&base, &cfg.brief, cfg.mode) {
             session.kill();
             return Err(e);
         }
@@ -193,8 +213,13 @@ impl AcpSession {
 
     /// `initialize`, then a new session or the chat's own loaded, then its
     /// settings. No client file or terminal service is offered (the agent's
-    /// own tools do the work, and ask first). Chat offers form elicitation.
-    pub(super) fn open(&self, base: &ThreadSpawn, brief: &str) -> Result<(), OpenError> {
+    /// own tools do the work). Chat offers form elicitation.
+    pub(super) fn open(
+        &self,
+        base: &ThreadSpawn,
+        brief: &str,
+        mode: PermissionMode,
+    ) -> Result<(), OpenError> {
         let mut capabilities = json!({
             "fs": { "readTextFile": false, "writeTextFile": false },
             "terminal": false,
@@ -224,24 +249,49 @@ impl AcpSession {
         }
         let cwd = base.cwd.display().to_string();
         let mut params = json!({ "cwd": cwd, "mcpServers": [] });
+        let guarded_brief = self.guarded.then(|| {
+            format!(
+                "{brief}\n\n{}",
+                include_str!("../../../../../templates/ANTIGRAVITY_GUARD.template.md").trim()
+            )
+        });
+        let brief = guarded_brief
+            .as_deref()
+            .map(str::trim_start)
+            .unwrap_or(brief);
         if !brief.trim().is_empty() {
             params["_meta"] = json!({ "antigravity": { "systemPrompt": { "append": brief } } });
         }
-        let id = match &base.resume {
+        let (id, reply) = match &base.resume {
             Some(id) => {
                 params["sessionId"] = json!(id);
-                self.rpc
+                let reply = self
+                    .rpc
                     .request("session/load", params)
                     .map_err(OpenError::Load)?;
-                id.clone()
+                (id.clone(), reply)
             }
-            None => self.rpc.request("session/new", params)?["sessionId"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-                .ok_or("agy's session/new named no session")?
-                .to_string(),
+            None => {
+                let reply = self.rpc.request("session/new", params)?;
+                let id = reply["sessionId"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .ok_or("agy's session/new named no session")?
+                    .to_string();
+                (id, reply)
+            }
         };
         *self.session_id.lock().unwrap() = id.clone();
+        *self.modes.lock().unwrap() = Modes {
+            wanted: mode,
+            available: reply["modes"]["availableModes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|m| m["id"].as_str().map(String::from))
+                .collect(),
+            ..Modes::default()
+        };
         self.configure()?;
         self.opened.store(true, Ordering::SeqCst);
         (self.sink)(HarnessEvent::SessionStarted {
@@ -254,10 +304,7 @@ impl AcpSession {
 
     /// The session's model, level and mode. A load resets all three to
     /// agy's defaults, so this follows every new session and every load.
-    /// The model and level go as one slug (`gemini-3.8-flash-low`); mode
-    /// `default` asks before every write and command, which is what puts
-    /// each one in front of Rust.
-    pub(super) fn configure(&self) -> Result<(), String> {
+    fn configure(&self) -> Result<(), String> {
         let id = self.session_id();
         let wanted = self.models.lock().unwrap().wanted.clone();
         match (&wanted, &self.effort) {
@@ -277,10 +324,45 @@ impl AcpSession {
             (None, None) => {}
         }
         self.models.lock().unwrap().applied = wanted;
-        self.rpc.request(
-            "session/set_mode",
-            json!({ "sessionId": id, "modeId": "default" }),
-        )?;
+        self.apply_mode()
+    }
+
+    pub fn want_mode(&self, mode: PermissionMode) {
+        self.modes.lock().unwrap().wanted = mode;
+    }
+
+    fn apply_mode(&self) -> Result<(), String> {
+        let mut modes = self.modes.lock().unwrap();
+        let wants_auto = !self.one_off && modes.wanted == PermissionMode::Auto;
+        let offers_auto = modes.available.iter().any(|id| id == "auto");
+        let id = if wants_auto && self.guarded && offers_auto {
+            "auto"
+        } else {
+            "default"
+        };
+        if modes.applied != Some(id) {
+            // A missing reply can mean agy changed mode. Reapply the next
+            // turn's selection even if it matches the last confirmed one.
+            modes.applied = None;
+            drop(modes);
+            self.rpc.request(
+                "session/set_mode",
+                json!({ "sessionId": self.session_id(), "modeId": id }),
+            )?;
+            modes = self.modes.lock().unwrap();
+            modes.applied = Some(id);
+        }
+        if wants_auto && id == "default" && !modes.warned {
+            modes.warned = true;
+            drop(modes);
+            let text = if self.guarded {
+                "Antigravity's Auto is not available on this sign-in, so it asks."
+            } else {
+                "Antigravity's Auto needs Oculus's folder guard, which is not available here, so it asks."
+            };
+            elog!("[oculus] agy: {text}");
+            (self.sink)(HarnessEvent::SessionNotice { text: text.into() });
+        }
         Ok(())
     }
 
@@ -310,6 +392,7 @@ impl AcpSession {
             )?;
             self.models.lock().unwrap().applied = Some(model);
         }
+        self.apply_mode()?;
         bound(self.turns.reserve());
         self.interrupting.store(false, Ordering::SeqCst);
         self.prompting.store(true, Ordering::SeqCst);
@@ -391,11 +474,11 @@ impl AcpSession {
                         self.retire_question(tool);
                     }
                 }
-                let events = self
-                    .translator
-                    .lock()
-                    .unwrap()
-                    .update(&v["params"]["update"]);
+                let events =
+                    self.translator
+                        .lock()
+                        .unwrap()
+                        .update(update, &self.library, &self.cwd);
                 self.emit(events);
             }
             ("session/request_permission", Some(id)) => self.permission(id, &v["params"]),
@@ -418,20 +501,26 @@ impl AcpSession {
         let options = Options::of(params);
         let reject = options.reject.clone();
         let tool = params["toolCall"]["name"].as_str().unwrap_or("a tool");
-        let refuse = |why: &str| {
+        let refuse = |why: &str, reason: Option<Refusal>| {
             elog!("[oculus] agy: declined a {tool} request without asking: {why}");
             if let Err(e) = self.rpc.answer(id, outcome(reject.as_deref())) {
                 elog!("[oculus] agy: declining a request: {e}");
+            } else if let Some(reason) = reason {
+                (self.sink)(HarnessEvent::RequestDeclined { reason });
             }
         };
         let running = self.prompting.load(Ordering::SeqCst)
             && !self.interrupting.load(Ordering::SeqCst)
             && !self.closing.load(Ordering::SeqCst);
         if !running {
-            return refuse("no turn is running");
+            return refuse("no turn is running", None);
         }
+        self.translator
+            .lock()
+            .unwrap()
+            .observe_paths(&params["toolCall"]);
         let Some(allow) = options.allow.clone() else {
-            return refuse("it offers no Allow");
+            return refuse("it offers no Allow", Some(Refusal::Other));
         };
         match judge(params, &self.library, &self.cwd) {
             Verdict::Allow => {
@@ -439,8 +528,12 @@ impl AcpSession {
                     elog!("[oculus] agy: allowing a request: {e}");
                 }
             }
-            Verdict::Deny(why) => refuse(&why),
-            Verdict::Ask(_) if self.one_off => refuse("a one-off turn asks nobody"),
+            Verdict::Protected(path) => refuse(
+                &format!("it writes the protected path {path}"),
+                Some(Refusal::ProtectedPath),
+            ),
+            Verdict::Deny(why) => refuse(&why, Some(Refusal::Other)),
+            Verdict::Ask(_) if self.one_off => refuse("a one-off turn asks nobody", None),
             Verdict::Ask(mut request) => {
                 let wire = id.to_string();
                 request.native_ref = wire.clone();
@@ -520,7 +613,13 @@ impl AcpSession {
     }
 
     /// A replayed session starts open, as a recorded one was.
-    pub(super) fn opened_for_replay(&self) {
+    pub(super) fn opened_for_replay(&self, auto: bool) {
+        let mut modes = self.modes.lock().unwrap();
+        modes.applied = Some(if auto { "auto" } else { "default" });
+        if auto {
+            modes.available.push("auto".into());
+            modes.wanted = PermissionMode::Auto;
+        }
         self.opened.store(true, Ordering::SeqCst);
     }
 }

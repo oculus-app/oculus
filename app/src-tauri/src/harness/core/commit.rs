@@ -127,6 +127,9 @@ pub(in crate::harness) enum Applied {
         /// The providers whose session held rows that went, and was given
         /// up for it (`bindings::rewound`).
         stale: Vec<Provider>,
+        /// Child chats of the Subagent cards that went, still running:
+        /// each is stopped, and its chat is left as it is.
+        children: Vec<i64>,
     },
     Deleted,
     /// A request was answered; its answer goes to the provider next.
@@ -162,6 +165,8 @@ pub(in crate::harness) struct Began {
     pub at: Option<i64>,
     /// The card this run continues.
     pub continuation: Option<String>,
+    /// The chat whose brief this run carries, for a subagent's first run.
+    pub brief_from: Option<i64>,
     /// The run waited in the queue before this.
     pub waited: bool,
 }
@@ -329,11 +334,16 @@ pub(in crate::harness) async fn run(
             } => {
                 let thread_id = thread.ok_or("a rewind with no thread")?;
                 let stale = store::bindings::rewound(&mut tx, thread_id, item_id, rewind).await?;
+                let children = crate::harness::app::proposal_jobs::subagent::running(
+                    &mut tx, thread_id, item_id,
+                )
+                .await?;
                 store::truncate(&mut tx, thread_id, item_id).await?;
                 applied.push(Applied::Truncated {
                     item_id,
                     context,
                     stale,
+                    children,
                 });
             }
             Change::Respond {
@@ -408,6 +418,14 @@ async fn create(
     if let Some(mode) = options.start_mode {
         requests::store::set_mode(&mut *tx, id, mode).await?;
     }
+    if let Some(parent) = options.parent_thread_id {
+        sqlx::query("UPDATE harness_threads SET parent_thread_id = ?2 WHERE id = ?1")
+            .bind(id)
+            .bind(parent)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
     Ok(id)
 }
 
@@ -469,6 +487,7 @@ async fn begin(
         continuation: options.continuation.clone(),
         queued,
         options: Some(store::queue::stored(&options)?),
+        brief_from: options.parent_thread_id,
     };
     let run = store::begin(&mut *tx, &intent).await?;
     let handoff = match &planned.handoff {
@@ -487,6 +506,7 @@ async fn begin(
         text: intent.text,
         at: options.at,
         continuation: options.continuation,
+        brief_from: intent.brief_from,
         waited: queued.is_some(),
     })
 }

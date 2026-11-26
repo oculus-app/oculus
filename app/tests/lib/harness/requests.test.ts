@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   accessLines,
+  awaitedToolVerb,
   awaitsApproval,
   changeKindLabel,
   diffLines,
+  diffStat,
+  toolAwaitsApproval,
   requestActions,
   requestDetail,
   requestState,
@@ -268,7 +271,7 @@ describe("a reviewer's decision on a command row", () => {
     expect(reviewView({ status: "denied", source: "classifier" })?.label).toBe("Refused by Claude's classifier");
     const rule = reviewView({ status: "denied", source: "rule" });
     expect([rule?.label, rule?.tone, rule?.note])
-      .toEqual(["Refused by a rule", "danger", "Oculus keeps agents out of this in every mode"]);
+      .toEqual(["Refused by a rule", "danger", "This rule applies in every permission mode"]);
   });
   test("denied reads as a refusal", () => {
     const v = reviewView({ status: "denied", risk: "medium", rationale: "Too broad." });
@@ -277,4 +280,28 @@ describe("a reviewer's decision on a command row", () => {
   test("no review, nothing", () => {
     expect(reviewView(undefined)).toBeNull();
   });
+});
+
+describe("a tool call an approval holds", () => {
+  test("is the one a waiting approval names by its tool id, while it can be answered", () => {
+    const requests = { 3: request() };
+    expect(toolAwaitsApproval(requests, "exec-1")).toBe(true);
+    expect(toolAwaitsApproval(requests, "exec-2")).toBe(false);
+    expect(toolAwaitsApproval(requests, null)).toBe(false);
+    expect(toolAwaitsApproval(undefined, "exec-1")).toBe(false);
+    expect(toolAwaitsApproval({ 3: request({ status: "resolved", response: "accept" }) }, "exec-1")).toBe(false);
+    expect(toolAwaitsApproval({ 3: request({ responder: "not_resumable" }) }, "exec-1")).toBe(false);
+    expect(toolAwaitsApproval({ 3: request({ kind: "question", action: "question" }) }, "exec-1")).toBe(false);
+  });
+
+  test("a held command wants to run; other kinds keep their verb", () => {
+    expect(awaitedToolVerb("bash")).toBe("Wants to run");
+    expect(awaitedToolVerb("edit")).toBe("Editing");
+    expect(awaitedToolVerb("web", "WebSearch")).toBe("Searching");
+  });
+});
+
+test("a diff's counts are its added and removed lines, not its headers", () => {
+  expect(diffStat("--- a\n+++ b\n@@ -1,2 +1,3 @@\n ctx\n-old\n+new\n+more\n")).toEqual({ add: 2, remove: 1 });
+  expect(diffStat("")).toEqual({ add: 0, remove: 0 });
 });

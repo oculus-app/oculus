@@ -12,6 +12,7 @@ use serde_json::Value;
 use sqlx::SqlitePool;
 use tokio::sync::oneshot::Receiver;
 
+use crate::harness::app::children::Waiters;
 use crate::harness::app::consumer::{consume, ConsumerIo};
 use crate::harness::app::{BusMsg, Envelope};
 use crate::harness::core::decide::Answer;
@@ -46,6 +47,8 @@ pub(super) struct Bench {
     fed: Arc<AtomicBool>,
     drained: Sender<Sender<()>>,
     consumer: Option<JoinHandle<()>>,
+    /// Waits on a subagent's report, woken as the app's are.
+    pub(super) children: Arc<Waiters>,
 }
 
 /// What the consumer told and asked for.
@@ -69,6 +72,7 @@ struct Io {
     steering: Arc<(AtomicBool, AtomicBool)>,
     /// The scratch library whose protected paths a request may not name.
     library: std::path::PathBuf,
+    children: Arc<Waiters>,
 }
 
 impl ConsumerIo for Io {
@@ -87,6 +91,9 @@ impl ConsumerIo for Io {
         self.library.clone()
     }
     fn name(&mut self, _: i64, _: Provider, _: Vec<jobs::JobSelection>, _: store::NamingSeed) {}
+    fn ended(&mut self, thread_id: i64) {
+        self.children.ended(thread_id);
+    }
     fn perform(&mut self, effect: Effect) {
         let mut record = self.record.lock().unwrap();
         record.effects.push(match &effect {
@@ -164,7 +171,9 @@ impl Bench {
         let handoff = Arc::new(AtomicBool::new(false));
         let steering = Arc::new((AtomicBool::new(false), AtomicBool::new(false)));
         let fed = Arc::new(AtomicBool::new(false));
+        let children = Arc::new(Waiters::default());
         let mut io = Io {
+            children: children.clone(),
             pool: pool.clone(),
             bus: bus.clone(),
             record: record.clone(),
@@ -194,6 +203,7 @@ impl Bench {
             fed,
             drained,
             consumer: Some(consumer),
+            children,
         }
     }
 

@@ -25,7 +25,9 @@ pub fn init(app: &AppHandle) -> HarnessState {
     harness.set_opencode_default_sink(sink_for(&tx, 0, Provider::Opencode));
     // The naming turn's answer comes back in as an event like any other,
     // so it is written and forwarded by this same loop.
+    let children: Arc<super::children::Waiters> = Arc::default();
     let (namer, bus, held) = (harness.clone(), tx.clone(), own_turns.clone());
+    let waiters = children.clone();
     std::thread::spawn(move || {
         let alarm = Alarm::default();
         let wakeful = Wakeful {
@@ -37,6 +39,7 @@ pub fn init(app: &AppHandle) -> HarnessState {
             namer,
             bus,
             alarm,
+            children: waiters,
         };
         super::consumer::consume(wakeful, held, &mut io);
     });
@@ -44,6 +47,7 @@ pub fn init(app: &AppHandle) -> HarnessState {
         harness,
         bus: tx,
         startup: Arc::default(),
+        children,
     }
 }
 
@@ -53,6 +57,7 @@ struct AppIo {
     bus: super::Bus,
     /// When the bus should send the consumer a `Wake` (`wake.rs`).
     alarm: Alarm,
+    children: Arc<super::children::Waiters>,
 }
 
 impl ConsumerIo for AppIo {
@@ -107,6 +112,10 @@ impl ConsumerIo for AppIo {
 
     fn wake_at(&mut self, at: std::time::Instant) {
         *self.alarm.lock().unwrap() = Some(at);
+    }
+
+    fn ended(&mut self, thread_id: i64) {
+        self.children.ended(thread_id);
     }
 }
 

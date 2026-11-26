@@ -513,7 +513,9 @@ it rewrites paths, in either process ([library-move.md](./library-move.md)).
 - `document_versions` holds a note's checkpoints and snapshots, written only by
   `app/src/lib/notes/documentVersions.ts` ([editor.md](./editor.md#a-notes-versions-live-in-the-database-never-on-disk)).
 - `harness_threads`/`harness_items` are the chat timeline
-  ([harness.md](./harness.md)).
+  ([harness.md](./harness.md)). A subagent's thread names the chat it was
+  started from in `parent_thread_id`, which deleting that chat clears
+  ([harness.md](./harness.md#subagents-are-child-chats)).
 - `usage_hours` and `usage_context_hours` are written only by Rust, as the
   next section describes.
 - Parse and embed settings are the `parse` and `embed` rows of `settings`, read

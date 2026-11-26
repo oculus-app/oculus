@@ -5,13 +5,14 @@
 //! the prompt's reply. Only the reply says the stream is whole: a block cut
 //! off by a dying process is kept as partial, with a delivery gap.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::Arc;
 
 use serde_json::Value;
 
 use crate::harness::event::{
-    cap_output, classify, GapCause, HarnessEvent, Provider, Source, TurnId, Turns,
+    cap_output, classify, GapCause, HarnessEvent, Provider, Review, Source, TurnId, Turns,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -27,6 +28,12 @@ struct Block {
 }
 
 #[derive(Default)]
+struct ToolPaths {
+    writes: bool,
+    paths: Vec<String>,
+}
+
+#[derive(Default)]
 pub(super) struct Translator {
     /// The session's turn ordinals, shared with `send`, which reserves one.
     pub(super) turns: Arc<Turns>,
@@ -36,6 +43,7 @@ pub(super) struct Translator {
     blocks: u64,
     started: HashSet<String>,
     finished: HashSet<String>,
+    tool_paths: HashMap<String, ToolPaths>,
     /// The latest `usage_update`: tokens in the context, and its size.
     context: Option<(u64, u64)>,
 }
@@ -132,7 +140,12 @@ impl Translator {
     }
 
     /// One `session/update`'s `update`, during a prompt.
-    pub(super) fn update(&mut self, update: &Value) -> Vec<HarnessEvent> {
+    pub(super) fn update(
+        &mut self,
+        update: &Value,
+        library: &Path,
+        cwd: &Path,
+    ) -> Vec<HarnessEvent> {
         let mut out = Vec::new();
         match update["sessionUpdate"].as_str().unwrap_or("") {
             "agent_message_chunk" => {
@@ -145,7 +158,7 @@ impl Translator {
             }
             "tool_call" | "tool_call_update" => {
                 self.open_turn(&mut out);
-                self.tool(update, &mut out);
+                self.tool(update, library, cwd, &mut out);
             }
             "usage_update" => {
                 let n = |k: &str| update[k].as_u64();
@@ -160,13 +173,29 @@ impl Translator {
         out
     }
 
-    fn tool(&mut self, update: &Value, out: &mut Vec<HarnessEvent>) {
+    /// ACP updates may omit unchanged fields. Keep just the evidence about
+    /// write targets, including diffs supplied only with a permission request.
+    pub(super) fn observe_paths(&mut self, call: &Value) {
+        let Some(id) = call["toolCallId"].as_str() else {
+            return;
+        };
+        let tool = self.tool_paths.entry(id.into()).or_default();
+        tool.writes |= super::policy::writes(call);
+        for path in super::policy::paths_of(call) {
+            if !tool.paths.contains(&path) {
+                tool.paths.push(path);
+            }
+        }
+    }
+
+    fn tool(&mut self, update: &Value, library: &Path, cwd: &Path, out: &mut Vec<HarnessEvent>) {
         let Some(id) = update["toolCallId"].as_str().map(String::from) else {
             return;
         };
         if self.finished.contains(&id) {
             return;
         }
+        self.observe_paths(update);
         if self.started.insert(id.clone()) {
             self.flush(out, true, false);
             let name = update["name"].as_str().unwrap_or("").to_string();
@@ -196,6 +225,22 @@ impl Translator {
             Some("failed") => false,
             _ => return,
         };
+        if let Some(tool) = self.tool_paths.remove(&id) {
+            if update["status"] == "failed" && tool.writes {
+                let paths = super::policy::absolute_paths(&tool.paths, library, cwd);
+                if crate::harness::requests::policy::protected(library, cwd, &paths).is_some() {
+                    out.push(HarnessEvent::ToolReviewed {
+                        id: id.clone(),
+                        review: Review {
+                            status: "denied".into(),
+                            source: Some("rule".into()),
+                            risk: None,
+                            rationale: None,
+                        },
+                    });
+                }
+            }
+        }
         self.finished.insert(id.clone());
         let output = output_of(update).unwrap_or_else(|| match ok {
             true => String::new(),
@@ -243,6 +288,7 @@ impl Translator {
         }
         let turn = self.turn.take().or_else(|| self.turns.take_sent());
         self.started.clear();
+        self.tool_paths.clear();
         self.finished.clear();
         out.push(HarnessEvent::TurnFinished {
             status: status.into(),

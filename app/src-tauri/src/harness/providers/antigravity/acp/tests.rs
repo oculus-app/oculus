@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 
 use crate::harness::event::{HarnessEvent, Turns};
 use crate::harness::protected::{library_dirs, subject_dirs, ROOT_FILE_GLOBS, WORKSPACE_DIRS};
-use crate::harness::requests::Action;
+use crate::harness::requests::{Action, PermissionMode};
 
 use super::policy::{allowed_command, judge, Verdict};
 use super::updates::Translator;
@@ -54,7 +54,10 @@ fn verdict(params: &Value) -> Verdict {
 }
 
 fn refused(path: &str) -> bool {
-    matches!(verdict(&write(path)), Verdict::Deny(_))
+    matches!(
+        verdict(&write(path)),
+        Verdict::Deny(_) | Verdict::Protected(_)
+    )
 }
 
 /// A path each rule `protected.rs` renders covers, with the rule's name:
@@ -143,7 +146,7 @@ fn writes_to_any_subjects_own_files_are_allowed_unseen() {
 fn a_write_with_any_protected_path_is_refused_whatever_else_it_names() {
     let mut params = write("/lib/oculus/agents/notes.md");
     params["toolCall"]["locations"] = json!([{ "path": "/lib/oculus/courses/x.md" }]);
-    assert!(matches!(verdict(&params), Verdict::Deny(_)));
+    assert!(matches!(verdict(&params), Verdict::Protected(_)));
 }
 
 #[test]
@@ -333,7 +336,7 @@ fn chunks_join_into_named_blocks_split_by_tools_and_closed_by_the_reply() {
         chunk("agent_message_chunk", "Done."),
         update("usage_update", json!({ "used": 120, "size": 1000 })),
     ] {
-        events.extend(t.update(&u));
+        events.extend(t.update(&u, Path::new(LIBRARY), &cwd()));
     }
     events.extend(t.finish(Ok(json!({
         "stopReason": "end_turn",
@@ -387,7 +390,11 @@ fn chunks_join_into_named_blocks_split_by_tools_and_closed_by_the_reply() {
 fn a_stopped_reply_keeps_the_text_as_partial_with_no_gap_and_a_cut_off_one_gaps() {
     let mut t = translator();
     t.turns.reserve();
-    t.update(&chunk("agent_message_chunk", "1."));
+    t.update(
+        &chunk("agent_message_chunk", "1."),
+        Path::new(LIBRARY),
+        &cwd(),
+    );
     let stopped = t.finish(Ok(json!({ "stopReason": "cancelled" })));
     let json: Vec<Value> = stopped
         .iter()
@@ -399,7 +406,11 @@ fn a_stopped_reply_keeps_the_text_as_partial_with_no_gap_and_a_cut_off_one_gaps(
 
     let mut t = translator();
     t.turns.reserve();
-    t.update(&chunk("agent_message_chunk", "Half"));
+    t.update(
+        &chunk("agent_message_chunk", "Half"),
+        Path::new(LIBRARY),
+        &cwd(),
+    );
     let (cut, turn) = t.close();
     let json: Vec<Value> = cut
         .iter()
@@ -435,6 +446,7 @@ type Heard = Arc<Mutex<Vec<Value>>>;
 /// `reply(method)` at once, as agy would answer it.
 fn scripted(
     base: &crate::harness::child::ThreadSpawn,
+    guarded: bool,
     reply: impl Fn(&str) -> Value + Send + Sync + 'static,
 ) -> (Arc<super::AcpSession>, Heard, Arc<Mutex<Vec<HarnessEvent>>>) {
     let heard: Heard = Arc::default();
@@ -459,7 +471,7 @@ fn scripted(
     }));
     let sink_events = events.clone();
     let sink: crate::harness::Sink = Arc::new(move |e| sink_events.lock().unwrap().push(e));
-    let session = super::AcpSession::new(proc, 1, sink, base, false);
+    let session = super::AcpSession::new(proc, 1, sink, base, false, guarded);
     *me.lock().unwrap() = Arc::downgrade(&session);
     (session, heard, events)
 }
@@ -481,6 +493,23 @@ fn base(
     }
 }
 
+#[test]
+fn only_an_unguarded_launch_uses_agys_terminal_sandbox() {
+    let base = base(None, None, None);
+    assert_eq!(
+        super::session::launch_args(&base, true),
+        ["acp", "--add-dir", LIBRARY]
+    );
+    assert_eq!(
+        super::session::launch_args(&base, false),
+        ["acp", "--sandbox", "--add-dir", LIBRARY]
+    );
+}
+
+fn offers_auto() -> Value {
+    json!({"currentModeId":"default","availableModes":[{"id":"default"},{"id":"accept-edits"},{"id":"auto"},{"id":"plan"}]})
+}
+
 fn methods(heard: &Heard) -> Vec<String> {
     heard
         .lock()
@@ -493,11 +522,13 @@ fn methods(heard: &Heard) -> Vec<String> {
 #[test]
 fn a_new_session_carries_the_brief_and_takes_its_model_level_and_mode() {
     let spawn = base(None, Some("gemini-3.8-flash"), Some("low"));
-    let (session, heard, events) = scripted(&spawn, |method| match method {
-        "session/new" => json!({ "sessionId": "new-1" }),
+    let (session, heard, events) = scripted(&spawn, true, |method| match method {
+        "session/new" => json!({ "sessionId": "new-1", "modes": offers_auto() }),
         _ => json!({}),
     });
-    session.open(&spawn, "The brief.").unwrap();
+    session
+        .open(&spawn, "The brief.", PermissionMode::Ask)
+        .unwrap();
     assert_eq!(
         methods(&heard),
         [
@@ -515,7 +546,10 @@ fn a_new_session_carries_the_brief_and_takes_its_model_level_and_mode() {
     );
     assert_eq!(
         frames[1]["params"]["_meta"]["antigravity"]["systemPrompt"]["append"],
-        "The brief."
+        format!(
+            "The brief.\n\n{}",
+            include_str!("../../../../../templates/ANTIGRAVITY_GUARD.template.md").trim()
+        )
     );
     assert_eq!(frames[1]["params"]["cwd"], cwd().display().to_string());
     assert_eq!(frames[2]["params"]["modelId"], "gemini-3.8-flash-low");
@@ -527,15 +561,105 @@ fn a_new_session_carries_the_brief_and_takes_its_model_level_and_mode() {
 }
 
 #[test]
+fn auto_uses_the_offered_mode_or_explains_the_fallback_once() {
+    for (guarded, offered, expected) in [
+        (true, json!({"modes": offers_auto()}), "auto"),
+        (false, json!({"modes": offers_auto()}), "default"),
+        (
+            true,
+            json!({"modes":{"availableModes":[{"id":"accept-edits"},{"id":"plan"}]}}),
+            "default",
+        ),
+        (true, json!({}), "default"),
+    ] {
+        let spawn = base(None, None, None);
+        let (session, heard, events) = scripted(&spawn, guarded, move |method| {
+            let mut result = json!({});
+            if method == "session/new" {
+                result = offered.clone();
+                result["sessionId"] = json!("s");
+            }
+            result
+        });
+        session.open(&spawn, "", PermissionMode::Auto).unwrap();
+        if !guarded {
+            assert!(heard.lock().unwrap()[1]["params"].get("_meta").is_none());
+        }
+        assert_eq!(
+            heard.lock().unwrap().last().unwrap()["params"]["modeId"],
+            expected
+        );
+        heard.lock().unwrap().clear();
+        session
+            .send("hi", &crate::harness::event::unbound())
+            .unwrap();
+        assert_eq!(methods(&heard), ["session/prompt"]);
+        let notices: Vec<_> = events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|ev| match ev {
+                HarnessEvent::SessionNotice { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        if expected == "auto" {
+            assert!(notices.is_empty());
+        } else if guarded {
+            assert_eq!(
+                notices,
+                ["Antigravity's Auto is not available on this sign-in, so it asks."]
+            );
+        } else {
+            assert_eq!(notices, ["Antigravity's Auto needs Oculus's folder guard, which is not available here, so it asks."]);
+        }
+    }
+}
+
+#[test]
+fn a_live_mode_change_precedes_the_next_prompt_only_when_the_native_id_changes() {
+    let spawn = base(None, None, None);
+    let (session, heard, _) = scripted(&spawn, true, |method| match method {
+        "session/new" => json!({"sessionId":"s","modes":offers_auto()}),
+        _ => json!({}),
+    });
+    session.open(&spawn, "", PermissionMode::Ask).unwrap();
+    for (wanted, change) in [
+        (PermissionMode::Auto, Some("auto")),
+        (PermissionMode::Auto, None),
+        (PermissionMode::Quiet, Some("default")),
+        (PermissionMode::Ask, None),
+    ] {
+        heard.lock().unwrap().clear();
+        session.want_mode(wanted);
+        assert!(heard.lock().unwrap().is_empty());
+        session
+            .send("hi", &crate::harness::event::unbound())
+            .unwrap();
+        if let Some(id) = change {
+            assert_eq!(methods(&heard), ["session/set_mode", "session/prompt"]);
+            assert_eq!(heard.lock().unwrap()[0]["params"]["modeId"], id);
+        } else {
+            assert_eq!(methods(&heard), ["session/prompt"]);
+        }
+        let id = heard.lock().unwrap().last().unwrap()["id"].clone();
+        session.inbound(&json!({"id":id,"result":{"stopReason":"end_turn"}}));
+    }
+}
+
+#[test]
 fn a_load_drops_the_replayed_history_and_sets_model_level_and_mode_again() {
     let spawn = base(Some("old-1"), Some("gemini-3.8-flash"), Some("high"));
-    let (session, heard, events) = scripted(&spawn, |_| json!({}));
+    let (session, heard, events) = scripted(&spawn, true, |method| match method {
+        "session/load" => json!({"modes": offers_auto()}),
+        _ => json!({}),
+    });
     // The history a load replays arrives before its reply.
     session.inbound(&json!({ "jsonrpc": "2.0", "method": "session/update", "params": {
         "sessionId": "old-1",
         "update": { "sessionUpdate": "agent_message_chunk", "content": { "type": "text", "text": "old answer" } },
     }}));
-    session.open(&spawn, "").unwrap();
+    session.open(&spawn, "", PermissionMode::Auto).unwrap();
     assert_eq!(
         methods(&heard),
         [
@@ -548,10 +672,14 @@ fn a_load_drops_the_replayed_history_and_sets_model_level_and_mode_again() {
     let frames = heard.lock().unwrap().clone();
     assert_eq!(frames[1]["params"]["sessionId"], "old-1");
     assert!(
-        frames[1]["params"].get("_meta").is_none(),
-        "no brief, no _meta"
+        frames[1]["params"]["_meta"]["antigravity"]["systemPrompt"]["append"]
+            .as_str()
+            .unwrap()
+            .contains("BypassSandbox: true"),
+        "a guarded load gets the terminal instructions too"
     );
     assert_eq!(frames[2]["params"]["modelId"], "gemini-3.8-flash-high");
+    assert_eq!(frames[3]["params"]["modeId"], "auto");
     let seen = events.lock().unwrap();
     assert_eq!(seen.len(), 1, "only the session's start: {seen:?}");
 }
@@ -559,11 +687,11 @@ fn a_load_drops_the_replayed_history_and_sets_model_level_and_mode_again() {
 #[test]
 fn a_level_without_a_model_is_set_as_the_thought_level() {
     let spawn = base(None, None, Some("medium"));
-    let (session, heard, _) = scripted(&spawn, |m| match m {
+    let (session, heard, _) = scripted(&spawn, true, |m| match m {
         "session/new" => json!({ "sessionId": "n" }),
         _ => json!({}),
     });
-    session.open(&spawn, "").unwrap();
+    session.open(&spawn, "", PermissionMode::Ask).unwrap();
     let frames = heard.lock().unwrap().clone();
     assert_eq!(frames[2]["method"], "session/set_config_option");
     assert_eq!(frames[2]["params"]["configId"], "thought_level");
@@ -573,8 +701,8 @@ fn a_level_without_a_model_is_set_as_the_thought_level() {
 #[test]
 fn a_model_picked_mid_chat_is_told_with_the_next_prompt_and_only_once() {
     let spawn = base(Some("s"), Some("gemini-3.8-flash"), Some("low"));
-    let (session, heard, _) = scripted(&spawn, |_| json!({}));
-    session.open(&spawn, "").unwrap();
+    let (session, heard, _) = scripted(&spawn, true, |_| json!({}));
+    session.open(&spawn, "", PermissionMode::Ask).unwrap();
     heard.lock().unwrap().clear();
     session.want_model(Some("claude-sonnet-4-6".into()));
     session
@@ -597,8 +725,8 @@ fn a_model_picked_mid_chat_is_told_with_the_next_prompt_and_only_once() {
 #[test]
 fn a_second_prompt_is_never_sent_while_one_is_out() {
     let spawn = base(Some("s"), None, None);
-    let (session, heard, _) = scripted(&spawn, |_| json!({}));
-    session.open(&spawn, "").unwrap();
+    let (session, heard, _) = scripted(&spawn, true, |_| json!({}));
+    session.open(&spawn, "", PermissionMode::Ask).unwrap();
     heard.lock().unwrap().clear();
     let unbound = crate::harness::event::unbound();
     session.send("one", &unbound).unwrap();
@@ -609,7 +737,7 @@ fn a_second_prompt_is_never_sent_while_one_is_out() {
 #[test]
 fn a_request_the_agent_makes_of_a_client_service_is_refused() {
     let spawn = base(Some("s"), None, None);
-    let (session, heard, _) = scripted(&spawn, |_| json!({}));
+    let (session, heard, _) = scripted(&spawn, true, |_| json!({}));
     session.inbound(
         &json!({ "jsonrpc": "2.0", "id": 9, "method": "fs/write_text_file",
                              "params": { "path": "/lib/oculus/courses/x", "content": "x" } }),
@@ -633,11 +761,14 @@ fn an_agy_older_than_the_recorded_one_is_refused_with_how_to_update() {
         assert_eq!(super::session::too_old(version), refused, "{version:?}");
     }
     let spawn = base(None, None, None);
-    let (session, heard, events) = scripted(&spawn, |method| match method {
+    let (session, heard, events) = scripted(&spawn, true, |method| match method {
         "initialize" => json!({ "agentInfo": { "version": "1.5.8" } }),
         _ => json!({ "sessionId": "n" }),
     });
-    let refused = session.open(&spawn, "").unwrap_err().to_string();
+    let refused = session
+        .open(&spawn, "", PermissionMode::Ask)
+        .unwrap_err()
+        .to_string();
     assert!(refused.contains("1.5.9 or newer"), "{refused}");
     assert!(refused.contains("Settings"), "{refused}");
     assert_eq!(methods(&heard), ["initialize"], "no session was opened");
@@ -654,8 +785,8 @@ fn a_cancel_request_cannot_mask_a_completed_or_failed_prompt_reply() {
         ),
     ] {
         let spawn = base(Some("s"), None, None);
-        let (session, _, events) = scripted(&spawn, |_| json!({}));
-        session.open(&spawn, "").unwrap();
+        let (session, _, events) = scripted(&spawn, true, |_| json!({}));
+        session.open(&spawn, "", PermissionMode::Ask).unwrap();
         session
             .send("one", &crate::harness::event::unbound())
             .unwrap();

@@ -33,9 +33,12 @@ export function modelSummary({
   const selected = models.find((m) => m.id === model) ?? null;
   const offered = unsupported || missing ? [] : selected?.reasoningEfforts ?? [];
   const level = reasoning && offered.includes(reasoning) ? reasoning : null;
-  // An id with no row (a model this list doesn't know) shows as the raw id.
+  // An id with no row (a model this list doesn't know) shows as the raw id,
+  // and its level as named, since that is what goes out with it.
   const label = selected?.label ?? model;
-  const levelText = level ? reasoningLabel(level) : null;
+  const unlisted = !selected && !!model && !active?.loading && !unsupported && !missing;
+  const shown = level ?? (unlisted ? reasoning : null);
+  const levelText = shown ? reasoningLabel(shown) : null;
   const title = [
     active?.label ?? providerLabel(provider),
     selected?.id ?? model,

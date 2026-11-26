@@ -64,6 +64,7 @@ export const Item = memo(function Item({
       return <Stopped />;
     case "unprompted":
       return <Unprompted item={item} />;
+    case "session_notice":
     case "session_restarted":
     case "continuation":
       return <Continued item={item} />;

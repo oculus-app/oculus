@@ -1,7 +1,6 @@
 //! Rust's answer to `session/request_permission`, before anyone is asked.
-//! Under `agy acp` this is the only gate: the agent's own rules neither skip
-//! nor block a request (stage 5 probe), so what Rust allows runs and what it
-//! refuses does not. In `default` mode every write and every command asks.
+//! In `default` every write and command asks. In `auto` this policy only
+//! sees the requests agy forwards. The student's global rules do not apply.
 //!
 //! - A write naming a protected path (`protected.rs`, by way of
 //!   `requests/policy.rs`) or the database is refused, unseen.
@@ -25,6 +24,8 @@ pub(super) enum Verdict {
     Allow,
     /// Answered Deny, nobody asked, for the reason given (logged).
     Deny(String),
+    /// The protected path whose write was refused.
+    Protected(String),
     /// The student decides, where a student can be asked.
     Ask(NewRequest),
 }
@@ -80,7 +81,7 @@ pub(super) fn options() -> Vec<RequestOption> {
 
 /// Every path a call names: its `locations` (which agy resolves through
 /// symlinks), its diffs' paths and its input's path fields.
-fn paths_of(call: &Value) -> Vec<String> {
+pub(super) fn paths_of(call: &Value) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut push = |p: Option<&str>| {
         if let Some(p) = p.filter(|p| !p.trim().is_empty()) {
@@ -145,7 +146,7 @@ fn changes(call: &Value, paths: &[String], delete: bool) -> Value {
 /// `paths` made absolute. agy runs its commands from the library root, not
 /// the chat's folder, so a relative path is read against both, and each
 /// reading must pass: the stricter answer stands.
-fn absolute_paths(paths: &[String], library: &Path, cwd: &Path) -> Vec<String> {
+pub(super) fn absolute_paths(paths: &[String], library: &Path, cwd: &Path) -> Vec<String> {
     let mut out = Vec::new();
     for p in paths {
         match Path::new(p).is_absolute() {
@@ -206,6 +207,13 @@ fn within(roots: &[PathBuf], cwd: &Path, path: &str) -> bool {
     })
 }
 
+pub(super) fn writes(call: &Value) -> bool {
+    matches!(call["kind"].as_str(), Some("edit" | "delete" | "move"))
+        || call["name"]
+            .as_str()
+            .is_some_and(|name| WRITE_TOOLS.contains(&name))
+}
+
 /// Rust's answer to one `session/request_permission`'s params, for a chat
 /// whose library is `library` and whose folder (the write root) is `cwd`.
 pub(super) fn judge(params: &Value, library: &Path, cwd: &Path) -> Verdict {
@@ -227,15 +235,13 @@ pub(super) fn judge(params: &Value, library: &Path, cwd: &Path) -> Verdict {
             paths,
         })
     };
-    let writes =
-        matches!(kind.as_str(), "edit" | "delete" | "move") || WRITE_TOOLS.contains(&name.as_str());
-    if writes {
+    if writes(call) {
         let paths = absolute_paths(&paths_of(call), library, cwd);
         if paths.is_empty() {
             return Verdict::Deny("a write that names no path cannot be checked".into());
         }
         if let Some(p) = policy::protected(library, cwd, &paths) {
-            return Verdict::Deny(format!("it writes the protected path {p}"));
+            return Verdict::Protected(p);
         }
         if let Some(p) = database(library, cwd, &paths) {
             return Verdict::Deny(format!("it writes the database ({p})"));

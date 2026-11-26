@@ -9,7 +9,7 @@ import { library } from "./library";
 
 export const OCULUS_UI_SKILL_FRONTMATTER = `---
 name: oculus-ui
-description: Draws interactive study cards, live student-data views and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for formula sliders (Explorer), live Query summaries, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, and confirming sync, parse, transcription, lecture or download jobs.
+description: Draws interactive study cards, live student-data views and editable proposal cards in an Oculus chat using fenced OpenUI programs. Use for formula sliders (Explorer), live Query summaries, intuition reveals, flashcards, quizzes, worked problems, creating or changing tasks, projects, tags, calendar events or notes, confirming sync, parse, transcription, lecture or download jobs, and handing a self-contained task to a subagent.
 ---`;
 
 /** Registered in `library.ts` so stored fences still validate and render,

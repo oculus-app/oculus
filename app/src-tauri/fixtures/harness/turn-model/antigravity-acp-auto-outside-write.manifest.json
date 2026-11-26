@@ -1,0 +1,54 @@
+{
+  "provider": "antigravity",
+  "cli_version": "1.5.14",
+  "protocol": "Agent Client Protocol v1 over agy acp --sandbox (JSON-RPC 2.0 on stdio)",
+  "model": "gemini-3.8-flash-low",
+  "capture_date": "2026-11-22",
+  "source": "probes-2026-11-22-agy-auto/probe-auto.jsonl, lines 62-70, agent-to-client frames",
+  "redaction": "Agent frames as recorded, with only the probe envelope removed. The expected prompt carries the replay request.",
+  "scenario": "Auto asks about a write outside the workspace and the declined tool fails",
+  "frames": 7,
+  "sha256": "498e72ea267649011d73366d0c772bb841aa8adecca340e94f60697413cb4b8a",
+  "expected_outbound": [
+    {
+      "frame": {
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "7ab1abf6-199e-4a27-82c0-5362942c58d8",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "Replay request"
+            }
+          ]
+        }
+      },
+      "response": null
+    },
+    {
+      "frame": {
+        "jsonrpc": "2.0",
+        "id": "1",
+        "result": {
+          "outcome": {
+            "outcome": "selected",
+            "optionId": "deny"
+          }
+        }
+      },
+      "response": null
+    }
+  ],
+  "input": "../antigravity-acp-auto-outside-write.ndjson",
+  "native_session": "7ab1abf6-199e-4a27-82c0-5362942c58d8",
+  "permission_mode": "auto",
+  "settings": {
+    "recorded_mode": "auto",
+    "replay_model": null,
+    "replay_effort": null,
+    "replay_scope": "recorded session; scratch library",
+    "permission_mode": "auto"
+  }
+}

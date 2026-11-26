@@ -42,14 +42,23 @@ pub fn key(id: &str) -> Result<(i64, i64), String> {
 }
 
 pub async fn on(conn: &mut SqliteConnection, id: &str) -> Result<Proposal, String> {
+    find_on(conn, id)
+        .await?
+        .ok_or_else(|| "this proposal no longer exists".into())
+}
+
+/// The card, or None when its row is gone; a failed read is an error.
+pub async fn find_on(conn: &mut SqliteConnection, id: &str) -> Result<Option<Proposal>, String> {
     let (item, block) = key(id)?;
-    let row = sqlx::query("SELECT * FROM chat_proposals WHERE item_id=?1 AND block=?2")
+    let Some(row) = sqlx::query("SELECT * FROM chat_proposals WHERE item_id=?1 AND block=?2")
         .bind(item)
         .bind(block)
         .fetch_optional(&mut *conn)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or("this proposal no longer exists")?;
+    else {
+        return Ok(None);
+    };
     let state: Value =
         serde_json::from_str(&row.get::<String, _>("state")).map_err(|e| e.to_string())?;
     let initial: Value =
@@ -126,7 +135,7 @@ pub async fn on(conn: &mut SqliteConnection, id: &str) -> Result<Proposal, Strin
     } else {
         None
     };
-    Ok(Proposal {
+    Ok(Some(Proposal {
         id: id.into(),
         item_id: item,
         block,
@@ -140,7 +149,7 @@ pub async fn on(conn: &mut SqliteConnection, id: &str) -> Result<Proposal, Strin
         made,
         superseded_by: row.get("superseded_by"),
         amended_from,
-    })
+    }))
 }
 
 pub fn object<'a>(
@@ -239,6 +248,7 @@ pub fn kind_keys(kind: &str) -> Result<&'static [&'static str], String> {
         "Transcribe" => &["file"],
         "LectureChapters" | "LectureEnd" => &["lecture"],
         "Download" => &["item"],
+        "Subagent" => &["title", "task", "provider", "model", "effort"],
         _ => return Err(format!("unknown proposal component {kind}")),
     })
 }

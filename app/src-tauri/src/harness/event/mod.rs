@@ -141,7 +141,7 @@ impl Phase {
 }
 
 /// A decision the CLI made on one tool call without asking anyone: Auto's
-/// reviewer, or (on Claude) a deny rule, which holds in every mode.
+/// reviewer, or a deny rule, which holds in every mode.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Review {
     /// `in_progress`, `approved`, `denied`, `timed_out` or `aborted`.
@@ -197,6 +197,10 @@ pub enum HarnessEvent {
         text: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         at: Option<i64>,
+        /// The chat whose brief this is: a subagent's first message, which
+        /// its row keeps as `meta.fromThread` (`app/children`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from_thread: Option<i64>,
         /// The run whose question row is already written; never serialized.
         #[serde(skip)]
         run: Option<super::store::RunStart>,
@@ -409,6 +413,10 @@ pub enum HarnessEvent {
         #[serde(skip)]
         route: Option<crate::harness::requests::LiveRoute>,
     },
+    /// A bridge answered a request unseen. Only the owning run consumes it.
+    RequestDeclined {
+        reason: crate::harness::requests::Refusal,
+    },
     /// A request saved, with its timeline row (`item_id`).
     RequestOpened {
         request: crate::harness::requests::RequestView,
@@ -437,6 +445,10 @@ pub enum HarnessEvent {
     /// How the chat asks from its next run on.
     PermissionMode {
         mode: crate::harness::requests::PermissionMode,
+    },
+    /// A session setting needs the student's attention.
+    SessionNotice {
+        text: String,
     },
     /// A saved conversation could not load; the send starts a fresh session.
     SessionRestarted {

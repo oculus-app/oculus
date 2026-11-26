@@ -135,7 +135,8 @@ impl Harness {
 
 /// Opens a recorded session on the sink of the generation minted for it.
 #[cfg(test)]
-type ReplaySpawn = Box<dyn FnOnce(Sink, Option<&str>) -> Result<Handle, SendError> + Send>;
+type ReplaySpawn =
+    Box<dyn FnOnce(Sink, Option<&str>, &SendOptions) -> Result<Handle, SendError> + Send>;
 
 #[cfg(test)]
 impl Harness {
@@ -159,10 +160,10 @@ impl Harness {
         provider: crate::harness::Provider,
         spawn: impl FnOnce(Sink) -> Handle + Send + 'static,
     ) {
-        self.replay_spawns
-            .lock()
-            .unwrap()
-            .insert((thread, provider), Box::new(move |sink, _| Ok(spawn(sink))));
+        self.replay_spawns.lock().unwrap().insert(
+            (thread, provider),
+            Box::new(move |sink, _, _| Ok(spawn(sink))),
+        );
     }
     pub(in crate::harness) fn replay_spawn_result(
         &self,
@@ -170,9 +171,21 @@ impl Harness {
         provider: crate::harness::Provider,
         spawn: impl FnOnce(Sink, Option<&str>) -> Result<Handle, SendError> + Send + 'static,
     ) {
-        self.replay_spawns
-            .lock()
-            .unwrap()
-            .insert((thread, provider), Box::new(spawn));
+        self.replay_spawns.lock().unwrap().insert(
+            (thread, provider),
+            Box::new(move |sink, resume, _| spawn(sink, resume)),
+        );
+    }
+
+    pub(in crate::harness) fn replay_spawn_with_options(
+        &self,
+        thread: i64,
+        provider: crate::harness::Provider,
+        spawn: impl FnOnce(Sink, &SendOptions) -> Result<Handle, SendError> + Send + 'static,
+    ) {
+        self.replay_spawns.lock().unwrap().insert(
+            (thread, provider),
+            Box::new(move |sink, _, opts| spawn(sink, opts)),
+        );
     }
 }

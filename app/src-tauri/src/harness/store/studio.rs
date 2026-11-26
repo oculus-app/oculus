@@ -197,6 +197,7 @@ mod tests {
                 continuation: None,
                 queued: None,
                 options: Some(store::queue::stored(&options).unwrap()),
+                brief_from: None,
             },
         )
         .await
@@ -378,6 +379,47 @@ mod tests {
             root.join("second").display()
         );
         assert!(printed_slug(&two, &root, &["gone".into(), "x".into()]).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// A series' chat hands a later part to a subagent: the child's own
+    /// `studio new --series` links the part to the child, and the parent
+    /// keeps part 1.
+    #[tokio::test]
+    async fn a_part_a_subagent_makes_links_to_the_child_chat() {
+        let pool = pool().await;
+        let root = scratch_root();
+        let parent = store::create_thread(&pool, Provider::Claude, None, None, None, "series")
+            .await
+            .unwrap();
+        let child = store::create_thread(&pool, Provider::Codex, None, None, None, "part 2")
+            .await
+            .unwrap();
+        sqlx::query("UPDATE harness_threads SET parent_thread_id = ?1 WHERE id = ?2")
+            .bind(parent)
+            .bind(child)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (thread, slug) in [(parent, "position"), (child, "speed")] {
+            let run = send(&pool, thread, json!({})).await;
+            let item = tool(&pool, thread, &run).await;
+            make(&root, slug);
+            created(
+                &pool,
+                thread,
+                item,
+                &format!("oculus studio new {slug} --series motion"),
+                &root.join(slug),
+                &root,
+            )
+            .await;
+        }
+        assert_eq!(
+            link_of(&pool, parent).await,
+            Some(("position".into(), None))
+        );
+        assert_eq!(link_of(&pool, child).await, Some(("speed".into(), None)));
         std::fs::remove_dir_all(root).unwrap();
     }
 

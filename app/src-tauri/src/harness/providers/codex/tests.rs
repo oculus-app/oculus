@@ -457,6 +457,12 @@ fn a_file_change_whose_item_is_unknown_is_declined_and_a_known_one_names_its_pat
         "id": 3, "method": "item/fileChange/requestApproval",
         "params": { "threadId": "chat", "itemId": "unseen" },
     }));
+    assert!(matches!(
+        events.try_recv().unwrap(),
+        HarnessEvent::RequestDeclined {
+            reason: crate::harness::requests::Refusal::Other
+        }
+    ));
     assert!(events.try_recv().is_err());
     assert_eq!(written.lock().unwrap()[0]["result"]["decision"], "decline");
     server.handle_notification(
@@ -557,6 +563,17 @@ fn a_permissions_grant_on_a_glob_or_a_special_root_is_declined_unseen() {
         2,
         serde_json::json!({ "type": "glob_pattern", "pattern": "/lib/**" }),
     );
+    for _ in 0..2 {
+        assert!(
+            matches!(
+                events.try_recv().unwrap(),
+                HarnessEvent::RequestDeclined {
+                    reason: crate::harness::requests::Refusal::Other
+                }
+            ),
+            "neither reaches the student"
+        );
+    }
     assert!(events.try_recv().is_err(), "neither reaches the student");
     let replies = written.lock().unwrap().clone();
     assert_eq!(replies.len(), 2);

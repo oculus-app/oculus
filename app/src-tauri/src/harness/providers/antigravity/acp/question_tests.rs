@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, Weak};
 use serde_json::{json, Value};
 
 use crate::harness::child::{ChildProc, ThreadSpawn};
-use crate::harness::requests::{QuestionAnswer, Reply};
+use crate::harness::requests::{PermissionMode, QuestionAnswer, Reply};
 use crate::harness::HarnessEvent;
 
 use super::{questions::Form, AcpSession};
@@ -129,6 +129,8 @@ fn session(one_off: bool) -> (Arc<AcpSession>, Events, Frames) {
         {
             let result = if frame["method"] == "initialize" {
                 json!({"agentInfo":{"version":"1.5.9"}})
+            } else if frame["method"] == "session/load" {
+                json!({"modes":{"availableModes":[{"id":"auto"}]}})
             } else {
                 json!({})
             };
@@ -149,9 +151,10 @@ fn session(one_off: bool) -> (Arc<AcpSession>, Events, Frames) {
         Arc::new(move |e| got.lock().unwrap().push(e)),
         &base,
         one_off,
+        true,
     );
     *me.lock().unwrap() = Arc::downgrade(&session);
-    session.open(&base, "").unwrap();
+    session.open(&base, "", PermissionMode::Auto).unwrap();
     (session, events, frames)
 }
 fn ask(session: &AcpSession, p: Value) {
@@ -182,6 +185,10 @@ fn option(id: &str) -> crate::harness::requests::RequestOption {
 fn chat_advertises_forms_but_one_off_jobs_decline_even_a_stray_form() {
     for one_off in [false, true] {
         let (s, events, frames) = session(one_off);
+        assert_eq!(
+            frames.lock().unwrap()[2]["params"]["modeId"],
+            if one_off { "default" } else { "auto" }
+        );
         assert_eq!(
             frames.lock().unwrap()[0]["params"]["clientCapabilities"]
                 .get("elicitation")

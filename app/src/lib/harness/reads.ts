@@ -25,7 +25,13 @@ const RUN_STARTED_AT =
   "(SELECT MIN(COALESCE(r.started_at, r.requested_at)) FROM harness_runs r WHERE r.thread_id = t.id" +
   " AND r.execution_status IN ('preparing', 'starting', 'running')) AS run_started_at";
 
-const THREAD_COLUMNS = `t.*, ${SETTLED_AT}, ${PENDING_REQUESTS}, ${PENDING_QUESTIONS}, ${RUN_STARTED_AT}`;
+/** A thread's `last_run`: how the run that settled it (`settled_at`'s) ended. */
+const LAST_RUN =
+  "(SELECT r.execution_status FROM harness_runs r WHERE r.thread_id = t.id" +
+  " AND r.execution_status IN ('completed', 'interrupted', 'failed') AND r.initiating_item_id IS NOT NULL" +
+  " ORDER BY r.ended_at DESC, r.id DESC LIMIT 1) AS last_run";
+
+const THREAD_COLUMNS = `t.*, t.parent_thread_id AS parent_id, ${SETTLED_AT}, ${PENDING_REQUESTS}, ${PENDING_QUESTIONS}, ${RUN_STARTED_AT}, ${LAST_RUN}`;
 
 /** Every thread, newest first; `$1` is the limit (-1 reads them all). */
 export const THREADS_SQL = `SELECT ${THREAD_COLUMNS} FROM harness_threads t ORDER BY t.updated_at DESC, t.id DESC LIMIT $1`;
@@ -60,6 +66,16 @@ export async function getThreadsByIds(ids: number[]): Promise<HarnessThread[]> {
     `SELECT ${THREAD_COLUMNS} FROM harness_threads t WHERE t.id IN (${marks(ids.length)})`,
     ids,
   );
+}
+
+/** A chat's children, newest first: thread info lists every one, older
+ *  than the store's newest or not (`useChildThreads`). */
+export const CHILD_THREADS_SQL = `SELECT ${THREAD_COLUMNS} FROM harness_threads t WHERE t.parent_thread_id = $1
+  ORDER BY t.created_at DESC, t.id DESC`;
+
+export async function getChildThreads(parentId: number): Promise<HarnessThread[]> {
+  const db = await getDb();
+  return db.select<HarnessThread[]>(CHILD_THREADS_SQL, [parentId]);
 }
 
 /** One lecture's threads — its own query, since `getHarnessThreads` caps

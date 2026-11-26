@@ -328,7 +328,13 @@ fn readers_of_runs_tell_a_waiting_run_from_one_that_ran() {
     // terminal to hear.
     let unsettled = bench
         .runtime
-        .block_on(store::settle_run(&bench.pool, waiting, 0, "completed"))
+        .block_on(store::settle_run(
+            &bench.pool,
+            waiting,
+            0,
+            "completed",
+            None,
+        ))
         .unwrap();
     assert!(unsettled.is_none());
 

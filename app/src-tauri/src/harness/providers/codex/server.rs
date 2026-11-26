@@ -157,10 +157,9 @@ impl CodexServer {
             .write_line(&json!({ "jsonrpc": "2.0", "method": method }))
     }
 
-    pub(super) fn respond(&self, id: &Value, result: Value) {
-        let _ = self
-            .proc
-            .write_line(&json!({ "jsonrpc": "2.0", "id": id, "result": result }));
+    pub(super) fn respond(&self, id: &Value, result: Value) -> Result<(), String> {
+        self.proc
+            .write_line(&json!({ "jsonrpc": "2.0", "id": id, "result": result }))
     }
 
     pub(super) fn respond_error(&self, id: &Value, code: i64, message: &str) {

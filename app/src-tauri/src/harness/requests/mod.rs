@@ -31,8 +31,8 @@ pub enum PermissionMode {
     /// Declined without a prompt, as one-off jobs always are. Shown to the
     /// student as "Don't ask".
     Quiet,
-    /// The CLI's own reviewer decides and the student is never asked. A
-    /// bridge with no reviewer (`Capabilities::auto_review`) asks instead.
+    /// Use the CLI's own reviewer when available. Requests it forwards
+    /// can still reach the student.
     Auto,
 }
 
@@ -83,6 +83,14 @@ impl Action {
             Action::Question => "question",
         }
     }
+}
+
+/// Why a live request was declined before there was a request row.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Refusal {
+    ProtectedPath,
+    Other,
 }
 
 /// What an option does once chosen, whatever the provider calls it.

@@ -15,7 +15,7 @@ import { Columns } from "./layout/Columns";
 import { Items } from "./layout/items";
 import { Panel } from "./layout/Panel";
 import { Tabs } from "./layout/Tabs";
-import { Task, NewCheatNotes, NewTasks, NewProject, NewEvents, NewNote, EditItems, TaskChanges, ProjectChanges, EventChanges, TagChanges, DeleteTasks, DeleteEvents, Sync, Reparse, Transcribe, LectureChapters, LectureEnd, Download } from "../proposals/definitions";
+import { Task, NewCheatNotes, NewTasks, NewProject, NewEvents, NewNote, EditItems, TaskChanges, ProjectChanges, EventChanges, TagChanges, DeleteTasks, DeleteEvents, Sync, Reparse, Transcribe, LectureChapters, LectureEnd, Download, Subagent } from "../proposals/definitions";
 
 const footer = (n: unknown) => {
   const t = (n as { typeName?: string } | null)?.typeName;
@@ -29,7 +29,7 @@ export const Stack = defineComponent({
   name: "Stack",
   description: "The root: items top to bottom. Ask and PageRef items line up in a row.",
   props: z.object({
-    items: z.array(z.union([Task.ref, TaskList.ref, Deadline.ref, Upcoming.ref, Lecture.ref, StudioVideo.ref, CheatNote.ref, ReviewDue.ref, NewCheatNotes.ref, EditItems.ref, Flashcards.ref, Quiz.ref, Question.ref, Steps.ref, Explorer.ref, Block, Panel.ref, Columns.ref, Tabs.ref, PageRef.ref, Ask.ref, NewTasks.ref, NewProject.ref, NewEvents.ref, NewNote.ref, TaskChanges.ref, ProjectChanges.ref, EventChanges.ref, TagChanges.ref, DeleteTasks.ref, DeleteEvents.ref, Sync.ref, Reparse.ref, Transcribe.ref, LectureChapters.ref, LectureEnd.ref, Download.ref])),
+    items: z.array(z.union([Task.ref, TaskList.ref, Deadline.ref, Upcoming.ref, Lecture.ref, StudioVideo.ref, CheatNote.ref, ReviewDue.ref, NewCheatNotes.ref, EditItems.ref, Flashcards.ref, Quiz.ref, Question.ref, Steps.ref, Explorer.ref, Block, Panel.ref, Columns.ref, Tabs.ref, PageRef.ref, Ask.ref, NewTasks.ref, NewProject.ref, NewEvents.ref, NewNote.ref, TaskChanges.ref, ProjectChanges.ref, EventChanges.ref, TagChanges.ref, DeleteTasks.ref, DeleteEvents.ref, Sync.ref, Reparse.ref, Transcribe.ref, LectureChapters.ref, LectureEnd.ref, Download.ref, Subagent.ref])),
   }),
   component: function StackView({ props, renderNode }) {
     const items = Array.isArray(props.items) ? props.items : [];

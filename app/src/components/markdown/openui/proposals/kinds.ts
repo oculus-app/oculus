@@ -1,8 +1,8 @@
-import { ArrowsClockwise, CalendarBlank, CheckSquare, DownloadSimple, FileText, FlagCheckered, FolderSimple, ListNumbers, Microphone, Note, PencilSimpleLine, Tag, type Icon } from "@phosphor-icons/react";
+import { ArrowsClockwise, CalendarBlank, CheckSquare, DownloadSimple, FileText, FlagCheckered, FolderSimple, ListNumbers, Microphone, Note, PencilSimpleLine, Tag, TreeStructure, type Icon } from "@phosphor-icons/react";
 
 /** Each card kind's glyph: the item it writes, or the job it runs. */
 export function kindIcon(kind: string): Icon {
-  const jobs: Record<string, Icon> = { Sync: ArrowsClockwise, Reparse: FileText, Transcribe: Microphone, LectureChapters: ListNumbers, LectureEnd: FlagCheckered, Download: DownloadSimple };
+  const jobs: Record<string, Icon> = { Sync: ArrowsClockwise, Reparse: FileText, Transcribe: Microphone, LectureChapters: ListNumbers, LectureEnd: FlagCheckered, Download: DownloadSimple, Subagent: TreeStructure };
   if (jobs[kind]) return jobs[kind];
   if (kind === "NewCheatNotes") return Note;
   if (kind === "EditItems") return PencilSimpleLine;
@@ -14,6 +14,7 @@ const NOUNS: Record<string, string> = {
   TaskChanges: "task changes", ProjectChanges: "project changes", EventChanges: "event changes", TagChanges: "tag changes",
   DeleteTasks: "task deletions", DeleteEvents: "event deletions", EditItems: "edits",
   Sync: "a sync", Reparse: "a re-parse", Transcribe: "a transcription", LectureChapters: "a chapter search", LectureEnd: "a lecture-end search", Download: "a download",
+  Subagent: "a subagent",
 };
 
 /** What a card is about, in words, for the skeleton drawn before its props arrive. */

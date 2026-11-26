@@ -144,6 +144,7 @@ impl Harness {
             Provider::Antigravity => Handle::Antigravity(
                 AcpSession::spawn(
                     AcpSpawn {
+                        mode: crate::harness::requests::PermissionMode::Quiet,
                         base: base(cwd)?,
                         brief: instructions.to_string(),
                         one_off: true,

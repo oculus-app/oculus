@@ -102,7 +102,10 @@ The manager never spawns in a replay. A recorded session is registered as the
 thread's next spawn (`Harness::replay_spawn`) and opened by the send that
 would have started a process, on the sink of the generation minted for it.
 `rig.second_chat()` makes another thread of the same provider with a
-recorded session of its own, and `rig.envelopes()` reads what the consumer
+recorded session of its own; `rig.child(receipt, brief)` starts a subagent's
+chat of the rig's thread through the command path (`app/children`), holding
+the start step until the child's recorded session is registered, and
+`rig.children` holds the waits on its report. `rig.envelopes()` reads what the consumer
 has told so far. Since the feed moves the clock to the consumer's next wake
 whenever the bus is idle, a `rig.drain()` after a stop is fifteen seconds
 later.
@@ -227,13 +230,16 @@ reply repeated and with its reply missing.
 It checks a full turn (a write in the chat's folder allowed unseen, two
 commands asked and approved, a failed command and read), a write outside
 and a command each declined, a protected path or the database refused
-unseen for each kind, Don't ask (from the start and saved mid-turn), Auto
-asking as Ask, Stop mid-command and mid-text, Stop with a request waiting
+unseen for each kind, Don't ask (from the start and saved mid-turn),
+Stop mid-command and mid-text, Stop with a request waiting
 (answered `cancelled`, a later answer not written), a stop agy never
 answers reaching Force stop, a process dying mid-turn, a restart with a
 request pending, a pipe dying mid-reply, and a one-off turn answered by
 policy alone. The waiting-request stop, the dying process and the ignored
-stop are mutations of recordings.
+stop are mutations of recordings. The two 1.5.14 native Auto recordings
+replay `which ls` completing with no request and a write outside the workspace
+opening a request whose decline fails the tool. Their manifests record the
+native mode already applied before the first prompt.
 
 `testkit/agy_recovery.rs` drives synthetic setup traffic through the real
 ACP client and production send: `session/load` fails, a fresh `session/new`
@@ -293,6 +299,12 @@ the same provider (`Rig::second_chat`): on Claude the stuck chat is force
 stopped while the other streams to its end; on Codex both settle as
 interrupted and the other chat's waiting message is held. `testkit/pacing.rs`
 pins the fifteen seconds on a scripted clock.
+`testkit/children.rs` checks subagents: on all four bridges a child under
+the parent's subject and mode reports its first run's answer as
+`completed`, with its brief marked as the parent's; a child of a child is
+refused and a deleted parent leaves its child; and Stop through Codex, a
+force stop of another chat on the shared Codex server, and a quit before
+the next launch each report it `interrupted`.
 `testkit/stop.rs` checks Stop: through Codex, a stop that keeps the partial
 answer and the waiting message, and Resume starting that message as its own
 run; a stop for a run that just finished; a stop during a slow start on all
@@ -316,6 +328,14 @@ scripted bus (`Bench::allow_handoff`) it checks a rewind to a question
 another provider answered, a rewind to a run that carried a handoff, an
 edit sent under another provider, and an edit at an Antigravity question
 (fresh rewind) resent on Antigravity or on Claude.
+`testkit/card_audience.rs` checks which cards each Claude prompt lists, by
+the frames sent: a told card is not repeated on the next turn of the same
+session; a session replaced under a new reasoning level without a handoff
+hears it on its first prompt; a rewind of the turn that told a card lists
+it again (the rewind's commit is made directly, as the provider's rewind
+is not replayed); a switch stopped before Codex heard it neither repeats
+nor loses a card (`Rig::hold_effects`, then `Rig::release_effects`); and
+the cards over the section's cap come with the next turn.
 `testkit/handoff_recordings.rs` seeds three synthetic earlier exchanges and
 replays the Claude, Codex and Antigravity `handoff-*-full`
 fixtures as the first target run after a provider switch, with its exact

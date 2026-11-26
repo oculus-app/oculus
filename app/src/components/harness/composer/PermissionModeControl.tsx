@@ -14,14 +14,8 @@ const MODE_ICON: Record<PermissionMode, Icon> = {
   quiet: ShieldSlash,
 };
 
-/**
- * The chat's permission mode, an icon-only trigger: how it asks for what
- * the agent's sandbox blocks (Ask, Auto or Don't ask), saved per chat with `harnessSetPermissionMode` from its next
- * run on; before a chat exists, the mode it starts with. Each mode has its line; an agent that cannot ask says so in a
- * tooltip on the header's warning icon, and one with no reviewer says so
- * on Auto's line. Rust refuses a change while a request waits;
- * its sentence shows at the top of the open menu.
- */
+/** The chat's saved permission mode, or the starting mode in a new composer.
+ *  A refused change stays in the open menu so the student can see why. */
 export function PermissionModeControl({ threadId, provider }: { threadId: number | null; provider: Provider }) {
   const permission = usePermissionMode(threadId, provider);
   const [open, setOpen] = useState(false);
@@ -91,8 +85,7 @@ export function PermissionModeMenu(props: PermissionModeChoicesProps) {
   );
 }
 
-/** The warning that the agent cannot ask at all, its sentence in a tooltip;
- *  nothing when it can. */
+/** The provider's permission warning, available on hover and keyboard focus. */
 export function ModeNote({ note }: { note: string | null }) {
   if (!note) return null;
   return (

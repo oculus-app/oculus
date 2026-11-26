@@ -64,6 +64,10 @@ pub(in crate::harness) trait ConsumerIo {
     /// (`core::effect::run`), off this thread: a CLI can take a minute.
     fn perform(&mut self, effect: Effect);
     fn emit(&mut self, envelope: Envelope);
+    /// A run of the thread has settled, its rows were rewound, or the thread
+    /// was deleted: what waits on its subagent's report reads it again
+    /// (`app/children`).
+    fn ended(&mut self, _thread_id: i64) {}
 }
 
 pub(in crate::harness) fn consume(
@@ -388,6 +392,10 @@ impl Consumer {
             }
         }
         match ev {
+            HarnessEvent::RequestDeclined { reason } => {
+                self.runs.declined(thread_id, reason);
+                return;
+            }
             HarnessEvent::RequestAsked { request, route } if thread_id > 0 => {
                 return self.request_asked(thread_id, provider, from, request, route, io);
             }
@@ -533,7 +541,7 @@ impl Consumer {
                         Some(run_id),
                         Some(attempt_id),
                         HarnessEvent::TurnFinished { status, .. },
-                    ) => match self.settle(p, thread_id, run_id, attempt_id, status) {
+                    ) => match self.settle(p, thread_id, run_id, attempt_id, status, io) {
                         Ok(settled) => settled,
                         // The one write that may not be lost: nobody hears
                         // of the terminal until it has landed (`retry`).
@@ -606,12 +614,18 @@ impl Consumer {
         run_id: i64,
         attempt_id: i64,
         status: &str,
+        io: &mut impl ConsumerIo,
     ) -> Result<Vec<(HarnessEvent, Option<i64>)>, String> {
-        let settlement = self
-            .rt
-            .block_on(store::settle_run(pool, run_id, attempt_id, status))?;
+        let settlement = self.rt.block_on(store::settle_run(
+            pool,
+            run_id,
+            attempt_id,
+            status,
+            self.runs.refusal(thread_id),
+        ))?;
         if let Some(settlement) = &settlement {
             self.revisions.insert(thread_id, settlement.revision);
+            io.ended(thread_id);
         }
         self.runs.close(thread_id);
         self.restarting.remove(&run_id);
@@ -673,7 +687,7 @@ impl Consumer {
                 continue;
             };
             let (run_id, attempt_id) = (parked.run_id, parked.attempt_id);
-            match self.settle(&pool, thread_id, run_id, attempt_id, &parked.status) {
+            match self.settle(&pool, thread_id, run_id, attempt_id, &parked.status, io) {
                 Ok(settled) => self.publish(parked.stored, settled, io),
                 Err(e) => {
                     parked.wait = (parked.wait * 2).min(RETRY_MAX);
@@ -833,6 +847,8 @@ impl Consumer {
     }
 
     /// A settled card claims its continuation, when the agent gave it one.
+    /// A card settles once, so a claim whose run cannot be queued is
+    /// skipped with the reason, and the card says so.
     fn continue_card(
         &mut self,
         thread_id: i64,
@@ -857,7 +873,15 @@ impl Consumer {
                         self.snapshot(thread_id, provider, proposal, io);
                         self.drive(thread_id, provider, io);
                     }
-                    Err(e) => elog!("[oculus] card continuation {proposal}: {e}"),
+                    Err(e) => {
+                        elog!("[oculus] card continuation {proposal}: {e}");
+                        let reason = super::continuation::NOT_QUEUED;
+                        let cancel = super::continuation::cancel(&p, proposal, reason);
+                        match self.rt.block_on(cancel) {
+                            Ok(_) => self.snapshot(thread_id, provider, proposal, io),
+                            Err(e) => elog!("[oculus] card continuation {proposal}: skip: {e}"),
+                        }
+                    }
                 }
             }
             Ok(None) => {}
@@ -935,6 +959,7 @@ fn makes_row(ev: &HarnessEvent) -> bool {
             | HarnessEvent::Thinking { .. }
             | HarnessEvent::ToolStarted { .. }
             | HarnessEvent::Compaction { .. }
+            | HarnessEvent::SessionNotice { .. }
             | HarnessEvent::SessionRestarted { .. }
     )
 }

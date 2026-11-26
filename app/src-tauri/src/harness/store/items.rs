@@ -104,6 +104,8 @@ pub async fn truncate(
         format!("DELETE FROM harness_delivery_gaps WHERE run_id IN ({runs})"),
         format!("DELETE FROM harness_stream_drafts WHERE run_id IN ({runs})"),
         format!("DELETE FROM harness_attempts WHERE run_id IN ({runs})"),
+        // A run's id can be taken again: no card may stay told by a gone one.
+        format!("UPDATE chat_proposals SET told_run_id = NULL WHERE told_run_id IN ({runs})"),
         "DELETE FROM harness_runs WHERE thread_id = ?1 AND initiating_item_id >= ?2".into(),
     ] {
         sqlx::query(&sql)

@@ -19,6 +19,8 @@ export * from "./runs";
 export * from "./switching";
 export * from "./threadStatus";
 export * from "./requests";
+export * from "./requestRisk";
+export * from "./requestKeys";
 export * from "./permissionModes";
 export * from "./announce";
 export * from "./usageLimit";

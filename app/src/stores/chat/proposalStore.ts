@@ -1,10 +1,14 @@
 import { create } from "zustand";
 import { proposalApi, type Proposal, type ProposalApi, type ProposalState } from "@/lib/harness/proposals";
 
+export type ProposalAction = "apply" | "discard" | "undo" | "start";
+
 interface ProposalStore {
   rows: Record<string, Proposal>;
   drafts: Record<string, ProposalState>;
   busy: Record<string, boolean>;
+  /** The decision a busy card is making, so every view of it names the same one. */
+  acting: Record<string, ProposalAction | undefined>;
   errors: Record<string, string | undefined>;
   /** `undone` marks the reply to Undo, which may reopen a card as pending. */
   receive: (row: Proposal, undone?: boolean) => void;
@@ -12,9 +16,15 @@ interface ProposalStore {
   edit: (id: string, state: ProposalState) => void;
   flush: (id: string) => Promise<void>;
   flushThread: (thread: number) => Promise<void>;
-  act: (id: string, action: "apply" | "discard" | "undo" | "start") => Promise<void>;
+  act: (id: string, action: ProposalAction) => Promise<void>;
   prune: (thread: number, fromRow?: number) => void;
 }
+
+/** A card the student may still change: a pending one, or a Subagent card a
+ *  quit interrupted, whose selection Start again runs on (`proposal_edit`). */
+const editable = (row: Proposal | undefined) =>
+  row?.status === "pending"
+  || (row?.kind === "Subagent" && row.status === "created" && (row.state.job as { interrupted?: unknown } | undefined)?.interrupted === true);
 
 /** One lane per card orders debounced edits before decisions. Drafts are
  * shared across views, but a decided row always wins over a local draft. */
@@ -33,17 +43,26 @@ export function createProposalStore(api: ProposalApi = proposalApi, delay = 300)
     };
     const fail = (id: string, error: unknown) => set((s) => ({ errors: { ...s.errors, [id]: String(error) } }));
     return {
-      rows: {}, drafts: {}, busy: {}, errors: {},
+      rows: {}, drafts: {}, busy: {}, acting: {}, errors: {},
       receive: (row, undone = false) => {
         const previous = get().rows[row.id];
         if (previous && ["undone", "discarded", "superseded"].includes(previous.status) && row.status !== previous.status) return;
         // Undoing cheat entries reopens the card; any other late pending row is stale.
         if (row.status === "pending" && previous && previous.status !== "pending" && !undone) return;
         const phase = (state: ProposalState) => (state.job as { phase?: string } | undefined)?.phase;
-        if (previous?.status === "created" && ["complete", "error"].includes(phase(previous.state) ?? "") && phase(row.state) === "running") return;
+        const startedAt = (state: ProposalState) => (state.job as { started_at?: string } | undefined)?.started_at;
+        // A snapshot from an earlier claim (one Start again replaced) never
+        // brings back that claim's job or child.
+        const claimed = (state: ProposalState) => Date.parse(startedAt(state) ?? "");
+        if (previous && claimed(row.state) < claimed(previous.state)) return;
+        // A late running snapshot of a finished job; Start again's run has a start of its own.
+        if (previous?.status === "created" && ["complete", "error"].includes(phase(previous.state) ?? "") && phase(row.state) === "running" && startedAt(row.state) === startedAt(previous.state)) return;
         const runId = (state: ProposalState) => (state.job as { run_id?: number } | undefined)?.run_id;
         // The start command's running snapshot can arrive after the run-id event.
         if (previous?.status === "created" && phase(previous.state) === "running" && phase(row.state) === "running" && runId(previous.state) != null && runId(row.state) == null) return;
+        const child = (state: ProposalState) => (state.job as { child?: number } | undefined)?.child;
+        // Likewise for a Subagent's child: the same run's snapshot without it is the older one.
+        if (previous?.status === "created" && phase(previous.state) === "running" && phase(row.state) === "running" && startedAt(row.state) === startedAt(previous.state) && child(previous.state) != null && child(row.state) == null) return;
         if (row.status !== "pending") cancel(row.id);
         set((s) => {
           const drafts = { ...s.drafts };
@@ -68,7 +87,7 @@ export function createProposalStore(api: ProposalApi = proposalApi, delay = 300)
         return work;
       },
       edit: (id, state) => {
-        if (get().rows[id]?.status !== "pending" || get().busy[id]) return;
+        if (!editable(get().rows[id]) || get().busy[id]) return;
         cancel(id);
         set((s) => ({ drafts: { ...s.drafts, [id]: state }, errors: { ...s.errors, [id]: undefined } }));
         timers.set(id, setTimeout(() => { void get().flush(id).catch((error) => fail(id, error)); }, delay));
@@ -78,7 +97,7 @@ export function createProposalStore(api: ProposalApi = proposalApi, delay = 300)
         return enqueue(id, async () => {
           const draft = get().drafts[id];
           const current = get().rows[id];
-          if (!draft || current?.status !== "pending") return;
+          if (!draft || !editable(current)) return;
           const generation = generations.get(current.thread_id) ?? 0;
           const row = await api.edit(id, draft);
           if ((generations.get(current.thread_id) ?? 0) !== generation) return;
@@ -104,29 +123,36 @@ export function createProposalStore(api: ProposalApi = proposalApi, delay = 300)
       act: async (id, action) => {
         if (get().busy[id]) return;
         cancel(id);
-        set((s) => ({ busy: { ...s.busy, [id]: true }, errors: { ...s.errors, [id]: undefined } }));
+        set((s) => ({ busy: { ...s.busy, [id]: true }, acting: { ...s.acting, [id]: action }, errors: { ...s.errors, [id]: undefined } }));
         try {
           await enqueue(id, async () => {
             const row = get().rows[id];
             if (!row) throw new Error("The card has not loaded yet.");
             const generation = generations.get(row.thread_id) ?? 0;
             const state = get().drafts[id] ?? row.state;
+            // A job starts from what the card shows: an edit still waiting is saved first.
+            if (action === "start" && get().drafts[id] && editable(row)) {
+              const edited = await api.edit(id, state);
+              if ((generations.get(row.thread_id) ?? 0) !== generation) return;
+              get().receive(edited);
+              set((s) => { const drafts = { ...s.drafts }; delete drafts[id]; return { drafts }; });
+            }
             const next = action === "apply" ? await api.apply(id, state) : await api[action](id);
             if ((generations.get(row.thread_id) ?? 0) === generation) get().receive(next, action === "undo");
           });
         } catch (error) { fail(id, error); }
-        finally { set((s) => s.rows[id] ? { busy: { ...s.busy, [id]: false } } : {}); }
+        finally { set((s) => s.rows[id] ? { busy: { ...s.busy, [id]: false }, acting: { ...s.acting, [id]: undefined } } : {}); }
       },
       prune: (thread, fromRow) => {
         generations.set(thread, (generations.get(thread) ?? 0) + 1);
         set((s) => {
-          const rows = { ...s.rows }, drafts = { ...s.drafts }, errors = { ...s.errors }, busy = { ...s.busy };
+          const rows = { ...s.rows }, drafts = { ...s.drafts }, errors = { ...s.errors }, busy = { ...s.busy }, acting = { ...s.acting };
           for (const [id, row] of Object.entries(rows)) {
             if (row.thread_id !== thread || (fromRow !== undefined && row.item_id < fromRow)) continue;
             cancel(id);
-            delete rows[id]; delete drafts[id]; delete errors[id]; delete busy[id];
+            delete rows[id]; delete drafts[id]; delete errors[id]; delete busy[id]; delete acting[id];
           }
-          return { rows, drafts, errors, busy };
+          return { rows, drafts, errors, busy, acting };
         });
       },
     };

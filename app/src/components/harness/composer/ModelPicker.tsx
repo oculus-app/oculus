@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
@@ -33,6 +33,7 @@ export const ModelPicker = memo(function ModelPicker({
   emptyLabel = "Choose a model",
   emptyIcon,
   keepEmptyTrigger = false,
+  disabled,
   className,
 }: {
   providers: PickerProvider[];
@@ -64,6 +65,8 @@ export const ModelPicker = memo(function ModelPicker({
   /** The trigger keeps its empty look with a model set: an "add" menu whose
    *  pick lands in a row of its own. */
   keepEmptyTrigger?: boolean;
+  /** The trigger is shown but cannot open the menu. */
+  disabled?: boolean;
   className?: string;
 }) {
   const [openState, setOpenState] = useState(false);
@@ -72,6 +75,12 @@ export const ModelPicker = memo(function ModelPicker({
     setOpenState(next);
     onOpenChange?.(next);
   };
+  // A trigger turned off (a card's decision going out) closes its open menu.
+  // Only a change of these two runs it: a caller's handler is new each render.
+  useEffect(() => {
+    if (disabled && open) setOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, open]);
   const { label, levelText, title } = modelSummary({ providers, provider, model, reasoning, switchFrom });
 
   return (
@@ -83,6 +92,7 @@ export const ModelPicker = memo(function ModelPicker({
           size="sm"
           aria-label="Model and reasoning"
           title={title}
+          disabled={disabled}
           className={cn(
             "h-6 max-w-[280px] gap-1.5 px-1.5 text-[11px] font-normal text-muted-foreground hover:text-foreground",
             className,
