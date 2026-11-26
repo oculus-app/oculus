@@ -99,6 +99,6 @@ fn the_two_samples_read_the_word_two_ways() {
         decode_wav(&bytes).unwrap()
     };
     let (original, suggestion) = (wav(Which::Original), wav(Which::Suggestion));
-    assert!(original.duration > 1.0, "{}", original.duration);
+    assert!(original.duration > 0.1, "{}", original.duration);
     assert_ne!(original.samples, suggestion.samples);
 }

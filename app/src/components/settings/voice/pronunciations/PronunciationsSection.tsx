@@ -9,6 +9,7 @@ import {
   type Pronunciation,
   type PronunciationDecision,
 } from "@/lib/studio/pronunciations";
+import { useVideosStore } from "@/stores/studio/videosStore";
 import { useClipPlayer } from "../useClipPlayer";
 import { PronunciationRow } from "./PronunciationRow";
 
@@ -42,6 +43,9 @@ export function PronunciationsSection() {
       setItems(read);
       setDecided({});
       setLoadError(null);
+      if (read.length > 0 && !useVideosStore.getState().loaded) {
+        void useVideosStore.getState().reload();
+      }
     } catch (cause) {
       console.error("Pronunciations read failed", cause);
       if (loads.current === mine) setLoadError(String(cause));

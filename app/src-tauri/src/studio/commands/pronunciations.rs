@@ -1,6 +1,6 @@
 //! The pronunciation review in Settings -> Studio -> Pronunciation (`studio::voice::review`):
 //! the agent's suggestions, the student's three verdicts, and a sample of
-//! the word's sentence read either way, synthesised by Kokoro on this computer.
+//! the word read either way, synthesised by Kokoro on this computer.
 
 use serde::Deserialize;
 
@@ -20,8 +20,8 @@ pub enum Which {
     Suggestion,
 }
 
-/// `record`'s sentence as WAV bytes in the settings' voice and speed, with
-/// the word pinned to `which` over its subject's lexicon.
+/// `record`'s word as WAV bytes in the settings' voice and speed, pinned to
+/// `which` over its subject's lexicon.
 pub(super) fn sample_record(
     record: &Record,
     which: Which,
@@ -35,13 +35,7 @@ pub(super) fn sample_record(
     };
     lexicon.pin = Some((record.word.clone(), value));
     let voice = settings.voice.as_deref().unwrap_or_default();
-    sample(
-        voice,
-        settings.speed,
-        Some(&record.sentence),
-        packs,
-        lexicon,
-    )
+    sample(voice, settings.speed, Some(&record.word), packs, lexicon)
 }
 
 /// Every suggestion, newest first: pending and wrong ones.
@@ -72,7 +66,7 @@ pub async fn studio_pronunciation_wrong(id: String, note: Option<String>) -> Res
     crate::runtime::blocking::run(move || Store::app().mark_wrong(&id, note)).await
 }
 
-/// The item's sentence with the word read as `which`, in Settings -> Studio -> Pronunciation's
+/// The item's word read as `which`, in Settings -> Studio -> Narration's
 /// Kokoro voice and speed, as WAV bytes.
 #[tauri::command]
 pub async fn studio_pronunciation_sample(

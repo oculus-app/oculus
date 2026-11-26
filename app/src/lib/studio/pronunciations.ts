@@ -23,7 +23,7 @@ export interface Pronunciation {
   subject: string | null;
   /** The video's slug. */
   video: string;
-  /** The spoken sentence the word is in: what the samples say. */
+  /** The spoken sentence the word is in, shown for context. */
   sentence: string;
   /** The scene's id. */
   scene: string;
@@ -68,8 +68,8 @@ export function markPronunciationWrong(id: string, note: string | null): Promise
   return invoke<Pronunciation>("studio_pronunciation_wrong", { id, note });
 }
 
-/** The item's sentence with the word read as its original guess or as the
- *  suggestion, in Settings -> Studio -> Narration's Kokoro voice and speed, as WAV bytes;
+/** The item's word read as its original guess or as the suggestion, in
+ *  Settings -> Studio -> Narration's Kokoro voice and speed, as WAV bytes;
  *  rejects with a sentence fit to show (no voice chosen, a pack missing). */
 export function pronunciationSample(
   id: string,
