@@ -237,6 +237,19 @@ are routed: Drive's rail section at `/drive/*` and the Files tab at
   opening from its old size. Widths are the
   browser's own (`useElementWidth`). A synced folder says once, above its
   entries, that it is read-only.
+- **A path as crumbs.** `driveTrail(rel, subjects, from?)`
+  (`app/src/lib/drive/trail.ts`) names the places from My Drive down to a
+  path relative to the data folder: My Drive, the Subjects folder, a subject
+  by `displayCode`, then each folder by its name on disk. `from: "subject"`
+  starts at the subject, for a line with little room. Only the folder
+  directly under `courses/` that matches a subject is read as one, so a
+  top-level entry never takes a subject's code or icon, and a path outside
+  every subject starts at My Drive in both forms. `driveTrailCrumbs`
+  (`app/src/components/drive/trail/crumbs.tsx`) turns the places into
+  `Trail` crumbs ([ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card))
+  with each one's glyph (`SubjectIcon` for a subject), and with `onOpen`
+  makes every crumb but the last a button that opens its place. The
+  browser's own header draws `driveCrumbs` through `Breadcrumb`.
 - **Pictures** (`components/drive/thumbs/`) come from what already draws
   each kind: a PDF's, or an Office file's converted PDF's, first page through
   the viewer's renderer (`openPdf`, `renderPage`); a recording's frame from
