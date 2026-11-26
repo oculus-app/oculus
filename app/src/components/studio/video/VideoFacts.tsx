@@ -4,6 +4,7 @@ import type { Icon } from "@phosphor-icons/react";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { ThemePicker } from "@/components/studio/video/ThemePicker";
 import { VoicePicker } from "@/components/studio/video/VoicePicker";
+import type { NarrationRead } from "@/hooks/studio/useNarrationStatus";
 import { useSubjectCode } from "@/hooks/studio/useSubjectCode";
 import { displayCode } from "@/lib/format/format";
 import { fmtClockSecs } from "@/lib/lectures/media";
@@ -16,10 +17,12 @@ import { useRenderStore } from "@/stores/studio/renderStore";
  *  theme and voice open pickers, off while anything writes into the folder. */
 export function VideoFacts({
   detail,
+  narration,
   running,
   onChanged,
 }: {
   detail: VideoDetail;
+  narration: NarrationRead;
   /** The video's thread is running a turn. */
   running: boolean;
   /** Re-reads the video after a picker changes it. */
@@ -36,7 +39,7 @@ export function VideoFacts({
     <div className="flex flex-wrap gap-1.5">
       {row.subject && <SubjectFact course={row.subject} />}
       <ThemePicker detail={detail} blocker={blocker} onChanged={onChanged} />
-      <VoicePicker detail={detail} blocker={blocker} onChanged={onChanged} />
+      <VoicePicker detail={detail} narration={narration} blocker={blocker} onChanged={onChanged} />
       {length != null && <Fact icon={Timer}>{fmtClockSecs(length)}</Fact>}
       <Fact>
         {portrait ? "Reels" : "Video"} · {detail.width}×{detail.height} · {detail.fps} fps

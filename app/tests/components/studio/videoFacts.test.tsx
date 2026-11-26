@@ -27,7 +27,7 @@ const html = (d: VideoDetail, running: boolean) =>
   renderToStaticMarkup(
     <MemoryRouter>
       <TooltipProvider>
-        <VideoFacts detail={d} running={running} onChanged={() => {}} />
+        <VideoFacts detail={d} narration={{ status: null, error: null, reload: () => {} }} running={running} onChanged={() => {}} />
       </TooltipProvider>
     </MemoryRouter>,
   );

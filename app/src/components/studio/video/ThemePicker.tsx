@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Palette } from "@phosphor-icons/react";
 
 import { ThemeList } from "@/components/studio/style/ThemeList";
-import { PickerLabel, PickerPill } from "@/components/studio/video/PickerPill";
+import { PickerPill } from "@/components/studio/video/PickerPill";
 import { reloadExportStatus } from "@/hooks/studio/useExportStatus";
 import { useSubjectCode } from "@/hooks/studio/useSubjectCode";
 import { useThemeDefaults } from "@/hooks/studio/useThemeDefaults";
@@ -77,14 +77,14 @@ function ThemeChoices({ detail, onSaved }: { detail: VideoDetail; onSaved: () =>
 
   const defaultTheme = defaults?.effective ?? null;
   return (
-    <div>
-      <PickerLabel>Theme</PickerLabel>
+    <div className="p-1">
       <fieldset disabled={saving} className="min-w-0">
         <ThemeList
           state={themes}
           value={detail.theme}
           defaultTheme={defaultTheme}
           offerDefault={false}
+          compact
           // ThemeList gives null for the default row; a video stores the name.
           onChange={(theme) => {
             const name = theme ?? defaultTheme;
@@ -93,9 +93,9 @@ function ThemeChoices({ detail, onSaved }: { detail: VideoDetail; onSaved: () =>
         />
       </fieldset>
       {themes.loading && themes.themes.length === 0 && (
-        <p className="px-2 py-1 text-[12px] text-muted-foreground">Reading the themes…</p>
+        <p className="px-2 py-1.5 text-xs text-muted-foreground">Reading the themes…</p>
       )}
-      {error && <p className="px-2 py-1 text-[12px] leading-snug text-destructive">{error}</p>}
+      {error && <p className="px-2 py-1.5 text-[11.5px] leading-snug text-destructive">{error}</p>}
     </div>
   );
 }

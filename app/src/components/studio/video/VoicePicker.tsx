@@ -1,39 +1,55 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Microphone } from "@phosphor-icons/react";
+import { GearSix, Microphone } from "@phosphor-icons/react";
 
-import { PickerLabel, PickerPill } from "@/components/studio/video/PickerPill";
+import { PICKER_ROW, PickerCheck, PickerPill } from "@/components/studio/video/PickerPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { reloadExportStatus } from "@/hooks/studio/useExportStatus";
-import { kokoroVoiceLabel, kokoroVoicesStatus, type KokoroVoice } from "@/lib/studio/kokoroVoices";
-import { narrationStatus, type NarrationStatus } from "@/lib/studio/narration";
-import { initialVoiceChoice, narrateAction, type VoiceChoice } from "@/lib/studio/videoControls";
+import type { NarrationRead } from "@/hooks/studio/useNarrationStatus";
+import { kokoroVoicesStatus, type KokoroVoice } from "@/lib/studio/kokoroVoices";
 import { setVideoVoice, type VideoDetail } from "@/lib/studio/videos";
-import { NARRATION_SETTINGS_HREF, readVoiceSettings } from "@/lib/studio/voice";
+import { NARRATION_SETTINGS_HREF } from "@/lib/studio/voice";
 import { cn } from "@/lib/utils";
-import { useNarrateStore } from "@/stores/studio/narrateStore";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * The voice fact as a picker that narrates: the Settings voice first, then
- * Kokoro's downloaded voices (or a voice id for a TTS server). Choosing only
- * selects; the one button sets the voice and narrates, or narrates what is
- * stale. Nothing here synthesises until that button is pressed.
+ * The voice fact as a picker, in the model menu's manner: Kokoro's
+ * downloaded voices by name, the video's ticked, and a press saves it at
+ * once and closes; a TTS server takes a typed voice id instead. Nothing here
+ * narrates: the clips then read as out of date in the render bar, whose
+ * Narrate does. A Kokoro voice reads by its name, on the pill too.
  */
 export function VoicePicker({
   detail,
+  narration,
   blocker,
   onChanged,
 }: {
   detail: VideoDetail;
+  narration: NarrationRead;
   blocker: string | null;
   /** Re-reads the video. */
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = detail.voice ?? "No voice";
+  const [voices, setVoices] = useState<KokoroVoice[] | null>(null);
+  const { reload } = narration;
+  // Which voice files are on disk, and the Settings voice, read again on each
+  // open: both local.
+  useEffect(() => {
+    if (open) reload();
+    let stale = false;
+    kokoroVoicesStatus()
+      .then((v) => !stale && setVoices(v))
+      .catch(() => !stale && setVoices([]));
+    return () => {
+      stale = true;
+    };
+  }, [open, reload]);
+  const name = (id: string) => voices?.find((v) => v.id === id)?.name ?? id;
+  const label = detail.voice ? name(detail.voice) : "No voice";
   return (
     <PickerPill
       icon={Microphone}
@@ -43,97 +59,57 @@ export function VoicePicker({
       open={open}
       onOpenChange={setOpen}
     >
-      <VoiceChoices detail={detail} onClose={() => setOpen(false)} onChanged={onChanged} />
+      <VoiceChoices
+        detail={detail}
+        narration={narration}
+        voices={voices}
+        name={name}
+        onClose={() => setOpen(false)}
+        onChanged={onChanged}
+      />
     </PickerPill>
   );
 }
 
-interface Read {
-  status: NarrationStatus;
-  /** The Settings voice; null when unset or unreadable. */
-  settingsVoice: string | null;
-}
-
 function VoiceChoices({
   detail,
+  narration,
+  voices,
+  name,
   onClose,
   onChanged,
 }: {
   detail: VideoDetail;
+  narration: NarrationRead;
+  /** Kokoro's voices; null until read. */
+  voices: KokoroVoice[] | null;
+  /** How a voice id reads: a Kokoro voice's name, else the id. */
+  name: (id: string) => string;
   onClose: () => void;
   onChanged: () => void;
 }) {
   const { dir, slug } = detail.row;
   const navigate = useNavigate();
-  const [read, setRead] = useState<Read | null>(null);
-  const [readError, setReadError] = useState<string | null>(null);
-  const [voices, setVoices] = useState<KokoroVoice[] | null>(null);
-  // Undefined until the status says which voice narrates now.
-  const [choice, setChoice] = useState<VoiceChoice | undefined>(undefined);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { status } = narration;
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const settled = useNarrateStore((s) => s.settled[dir] ?? 0);
-  const picked = useRef(false);
 
-  // Local reads only: the status, the saved settings and which voice files are on disk.
-  useEffect(() => {
-    let stale = false;
-    Promise.all([narrationStatus(slug), readVoiceSettings().catch(() => null)])
-      .then(([status, settings]) => {
-        if (stale) return;
-        const settingsVoice = settings?.voice ?? null;
-        setRead({ status, settingsVoice });
-        setReadError(null);
-        // A re-read after a narration keeps what the student picked.
-        if (picked.current) return;
-        picked.current = true;
-        const first = initialVoiceChoice(status, settingsVoice);
-        setChoice(first);
-        setDraft(first ?? "");
-      })
-      .catch((e) => !stale && setReadError(message(e)));
-    return () => {
-      stale = true;
-    };
-  }, [slug, settled]);
-
-  const engine = read?.status.engine ?? null;
-  useEffect(() => {
-    if (engine !== "kokoro") return;
-    let stale = false;
-    kokoroVoicesStatus()
-      .then((v) => !stale && setVoices(v))
-      .catch(() => !stale && setVoices([]));
-    return () => {
-      stale = true;
-    };
-  }, [engine]);
-
-  const name = (id: string) => voices?.find((v) => v.id === id)?.name ?? id;
-  const action =
-    read && choice !== undefined
-      ? narrateAction({ choice, settingsVoice: read.settingsVoice, status: read.status, name })
-      : null;
-
-  const apply = async () => {
-    if (!action || action.kind === "current") return;
-    setBusy(true);
+  const save = async (voice: string | null) => {
+    if (voice === current) return onClose();
+    setSaving(true);
     setError(null);
-    if (action.kind === "use") {
-      try {
-        await setVideoVoice(slug, action.voice);
-      } catch (e) {
-        setError(message(e));
-        setBusy(false);
-        return;
-      }
-      onChanged();
-      reloadExportStatus(dir);
+    try {
+      await setVideoVoice(slug, voice);
+    } catch (e) {
+      setError(message(e));
+      setSaving(false);
+      return;
     }
-    setBusy(false);
+    setSaving(false);
     onClose();
-    if (action.kind === "narrate" || action.narrate) void useNarrateStore.getState().start(dir, slug);
+    onChanged();
+    narration.reload();
+    reloadExportStatus(dir);
   };
 
   const goSettings = () => {
@@ -141,116 +117,104 @@ function VoiceChoices({
     navigate(NARRATION_SETTINGS_HREF);
   };
 
-  const downloaded = voices?.filter((v) => v.status === "present") ?? [];
-  const own = read?.status.voice ?? null;
-  // The video's own voice stays listed when its file is gone, so the mark shows.
-  const ownMissing =
-    engine === "kokoro" && own != null && own !== read?.settingsVoice && !downloaded.some((v) => v.id === own);
+  // The voice narrating now: the video's own, else the Settings voice.
+  const current = status?.voice ?? detail.voice;
+  if (!status) {
+    return (
+      <p className={cn("px-3 py-2.5 text-xs", narration.error ? "leading-snug text-destructive" : "text-muted-foreground")}>
+        {narration.error ?? "Checking the narration…"}
+      </p>
+    );
+  }
 
+  const downloaded = voices?.filter((v) => v.status === "present") ?? [];
+  // The video's voice stays listed when its file is gone, so the tick shows.
+  const missing = status.engine === "kokoro" && current != null && voices != null && !downloaded.some((v) => v.id === current);
   return (
-    <div>
-      <PickerLabel>Voice</PickerLabel>
-      {readError ? (
-        <p className="px-2 py-1 text-[12px] leading-snug text-destructive">{readError}</p>
-      ) : !read || choice === undefined ? (
-        <p className="px-2 py-1 text-[12px] text-muted-foreground">Checking the narration…</p>
-      ) : (
-        <>
+    <>
+      {status.engine === "kokoro" && (
+        <fieldset disabled={saving} className="min-w-0 p-1">
           <div role="listbox" aria-label="Voice" className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
-            <VoiceRow
-              label={`Default · ${read.settingsVoice ?? "none set"}`}
-              selected={choice === null}
-              onPick={() => {
-                setChoice(null);
-                setDraft("");
-              }}
-            />
-            {engine === "kokoro" && (
-              <>
-                {ownMissing && own && (
-                  <VoiceRow label={name(own)} note="Not downloaded" selected={choice === own} onPick={() => setChoice(own)} />
-                )}
-                {downloaded.map((v) => (
-                  <VoiceRow
-                    key={v.id}
-                    label={kokoroVoiceLabel(v)}
-                    selected={choice === v.id}
-                    onPick={() => setChoice(v.id)}
-                  />
-                ))}
-                {voices === null && <p className="px-2 py-1 text-[12px] text-muted-foreground">Reading the voices…</p>}
-              </>
-            )}
-          </div>
-          {engine === "server" && (
-            <div className="px-2 pb-1 pt-1.5">
-              <Input
-                aria-label="Voice ID"
-                autoComplete="off"
-                spellCheck={false}
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setChoice(e.target.value.trim() || null);
-                }}
-                placeholder="Voice ID, such as af_heart"
-                className="h-7 text-xs"
+            {missing && current && <VoiceRow label={name(current)} note="not downloaded" selected onPick={onClose} />}
+            {downloaded.map((v) => (
+              <VoiceRow
+                key={v.id}
+                label={v.name}
+                note={v.gender}
+                selected={v.id === current}
+                onPick={() => void save(v.id)}
               />
-            </div>
-          )}
-          {engine === "kokoro" && (
-            <button
-              type="button"
-              data-tab-href={NARRATION_SETTINGS_HREF}
-              onClick={goSettings}
-              className="mx-2 mt-1 cursor-pointer text-[11.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              More voices in Settings
-            </button>
-          )}
-          <div className="mt-1.5 space-y-1.5 border-t border-border-subtle px-2 pb-1 pt-2.5 text-[12px]">
-            {read.status.problem && (
-              <div className="flex items-start gap-2">
-                <span role="alert" className="min-w-0 flex-1 leading-snug text-warning">
-                  {read.status.problem}
-                </span>
-                <button
-                  type="button"
-                  data-tab-href={NARRATION_SETTINGS_HREF}
-                  onClick={goSettings}
-                  className="shrink-0 cursor-pointer text-brand underline-offset-2 hover:underline"
-                >
-                  Settings
-                </button>
-              </div>
-            )}
-            {action && action.kind !== "current" ? (
-              <>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  // A problem is the current voice's; another voice may not have it.
-                  disabled={busy || (read.status.problem != null && action.kind !== "use")}
-                  onClick={() => void apply()}
-                >
-                  {action.label}
-                </Button>
-                {engine === "server" && (action.kind === "narrate" || action.narrate) && (
-                  <p className="text-[11.5px] leading-snug text-muted-foreground">Sends each scene to your TTS server.</p>
-                )}
-              </>
-            ) : (
-              !read.status.problem && <p className="text-muted-foreground">The narration is current.</p>
-            )}
-            {error && <p className="leading-snug text-destructive">{error}</p>}
+            ))}
+            {voices === null && <p className="px-2 py-1.5 text-xs text-muted-foreground">Reading the voices…</p>}
           </div>
-        </>
+        </fieldset>
       )}
-    </div>
+      {status.engine === "server" && (
+        <ServerVoice current={current} saving={saving} onSave={(voice) => void save(voice)} />
+      )}
+      {(status.problem || error) && (
+        <p
+          role="alert"
+          className={cn("px-3 pb-2 pt-1 text-[11.5px] leading-snug", error ? "text-destructive" : "text-warning")}
+        >
+          {error ?? status.problem}
+        </p>
+      )}
+      <div className="border-t border-border-subtle p-1">
+        <button
+          type="button"
+          data-tab-href={NARRATION_SETTINGS_HREF}
+          onClick={goSettings}
+          className={cn(PICKER_ROW, "text-muted-foreground hover:text-foreground")}
+        >
+          <span className="min-w-0 truncate">
+            {status.engine === "kokoro" ? "More voices in Settings" : "Narration settings"}
+          </span>
+          <GearSix className="ml-auto size-3.5 shrink-0" />
+        </button>
+      </div>
+    </>
   );
 }
 
-/** A voice to choose, in the style chip's row look: the current one lit and ticked. */
+/** A TTS server's voice: its id as typed, saved by Enter or Save. Empty goes
+ *  back to the Settings voice. */
+function ServerVoice({
+  current,
+  saving,
+  onSave,
+}: {
+  current: string | null;
+  saving: boolean;
+  onSave: (voice: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(current ?? "");
+  const typed = draft.trim() || null;
+  return (
+    <form
+      className="flex min-w-60 items-center gap-1.5 p-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(typed);
+      }}
+    >
+      <Input
+        aria-label="Voice ID"
+        autoComplete="off"
+        spellCheck={false}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Voice ID, such as af_heart"
+        className="h-7 min-w-0 flex-1 text-xs"
+      />
+      <Button type="submit" variant="outline" size="xs" disabled={saving || typed === current}>
+        Save
+      </Button>
+    </form>
+  );
+}
+
+/** A voice to choose: its name, a quiet note after it, and the tick. */
 function VoiceRow({
   label,
   note,
@@ -258,24 +222,15 @@ function VoiceRow({
   onPick,
 }: {
   label: string;
-  note?: string;
+  note: string;
   selected: boolean;
   onPick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selected}
-      onClick={onPick}
-      className={cn(
-        "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] transition-colors",
-        selected ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
-      )}
-    >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {note && <span className="shrink-0 text-[10.5px] text-muted-foreground">{note}</span>}
-      <Check size={12} weight="bold" className={cn("shrink-0", !selected && "invisible")} />
+    <button type="button" role="option" aria-selected={selected} onClick={onPick} className={PICKER_ROW}>
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="shrink-0 text-[11px] text-muted-foreground">{note}</span>
+      <PickerCheck selected={selected} />
     </button>
   );
 }

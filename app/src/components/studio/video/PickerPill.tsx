@@ -1,12 +1,15 @@
 import type { ReactNode } from "react";
-import { CaretDown } from "@phosphor-icons/react";
+import { CaretDown, Check } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 /**
- * A fact that opens a picker: the facts' pill with a caret. Off while
+ * A fact that opens a picker: the facts' pill with a caret, over a popover
+ * as wide as its rows and no title, since the pill names it. The popover has
+ * no padding of its own, so a footer's hairline runs edge to edge. Off while
  * `blocker` says why, as its tooltip; it stays focusable (`aria-disabled`)
  * so the tooltip can show, and simply does not open.
  */
@@ -48,14 +51,19 @@ export function PickerPill({
         </TooltipTrigger>
         {blocker && <TooltipContent>{blocker}</TooltipContent>}
       </Tooltip>
-      <PopoverContent align="start" collisionPadding={12} className="w-80 p-1.5">
+      <PopoverContent align="start" collisionPadding={12} className="w-auto min-w-44 max-w-72 overflow-hidden p-0">
         {children}
       </PopoverContent>
     </Popover>
   );
 }
 
-/** A picker popover's section title. */
-export function PickerLabel({ children }: { children: ReactNode }) {
-  return <div className="px-2 pb-1 pt-1 text-[11px] font-medium tracking-wide text-muted-foreground">{children}</div>;
+/** A picker's row, in the model menu's look: full-strength text, lit only
+ *  under the pointer or the keyboard, the current one ticked. */
+export const PICKER_ROW =
+  "flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:opacity-50 disabled:hover:bg-transparent";
+
+/** The tick at a row's end, keeping its place when the row is not current. */
+export function PickerCheck({ selected }: { selected: boolean }) {
+  return <Check className={cn("ml-auto size-3.5 shrink-0 text-muted-foreground", !selected && "invisible")} />;
 }

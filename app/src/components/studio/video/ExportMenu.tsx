@@ -153,7 +153,7 @@ function ExportRow({
         <div className="flex items-center gap-1.5 text-[13px]">
           <span className="font-medium">{PRESET_LABEL[row.preset]}</span>
           {state === "current" && <CheckCircle size={13} weight="fill" className="shrink-0 text-brand" />}
-          {state === "stale" && <span className="text-[11px] text-muted-foreground">out of date</span>}
+          {state === "stale" && <span className="text-[11px] font-medium text-warning">Out of date</span>}
         </div>
         <div className="truncate text-[11.5px] text-muted-foreground">{hint}</div>
         {state === "blocked" && (

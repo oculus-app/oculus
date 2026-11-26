@@ -1,33 +1,36 @@
-import { useEffect, useState } from "react";
+import { Warning } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PillTabs } from "@/components/ui/table/PillTabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useExportStatus } from "@/hooks/studio/useExportStatus";
+import type { NarrationRead } from "@/hooks/studio/useNarrationStatus";
 import type { VideoPlayback } from "@/hooks/studio/useVideoPlayback";
 import { fmtAgo } from "@/lib/format/format";
 import { exportState, PRESET_LABEL } from "@/lib/studio/exports";
-import { narrationStatus } from "@/lib/studio/narration";
-import { narrateBlocker, narratingLabel, renderNote, renderNoteText } from "@/lib/studio/videoControls";
+import { narrateBlocker, narrateHint, narratingLabel, renderNote, renderNoteWords } from "@/lib/studio/videoControls";
 import type { VideoDetail } from "@/lib/studio/videos";
 import { useNarrateStore } from "@/stores/studio/narrateStore";
 import { useRenderStore } from "@/stores/studio/renderStore";
 
 /**
  * In the row under the player, before Export: which render it shows (pills
- * when there are several), when that was made and whether it is out of date,
- * with Re-render for a stale file or Narrate when the narration no longer
- * covers the script. A render or a narration in flight takes its place with
+ * when there are several), when that was made and, as a warning, whether it
+ * is out of date, with Re-render for a stale file or Narrate when the
+ * narration no longer covers the script or is in another voice, each the
+ * size of Export beside it. This Narrate is the page's one way to narrate. A render or a narration in flight takes its place with
  * its bar and Cancel.
  */
 export function RenderBar({
   detail,
   playback,
+  narration,
   running,
 }: {
   detail: VideoDetail;
   playback: VideoPlayback;
+  narration: NarrationRead;
   /** The video's thread is running a turn. */
   running: boolean;
 }) {
@@ -56,9 +59,16 @@ export function RenderBar({
   }
 
   const status = shown ? rows?.find((r) => r.preset === shown.preset) : undefined;
-  const note = renderNote({ timingProblem: detail.timingProblem, state: status ? exportState(status) : null });
-  if (!shown && note !== "narration") return null;
-  const text = renderNoteText({
+  const note = renderNote({
+    timingProblem: detail.timingProblem,
+    narration: narration.status,
+    narrated: detail.row.narrated,
+    running,
+    state: status ? exportState(status) : null,
+  });
+  const narrate = note === "narration" || note === "unnarrated";
+  if (!shown && !narrate) return null;
+  const { made, flag } = renderNoteWords({
     note,
     preset: shown && presets.length <= 1 ? PRESET_LABEL[shown.preset] : null,
     ago: shown ? fmtAgo(shown.modified * 1000) : null,
@@ -73,13 +83,19 @@ export function RenderBar({
           onChange={playback.pick}
         />
       )}
-      <span className="truncate tabular-nums">{text}</span>
+      {made && <span className="truncate tabular-nums">{made}</span>}
+      {flag && (
+        <span className="flex shrink-0 items-center gap-1 font-medium text-warning">
+          <Warning size={12} weight="fill" className="shrink-0" />
+          {flag}
+        </span>
+      )}
       {note === "stale" && shown && (
-        <Button variant="outline" size="xs" onClick={() => void startRender(dir, slug, shown.preset)}>
+        <Button variant="outline" size="sm" onClick={() => void startRender(dir, slug, shown.preset)}>
           Re-render
         </Button>
       )}
-      {note === "narration" && <NarrateButton dir={dir} slug={slug} running={running} />}
+      {narrate && <NarrateButton dir={dir} slug={slug} narration={narration} running={running} />}
     </div>
   );
 }
@@ -102,40 +118,43 @@ function InFlight({ label, pct, onCancel }: { label: string; pct: number | null;
   );
 }
 
-/** Narrates what the script no longer has clips for. Off while the thread's
- *  turn runs or narration cannot run now (the status's sentence, as its
- *  tooltip). Reading that status synthesises nothing. */
-function NarrateButton({ dir, slug, running }: { dir: string; slug: string; running: boolean }) {
+/** Narrates what the script no longer has clips for, saying how many scenes
+ *  in its tooltip. Off while the thread's turn or a render runs or narration
+ *  cannot run now, with that reason as the tooltip instead. */
+function NarrateButton({
+  dir,
+  slug,
+  narration,
+  running,
+}: {
+  dir: string;
+  slug: string;
+  narration: NarrationRead;
+  running: boolean;
+}) {
   const start = useNarrateStore((s) => s.start);
-  const settled = useNarrateStore((s) => s.settled[dir] ?? 0);
   const rendering = useRenderStore((s) => dir in s.active);
-  // Undefined until read; the button waits for it.
-  const [problem, setProblem] = useState<string | null | undefined>(undefined);
-  useEffect(() => {
-    let stale = false;
-    narrationStatus(slug)
-      .then((s) => !stale && setProblem(s.problem))
-      .catch((e) => !stale && setProblem(e instanceof Error ? e.message : String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [slug, settled]);
-  const blocker = narrateBlocker({ rendering, running, problem: problem ?? null });
+  const { status, error } = narration;
+  const blocker = narrateBlocker({ rendering, running, problem: status?.problem ?? error });
+  const tip = blocker ?? narrateHint(status);
   const button = (
-    <Button variant="outline" size="xs" disabled={blocker != null || problem === undefined} onClick={() => void start(dir, slug)}>
+    <Button variant="outline" size="sm" disabled={blocker != null || !status} onClick={() => void start(dir, slug)}>
       Narrate
     </Button>
   );
-  if (!blocker) return button;
+  if (!tip) return button;
   return (
     <Tooltip>
       {/* A disabled button takes no pointer events, so its wrapper holds the tooltip. */}
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        <span
+          tabIndex={blocker ? 0 : undefined}
+          className="inline-flex rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
           {button}
         </span>
       </TooltipTrigger>
-      <TooltipContent>{blocker}</TooltipContent>
+      <TooltipContent>{tip}</TooltipContent>
     </Tooltip>
   );
 }

@@ -2,6 +2,7 @@ import { Check } from "@phosphor-icons/react";
 
 import { LevelMark } from "@/components/studio/LevelMark";
 import { Swatch } from "@/components/studio/style/Swatch";
+import { PICKER_ROW, PickerCheck } from "@/components/studio/video/PickerPill";
 import type { ThemesState } from "@/hooks/studio/useThemes";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ export function ThemeList({
   value,
   defaultTheme,
   offerDefault = true,
+  compact = false,
   onChange,
 }: {
   state: ThemesState;
@@ -26,6 +28,8 @@ export function ThemeList({
   /** A "Default" row while the default is unknown; a video's own theme is
    *  always a name, so its picker has none. */
   offerDefault?: boolean;
+  /** A picker's rows (`PICKER_ROW`): no source, and the default a quiet note. */
+  compact?: boolean;
   onChange: (theme: string | null) => void;
 }) {
   const shown = value ?? defaultTheme;
@@ -40,14 +44,15 @@ export function ThemeList({
           label={t.name}
           note={
             <>
-              {t.name === defaultTheme && <Note text="Default" />}
-              <LevelMark level={t.level} shadows={t.shadows != null} inSubject />
+              {t.name === defaultTheme && <Note text="Default" quiet={compact} />}
+              {!compact && <LevelMark level={t.level} shadows={t.shadows != null} inSubject />}
             </>
           }
           colors={t.swatch}
           selected={shown === t.name}
           disabled={t.problem != null}
           title={t.problem ?? undefined}
+          compact={compact}
           onPick={() => onChange(t.name === defaultTheme ? null : t.name)}
         />
       ))}
@@ -60,8 +65,12 @@ export function ThemeList({
   );
 }
 
-function Note({ text }: { text: string }) {
-  return <span className="shrink-0 text-[10.5px] font-medium text-brand">{text}</span>;
+function Note({ text, quiet = false }: { text: string; quiet?: boolean }) {
+  return (
+    <span className={cn("shrink-0", quiet ? "text-[11px] text-muted-foreground" : "text-[10.5px] font-medium text-brand")}>
+      {text}
+    </span>
+  );
 }
 
 function ThemeRow({
@@ -71,6 +80,7 @@ function ThemeRow({
   selected,
   disabled = false,
   title,
+  compact = false,
   onPick,
 }: {
   label: string;
@@ -79,8 +89,19 @@ function ThemeRow({
   selected: boolean;
   disabled?: boolean;
   title?: string;
+  compact?: boolean;
   onPick: () => void;
 }) {
+  if (compact) {
+    return (
+      <button type="button" role="option" aria-selected={selected} disabled={disabled} title={title} onClick={onPick} className={PICKER_ROW}>
+        {colors && <Swatch colors={colors} />}
+        <span className="min-w-0 truncate">{label}</span>
+        {note}
+        <PickerCheck selected={selected} />
+      </button>
+    );
+  }
   return (
     <button
       type="button"
