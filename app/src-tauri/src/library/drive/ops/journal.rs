@@ -29,7 +29,8 @@ impl Journal {
     /// `AlreadyExists`, checked right before the rename, so two entries
     /// whose names the volume folds together never land on one.
     pub fn rename(&mut self, from: &Path, to: &Path) -> std::io::Result<()> {
-        if std::fs::symlink_metadata(to).is_ok() && !same_entry(from, to) {
+        let there = std::fs::symlink_metadata(to).is_ok() && !same_entry(from, to);
+        if there || super::delete::held(to) {
             let name = to.file_name().unwrap_or_default().to_string_lossy();
             return Err(std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,

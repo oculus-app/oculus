@@ -9,7 +9,7 @@ use super::error::{DriveError, DriveResult};
 use crate::library::layout::{self, Home};
 use crate::library::paths::{fold_code, safe_dir};
 
-fn db(e: sqlx::Error) -> DriveError {
+pub(super) fn db(e: sqlx::Error) -> DriveError {
     DriveError::io(format!("the database refused it — {e}"))
 }
 
@@ -102,7 +102,7 @@ async fn rows_at(
 /// A row and everything hung off its id, each child by hand beside the
 /// cascade (docs/architecture.md, "The database has one schema owner and two
 /// writers").
-async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()> {
+pub(super) async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()> {
     for id in ids {
         for sql in [
             "DELETE FROM pages WHERE file_id = ?1",
@@ -120,6 +120,16 @@ async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()>
         }
     }
     Ok(())
+}
+
+/// The ids of the rows at or below `rel`.
+pub async fn ids_at(pool: &SqlitePool, rel: &str, dir: bool) -> DriveResult<Vec<i64>> {
+    let mut conn = pool.acquire().await.map_err(db)?;
+    Ok(rows_at(&mut conn, rel, dir)
+        .await?
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect())
 }
 
 /// A row left at `rel` by a file that is gone (the disk was checked free):

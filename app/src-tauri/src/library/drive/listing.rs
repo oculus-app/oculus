@@ -155,7 +155,8 @@ fn visible_children(data_dir: &Path, rel: &str) -> Vec<Child> {
                 return None;
             }
             let meta = entry.path().symlink_metadata().ok()?;
-            if meta.file_type().is_symlink() {
+            // A pending delete's text or converted PDF, its file in the Trash.
+            if meta.file_type().is_symlink() || super::ops::delete::hides(&entry.path()) {
                 return None;
             }
             let rel = layout::child_rel(rel, &name);

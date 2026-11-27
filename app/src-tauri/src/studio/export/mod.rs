@@ -150,6 +150,40 @@ pub async fn to_drive(
     rows::create(data_dir, pool, &slug, preset, &render, &to).await
 }
 
+/// Studio's bin on a Final or Small render: the Drive copy is deleted too,
+/// as Drive deletes it (to the Trash, with Undo), while it is still this
+/// export (`drive_file`: its row, and the size and time the export wrote),
+/// with the captions the export wrote beside it. `None` when there is none.
+pub async fn delete_drive_copy(
+    data_dir: &Path,
+    pool: &SqlitePool,
+    slug: &str,
+    preset: Preset,
+    bin: std::sync::Arc<dyn crate::library::drive::ops::delete::Bin>,
+) -> Result<Option<crate::library::drive::ops::delete::Sent>, String> {
+    if !exports(preset) {
+        return Ok(None);
+    }
+    let Some(file) = drive_file(data_dir, pool, slug, preset).await? else {
+        return Ok(None);
+    };
+    let vtt = disk::captions_of(&file.rel);
+    let mut rels = vec![file.rel];
+    if file.captions && guard::own_entry(data_dir, &vtt).is_ok_and(|e| !e.dir) {
+        rels.push(vtt);
+    }
+    crate::library::drive::ops::delete::send_at(data_dir, pool, &rels, bin)
+        .await
+        .map(Some)
+        .map_err(|e| {
+            format!(
+                "Could not move the Drive copy to the {}: {}",
+                crate::runtime::trash::BIN,
+                e.message
+            )
+        })
+}
+
 /// Make the video `new` under `videos` (`videos::create_in`) with no Drive
 /// links: a video of the same slug whose folder was deleted outside Studio
 /// leaves its links, and this video's first render must never replace that

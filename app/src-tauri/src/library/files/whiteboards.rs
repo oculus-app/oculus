@@ -213,6 +213,9 @@ pub(super) fn create_in(
         };
         let rel = layout::child_rel(prefix, &candidate);
         let path = checked(root, &rel, true)?;
+        if crate::library::drive::ops::delete::held(&path) {
+            continue;
+        }
         match std::fs::OpenOptions::new()
             .create_new(true)
             .write(true)

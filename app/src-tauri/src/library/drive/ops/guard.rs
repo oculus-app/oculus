@@ -68,7 +68,7 @@ fn refusal(rel: &str) -> DriveError {
 
 /// True when some folder on the way to `rel` (or `rel` itself) is a symlink:
 /// Drive never follows one.
-fn through_symlink(data_dir: &Path, rel: &str) -> bool {
+pub(super) fn through_symlink(data_dir: &Path, rel: &str) -> bool {
     let mut walked = data_dir.to_path_buf();
     rel.split('/').filter(|part| !part.is_empty()).any(|part| {
         walked.push(part);
