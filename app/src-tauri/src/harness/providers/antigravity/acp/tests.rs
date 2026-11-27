@@ -80,6 +80,7 @@ protected_rule! {
     course_is_refused_unseen: "Course" => "courses/maths/Course/Files/a.pdf";
     oculus_is_refused_unseen: ".oculus" => "courses/maths/.oculus/agents/INSTRUCTIONS.md";
     canvas_session_is_refused_unseen: "canvas-session" => ".oculus/canvas-session/cookies";
+    keyds_helper_is_refused_unseen: "bin" => ".oculus/bin/Oculus Helper.app/Contents/Info.plist";
     agents_skills_is_refused_unseen: "skills" => ".oculus/agents/skills/oculus/SKILL.md";
     agents_claude_is_refused_unseen: ".claude" => ".oculus/agents/.claude/settings.json";
     agents_agents_is_refused_unseen: ".agents" => ".oculus/agents/.agents/skills/x/SKILL.md";
@@ -132,6 +133,23 @@ fn the_library_its_folders_above_and_agents_itself_are_refused_unseen() {
     // The subjects' folder and a subject's folder hold `Course/`.
     assert!(refused("/lib/oculus/courses"));
     assert!(refused("/lib/oculus/courses/maths"));
+    assert!(refused("/lib/oculus/courses/loose.pdf"));
+    // Every dot-name at the top is the app's.
+    assert!(refused("/lib/oculus/.library-move/journal.json"));
+    assert!(refused("/lib/oculus/.DS_Store"));
+}
+
+#[test]
+fn writes_to_the_students_own_folders_at_the_top_are_allowed_unseen() {
+    for path in [
+        "/lib/oculus/Receipts/march.pdf",
+        "/lib/oculus/Videos/Raw/talk.mp4",
+        "/lib/oculus/timetable.png",
+        "/lib/oculus/notes.json",
+        "/lib/oculus/.assets/p.png",
+    ] {
+        assert_eq!(verdict(&write(path)), Verdict::Allow, "{path}");
+    }
 }
 
 #[test]
@@ -184,13 +202,14 @@ fn writes_under_the_chats_folder_and_studio_are_allowed_unseen() {
 #[test]
 fn a_relative_write_is_judged_from_the_library_root_and_the_chats_folder() {
     // agy's commands run from the library root, so `courses/x.md` may
-    // mean the protected folder.
+    // mean a file loose in the subjects' folder.
     assert!(refused("courses/x.md"));
     assert!(refused("../../courses/x.md"));
-    assert!(
-        matches!(verdict(&write("scratch/out.txt")), Verdict::Ask(_)),
-        "not under the write root read from the library root"
-    );
+    assert!(refused(".library-move/done"), "the launch moves' records");
+    // Read from either folder, the student's own at the top or the chat's.
+    for path in ["scratch/out.txt", "Receipts/march.pdf"] {
+        assert_eq!(verdict(&write(path)), Verdict::Allow, "{path}");
+    }
 }
 
 #[test]

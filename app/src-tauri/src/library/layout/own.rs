@@ -3,8 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
-use super::home::{child_rel, own_root, own_root_rel};
-use super::roots::{course_rel, COURSES_DIR};
+use super::home::{child_rel, own_root, own_root_rel, TOP_LEVEL_CODE};
+use super::roots::COURSES_DIR;
 use super::shape::{Shape, CURRENT};
 use super::zone::{same_name, segments, zone_of, Zone};
 
@@ -89,27 +89,40 @@ pub fn own_files(data_dir: &Path, code: &str) -> Vec<(String, std::fs::Metadata)
     out
 }
 
-/// Each subject's top-level own entries on disk, files and folders: what
-/// sits beside `Course/` and `.oculus/`, less symlinks (a subject's
-/// `AGENTS.md`). A sandbox that cannot carve those two out of a subject's
-/// folder grants these one by one (`harness::providers::codex`).
+/// The own entries on disk at the top of each subject and of the data dir
+/// (`own_entries`). A sandbox that cannot carve the rest out of the folder
+/// that holds them grants these one by one (`harness::providers`).
 pub fn own_top_level(data_dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    for code in super::subjects_on_disk(data_dir) {
-        let Ok(entries) = std::fs::read_dir(own_root(data_dir, &code)) else {
-            continue;
-        };
-        for entry in entries.flatten() {
+    let codes = super::subjects_on_disk(data_dir);
+    let mut out: Vec<PathBuf> = codes
+        .iter()
+        .map(String::as_str)
+        .chain([TOP_LEVEL_CODE])
+        .flat_map(|code| own_entries(data_dir, code))
+        .collect();
+    out.sort();
+    out
+}
+
+/// The own entries directly in a subject's folder (for `TOP_LEVEL_CODE`, the
+/// data dir's), files and folders: what sits beside `Course/` and `.oculus/`,
+/// or beside `courses/` and the dot-names, less symlinks (a subject's
+/// `AGENTS.md`). Sorted.
+pub fn own_entries(data_dir: &Path, code: &str) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(own_root(data_dir, code)) else {
+        return Vec::new();
+    };
+    let mut out: Vec<PathBuf> = entries
+        .flatten()
+        .filter(|entry| {
             let Ok(name) = entry.file_name().into_string() else {
-                continue;
+                return false;
             };
-            let rel = format!("{}/{name}", course_rel(&code));
-            if zone_of(&rel) != Zone::Own || entry.file_type().is_ok_and(|t| t.is_symlink()) {
-                continue;
-            }
-            out.push(entry.path());
-        }
-    }
+            zone_of(&child_rel(&own_root_rel(code), &name)) == Zone::Own
+                && !entry.file_type().is_ok_and(|t| t.is_symlink())
+        })
+        .map(|entry| entry.path())
+        .collect();
     out.sort();
     out
 }

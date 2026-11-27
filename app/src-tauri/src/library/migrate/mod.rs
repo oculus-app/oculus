@@ -38,6 +38,9 @@ pub use startup::refuse_to_start;
 
 use journal::Phase;
 
+/// `.library-move`, the name of the folder `record_dir` returns.
+pub const RECORD_DIR: &str = journal::DIR;
+
 /// `<data dir>/.library-move/`, the record every launch move keeps.
 pub fn record_dir(data_dir: &Path) -> PathBuf {
     journal::dir(data_dir)

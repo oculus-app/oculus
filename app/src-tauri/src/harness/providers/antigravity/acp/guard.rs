@@ -138,6 +138,11 @@ mod tests {
             ".oculus/agents/skills/a/SKILL.md",
             ".oculus/agents/.claude/x",
             ".oculus/agents/.agents",
+            ".oculus/bin/Oculus Helper.app",
+            ".library-move",
+            ".library-move/done",
+            ".Library-Move/journal.json",
+            "courses/loose.pdf",
         ] {
             assert!(rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -152,6 +157,10 @@ mod tests {
             ".oculus/studio/video.json",
             ".oculus/agents/scratch.json",
             ".keyd.sock",
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            ".assets/p.png",
         ] {
             assert!(!rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -202,5 +211,13 @@ mod tests {
         let own = library.join("courses/X/notes.md");
         let allowed = touch(&own);
         assert!(allowed.status.success() && own.is_file(), "{allowed:?}");
+        std::fs::create_dir_all(library.join("Receipts")).unwrap();
+        let top = library.join("Receipts/march.pdf");
+        let allowed = touch(&top);
+        assert!(allowed.status.success() && top.is_file(), "{allowed:?}");
+        std::fs::create_dir_all(library.join(".library-move")).unwrap();
+        let record = library.join(".library-move/done");
+        let denied = touch(&record);
+        assert!(!denied.status.success() && !record.exists(), "{denied:?}");
     }
 }

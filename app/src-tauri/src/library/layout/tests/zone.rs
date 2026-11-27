@@ -39,6 +39,9 @@ fn every_path_shape_has_its_zone() {
         (".oculus/oculus.db", Zone::Hidden),
         (".oculus/derived/Videos/a.pages.json", Zone::Hidden),
         (".library-move/done", Zone::Hidden),
+        (".assets/p.png", Zone::Own),
+        (".Assets", Zone::Own),
+        (".assets-old/p.png", Zone::Hidden),
         (".DS_Store", Zone::Hidden),
     ];
     for (rel, zone) in cases {

@@ -11,9 +11,9 @@ use crate::runtime::platform::canonicalize;
 ///   `courses/` and subject folders themselves).
 /// * `Own` — the student's own files: everything else in a subject, and
 ///   everything at the data dir's top level beside `courses/` whose name
-///   does not start with a dot.
+///   does not start with a dot, and the top-level notes' `.assets/`.
 /// * `Hidden` — inside the data dir but not a library file: a subject's
-///   `.oculus/` (its agent workspace and derived records), and every
+///   `.oculus/` (its agent workspace and derived records), and every other
 ///   dot-name at the data dir's top level (the app's state).
 /// * `Outside` — could leave the data dir: absolute, `..`, a backslash, a
 ///   drive, an empty or `.` segment, a NUL.
@@ -75,8 +75,13 @@ impl Shape {
         let Some(parts) = segments(rel) else {
             return Zone::Outside;
         };
+        // The pictures folder of the notes at the top is the student's, as
+        // it is in every other folder.
         if parts[0].starts_with('.') {
-            return Zone::Hidden;
+            return match self.top_level_own && same_name(parts[0], self.note_assets) {
+                true => Zone::Own,
+                false => Zone::Hidden,
+            };
         }
         if same_name(parts[0], COURSES_DIR) {
             return match parts.get(2..) {

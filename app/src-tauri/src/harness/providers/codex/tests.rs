@@ -118,11 +118,12 @@ fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd()
     );
 }
 
-/// A writable root cannot leave out a folder beneath it, so a subject's own
-/// files and folders are each a root, and its `Course/`, `.oculus/` and the
-/// subject's folder itself never are.
+/// A writable root cannot leave out a folder beneath it, so the student's
+/// own files and folders, in each subject and at the top, are each a root,
+/// and a subject's `Course/` and `.oculus/`, the subject's folder, `courses/`
+/// and the data dir itself never are.
 #[test]
-fn a_thread_may_write_every_subjects_own_files_and_not_course_or_oculus() {
+fn a_thread_may_write_the_students_own_files_and_not_course_or_oculus() {
     let library = crate::test_support::Scratch::new("codex-own-zone");
     for rel in [
         "courses/A/notes.md",
@@ -130,6 +131,11 @@ fn a_thread_may_write_every_subjects_own_files_and_not_course_or_oculus() {
         "courses/A/Course/Files/a.pdf",
         "courses/A/.oculus/agents/INSTRUCTIONS.md",
         "courses/B/board.whiteboard",
+        "courses/loose.pdf",
+        "Receipts/march.pdf",
+        "timetable.png",
+        ".library-move/done",
+        ".oculus/canvas-session/authenticated",
     ] {
         let path = library.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -140,14 +146,20 @@ fn a_thread_may_write_every_subjects_own_files_and_not_course_or_oculus() {
         "courses/A/notes.md",
         "courses/A/Exam prep",
         "courses/B/board.whiteboard",
+        "Receipts",
+        "timetable.png",
     ] {
         assert!(roots.contains(&library.join(rel)), "{rel} in {roots:?}");
     }
     for root in &roots {
         let rel = crate::library::paths::slash_path(root.strip_prefix(&*library).unwrap());
-        for held in ["courses", "courses/A", "courses/B"] {
-            assert_ne!(rel, held, "a subject's folder holds its Course/");
+        for held in ["", "courses", "courses/A", "courses/B", "courses/loose.pdf"] {
+            assert_ne!(rel, held, "{held:?} holds what no agent writes");
         }
+        assert!(
+            !rel.starts_with(".library-move") && !rel.starts_with(".oculus/canvas-session"),
+            "{rel} is protected"
+        );
         assert!(
             !rel.contains("/Course") && !rel.contains("/.oculus"),
             "{rel} is protected"

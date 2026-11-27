@@ -1,7 +1,8 @@
 //! What Rust checks before a request reaches the student. A request that
 //! names paths (a file change, extra file access) is refused when one of
 //! them is protected (`protected.rs`): the student never sees it, and the
-//! CLI is told no. A subject's own files are not protected; a CLI whose
+//! CLI is told no. The student's own files (in a subject or at the data
+//! dir's top) are not protected; a CLI whose
 //! sandbox could not grant them asks, and the student decides. A shell
 //! command cannot be checked this way, since nothing can tell from a
 //! command line what it will touch; its row says so instead, and the name
@@ -10,7 +11,6 @@
 use std::path::{Component, Path, PathBuf};
 
 use crate::harness::protected::{own_zone, STATE_DIRS, STATE_FILE_GLOBS, WORKSPACE_DIRS};
-use crate::library::layout::{self, COURSES_DIR};
 use crate::library::paths::STATE_DIR;
 
 /// The first of `paths` that no agent may write in the library at
@@ -72,12 +72,11 @@ fn covers(library: &Path, path: &Path) -> bool {
     match parts.as_slice() {
         // The library itself: a grant on it reaches every protected folder.
         [] => true,
-        // A subject's own files are writable; `Course/`, `.oculus/`, the
-        // subjects' folder itself and a subject's folder are not.
-        [first, ..] if *first == COURSES_DIR => !own_zone(&rel),
         [state, inside @ ..] if *state == STATE_DIR => state_covers(inside),
-        // A recordings folder outside the subjects (none in the Drive tree).
-        [first, ..] => layout::library_roots().contains(first),
+        // The student's own files, in a subject or at the top, are writable;
+        // `courses/` itself, a subject's folder, its `Course/` and `.oculus/`,
+        // and every other dot-name at the top (`.library-move/`) are not.
+        _ => !own_zone(&rel),
     }
 }
 
@@ -181,6 +180,12 @@ mod tests {
             "/lib/oculus/.oculus/agents",
             "/lib/oculus/.oculus/agents/skills/a/SKILL.md",
             "/lib/oculus/.oculus/agents/.claude/settings.json",
+            "/lib/oculus/.oculus/bin/Oculus Helper.app/Contents/MacOS/oculus-keyd",
+            "/lib/oculus/.library-move/done",
+            "/lib/oculus/.library-move",
+            "/lib/oculus/.Library-Move/journal.json",
+            "/lib/oculus/.DS_Store",
+            "../../.library-move/lock",
             "../../courses/maths/Course/home.md",
             "skills/x",
             "/lib/oculus/.oculus/agents/../../courses/y/Course/z",
@@ -210,6 +215,10 @@ mod tests {
             // The top level holds nothing of the app's: a file there is the student's.
             "/lib/oculus/settings.json",
             "/lib/oculus/vault.bin",
+            "/lib/oculus/Receipts/march.pdf",
+            "/lib/oculus/Receipts",
+            "/lib/oculus/.assets/p.png",
+            "../../Videos/Raw/talk.mp4",
             "scratch/out.txt",
         ] {
             assert!(!check(path), "{path} is not protected");
@@ -224,6 +233,12 @@ mod tests {
             "../../courses/maths/notes.md",
             "/lib/oculus/courses/maths/Exam prep/a.md",
             "/LIB/oculus/Courses/maths/a.md",
+            // The student's own folders and files at the top of the library.
+            "../../Receipts/march.pdf",
+            "../../timetable.png",
+            "/lib/oculus/Videos/Raw/talk.mp4",
+            "/lib/oculus/Videos",
+            "/lib/oculus/.assets/p.png",
         ] {
             assert!(in_own_zone(library, &cwd, path), "{path}");
         }
@@ -232,7 +247,14 @@ mod tests {
             "../../courses/maths/Course/home.md",
             "../../courses/maths/.oculus/x",
             "../../courses/maths",
+            "../../courses",
+            "../../courses/loose.pdf",
+            "../../.library-move/done",
+            "../../.oculus/oculus.db",
+            "../../.DS_Store",
+            "../..",
             "/elsewhere/courses/maths/a.md",
+            "/elsewhere/Receipts/a.pdf",
         ] {
             assert!(!in_own_zone(library, &cwd, path), "{path}");
         }

@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use super::rules::Rule;
 
-const DIR: &str = ".library-move";
+/// The folder at the data dir's top every launch move keeps its records in.
+pub const DIR: &str = ".library-move";
 const JOURNAL: &str = "journal.drive.json";
 /// The journal's name before the state move took it.
 const OLDER_JOURNAL: &str = "journal.json";

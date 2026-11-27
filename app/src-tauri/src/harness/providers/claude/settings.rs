@@ -64,12 +64,15 @@ pub(super) fn settings_json(
     }
 
     // The cwd (the agents' workspace), the database's three files
-    // (`paths::db_write_paths`), `studio/` (`paths::agent_write_dirs`) and
-    // the subjects' own files.
+    // (`paths::db_write_paths`), `studio/` (`paths::agent_write_dirs`), the
+    // subjects' own files, and the student's own entries at the top as they
+    // stand now: the data dir itself holds `.oculus/`, so it is never one,
+    // and a new entry at the top is the file tools' to make.
     let write: Vec<String> = std::iter::once(cwd.to_path_buf())
         .chain(crate::library::paths::db_write_paths(library))
         .chain(crate::library::paths::agent_write_dirs(library))
         .chain([subjects_dir(library)])
+        .chain(layout::own_entries(library, layout::TOP_LEVEL_CODE))
         .map(|p| p.display().to_string())
         .collect();
     // `oculus` reaches its keys only through keyd's socket; without this the
@@ -180,6 +183,8 @@ mod tests {
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/agents/.claude/**)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/*.cookie)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/canvas-session/**)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/bin/**)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.library-move/**)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/vault.bin*)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/.vault.bin.*)",
             "Bash(sqlite3:*)",
@@ -208,6 +213,7 @@ mod tests {
             let inside = &rule[state.len()..rule.len() - 1];
             assert!(
                 inside.starts_with("/canvas-session/")
+                    || inside.starts_with("/bin/")
                     || inside.starts_with("/agents/")
                     || (inside.starts_with('/') && !inside[1..].contains(['/'])),
                 "{rule} reaches too far into the state folder"
@@ -312,6 +318,10 @@ mod tests {
         for code in ["MAST10006_2026_SM1", "COMP30026_2026_SM2"] {
             std::fs::create_dir_all(library.join("courses").join(code).join("Course")).unwrap();
         }
+        for dir in ["Receipts", ".oculus/agents", ".library-move"] {
+            std::fs::create_dir_all(library.join(dir)).unwrap();
+        }
+        std::fs::write(library.join("timetable.png"), "png").unwrap();
         let v: serde_json::Value = serde_json::from_str(&settings_json(
             &library,
             &crate::agents::agents_dir(&library),
@@ -323,14 +333,20 @@ mod tests {
         .unwrap();
         let root = library.display().to_string();
         let write = v.pointer("/sandbox/filesystem/allowWrite").unwrap();
-        assert!(
-            write
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|w| *w == format!("{root}/courses")),
-            "{write}"
-        );
+        let granted = |path: String| write.as_array().unwrap().iter().any(|w| *w == path);
+        // The student's own entries at the top, one by one; never the data
+        // dir itself, `courses/`'s top or a dot-name there.
+        for path in ["courses", "Receipts", "timetable.png"] {
+            assert!(granted(format!("{root}/{path}")), "{path} in {write}");
+        }
+        for path in [
+            "",
+            "/.library-move",
+            "/.oculus",
+            "/courses/MAST10006_2026_SM1",
+        ] {
+            assert!(!granted(format!("{root}{path}")), "{path} in {write}");
+        }
         let deny: Vec<&str> = v
             .pointer("/permissions/deny")
             .and_then(|d| d.as_array())
@@ -366,6 +382,23 @@ mod tests {
         ] {
             let path = format!("{root}/courses/MAST10006_2026_SM1/{inner}");
             assert!(!covered(&path), "{path} is writable");
+        }
+        for top in [
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            "New/a.md",
+        ] {
+            let path = format!("{root}/{top}");
+            assert!(!covered(&path), "{path} is writable");
+        }
+        for app in [
+            ".library-move/done",
+            ".library-move/journal.json",
+            ".oculus/bin/x",
+        ] {
+            let path = format!("{root}/{app}");
+            assert!(covered(&path), "{path} is denied");
         }
     }
 

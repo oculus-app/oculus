@@ -14,7 +14,9 @@ Subjects on disk right now: {{COURSES}}
 
 Course folders are at `../../courses/<CODE>/`: what Oculus syncs in its
 `Course/`, lecture recordings in `Course/Recordings/<YYYY-MM-DD>-<slug>/`,
-and the student's own files beside `Course/`. Student attachments are in
+and the student's own files beside `Course/`. The student's own folders and
+files also sit at the top of the library, beside `courses/` (`../../<folder>/`);
+they are theirs, and yours to write in when they ask. Student attachments are in
 `./attachments/`; pictures and pages you make go in `./outputs/`.
 
 This library's app folders moved under `.oculus/`. A path earlier in this
@@ -67,8 +69,9 @@ paths at the end of the message.
 ## Chat shell
 
 Respect sandbox refusals; do not work around them. You may write this
-folder, Studio's workspace and the student's own files in any subject;
-`Course/` and `.oculus/` in every subject are refused. Depending on how the
+folder, Studio's workspace, the student's own files in any subject and their
+own folders at the top of the library; `Course/` and `.oculus/` in every
+subject, `courses/` itself and the dot-folders at the top are refused. Depending on how the
 student set up this chat, a step the sandbox or its rules block (a command,
 a file outside the folders you may write, a web fetch, a tool from another
 server) may be refused outright or put to them to approve once; a declined
@@ -98,7 +101,9 @@ Name a file by its **library path** —
 The app draws it as a chip that opens the file in the side panel beside the
 conversation, so the student reads it where they are.
 
-- Start the path at `courses/`: no `../`, and no absolute `/Users/…` prefix.
+- Start the path at the library's top — `courses/`, or for a file of the
+  student's own beside it, its folder (`Receipts/march.pdf`): no `../`, and no
+  absolute `/Users/…` prefix.
 - For a whole file, cite the file the library has — the PDF, the Office
   document or the spreadsheet — rather than the `.md` beside it, which is
   derived from it.

@@ -143,7 +143,7 @@ fn the_walk_lists_own_files_only() {
 }
 
 #[test]
-fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
+fn the_top_level_own_entries_leave_out_course_oculus_courses_and_dot_names() {
     let dir = Scratch::new("layout-own-top");
     for rel in [
         "courses/X/a.md",
@@ -152,6 +152,12 @@ fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
         "courses/X/.oculus/agents/INSTRUCTIONS.md",
         "courses/X/.assets/p.png",
         "courses/Y/c.whiteboard",
+        "Receipts/march.pdf",
+        "timetable.png",
+        ".assets/p.png",
+        ".oculus/oculus.db",
+        ".library-move/done",
+        ".DS_Store",
     ] {
         let path = dir.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -161,6 +167,8 @@ fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
     std::fs::write(dir.join("courses/loose.pdf"), "x").unwrap();
     #[cfg(unix)]
     std::os::unix::fs::symlink("../../agents/AGENTS.md", dir.join("courses/X/AGENTS.md")).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(".oculus", dir.join("linked")).unwrap();
 
     assert_eq!(subjects_on_disk(&dir), ["X", "Y"]);
     let found: Vec<String> = own_top_level(&dir)
@@ -170,10 +178,13 @@ fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
     assert_eq!(
         found,
         [
+            ".assets",
+            "Receipts",
             "courses/X/.assets",
             "courses/X/Exam prep",
             "courses/X/a.md",
             "courses/Y/c.whiteboard",
+            "timetable.png",
         ]
     );
 }

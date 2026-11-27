@@ -168,9 +168,10 @@ mod tests {
         decision
     }
 
-    /// Every subject's own files are allowed, `*.json` among them, while its
-    /// `Course/` and `.oculus/`, the subjects' folder itself and anything in
-    /// it outside a subject stay denied.
+    /// Every subject's own files and the student's own at the top are
+    /// allowed, `*.json` among them, while a subject's `Course/` and
+    /// `.oculus/`, the subjects' folder itself, anything in it outside a
+    /// subject and the launch moves' records stay denied.
     #[test]
     fn the_own_zone_is_allowed_and_course_and_oculus_are_denied() {
         let lib = "/Users/x/Library/Application Support/com.tchan.oculus";
@@ -189,6 +190,10 @@ mod tests {
             "courses/B/data.json",
             "courses/A/board.whiteboard",
             ".oculus/studio/videos/v/video.json",
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            "New folder/a.md",
         ] {
             let path = format!("{lib}/{inner}");
             assert_eq!(edit_decision(&rendered, &path), "allow", "{inner}");
@@ -213,6 +218,9 @@ mod tests {
             ".oculus/vault.bin",
             ".oculus/.vault.bin.42.tmp",
             ".oculus/okta-sign-in.log",
+            ".oculus/bin/Oculus Helper.app/Contents/MacOS/oculus-keyd",
+            ".library-move/done",
+            ".library-move/journal.json",
         ] {
             let path = format!("{lib}/{inner}");
             assert_eq!(edit_decision(&rendered, &path), "deny", "{inner}");

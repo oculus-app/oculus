@@ -20,7 +20,9 @@
     "edit": {
       "*": "allow",
       "{{LIBRARY}}/courses/**": "deny",
+      "{{LIBRARY}}/.library-move/**": "deny",
       "{{LIBRARY}}/.oculus/canvas-session/**": "deny",
+      "{{LIBRARY}}/.oculus/bin/**": "deny",
       "{{LIBRARY}}/.oculus/oculus.db*": "deny",
       "{{LIBRARY}}/.oculus/*.cookie": "deny",
       "{{LIBRARY}}/.oculus/*.token": "deny",

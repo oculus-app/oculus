@@ -11,8 +11,10 @@
 //! `agents/` cwd, `studio/`) beside what it must not, so the rules inside it
 //! name folders and single-segment file patterns.
 //!
-//! The library's own zone — everything in a subject beside `Course/` and
-//! `.oculus/` (`layout::Zone::Own`) — is writable without a request.
+//! The library's own zone (`layout::Zone::Own`) is writable without a
+//! request: everything in a subject beside `Course/` and `.oculus/`, and the
+//! student's own folders and files at the data dir's top. `courses/` itself,
+//! a file loose in it and every other dot-name at the top are not.
 
 use std::path::{Path, PathBuf};
 
@@ -21,23 +23,25 @@ use crate::library::paths::state_rel;
 
 /// Data-dir folders an agent reads but never writes, whole, as
 /// data-dir-relative paths: a recordings folder outside the subjects (none
-/// in the Drive tree), and keyd's session folder in the state folder
-/// (`STATE_DIRS`). `courses/` is not one: its subjects' own files are
-/// writable.
+/// in the Drive tree), the launch moves' records (`migrate::RECORD_DIR`),
+/// and the state folder's `STATE_DIRS`. `courses/` is not one: its
+/// subjects' own files are writable.
 pub fn library_dirs() -> Vec<String> {
     layout::library_roots()
         .into_iter()
         .filter(|d| *d != layout::COURSES_DIR)
+        .chain([crate::library::migrate::RECORD_DIR])
         .map(str::to_string)
         .chain(STATE_DIRS.iter().map(|d| state_rel(d)))
         .collect()
 }
 
 /// Folders of the state folder (`library::paths::state_dir`) no agent
-/// writes: the sign-in's attempt record and flags. The state folder is not
-/// protected whole, because the database, the agents' workspace and Studio
-/// are in it and writable (see `providers/claude/settings.rs`).
-pub const STATE_DIRS: [&str; 1] = ["canvas-session"];
+/// writes: the sign-in's attempt record and flags, and keyd's installed
+/// helper, which launchd runs. The state folder is not protected whole,
+/// because the database, the agents' workspace and Studio are in it and
+/// writable (see `providers/claude/settings.rs`).
+pub const STATE_DIRS: [&str; 2] = ["canvas-session", "bin"];
 
 /// The data-dir folder holding the subjects: writable, but for each
 /// subject's `SUBJECT_DIRS` and anything directly inside it that is not in a
@@ -253,24 +257,33 @@ mod tests {
     }
 
     #[test]
-    fn the_own_zone_is_everything_in_a_subject_but_course_and_oculus() {
+    fn the_own_zone_is_a_subjects_files_but_course_and_oculus_and_the_top_but_dot_names() {
         for rel in [
             "courses/X/notes.md",
             "courses/X/Exam prep/deep/scan.pdf",
             "courses/Y/board.whiteboard",
             "courses/X/.assets/p.png",
+            "Receipts",
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            ".assets/p.png",
         ] {
             assert!(own_zone(rel), "{rel}");
         }
         for rel in [
             "courses",
             "courses/X",
+            "courses/loose.pdf",
             "courses/X/Course/Files/a.pdf",
             "courses/X/course/home.md",
             "courses/X/.oculus/agents/INSTRUCTIONS.md",
             ".oculus/agents/notes.md",
             ".oculus/oculus.db",
+            ".library-move/done",
+            ".DS_Store",
             "courses/X/../../.oculus/oculus.db",
+            "",
         ] {
             assert!(!own_zone(rel), "{rel}");
         }
@@ -278,7 +291,10 @@ mod tests {
             subject_dir_globs(),
             ["courses/*/Course", "courses/*/.oculus"]
         );
-        assert_eq!(library_dirs(), [".oculus/canvas-session"]);
+        assert_eq!(
+            library_dirs(),
+            [".library-move", ".oculus/canvas-session", ".oculus/bin"]
+        );
         assert_eq!(
             workspace_dir_rels(),
             [
@@ -287,5 +303,36 @@ mod tests {
                 ".oculus/agents/.agents"
             ]
         );
+    }
+
+    /// No rule any CLI renders reaches the student's own files at the top.
+    #[test]
+    fn no_rule_covers_the_students_own_folders_at_the_top() {
+        let rules: Vec<String> = library_dirs()
+            .into_iter()
+            .chain(workspace_dir_rels())
+            .flat_map(|d| [d.clone(), format!("{d}/**")])
+            .chain(state_file_globs())
+            .chain(
+                subject_dir_globs()
+                    .into_iter()
+                    .flat_map(|g| [g.clone(), format!("{g}/**")]),
+            )
+            .map(|rule| format!("/l/{rule}"))
+            .collect();
+        for path in [
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            "vault.bin",
+            ".assets/p.png",
+        ] {
+            for rule in &rules {
+                assert!(
+                    !glob_covers(rule, &format!("/l/{path}")),
+                    "{rule} covers {path}"
+                );
+            }
+        }
     }
 }
