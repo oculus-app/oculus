@@ -55,6 +55,7 @@ export function useBrowserDownloads() {
       rowAt: async (path) => (await getFileByRelativePath(path))?.id ?? null,
       record: recordUploads,
       onRow: (download, file) => store.getState().setFile(download, file),
+      onUnrecorded: (download, reason) => store.getState().setUnrecorded(download, reason),
     });
 
     // An undecided arrival is decided on a tick once its wait runs out.

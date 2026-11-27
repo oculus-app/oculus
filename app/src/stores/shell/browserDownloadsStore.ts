@@ -17,6 +17,8 @@ interface DownloadsState {
   /** Each download saved to Drive's `files` row id, once recorded: the row
    *  follows the file through Drive's moves and renames. */
   files: Record<number, number>;
+  /** Why a download saved to Drive can never get its `files` row. */
+  unrecorded: Record<number, string>;
   /** The tabs in front and the live tabs, as last reported. */
   view: View;
   /** A list from Rust; `initial` for the mount's fetch, which asks nothing. */
@@ -30,6 +32,7 @@ interface DownloadsState {
   /** The list was opened: its problems have been seen. */
   acknowledge: () => void;
   setFile: (download: number, file: number) => void;
+  setUnrecorded: (download: number, reason: string) => void;
 }
 
 export const useBrowserDownloadsStore = create<DownloadsState>((set) => ({
@@ -38,6 +41,7 @@ export const useBrowserDownloadsStore = create<DownloadsState>((set) => ({
   problem: false,
   prompt: EMPTY_PROMPT,
   files: {},
+  unrecorded: {},
   view: { front: [], live: new Set() },
   apply: (snapshot, now, initial = false) =>
     set((s) => ({
@@ -56,6 +60,8 @@ export const useBrowserDownloadsStore = create<DownloadsState>((set) => ({
   acknowledge: () => set((s) => (s.problem ? { problem: false } : s)),
   setFile: (download, file) =>
     set((s) => (s.files[download] === file ? s : { files: { ...s.files, [download]: file } })),
+  setUnrecorded: (download, reason) =>
+    set((s) => ({ unrecorded: { ...s.unrecorded, [download]: reason } })),
 }));
 
 /** The download the dialog shows, or undefined. */

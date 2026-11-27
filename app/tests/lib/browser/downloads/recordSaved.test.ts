@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { createSavedRecorder } from "@/lib/browser/downloads/recordSaved";
 import type { Download } from "@/lib/browser/downloads/types";
 import type { ImportOutcome } from "@/lib/files/uploads";
@@ -27,6 +27,7 @@ function harness(existing: string[] = []) {
   const written: string[] = [];
   const homes: string[] = [];
   const told: Record<number, number> = {};
+  const unrecorded: Record<number, string> = {};
   let failNext = false;
   const record = createSavedRecorder({
     homeOf: async (path) => (path.startsWith(`courses/${SUBJECT.code}/`) ? SUBJECT : path.startsWith("courses/") ? null : TOP),
@@ -43,8 +44,9 @@ function harness(existing: string[] = []) {
       }
     },
     onRow: (download, file) => { told[download] = file; },
+    onUnrecorded: (download, reason) => { unrecorded[download] = reason; },
   });
-  return { record, written, homes, told, failOnce: () => { failNext = true; } };
+  return { record, written, homes, told, unrecorded, failOnce: () => { failNext = true; } };
 }
 
 describe("recording downloads saved to Drive", () => {
@@ -70,11 +72,17 @@ describe("recording downloads saved to Drive", () => {
     expect(homes.sort()).toEqual([SUBJECT.code, "My Drive"].sort());
   });
 
-  test("a path no known subject holds is not recorded, and is tried again", async () => {
-    const { record, written } = harness();
-    const stray: ImportOutcome = { source: "x.pdf", file: { filename: "x.pdf", relative_path: "courses/GONE/x.pdf", file_type: "pdf", size_bytes: 1 }, error: null };
+  test("a path no known subject holds is not recorded, says so once on its row and is not tried again", async () => {
+    const { record, written, unrecorded } = harness();
+    const stray: ImportOutcome = { source: "x.pdf", file: { filename: "x.pdf", relative_path: "courses/GONE/x.pdf", file_type: "pdf", size_bytes: 1 }, error: null, existed: false };
+    const warned = spyOn(console, "warn").mockImplementation(() => {});
     await record([saved(1, stray)]);
+    await record([saved(1, stray)]);
+    const warnings = warned.mock.calls.length;
+    warned.mockRestore();
     expect(written).toEqual([]);
+    expect(unrecorded[1]).toContain("no subject Oculus knows");
+    expect(warnings).toBe(1);
   });
 
   test("a file whose conversion failed is still recorded; the parse is left to recordUploads", async () => {

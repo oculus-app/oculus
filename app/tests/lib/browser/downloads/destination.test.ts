@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { defaultDestination, settleDestination } from "@/lib/browser/downloads/destination";
+import { defaultDestination, landingProblem, settleDestination } from "@/lib/browser/downloads/destination";
+import type { Subject } from "@/lib/db";
 
 describe("defaultDestination", () => {
   test("the tab's subject, else the last folder, else the top level", () => {
@@ -30,5 +31,19 @@ describe("settleDestination", () => {
 
   test("never the folder of subjects: a gone subject lands at the top level", async () => {
     expect(await settleDestination("courses/GONE", library([]))).toBe("");
+  });
+});
+
+describe("landingProblem", () => {
+  const subjects = [{ id: 1, code: "COMP10001" }] as Subject[];
+
+  test("a folder of a subject Oculus knows, or at the top level, takes a download", () => {
+    expect(landingProblem("courses/COMP10001/Labs", subjects)).toBeNull();
+    expect(landingProblem("", subjects)).toBeNull();
+    expect(landingProblem("Receipts", subjects)).toBeNull();
+  });
+
+  test("a folder in a subject Oculus does not know does not", () => {
+    expect(landingProblem("courses/GONE10001/Notes", subjects)).toContain("no subject Oculus knows");
   });
 });

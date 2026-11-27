@@ -45,6 +45,7 @@ function Details({ download, children }: { download: Download; children?: ReactN
  */
 export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (id: number) => void }) {
   const row = useBrowserDownloadsStore((s) => s.files[download.id]);
+  const unrecorded = useBrowserDownloadsStore((s) => s.unrecorded[download.id]);
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -89,7 +90,7 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
   return (
     <div className="flex items-start gap-2.5 px-3 py-2">
       <Details download={download}>
-        {error ? <span role="alert" className="text-[11px] text-destructive">{error}</span> : null}
+        {error ?? unrecorded ? <span role="alert" className="text-[11px] text-destructive">{error ?? unrecorded}</span> : null}
       </Details>
       {isSettled(download) ? <DownloadMenu name={download.name} actions={actions} /> : null}
       <ConfirmDialog

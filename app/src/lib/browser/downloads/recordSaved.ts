@@ -22,7 +22,13 @@ export interface RecordDeps {
   record: (home: FileHome, outcomes: ImportOutcome[]) => Promise<void>;
   /** A saved download's `files` row. */
   onRow: (download: number, file: number) => void;
+  /** A saved download that can never get a row: its folder is in no subject
+   *  Oculus knows. Said once, on its row. */
+  onUnrecorded: (download: number, reason: string) => void;
 }
+
+/** No home holds the path, which no retry changes. */
+class Homeless extends Error {}
 
 export function createSavedRecorder(deps: RecordDeps) {
   const claimed = new Set<number>();
@@ -34,7 +40,7 @@ export function createSavedRecorder(deps: RecordDeps) {
     let row = await deps.rowAt(path);
     if (row == null) {
       const home = await deps.homeOf(path);
-      if (!home) throw new Error(`nothing in Drive holds ${path}`);
+      if (!home) throw new Homeless("It was saved, but its folder belongs to no subject Oculus knows.");
       await deps.record(home, [saved.outcome]);
       row = await deps.rowAt(path);
     }
@@ -42,7 +48,7 @@ export function createSavedRecorder(deps: RecordDeps) {
   }
 
   /** Records every saved Drive download not recorded yet. A failure frees
-   *  the id, so the next list tries it again. */
+   *  the id, so the next list tries it again, unless no home holds it. */
   return async function recordSaved(downloads: readonly Download[]): Promise<void> {
     const fresh = downloads.filter(
       (d) => d.state === "saved" && d.saved_to?.kind === "drive" && !claimed.has(d.id),
@@ -51,8 +57,9 @@ export function createSavedRecorder(deps: RecordDeps) {
     await Promise.all(
       fresh.map((d) =>
         recordOne(d).catch((e) => {
-          claimed.delete(d.id);
           console.warn(`[downloads] could not record download ${d.id}: ${e}`);
+          if (e instanceof Homeless) deps.onUnrecorded(d.id, e.message);
+          else claimed.delete(d.id);
         }),
       ),
     );

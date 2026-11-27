@@ -29,5 +29,7 @@ pub mod reconcile;
 mod relink;
 pub(crate) mod rows;
 
+pub use rows::home_id;
+
 #[cfg(test)]
 mod tests;

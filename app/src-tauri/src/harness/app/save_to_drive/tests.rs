@@ -105,3 +105,35 @@ fn a_folder_the_student_cant_add_to_is_refused() {
         );
     }
 }
+
+#[tokio::test]
+async fn a_folder_of_no_subject_oculus_knows_is_refused_before_anything_is_written() {
+    let root = library("save-home");
+    std::fs::create_dir_all(root.join("courses/GONE10001/Notes")).unwrap();
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    for migration in crate::db::migrations::all() {
+        sqlx::raw_sql(migration.sql).execute(&pool).await.unwrap();
+    }
+    sqlx::query("INSERT INTO subjects (id, code, name) VALUES (1, 'COMP30026', 'Models')")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    for known in ["", "courses/COMP30026/Diagrams"] {
+        assert!(known_home(&root, &pool, known).await.is_ok(), "{known:?}");
+    }
+    let error = known_home(&root, &pool, "courses/GONE10001/Notes")
+        .await
+        .unwrap_err();
+    assert!(error.contains("no subject Oculus knows"), "{error}");
+    assert_eq!(
+        std::fs::read_dir(root.join("courses/GONE10001/Notes"))
+            .unwrap()
+            .count(),
+        0
+    );
+}

@@ -1,3 +1,5 @@
+import type { Subject } from "@/lib/db";
+import { homeOf } from "@/lib/drive/home";
 import { subjectRel } from "@/lib/files/libraryLayout";
 import { parentRel } from "@/lib/drive/paths";
 import type { FolderListing } from "@/lib/drive/listing";
@@ -28,4 +30,10 @@ export async function settleDestination(
     }
   }
   return "";
+}
+
+/** Why a download may not land in `dir`, or null: a folder in `courses/` of
+ *  no subject Oculus knows has no home, so the file would get no row. */
+export function landingProblem(dir: string, subjects: readonly Subject[]): string | null {
+  return homeOf(dir, subjects) ? null : "That folder belongs to no subject Oculus knows.";
 }

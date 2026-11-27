@@ -16,6 +16,8 @@ import { useSubjects } from "@/hooks/data/useSubjects";
 import { browser } from "@/lib/browser";
 import { downloads } from "@/lib/browser/downloads/commands";
 import { sizeWords } from "@/lib/browser/downloads/describe";
+import { landingProblem } from "@/lib/browser/downloads/destination";
+import { getSubjects } from "@/lib/db";
 import type { Dest, Download, LastDestination } from "@/lib/browser/downloads/types";
 import { rememberDestination as rememberFolder } from "@/lib/drive/picker";
 import { driveTrail } from "@/lib/drive/trail";
@@ -103,6 +105,8 @@ function SaveForm({
 
   const toDrive = (dir: string, as: string) =>
     run(async () => {
+      const homeless = landingProblem(dir, await getSubjects());
+      if (homeless) throw new Error(homeless);
       const choice: Dest = { kind: "drive", target_dir: dir, ...(as !== download.name ? { name: as } : {}) };
       await downloads.choose(download.id, choice);
       void remember("drive").catch(() => {});

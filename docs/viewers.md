@@ -1137,7 +1137,11 @@ last byte and a choice, whichever comes second (`Downloads`):
   starts the parse for pipeline files whose import has no conversion error.
   The row's id goes to `useBrowserDownloadsStore`'s `files`, so the list
   acts on the file after a move or rename in Drive. An Office conversion
-  failure still leaves the upload saved, with its warning.
+  failure still leaves the upload saved, with its warning. A folder in a
+  subject Oculus doesn't know has no home, so Save refuses it before choosing
+  (`landingProblem` in `destination.ts`); a saved download no home holds
+  says so once on its row (`unrecorded` in the store) and is not retried,
+  while any other failure to record is tried again on the next list.
 - **On this Mac/PC** opens the native save panel, initially in Downloads with
   the safe name suggested.
   `app/src-tauri/src/shell/browser/downloads/deliver.rs` moves the file,

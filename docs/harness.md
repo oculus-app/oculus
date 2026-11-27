@@ -3563,7 +3563,9 @@ without case. A path in a reply is model output, so `savable` takes only a
 opens it from the data dir one step at a time, each with `openat` and
 `O_NOFOLLOW` (`open_unlinked`), so no link at any step is followed, wants a
 regular file with one hard link, then canonicalises it and checks the result
-again inside the canonical workspace. `drive_save_copy` asks `savable`
+again inside the canonical workspace. `drive_save_copy` first refuses a
+folder whose home has no row (`known_home`: a folder in `courses/` of no
+subject Oculus knows would take a copy that never gets one), then asks `savable`
 itself, never trusting an earlier answer or the frontend, and reads the
 bytes through a handle reached the same way that must be the inode `savable`
 saw, never a fresh lookup of the path (`Savable::read`), so a file or a

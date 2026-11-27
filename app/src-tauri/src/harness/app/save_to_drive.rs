@@ -8,8 +8,11 @@
 
 use std::path::Path;
 
+use sqlx::SqlitePool;
+
 use crate::harness::protected::{savable, SourceStamp};
 use crate::library::drive::ops::guard::drive_target;
+use crate::library::drive::ops::home_id;
 use crate::library::files::uploads::{import_bytes_as, ImportOutcome};
 
 /// What a save made: the copy (or why not) and the source's stamp, which
@@ -43,11 +46,26 @@ pub async fn drive_save_copy(
     target_dir: String,
     name: Option<String>,
 ) -> Result<SavedCopy, String> {
+    let data_dir = crate::library::paths::data_dir();
+    let pool = crate::db::store::open_pool().await?;
+    let known = known_home(&data_dir, &pool, &target_dir).await;
+    pool.close().await;
+    known?;
     crate::runtime::blocking::run(move || {
-        let data_dir = crate::library::paths::data_dir();
         save_copy(&data_dir, &source, &target_dir, name.as_deref())
     })
     .await
+}
+
+/// Refuses a folder whose home has no row before anything is written: a
+/// folder in `courses/` of no subject Oculus knows would take the copy, and
+/// the copy would never get a row.
+async fn known_home(data_dir: &Path, pool: &SqlitePool, target_dir: &str) -> Result<(), String> {
+    let target = drive_target(data_dir, target_dir)?;
+    match home_id(pool, target.home()).await.map_err(|e| e.message)? {
+        Some(_) => Ok(()),
+        None => Err("That folder belongs to no subject Oculus knows.".to_string()),
+    }
 }
 
 fn save_copy(
