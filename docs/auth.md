@@ -92,7 +92,8 @@ each other's writes.
   while `subjects` has rows. Start over (Settings → Storage) signs out,
   forgets the Okta credentials, leaves a `start-over` marker in the state
   folder and restarts; the next launch empties the data dir before any thread
-  or database handle exists, keeping (all in `.oculus/`) the two cloud usage
+  or database handle exists, the student's own folders and files at its top
+  (My Drive) included, keeping (all in `.oculus/`) the two cloud usage
   files, the downloaded models (`models/`), keyd's vault, socket and `bin/`,
   and the lock a running keyd may hold on the sign-in attempt record
   (`canvas-session/sign-in.json.lock`), and beside it `.library-move/`, the
