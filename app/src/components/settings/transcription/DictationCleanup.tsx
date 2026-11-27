@@ -55,7 +55,12 @@ function readiness(connected: boolean | null, s1: S1MiniStatus | null) {
 
 /** What the chosen model does now, under the Model select, by Rust's rule
  *  (`run` in `transcribe/cleanup/mod.rs`). Blank while a status is unread. */
-export function modelLine(choice: CleanupChoice | null, connected: boolean | null, s1: S1MiniStatus | null): Line {
+export function modelLine(
+  choice: CleanupChoice | null,
+  connected: boolean | null,
+  s1: S1MiniStatus | null,
+  mac = isMac,
+): Line {
   const blank = { text: " ", warn: false };
   if (choice === null) return blank;
   if (choice.model === "off") return { text: "Dictation joins your draft as heard.", warn: false };
@@ -72,14 +77,19 @@ export function modelLine(choice: CleanupChoice | null, connected: boolean | nul
       warn: false,
     };
   }
-  if (s1?.unavailable || !isMac) return { text: "S1-mini can't run here: choose another model.", warn: true };
+  if (s1?.unavailable || !mac) return { text: "S1-mini can't run here: choose another model.", warn: true };
   return { text: "Not downloaded: download it below.", warn: true };
 }
 
 /** The fallback switch's line: which model steps in, and whether it is set
  *  up. Null where there is no fallback to offer (Off, or not on a Mac). */
-export function fallbackLine(choice: CleanupChoice | null, connected: boolean | null, s1: S1MiniStatus | null): Line | null {
-  if (choice === null || choice.model === "off" || !isMac) return null;
+export function fallbackLine(
+  choice: CleanupChoice | null,
+  connected: boolean | null,
+  s1: S1MiniStatus | null,
+  mac = isMac,
+): Line | null {
+  if (choice === null || choice.model === "off" || !mac) return null;
   const other = choice.model === "groq" ? "s1Mini" : "groq";
   const text = `${other === "s1Mini" ? "S1-mini by Superwhisper" : "Groq"} steps in if ${SHORT[choice.model]} fails or isn't set up.`;
   const ready = readiness(connected, s1)[other];
