@@ -546,8 +546,11 @@ themes are opt-in and keep the same structure.
   centre, dismissed by themselves after a few seconds (paused while hovered),
   with a × ringed by the countdown. A failure or anything that asks for a decision stays inline where
   it happened. The one toast with an action is the delete's: "Moved to
-  Trash" with **Undo**, in place of an "are you sure" dialog, since the
-  delete only becomes final when the toast closes
+  Trash" with **Undo** (and ⌘Z where the delete was made), in place of an
+  "are you sure" dialog, since the delete only becomes final when the toast
+  closes. It never stays past 30 s however long it is hovered, a failed
+  Undo says why inside it, and it closes when Rust makes the delete final
+  another way
   ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)).
   **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)

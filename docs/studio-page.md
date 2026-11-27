@@ -406,14 +406,18 @@ any render of the folder runs, and is off while a narration does), and
   which opens Drive on its folder in a new tab. A row with a file
   has Show in Finder (Show in Explorer on Windows, `revealItemInDir`) and a
   bin, Move to Trash (Move to Recycle Bin), which asks nothing, since the
-  file can be rendered again: `studio_render_delete` moves the mp4 and its
-  `.vtt` in `renders/` to the Trash and, on a Final or Small row, deletes
-  the Drive copy as Drive deletes it, to the Trash with the toast's Undo
+  file can be rendered again: `studio_render_delete` (`delete_render_at`)
+  makes one delete of the mp4 and its `.vtt` in `renders/` and, on a Final
+  or Small row, the Drive copy while it is still this export
+  (`export::drive_copy`: its row, and the size and time `studio_exports`
+  says the export wrote) with the captions beside it while they are still
+  the render's (the same bytes as its `.vtt`); a Drive file the student
+  changed since stays. All of it goes to the Trash with the toast's Undo
   ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)),
-  while it is still this export (`export::delete_drive_copy`: its row, and
-  the size and time `studio_exports` says the export wrote), with the
-  captions the export wrote beside it; a Drive file the student changed
-  since stays. Then the detail, the list and the statuses are read again.
+  which puts all of it back; the render's cache record and the segments
+  only it used go when the delete is final (`forget_render`, which leaves
+  them when a render of the preset is back). Then the detail, the list and
+  the statuses are read again.
   Show in Finder acts on Studio's copy in `renders/`. The
   player falls back to the render left (`useVideoPlayback` shows the newest
   playable one when the shown one is gone); with none left, the row's
