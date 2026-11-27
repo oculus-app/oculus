@@ -1,6 +1,8 @@
 //! The first step: each entry to the Trash, under the job fence, nothing
 //! else touched. When one cannot go (a volume with no Trash), those already
-//! sent come back and the delete fails: nothing is ever unlinked instead.
+//! sent come back and the delete fails: nothing is ever unlinked instead,
+//! and a delete still pending stays so. Once this one is in the Trash, the
+//! one before it is made final: one Undo at a time.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,7 +16,7 @@ use super::super::error::{DriveError, DriveResult};
 use super::super::guard::{files_under, own_entry, Entry};
 use super::super::moves::blocking;
 use super::super::rows;
-use super::{finish, keep, take_all_in, Bin, Item, Pending};
+use super::{finish, keep, take_all_in, Bin, Finally, Item, Other, Pending};
 use crate::library::paths::artifact_slots;
 
 /// What a delete did.
@@ -26,22 +28,102 @@ pub struct Sent {
     pub handle: Option<u64>,
     /// The entries' paths, in the order asked.
     pub removed: Vec<String>,
+    /// What the toast counts: each entry, and Studio's render as one.
+    pub count: usize,
+}
+
+/// What a delete holds besides the library's entries: files a caller sent
+/// to the Trash already (Studio's render), put back on Undo and on this
+/// delete's failure, and work for when it is final.
+#[derive(Default)]
+pub struct Extras {
+    pub others: Vec<Other>,
+    pub finally: Vec<Finally>,
 }
 
 /// Send `rels` to the Trash. A path inside another one sent goes with it.
-/// A delete still pending in this library is made final first: one Undo at
-/// a time.
 pub async fn send_at(
     data_dir: &Path,
     pool: &SqlitePool,
     rels: &[String],
     bin: Arc<dyn Bin>,
 ) -> DriveResult<Sent> {
+    send_with(data_dir, pool, rels, bin, Extras::default()).await
+}
+
+/// `send_at`, holding `extras` too.
+pub async fn send_with(
+    data_dir: &Path,
+    pool: &SqlitePool,
+    rels: &[String],
+    bin: Arc<dyn Bin>,
+    extras: Extras,
+) -> DriveResult<Sent> {
+    let sent = trash_entries(data_dir, pool, rels, bin).await;
+    let (items, removed, way_back) = match sent {
+        Ok(sent) => sent,
+        Err(e) => {
+            put_back(&extras.others);
+            return Err(e);
+        }
+    };
     for older in take_all_in(data_dir) {
         if let Err(e) = finish::finish(pool, older).await {
             elog!("[oculus] drive: finishing an earlier delete: {}", e.message);
         }
     }
+    let count = removed.len() + usize::from(!extras.others.is_empty());
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    let pending = Pending {
+        id: NEXT.fetch_add(1, Ordering::Relaxed),
+        data_dir: data_dir.to_path_buf(),
+        items,
+        others: extras.others,
+        finally: extras.finally,
+    };
+    // No way back out of the Trash: final now.
+    if !way_back
+        || pending
+            .others
+            .iter()
+            .any(|o| o.trashed.as_os_str().is_empty())
+    {
+        finish::finish(pool, pending).await?;
+        return Ok(Sent {
+            handle: None,
+            removed,
+            count,
+        });
+    }
+    let handle = Some(pending.id);
+    keep(pending);
+    Ok(Sent {
+        handle,
+        removed,
+        count,
+    })
+}
+
+/// Studio's files back where they were, when a delete holding them fails.
+pub fn put_back(others: &[Other]) {
+    for other in others.iter().filter(|o| !o.trashed.as_os_str().is_empty()) {
+        if let Err(e) = std::fs::rename(&other.trashed, &other.path) {
+            elog!(
+                "[oculus] drive: {} stays in the Trash: {e}",
+                other.path.display()
+            );
+        }
+    }
+}
+
+/// The entries to the Trash: their items, their paths, and whether the
+/// Trash said where each went.
+async fn trash_entries(
+    data_dir: &Path,
+    pool: &SqlitePool,
+    rels: &[String],
+    bin: Arc<dyn Bin>,
+) -> DriveResult<(Vec<Item>, Vec<String>, bool)> {
     let picked = rels
         .iter()
         .map(|rel| own_entry(data_dir, rel))
@@ -72,6 +154,7 @@ pub async fn send_at(
     drop(held);
     let (landed, leftovers) = landed;
     let removed = entries.iter().map(|e| e.rel.clone()).collect();
+    let way_back = landed.iter().all(Option::is_some);
     let items: Vec<Item> = entries
         .into_iter()
         .zip(landed)
@@ -85,27 +168,7 @@ pub async fn send_at(
             leftovers,
         })
         .collect();
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    let pending = Pending {
-        id: NEXT.fetch_add(1, Ordering::Relaxed),
-        data_dir: data_dir.to_path_buf(),
-        items,
-    };
-    // No way back out of the Trash: final now.
-    if pending
-        .items
-        .iter()
-        .any(|i| i.trashed.as_os_str().is_empty())
-    {
-        finish::finish(pool, pending).await?;
-        return Ok(Sent {
-            handle: None,
-            removed,
-        });
-    }
-    let handle = Some(pending.id);
-    keep(pending);
-    Ok(Sent { handle, removed })
+    Ok((items, removed, way_back))
 }
 
 /// Each entry to the Trash in turn; on a refusal the ones sent come back.

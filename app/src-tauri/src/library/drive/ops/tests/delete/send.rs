@@ -127,3 +127,72 @@ async fn a_second_delete_makes_the_first_final() {
     );
     finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
 }
+
+async fn known(lib: &Lib) -> std::collections::HashSet<String> {
+    sqlx::query_scalar::<_, String>("SELECT relative_path FROM files")
+        .fetch_all(&lib.pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .collect()
+}
+
+#[tokio::test]
+async fn reconcile_rows_none_of_a_pending_deletes_leftovers() {
+    use crate::library::drive::ops::reconcile::unrowed_own_files;
+    let lib = Lib::new("delete-reconcile-pending").await;
+    let pdf = own(CODE, "slides.pdf");
+    lib.parsed_pdf(&pdf).await;
+    let docx = own(CODE, "essay.docx");
+    lib.file(&docx, b"PK").await;
+    lib.put(&format!("{docx}.pdf"), b"%PDF-1.4");
+    assert!(unrowed_own_files(&lib.dir, CODE, &known(&lib).await).is_empty());
+    let sent = send(&lib, FakeBin::new(&lib), &[&pdf, &docx]).await;
+    let during = unrowed_own_files(&lib.dir, CODE, &known(&lib).await);
+    let found: Vec<&String> = during.iter().map(|f| &f.relative_path).collect();
+    finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+    assert!(
+        found.is_empty(),
+        "reconcile would row these during the window: {found:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_pending_file_is_never_parsed_nor_marked_failed() {
+    let lib = Lib::new("delete-parse-pending").await;
+    let docx = own(CODE, "essay.docx");
+    let id = lib.file(&docx, b"PK").await;
+    lib.put(&format!("{docx}.pdf"), b"%PDF-1.4");
+    let sent = send(&lib, FakeBin::new(&lib), &[&docx]).await;
+    let error = crate::sync::parse_pdf(&lib.dir, &docx, 1).unwrap_err();
+    assert!(error.to_string().contains("Trash"), "{error}");
+    let status: Option<String> = sqlx::query_scalar("SELECT parse_status FROM files WHERE id = ?1")
+        .bind(id)
+        .fetch_one(&lib.pool)
+        .await
+        .unwrap();
+    assert_eq!(status, None);
+    finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_second_delete_that_fails_leaves_the_first_pending() {
+    use crate::library::drive::ops::delete::undo_at;
+    let lib = Lib::new("delete-second-fails").await;
+    let first = own(CODE, "first.md");
+    let id = lib.file(&first, b"1").await;
+    lib.file(&own(CODE, "b.md"), b"b").await;
+    let sent = send(&lib, FakeBin::new(&lib), &[&first]).await;
+    let refusing = Arc::new(FakeBin::with(&lib, Some("b.md"), false));
+    assert!(
+        send_at(&lib.dir, &lib.pool, &rels(&[&own(CODE, "b.md")]), refusing)
+            .await
+            .is_err()
+    );
+    assert!(lib.row_of(id).await.is_some(), "the first is still pending");
+    assert_eq!(
+        undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap(),
+        [first.clone()]
+    );
+    assert_eq!(lib.read(&first), "1");
+}

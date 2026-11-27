@@ -180,6 +180,12 @@ pub fn parse_file(
         crate::parse::events::failed(&relative_path, subject_id, &error);
         detail
     };
+    // In the Trash with its Undo open: neither parsed (an Office file's
+    // converted PDF is still on disk) nor marked failed, so an Undo finds its
+    // row as it was.
+    if crate::library::drive::ops::delete::held(&data_dir.join(&relative_path)) {
+        return Ok(());
+    }
     // A spreadsheet is converted to text in-process, never parsed.
     if crate::library::paths::is_sheet(&relative_path) {
         if !data_dir.join(&relative_path).is_file() {

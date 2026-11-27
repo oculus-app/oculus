@@ -30,6 +30,8 @@ pub async fn copy_to_own_at(
     rels: &[String],
     target_dir: &str,
 ) -> DriveResult<Vec<String>> {
+    let paths: Vec<std::path::PathBuf> = rels.iter().map(|rel| data_dir.join(rel)).collect();
+    super::delete::finish_touching(pool, data_dir, &paths).await?;
     let target = drive_target(data_dir, target_dir)?;
     let subject = rows::home_id(pool, target.home())
         .await?

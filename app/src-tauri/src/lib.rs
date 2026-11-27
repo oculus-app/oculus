@@ -77,6 +77,8 @@ pub fn run() {
             // Give the parse and embed seams a window to emit progress to;
             // headless (CLI) runs never bind, so their emits are no-ops.
             parse::events::bind(app.handle().clone());
+            // A delete's Undo toast hears when the delete is final.
+            library::drive::ops::delete::bind(app.handle().clone());
             embed::events::bind(app.handle().clone());
 
             // WebKit won't play <video> from the asset protocol (see lectures/media.rs).

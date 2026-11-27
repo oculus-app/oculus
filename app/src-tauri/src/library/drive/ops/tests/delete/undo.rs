@@ -1,5 +1,5 @@
 use super::*;
-use crate::library::drive::ops::delete::{held, undo_at};
+use crate::library::drive::ops::delete::{held, undo_at, ALREADY_FINAL};
 use crate::library::drive::ops::error::Kind;
 use crate::library::layout::{derived_rel, DerivedKind};
 
@@ -100,4 +100,77 @@ async fn one_emptied_from_the_trash_meanwhile_is_final_instead() {
     let error = undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap_err();
     assert_eq!(error.kind, Kind::NotFound);
     assert!(lib.row_of(id).await.is_none());
+}
+
+#[tokio::test]
+async fn renaming_moving_or_copying_around_a_pending_entry_makes_it_final_first() {
+    use crate::library::drive::ops::moves::{move_entries_at, rename_entry_at};
+    let lib = Lib::new("delete-parent-renamed").await;
+    let pdf = own(CODE, "Exam/2024.pdf");
+    let id = lib.parsed_pdf(&pdf).await;
+    let sent = send(&lib, FakeBin::new(&lib), &[&pdf]).await;
+    rename_entry_at(&lib.dir, &lib.pool, &own(CODE, "Exam"), "Exams")
+        .await
+        .unwrap();
+    assert!(lib.row_of(id).await.is_none(), "final before the rename");
+    let moved = own(CODE, "Exams/2024.pdf");
+    for kind in DerivedKind::ALL {
+        assert!(
+            !lib.exists(&derived_rel(&moved, kind)),
+            "{kind:?} left behind"
+        );
+    }
+    let error = undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap_err();
+    assert_eq!(error.message, ALREADY_FINAL);
+    assert!(!held(&lib.path(&pdf)));
+
+    // A move of the folder holding it, and a copy of it, do the same.
+    let note = own(CODE, "Week/notes.md");
+    let note_id = lib.file(&note, b"x").await;
+    lib.mkdir(&own(CODE, "Archive"));
+    let sent = send(&lib, FakeBin::new(&lib), &[&note]).await;
+    move_entries_at(
+        &lib.dir,
+        &lib.pool,
+        &rels(&[&own(CODE, "Week")]),
+        &own(CODE, "Archive"),
+    )
+    .await
+    .unwrap();
+    assert!(lib.row_of(note_id).await.is_none());
+    assert!(undo_at(&lib.pool, sent.handle.unwrap()).await.is_err());
+
+    let other = own(CODE, "Unit/other.md");
+    let other_id = lib.file(&other, b"x").await;
+    let sent = send(&lib, FakeBin::new(&lib), &[&other]).await;
+    crate::library::drive::ops::copy::copy_to_own_at(
+        &lib.dir,
+        &lib.pool,
+        &rels(&[&own(CODE, "Unit")]),
+        &root(CODE),
+    )
+    .await
+    .unwrap();
+    assert!(lib.row_of(other_id).await.is_none());
+    assert!(undo_at(&lib.pool, sent.handle.unwrap()).await.is_err());
+}
+
+#[tokio::test]
+async fn an_undo_that_fails_keeps_the_delete_pending_for_another_try() {
+    let lib = Lib::new("delete-undo-retry").await;
+    let note = own(CODE, "Week/notes.md");
+    let id = lib.file(&note, b"x").await;
+    let sent = send(&lib, FakeBin::new(&lib), &[&note]).await;
+    // The subject's folder is away: the folder back can't be made.
+    let away = lib.path("away");
+    std::fs::rename(lib.path(&root(CODE)), &away).unwrap();
+    assert!(undo_at(&lib.pool, sent.handle.unwrap()).await.is_err());
+    assert!(lib.row_of(id).await.is_some(), "still pending, not final");
+    assert!(held(&lib.path(&note)));
+    std::fs::rename(&away, lib.path(&root(CODE))).unwrap();
+    assert_eq!(
+        undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap(),
+        [note.clone()]
+    );
+    assert_eq!(lib.read(&note), "x");
 }
