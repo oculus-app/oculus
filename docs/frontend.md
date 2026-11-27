@@ -26,7 +26,7 @@ library files; the rest of the frontend has its own pages:
 | Own files: uploads, notes and drawings, their rows and reconcilers | `app/src/lib/files/uploads.ts`, `app/src/lib/notes/documents.ts`, `app/src/lib/whiteboard/files.ts`, `app/src/lib/drive/reconcile.ts`, `app/src-tauri/src/library/files/commands.rs`, `app/src-tauri/src/library/drive/ops/reconcile/` |
 | File category icons and recency marks | `app/src/lib/files/fileTypes.ts`, `app/src/components/files/FileRecency.tsx` |
 | Path-keyed state following Drive's moves ([below](#path-keyed-state-follows-drive)) | `app/src/lib/shell/pathFollow.ts`, `app/src/lib/shell/followLibrary.ts`, `app/src/stores/shell/tabs/follow.ts` |
-| Drive's folder browser and folder tree ([below](#drive-is-one-folder-browser-over-the-disk)); `list_folder` | `app/src/components/drive/`, `app/src/hooks/drive/`, `app/src/lib/drive/`, `app/src-tauri/src/library/drive/` |
+| Drive's folder browser, folder tree and folder picker ([below](#drive-is-one-folder-browser-over-the-disk)); `list_folder` | `app/src/components/drive/`, `app/src/hooks/drive/`, `app/src/lib/drive/`, `app/src/stores/shell/drivePickerStore.ts`, `app/src-tauri/src/library/drive/` |
 | Ed board, keyword search and filters | `app/src/pages/subject/content/DiscussionPage.tsx`, `app/src/pages/subject/content/discussion/`, `app/src/lib/ed/threads.ts` |
 | Ed lessons under their modules; the lesson index reader | `app/src/pages/subject/content/LessonsPage.tsx`, `app/src/pages/subject/content/lessons/`, `app/src/lib/ed/lessons.ts` |
 | Weekly lecture groups and collapsible Canvas modules | `app/src/pages/subject/content/LecturesPage.tsx`, `app/src/components/lectures/LectureRow.tsx`, `app/src/pages/subject/content/ModulesPage.tsx`, `app/src/pages/subject/content/modules/` |
@@ -182,10 +182,8 @@ nav column's tree beside it: Subjects, then the student's own top-level
 folders, each opening in place to its folders, read when first opened;
 Subjects opens to the current subjects and the rest folded under Past
 subjects (`SubjectsBranch`). Which rows are open is a `useStoredSet`. With
-`onPick` the same tree is a folder picker: over one subject (`root`) for
-Copy to my files…, Move to… and the browser's Save dialog, or for a Drive
-entry with no subject over all of Drive, under a My Drive row that picks the
-top level. Both are routed:
+`onPick` and a `root` the same tree picks a folder in one subject, for the
+browser's Save dialog. Both are routed:
 Drive's rail section at `/drive/*` and the Files tab at
 `/subjects/<id>/files/*`, whose splats are the folder
 ([shell.md](./shell.md#each-pane-has-its-own-router-and-the-path-is-its-only-state)).
@@ -275,8 +273,38 @@ Drive's rail section at `/drive/*` and the Files tab at
   (`app/src/components/drive/trail/crumbs.tsx`) turns the places into
   `Trail` crumbs ([ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card))
   with each one's glyph (`SubjectIcon` for a subject), and with `onOpen`
-  makes every crumb but the last a button that opens its place. The
-  browser's own header draws `driveCrumbs` through `Breadcrumb`.
+  makes every crumb but the last a button that opens its place. Every
+  caller that draws a Drive path uses these two. The browser's own header
+  is the one other shape: `driveCrumbs` turns the same places, from the
+  browser's root down, into `Breadcrumb` items.
+- **One folder picker.** `pickDriveFolder({ title, action, start?, name? })`
+  (`app/src/stores/shell/drivePickerStore.ts`) opens `DrivePickerDialog`
+  (`components/drive/picker/`), which `DrivePickerHost` mounts once in
+  `AppLayout`, and resolves to `{ targetDir, name }` or `null` on a cancel;
+  a request made while one is open cancels the earlier one. The dialog is a
+  small Drive browser: a `Trail` from My Drive to the folder it stands in
+  (each crumb goes back up) over the folders there, each opening on a click.
+  The folder it stands in is the destination. The list is the dialog's one
+  scroll area and holds only places the student can add to, so `Course/`
+  and dot-names never show; Subjects lists the subjects Oculus knows, by
+  icon and code, the past ones under a heading, and is a place to go
+  through: the action and New folder are off there. `start` is
+  data-dir-relative (`""` the top level) and wins over the last destination
+  any caller confirmed, kept in the `settings` row
+  `drive_picker_last_destination`; one that is gone or synced falls back to
+  the nearest folder above it that will do (`settleStart` in
+  `lib/drive/picker.ts`), and a folder deleted under the dialog sends it up
+  the same way. With `name` the dialog shows the file name to edit, its
+  stem selected, and answers the trimmed name (`null` otherwise); a name
+  `nameProblem` refuses turns the action off. New folder names a folder in
+  a row of the list ("Untitled folder", selected): Enter makes it
+  (`create_folder`) and enters it, a refusal is said under the row, and the
+  action pressed while it is still being named makes it first and lands
+  there. Keys: Enter confirms from the name field or the action, which has
+  the focus when there is no name; ⌘↵ confirms from anywhere; ↑ and ↓ move
+  through the rows, which share one tab stop, → or Enter opens the focused
+  row, ← or ⌫ goes up; Escape drops a folder being named, then cancels.
+  Hovered and focused rows take the drop target's brand tint.
 - **Pictures** (`components/drive/thumbs/`) come from what already draws
   each kind: a PDF's, or an Office file's converted PDF's, first page through
   the viewer's renderer (`openPdf`, `renderPage`); a recording's frame from
@@ -316,7 +344,10 @@ Drive's rail section at `/drive/*` and the Files tab at
   selection when the entry is in it: Open, Open in new tab, Copy to my files…
   for synced entries, Show in Finder (on every entry, Subjects and top-level
   ones included), then Rename, Move to… and Delete, greyed
-  on synced entries with "Course files are read-only" under them. Subjects, a
+  on synced entries with "Course files are read-only" under them. Copy to
+  my files… and Move to… ask the folder picker, opened on the folder on
+  screen, so the selection can go to another subject or the top level; an
+  entry already in the folder chosen is left where it is. Subjects, a
   subject's folder and a recording offer only the first group.
 - **Drag and drop.** Finder files drop through the webview's native events
   on a folder card, a list row, a tree row or empty space (the folder on

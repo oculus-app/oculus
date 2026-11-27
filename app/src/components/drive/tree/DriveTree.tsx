@@ -18,9 +18,9 @@ import { TreeFolder, type TreeEnv } from "./TreeFolder";
  * (`useStoredSet`). Rows are drop targets for Finder files and for entries
  * dragged from the browser, as its folder cards are.
  *
- * With `onPick` it is a folder picker: rows pick instead of navigating, and
- * folders the student can't add to are off. `root` narrows it to one
- * subject's folders.
+ * With `onPick` it picks a folder for the browser's Save dialog: rows pick
+ * instead of navigating, and folders the student can't add to are off.
+ * `root` narrows it to one subject's folders.
  */
 export function DriveTree({
   current,

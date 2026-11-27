@@ -19,17 +19,17 @@ import { isFlat, NO_FILTERS, type DriveFilters } from "@/lib/drive/filters";
 import { homeOf, isSubjectsFolder } from "@/lib/drive/home";
 import { isFixedFolder, itemEditable, itemZone, type DriveItem } from "@/lib/drive/items";
 import { itemHref, openInNewTab, openItem, revealItem } from "@/lib/drive/open";
-import { baseName, subjectRelOf } from "@/lib/drive/paths";
+import { baseName, parentRel } from "@/lib/drive/paths";
 import { boxSelect, clickSelect, EMPTY_SELECTION, pruneSelection, selectAll, type Selection } from "@/lib/drive/selection";
 import { filePagePath } from "@/lib/files/openFile";
 import { scheduleOwnReconcile } from "@/lib/drive/reconcile";
 import { isMac } from "@/lib/platform";
 import { navigateActive } from "@/lib/shell/tabRouters";
+import { pickDriveFolder } from "@/stores/shell/drivePickerStore";
 import { DriveViewProvider, type DriveView } from "./DriveContext";
 import { DriveGrid } from "./content/DriveGrid";
 import { DriveList } from "./content/DriveList";
 import { DeleteDialog } from "./dialogs/DeleteDialog";
-import { FolderPickerDialog } from "./dialogs/FolderPickerDialog";
 import { DetailsPanel } from "./details/DetailsPanel";
 import { driveCrumbs } from "./header/crumbs";
 import { DriveHeader } from "./header/DriveHeader";
@@ -126,7 +126,6 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DriveItem[] | null>(null);
-  const [picker, setPicker] = useState<{ mode: "copy" | "move"; rels: string[]; subjectRel: string | null } | null>(null);
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -198,8 +197,8 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
     },
     hover,
     targetsOf: (item) => (selection.keys.has(item.key) ? selectedItems() : [item]),
-    copyToMine: (items) => openPicker("copy", items),
-    moveTo: (items) => openPicker("move", items),
+    copyToMine: (items) => void pickFolderFor("copy", items),
+    moveTo: (items) => void pickFolderFor("move", items),
     remove: (items) => items.length && items.every(itemEditable) && setDeleting(items),
     reveal: (item) => void revealItem(item),
     writable,
@@ -207,11 +206,22 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
     root,
   };
 
-  // A subject's entries pick among that subject's folders; a top-level
-  // entry has no subject, and picks across the whole of Drive.
-  function openPicker(mode: "copy" | "move", items: DriveItem[]) {
-    if (!items[0]) return;
-    setPicker({ mode, rels: items.map((i) => i.key), subjectRel: subjectRelOf(items[0].key) });
+  // The picker opens on the folder on screen (from a synced one, on the
+  // nearest folder of the student's above it) and reaches all of Drive.
+  async function pickFolderFor(mode: "copy" | "move", items: DriveItem[]) {
+    if (!items.length) return;
+    const rels = items.map((i) => i.key);
+    const pick = await pickDriveFolder({
+      title: mode === "copy" ? "Copy to my files" : "Move to",
+      action: mode === "copy" ? "Copy here" : "Move here",
+      start: folder,
+    });
+    rootRef.current?.focus();
+    if (!pick) return;
+    if (mode === "copy") return copyToFolder(rels, pick.targetDir, subjects);
+    // An entry already in the folder chosen stays as it is.
+    const moving = rels.filter((rel) => parentRel(rel) !== pick.targetDir);
+    if (moving.length) await moveToFolder(moving, pick.targetDir, subjects);
   }
 
   const startNew = (kind: NewKind) => {
@@ -302,12 +312,6 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
   ) : null;
 
   const overHere = hover && hover.rel === folder ? hover : null;
-  const pickerRequest = useMemo(() => picker && {
-    title: picker.mode === "copy" ? "Copy to my files" : "Move to",
-    action: picker.mode === "copy" ? "Copy here" : "Move here",
-    subjectRel: picker.subjectRel,
-    start: writable ? folder : null,
-  }, [picker, writable, folder]);
   return (
     <DriveViewProvider value={view}>
       <div
@@ -365,16 +369,6 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
           const done = await deleteAll(items.map((i) => i.key), subjects);
           setDeleting(null);
           if (done) setSelection(EMPTY_SELECTION);
-        }}
-      />
-      <FolderPickerDialog
-        request={pickerRequest}
-        onCancel={() => setPicker(null)}
-        onPick={(target) => {
-          const request = picker;
-          setPicker(null);
-          if (!request) return;
-          void (request.mode === "copy" ? copyToFolder : moveToFolder)(request.rels, target, subjects);
         }}
       />
       {home && (

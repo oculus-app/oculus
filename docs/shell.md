@@ -169,6 +169,13 @@ before leaving a playing lecture.
   Synced changes are left out, since a sync rewrites too many rows. A Drive
   tab is titled by its folder (Subjects with the rail's book, a subject's by
   its code and icon).
+- **The Drive picker is a shell dialog.** `DrivePickerHost` is mounted once
+  in `AppLayout`, beside the other dialogs raised from several places, and
+  answers `pickDriveFolder` from any pane, side panel or dialog: Drive's
+  Move to… and Copy to my files… today
+  ([frontend.md](./frontend.md#drive-is-one-folder-browser-over-the-disk)).
+  It opens above a dialog that asked for it, and closing it leaves that one
+  open.
 - **A top-level file's page is `/drive/.file?path=…`**, the same `FilePage`
   outside `DriveLayout`: it has no subject, so `filePagePath` gives that
   route for a row on the reserved top-level row (`TOP_LEVEL`), and
