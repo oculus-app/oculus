@@ -49,6 +49,17 @@ pub struct ImportOutcome {
     pub source: String,
     pub file: Option<ImportedFile>,
     pub error: Option<String>,
+    /// These very bytes were already at the name, so nothing was written:
+    /// the file there is not this import's to delete.
+    pub existed: bool,
+}
+
+/// What `store_bytes` did: the file, a conversion warning, and whether the
+/// bytes were already there.
+struct Stored {
+    file: ImportedFile,
+    warning: Option<String>,
+    existed: bool,
 }
 
 /// Copy picked files and folders into `target_dir` (data-dir-relative, in
@@ -131,20 +142,19 @@ fn import_one(data_dir: &Path, target: &Target, src: &Path, source: String) -> I
     outcome(source, store_upload(data_dir, target, src))
 }
 
-fn outcome(
-    source: String,
-    stored: Result<(ImportedFile, Option<String>), String>,
-) -> ImportOutcome {
+fn outcome(source: String, stored: Result<Stored, String>) -> ImportOutcome {
     match stored {
-        Ok((file, error)) => ImportOutcome {
+        Ok(stored) => ImportOutcome {
             source,
-            file: Some(file),
-            error,
+            file: Some(stored.file),
+            error: stored.warning,
+            existed: stored.existed,
         },
         Err(e) => ImportOutcome {
             source,
             file: None,
             error: Some(e),
+            existed: false,
         },
     }
 }
@@ -169,6 +179,7 @@ fn import_folder(
             source: source.to_string(),
             file: None,
             error: Some(format!("could not make the folder — {e}")),
+            existed: false,
         });
         return;
     }
@@ -204,11 +215,7 @@ fn folder_name(target: &Target, src: &Path) -> String {
     }
 }
 
-fn store_upload(
-    data_dir: &Path,
-    target: &Target,
-    src: &Path,
-) -> Result<(ImportedFile, Option<String>), String> {
+fn store_upload(data_dir: &Path, target: &Target, src: &Path) -> Result<Stored, String> {
     let picked = src
         .file_name()
         .and_then(|s| s.to_str())
@@ -222,7 +229,7 @@ fn store_bytes(
     target: &Target,
     picked: &str,
     bytes: Vec<u8>,
-) -> Result<(ImportedFile, Option<String>), String> {
+) -> Result<Stored, String> {
     let picked = legacy_drawing_name(picked, &bytes);
 
     let name = upload_free_name(data_dir, target, &upload_name(target, &picked), &bytes);
@@ -256,10 +263,11 @@ fn store_bytes(
         .rsplit_once('.')
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default();
-    Ok((
-        ImportedFile::new(rel, &file_type, bytes.len() as u64),
+    Ok(Stored {
+        file: ImportedFile::new(rel, &file_type, bytes.len() as u64),
         warning,
-    ))
+        existed: unchanged,
+    })
 }
 
 /// A drawing picked under its old `.canvas` name lands as a whiteboard

@@ -1228,8 +1228,14 @@ Open, Show in Drive (a new tab on its folder), Show in Finder, Clear from
 list and Delete, which asks, deletes through Drive's `delete_entries` and
 clears the row; each finds the file by its row id
 (`app/src/pages/tools/browser/downloads/savedFile.ts`), and a file gone
-since just leaves the list. Saved on the Mac: Open, Show in Finder, Clear
-from list. Failed, refused or discarded: Clear from list.
+since just leaves the list. Delete is offered only for a file the download
+wrote, once its row id is known (`mayDelete` in
+`app/src/lib/browser/downloads/deletable.ts`): a download whose bytes were
+already in the folder (`ImportOutcome.existed`) landed on the student's own
+copy. A file whose size on disk no longer matches its row (`stillRowFile`) is
+another file now, so Delete only clears the list. Saved on the Mac: Open,
+Show in Finder, Clear from list. Failed, refused or discarded: Clear from
+list.
 
 `useBrowserDownloads`, mounted once in `AppLayout`, mirrors the whole list
 from `browser-downloads` into `useBrowserDownloadsStore`. States are `receiving`,

@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { downloads } from "@/lib/browser/downloads/commands";
+import { mayDelete } from "@/lib/browser/downloads/deletable";
+import { getFileById } from "@/lib/db";
 import { sizeWords } from "@/lib/browser/downloads/describe";
 import { isSettled, isWaiting, type Download } from "@/lib/browser/downloads/types";
 import { fileIconFor } from "@/lib/files/fileTypes";
 import { useBrowserDownloadsStore } from "@/stores/shell/browserDownloadsStore";
 import { DownloadMenu, type DownloadActions } from "./DownloadMenu";
 import { DownloadState } from "./DownloadState";
-import { deleteSaved, openSaved, revealSaved, savedFile, showInDrive } from "./savedFile";
+import { deleteSaved, openSaved, revealSaved, showInDrive } from "./savedFile";
 import { problem, REVEAL } from "./words";
 
 /** The icon and the text column every row shares. */
@@ -73,7 +75,9 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
       reveal: { label: REVEAL, run: () => act(() => revealSaved(download, row)) },
       clear: () => act(clear),
       // A file moved or renamed since is found by its row; one gone just leaves the list.
-      delete: () => act(async () => ((await savedFile(download, row)) ? setAsking(true) : clear())),
+      delete: row != null && mayDelete(download, row)
+        ? () => act(async () => ((await getFileById(row)) ? setAsking(true) : clear()))
+        : undefined,
     }
     : saved?.kind === "path" ? {
       open: () => act(() => downloads.open(download.id)),
@@ -99,7 +103,7 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
         onConfirm={() => {
           setDeleting(true);
           setError(null);
-          deleteSaved(download, row)
+          (row != null ? deleteSaved(row) : Promise.resolve())
             .then(clear)
             .catch((e) => setError(problem(e)))
             .finally(() => {

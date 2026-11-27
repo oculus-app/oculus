@@ -354,6 +354,7 @@ fn a_saved_upload_resolves_to_the_library_file() {
             category: "upload".into(),
         }),
         error: None,
+        existed: false,
     };
     d.delivered(id, Ok(SavedTo::Drive { outcome }));
     assert_eq!(

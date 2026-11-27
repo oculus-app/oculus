@@ -152,6 +152,26 @@ fn a_renamed_download_takes_its_new_name_through_the_upload_rules() {
 }
 
 #[test]
+fn a_download_whose_bytes_were_already_there_says_so_and_writes_nothing() {
+    let data = Scratch::new("download-drive-existed");
+    std::fs::create_dir_all(data.join("Receipts")).unwrap();
+    std::fs::write(data.join("Receipts/order.pdf"), b"%PDF mine").unwrap();
+    let outcome = |saved: SavedTo| match saved {
+        SavedTo::Drive { outcome } => outcome,
+        SavedTo::Path { .. } => panic!("not an upload"),
+    };
+    let same = stage(&data, "1-1", "order.pdf", b"%PDF mine");
+    let found = outcome(deliver(&data, &same, &drive("Receipts")).unwrap());
+    assert_eq!(found.file.unwrap().relative_path, "Receipts/order.pdf");
+    assert!(found.existed, "the student's own file, not this download's");
+
+    let other = stage(&data, "1-2", "order.pdf", b"%PDF new");
+    let wrote = outcome(deliver(&data, &other, &drive("Receipts")).unwrap());
+    assert_eq!(wrote.file.unwrap().relative_path, "Receipts/order (2).pdf");
+    assert!(!wrote.existed);
+}
+
+#[test]
 fn a_path_delivery_moves_the_file_and_never_replaces_unasked() {
     let data = Scratch::new("download-path");
     let mac = Scratch::new("download-path-mac");
