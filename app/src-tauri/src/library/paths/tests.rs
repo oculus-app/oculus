@@ -14,13 +14,23 @@ fn identifier_matches_tauri_conf() {
 #[test]
 fn the_asset_scope_reaches_the_library_and_never_the_rest_of_the_state_folder() {
     let confs = [
-        (include_str!("../../../tauri.conf.json"), "/scope/allow", "$APPDATA"),
-        (include_str!("../../../tauri.windows.conf.json"), "/scope", "$HOME/Oculus"),
+        (
+            include_str!("../../../tauri.conf.json"),
+            "/scope/allow",
+            "$APPDATA",
+        ),
+        (
+            include_str!("../../../tauri.windows.conf.json"),
+            "/scope",
+            "$HOME/Oculus",
+        ),
     ];
     for (raw, scope, base) in confs {
         let conf: serde_json::Value = serde_json::from_str(raw).unwrap();
         let protocol = &conf["app"]["security"]["assetProtocol"];
-        let dot = protocol["scope"]["requireLiteralLeadingDot"].as_bool().unwrap_or(false);
+        let dot = protocol["scope"]["requireLiteralLeadingDot"]
+            .as_bool()
+            .unwrap_or(false);
         let options = glob::MatchOptions {
             require_literal_separator: true,
             require_literal_leading_dot: dot,

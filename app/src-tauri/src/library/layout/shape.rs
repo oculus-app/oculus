@@ -77,7 +77,9 @@ pub(super) const TARGET: Shape = Shape {
         (OwnKind::Notebook, ""),
     ],
     own_kind_by_folder: false,
-    hidden: &[".oculus"],
+    // The data dir's state folder's name, so a subject's and the top's agree;
+    // `agents` and `derived` below spell it too, held by a test.
+    hidden: &[crate::library::paths::STATE_DIR],
     top_level_own: true,
     agents: ".oculus/agents",
     derived: Some(".oculus/derived"),

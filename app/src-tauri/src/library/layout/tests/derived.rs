@@ -150,3 +150,22 @@ fn an_absolute_top_level_path_is_read_against_the_data_dir() {
         data_dir.join(".oculus/agents/a.pages.json")
     );
 }
+
+/// Every `.oculus` the layout spells is the state folder's name: a subject's
+/// hidden folder, its agents and derived records, and the top level's derived
+/// records, which sit in the data dir's state folder itself.
+#[test]
+fn the_layouts_hidden_folder_is_the_state_folder() {
+    use crate::library::paths::{state_rel, STATE_DIR};
+    let shape = crate::library::layout::shape::TARGET;
+    assert_eq!(shape.hidden, [STATE_DIR]);
+    assert_eq!(shape.agents, state_rel("agents"));
+    assert_eq!(shape.derived, Some(state_rel("derived").as_str()));
+    assert_eq!(
+        crate::library::layout::derived_rel(
+            "Receipts/a.pdf",
+            crate::library::layout::DerivedKind::Pages
+        ),
+        state_rel("derived/Receipts/a.pages.json")
+    );
+}
