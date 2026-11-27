@@ -43,6 +43,18 @@ fn a_picture_is_copied_into_the_picked_folder() {
     )
     .unwrap();
     assert_eq!(top.outcome.file.unwrap().relative_path, "even.svg");
+    // A typed name never leaves the picked folder.
+    let typed = save_copy(
+        &root,
+        ".oculus/agents/outputs/dfa-even-zeros.svg",
+        "courses/COMP30026/Diagrams",
+        Some("../../../escape.svg"),
+    )
+    .unwrap();
+    let rel = typed.outcome.file.unwrap().relative_path;
+    let name = rel.strip_prefix("courses/COMP30026/Diagrams/").unwrap();
+    assert!(!name.contains('/'), "{rel}");
+    assert!(root.join(&rel).is_file(), "{rel}");
 }
 
 #[test]
