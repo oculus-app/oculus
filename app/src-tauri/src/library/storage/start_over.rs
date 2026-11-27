@@ -8,8 +8,10 @@ use std::path::{Path, PathBuf};
 /// Kept: each cloud's quota and spend guard belong to the student's API
 /// accounts, not to the library; the downloaded speech and voice models
 /// (`models/`, gigabytes) belong to no university; and oculus-keyd's vault
-/// (the cloud keys), socket, installed helper and the lock it takes around
-/// the sign-in attempt record are its install. A running keyd may hold that
+/// (the cloud keys), on Windows the DPAPI key that opens it and that key's
+/// lock (`platform/windows/secret_store.rs` in keyd core), socket, installed
+/// helper and the lock it takes around the sign-in attempt record are its
+/// install. A running keyd may hold that
 /// lock: a new file at its path would let a second process take it too.
 /// Sign-out has already dropped the sessions and the Okta credentials from the
 /// vault. The launch moves' record stays too: it says which layout the folder
@@ -19,7 +21,10 @@ fn kept(data_dir: &Path) -> Vec<PathBuf> {
     use keyd_core::paths;
 
     let vault = paths::vault(data_dir);
+    let state = crate::library::paths::state_dir(data_dir);
     vec![
+        state.join("master-key.dpapi"),
+        state.join("master-key.dpapi.lock"),
         mineru_usage_path(data_dir),
         voyage_usage_path(data_dir),
         models_dir(data_dir),
@@ -137,6 +142,8 @@ mod tests {
         std::fs::write(state.join("mineru-usage.json"), b"{}").unwrap();
         std::fs::create_dir_all(state.join("agents/memories")).unwrap();
         std::fs::write(keyd_core::paths::vault(&dir), b"sealed").unwrap();
+        std::fs::write(state.join("master-key.dpapi"), b"key").unwrap();
+        std::fs::write(state.join("master-key.dpapi.lock"), b"").unwrap();
         std::fs::create_dir_all(keyd_core::paths::bin_dir(&dir)).unwrap();
         std::fs::create_dir_all(keyd_core::paths::session_dir(&dir)).unwrap();
         std::fs::write(keyd_core::paths::sign_in_record(&dir), b"{}").unwrap();
@@ -165,6 +172,8 @@ mod tests {
             [
                 "bin",
                 "canvas-session",
+                "master-key.dpapi",
+                "master-key.dpapi.lock",
                 "mineru-usage.json",
                 "models",
                 "vault.bin",

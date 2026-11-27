@@ -407,7 +407,8 @@ on Windows. Inside:
   decides, for keyd, the registrar and the client alike.
 - `start-over` — present only between Start over and the next launch, which
   empties the data directory but for the two usage files, `models/`, keyd's
-  own and `.library-move/`
+  own (on Windows the DPAPI key that opens the vault, and its lock, included)
+  and `.library-move/`
   ([auth.md](./auth.md#one-institution-profile-says-which-university)).
 
 The asset protocol's scope (`tauri.conf.json`, and `tauri.windows.conf.json`'s
