@@ -31,7 +31,9 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$APPDATA/courses/**",
+            "$APPDATA/[!.]*",
+            "$APPDATA/[!.]*/**",
+            "$APPDATA/.assets/**",
             "$APPDATA/.oculus/agents/**",
             "$APPDATA/.oculus/whiteboard-pages/**",
             "$APPDATA/.oculus/studio/videos/**"

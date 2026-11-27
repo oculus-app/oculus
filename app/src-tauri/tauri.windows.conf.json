@@ -14,7 +14,9 @@
     "security": {
       "assetProtocol": {
         "scope": [
-          "$HOME/Oculus/courses/**",
+          "$HOME/Oculus/[!.]*",
+          "$HOME/Oculus/[!.]*/**",
+          "$HOME/Oculus/.assets/**",
           "$HOME/Oculus/.oculus/agents/**"
         ]
       }

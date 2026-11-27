@@ -3921,6 +3921,7 @@ dependencies = [
  "dunce",
  "ego-tree",
  "futures-util",
+ "glob",
  "half",
  "hayro",
  "hound",

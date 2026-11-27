@@ -76,6 +76,10 @@ dunce.workspace = true
 junction.workspace = true
 windows-sys.workspace = true
 
+[dev-dependencies]
+# The asset scope's test matches tauri.conf.json's patterns as Tauri does.
+glob = "0.3.3"
+
 [target.'cfg(windows)'.dev-dependencies]
 # Enables explicitly registered in-process fake brokers in Windows release tests.
 keyd_core = { workspace = true, features = ["test-support"] }

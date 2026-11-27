@@ -410,8 +410,16 @@ on Windows. Inside:
   own and `.library-move/`
   ([auth.md](./auth.md#one-institution-profile-says-which-university)).
 
-The asset protocol's scope (`tauri.conf.json`) names `courses/**` and, in the
-state folder, `agents/**`, `whiteboard-pages/**` and `studio/videos/**`. The
+The asset protocol's scope (`tauri.conf.json`, and `tauri.windows.conf.json`'s
+copy) names the library by its first character: `[!.]*` and `[!.]*/**` reach
+`courses/` and the student's own at the top but no dot-name there, then the
+top-level notes' `.assets/**` and, in the state folder, `agents/**`,
+`whiteboard-pages/**` and `studio/videos/**`. Never a `**` from the data
+dir's top: with `requireLiteralLeadingDot: false` it would match the
+database, the vault and the sessions in `.oculus/`.
+`the_asset_scope_reaches_the_library_and_never_the_rest_of_the_state_folder`
+(`app/src-tauri/src/library/paths/tests.rs`) matches the patterns as Tauri
+does and holds that boundary. The
 frontend builds an asset URL from a data-dir-relative path, so it resolves
 the spellings stored chats hold to where a file is
 (`app/src/lib/files/statePaths.ts`,
