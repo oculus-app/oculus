@@ -210,9 +210,10 @@ pub(crate) struct TranscribeArgs {
 
 /// Write the agent-facing docs into the library
 ///
-/// Fills `agents/` in the data directory: `OCULUS-CLI.md`, rendered from this
-/// binary's own `--help` so it can never drift from the flags it documents,
-/// one `AGENTS.md` symlinked into every course folder, and the skills.
+/// Fills `.oculus/agents/` in the data directory: `OCULUS-CLI.md`, rendered
+/// from this binary's own `--help` so it can never drift from the flags it
+/// documents, the one `AGENTS.md` every thread reads there, and the skills.
+/// Each course folder's memories are linked into that folder's store.
 ///
 /// It also brings the two generated-but-shared files up to date.
 /// `TASTE.md`'s guidance is re-rendered with the preferences you wrote in it

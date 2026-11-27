@@ -22,7 +22,7 @@ fn linking_removes_the_retired_root_link_but_never_the_students_own() {
 
     let report = link_all(&root).unwrap();
     assert_eq!(report.linked, ["retired"]);
-    assert!(report.skipped.is_empty());
+    assert_eq!(report.current, 3);
     assert!(std::fs::symlink_metadata(courses.join("retired/AGENTS.md")).is_err());
     assert!(std::fs::symlink_metadata(courses.join("fresh/AGENTS.md")).is_err());
     assert_eq!(

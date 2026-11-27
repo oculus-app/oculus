@@ -97,12 +97,10 @@ pub fn link_all(data_dir: &Path) -> Result<LinkReport, String> {
         match link_dir(data_dir, &dir)? {
             Link::Linked => report.linked.push(name),
             Link::Current => report.current += 1,
-            Link::Skipped => report.skipped.push(name),
-            Link::Absent => {}
+            Link::Skipped | Link::Absent => {}
         }
     }
     report.linked.sort();
-    report.skipped.sort();
     Ok(report)
 }
 
@@ -259,11 +257,13 @@ fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
+/// What a sweep of the course folders did.
 #[derive(Default)]
 pub struct LinkReport {
+    /// Folders whose root `AGENTS.md` link from an earlier layout was removed.
     pub linked: Vec<String>,
+    /// Folders already as they should be.
     pub current: usize,
-    pub skipped: Vec<String>,
 }
 
 /// A plain copy, where symlinks need a privilege (Windows).
