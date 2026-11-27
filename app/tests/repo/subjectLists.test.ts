@@ -4,9 +4,13 @@ import { join, relative, sep } from "node:path";
 
 // `subjects` holds one reserved row that is no subject: the row top-level
 // Drive files hang off (docs/architecture.md, "The database has one schema
-// owner and two writers"). Every list of subjects must leave it out, so a
-// `FROM subjects` is allowed only in the files below, and there it either
-// filters on `kind` or is a read of one row by id.
+// owner and two writers"). Every list of subjects must leave it out. What
+// this checks: a `FROM subjects` (a read of the table itself) appears only
+// in the files below, and there, within the rest of its statement, either
+// filters `kind = 'subject'` (or names the reserved row, `kind = 'top'`) or
+// is one of the file's listed reads of one row by id. A `JOIN subjects` is
+// not checked: it reads the subject of a file, lecture or thread by its id,
+// and a top-level file's is the reserved row, as it should be.
 
 const APP = join(import.meta.dir, "../..");
 const ROOTS = ["src", "src-tauri/src"];
@@ -27,6 +31,8 @@ const ALLOWED = new Map<string, number>([
 ]);
 
 const READ = /\bFROM\s+subjects\b/gi;
+/** A filter that keeps the reserved row out, or reads only it. */
+const KIND = /\bkind\s*=\s*'(subject|top)'/;
 /** How far past a read its `kind` filter may sit: the rest of its statement. */
 const REACH = 200;
 
@@ -68,7 +74,7 @@ test("every read of the subjects table leaves the reserved top-level row out", (
           problems.push(`${rel}:${line} reads subjects; use getSubjects / store::subjects, or list the file here`);
           continue;
         }
-        if (!/\bkind\b/.test(text.slice(hit.index, hit.index + REACH))) unfiltered += 1;
+        if (!KIND.test(text.slice(hit.index, hit.index + REACH))) unfiltered += 1;
       }
       if (ALLOWED.has(rel)) seen.set(rel, unfiltered);
     }
