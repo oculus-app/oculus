@@ -1,6 +1,7 @@
 //! A scratch library with a migrated database: two subjects, files placed
 //! with their rows, and a parsed PDF with every artifact.
 
+mod across_homes;
 mod busy;
 mod copy;
 mod create;
