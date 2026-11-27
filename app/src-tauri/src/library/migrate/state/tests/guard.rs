@@ -5,10 +5,10 @@ use super::fixture::{env, library, read, FakeBroker};
 use crate::library::migrate::journal as drive;
 use crate::library::migrate::state::{run, Env, Hooks, DONE, MOVING};
 
-/// What an older build does at launch: `done` is not `drive`, so it loads
-/// `journal.json` with the reader this build still uses for the Drive
-/// move's own journal.
-fn an_older_build_refuses(dir: &std::path::Path) {
+/// `done` is no longer `drive`, and `journal.json` holds a format this
+/// build's reader of the Drive move's journal (`drive::load_at`) refuses.
+/// An older build's own order of operations is not run here.
+fn the_drive_journal_reader_refuses_the_guard(dir: &std::path::Path) {
     assert_ne!(read(dir, ".library-move/done").trim(), drive::LAYOUT);
     let journal = dir.join(".library-move/journal.json");
     let error = drive::load_at(&journal).unwrap_err();
@@ -40,7 +40,7 @@ fn the_guard_is_written_before_the_first_rename_and_stays_for_good() {
     assert_eq!(journal["phase"], "moving");
     assert_eq!(journal["moves"][0]["from"], "oculus.db");
     assert_eq!(journal["moves"][0]["to"], ".oculus/oculus.db");
-    an_older_build_refuses(&dir);
+    the_drive_journal_reader_refuses_the_guard(&dir);
 
     run(&dir, &env(&broker)).unwrap();
     assert_eq!(read(&dir, ".library-move/done"), DONE);
@@ -48,7 +48,7 @@ fn the_guard_is_written_before_the_first_rename_and_stays_for_good() {
         serde_json::from_str(&read(&dir, ".library-move/journal.json")).unwrap();
     assert_eq!(journal["format"], 2);
     assert_eq!(journal["phase"], "moved");
-    an_older_build_refuses(&dir);
+    the_drive_journal_reader_refuses_the_guard(&dir);
 }
 
 #[test]
