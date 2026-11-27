@@ -165,26 +165,33 @@ A thread rooted at the library would write straight into every subject's
 `agents::from_workspace` spells it), and each
 CLI is given, its own way, what else it may write: the database's three files
 and `studio/` (below), and the **own zone** — every subject's files and
-folders beside its `Course/` and `.oculus/` (`layout::Zone::Own`), written
-without a request. Antigravity's native Auto approves its own writes, so on
+folders beside its `Course/` and `.oculus/`, and the student's own folders
+and files at the data dir's top beside `courses/` and the dot-names
+(`layout::Zone::Own`), written without a request. `HARNESS.template.md` tells
+agents those top-level folders are the student's and theirs to write in when
+asked. Antigravity's native Auto approves its own writes, so on
 macOS a folder guard refuses them on the protected paths
 ([below](#antigravity-asks-over-acp)).
 The protected paths are listed in `protected.rs`: each
 subject's `Course/` and `.oculus/` (`subject_dirs`, the layout's
 `reserved_names`), the subjects' folder itself and anything in it outside a
-subject, the state folder's `canvas-session/` (`library_dirs`), its files
-by pattern (`state_file_globs`, including the vault and its lock and temp
-files) and the workspace folders (`workspace_dir_rels`). The state folder is
+subject, the launch moves' `.library-move/` and the state folder's
+`canvas-session/` and `bin/` (keyd's installed helper, which launchd runs)
+(`library_dirs`), its files by pattern (`state_file_globs`, including the
+vault and its lock and temp files) and the workspace folders
+(`workspace_dir_rels`). Rust's request check (`requests/policy.rs`) is one
+rule outside the state folder: anything not in the own zone is protected, so
+every dot-name at the top is. The state folder is
 never protected whole: the database's files, `agents/` and `studio/` are in
 it, so its rules name folders and one-segment file patterns, and a Claude
 `Edit` deny on the folder would cancel `allowWrite` for all three.
 
 | CLI | The own zone | `Course/` and `.oculus/` |
 | --- | --- | --- |
-| Claude | `<data>/courses` in `sandbox.filesystem.allowWrite`; `--add-dir` and `acceptEdits` take its edits unasked | `Edit(//<data>/courses/*/Course)` and `…/Course/**`, the same for `.oculus` (`*` is one segment, so a subject synced mid-thread is covered), plus `Edit(//<data>/courses/<code>/Course)` and `…/.oculus` named for each subject on disk at spawn, which makes the sandbox refuse moving that subject's folder; the CLI merges `Edit` denies into `denyWrite` |
-| Codex | Each subject's top-level own entries on disk at the thread's start (`layout::own_top_level`), one writable root each: `workspace-write`'s roots cannot leave out a folder beneath them, so a subject's folder is never a root. A new file or folder at a subject's top level is a request | Never a writable root |
-| opencode | `"{{LIBRARY}}/courses/*/*": "allow"` after the denies (opencode's `*` crosses `/`); the state folder's file denies are `{{LIBRARY}}/.oculus/*.json` and the like, which a file in the cwd, matched by its relative path, never meets | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
-| Antigravity | Rust allows requests naming only own files. Native Auto can make the edit itself. | Rust refuses requests naming these folders, and the folder guard (`acp/guard.rs`) has macOS refuse the write itself, whoever approved it |
+| Claude | `<data>/courses` and each of the student's top-level entries on disk at spawn (`layout::own_entries` for the top level) in `sandbox.filesystem.allowWrite`, never the data dir itself, which holds `.oculus/`; `--add-dir` and `acceptEdits` take its file tools' edits unasked, so a new entry at the top is the file tools' to make. `.library-move/**` and `.oculus/bin/**` are `Edit` denies | `Edit(//<data>/courses/*/Course)` and `…/Course/**`, the same for `.oculus` (`*` is one segment, so a subject synced mid-thread is covered), plus `Edit(//<data>/courses/<code>/Course)` and `…/.oculus` named for each subject on disk at spawn, which makes the sandbox refuse moving that subject's folder; the CLI merges `Edit` denies into `denyWrite` |
+| Codex | The own entries on disk at the top of each subject and of the data dir at the thread's start (`layout::own_top_level`), one writable root each: `workspace-write`'s roots cannot leave out a folder beneath them, so neither a subject's folder nor the data dir is ever a root. A new file or folder beside them is a request | Never a writable root |
+| opencode | `"*": "allow"` covers the top level; `"{{LIBRARY}}/courses/*/*": "allow"` after the denies (opencode's `*` crosses `/`); the state folder's file denies are `{{LIBRARY}}/.oculus/*.json` and the like, which a file in the cwd, matched by its relative path, never meets. `{{LIBRARY}}/.library-move/**` and `…/.oculus/bin/**` are denied | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
+| Antigravity | Rust allows requests naming only own files, at the top as in a subject. Native Auto can make the edit itself; the folder guard also refuses `.library-move/` and `.oculus/bin/`. | Rust refuses requests naming these folders, and the folder guard (`acp/guard.rs`) has macOS refuse the write itself, whoever approved it |
 
 Codex 0.169's permission profiles (`[permissions.<name>.filesystem]`, with a
 `deny` mode) might express the subtree less two folders, but the app-server
@@ -573,7 +580,8 @@ still update the picker.
 - **A Read of a picture expands to the picture** (`ReadPicture` in
   `WorkRow.tsx`), click for the lightbox. It loads over the asset protocol, so
   the scope includes notebook snapshots in `.oculus/whiteboard-pages/` alongside
-  `courses/`, `.oculus/agents/` and `.oculus/studio/videos/`. A stored Read
+  the library, `.oculus/agents/` and `.oculus/studio/videos/`
+  ([architecture.md](./architecture.md#the-data-directory)). A stored Read
   names a path as it was written, so `readPicture.ts` resolves a state folder
   spelled at the data dir's top, and `canvas-pages/`, to where the picture is
   (`stateRel` in `app/src/lib/files/statePaths.ts`).
@@ -582,10 +590,19 @@ still update the picker.
   (`app/src/lib/citations/`) reads an inline code span, a link's href or a
   bare path in prose: `courses/…`, up to two leading `../` onto it
   (`../../courses/…` from the cwd), the workspace as `.oculus/agents/…` or,
-  as older rows spell it, `agents/…`, absolute, agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`. It is
+  as older rows spell it, `agents/…`, absolute, agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`.
+  A student's own file at the data dir's top is `../../<folder>/…` from the
+  cwd or absolute under the data dir (never a dot-name, nor a state folder's
+  name an older row spells at the top: `agents`, `studio`,
+  `whiteboard-pages`, `canvas-pages`), and in a composer mention (`topLevel`,
+  `splitLibraryPaths`) its plain data-dir-relative path when it holds a `/`
+  or ends in a document's extension. It is
   shape-only and decodes first (the data dir has a space); a course-relative
-  path into a synced folder (`Course/Files/…`) or a bare filename is a *tail*, rendered as code until one cached
-  `LIKE '%/<tail>'` finds a unique row. A line of a parsed `.md` maps to its
+  path into a synced folder (`Course/Files/…`), a bare filename or a file in
+  folders (`Receipts/march.pdf`) is a *tail*, rendered as code until one cached
+  lookup (`LIKE '%/<tail>'`, or the path itself for a top-level row) finds a
+  unique row, so a code path stays code. `openCitation` opens a top-level file
+  in the app like a subject's (`isLibraryPath`). A line of a parsed `.md` maps to its
   PDF page because the `.md` is the `.pages.json` pages joined with `\n\n`;
   `openCitation` opens the file there in the side panel and `PDFViewer` marks
   the line's text in the text layer (`citation-hit`). Unmatched schemeless

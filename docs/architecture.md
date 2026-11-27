@@ -446,7 +446,8 @@ layout changes the table, not the callers.
         agents/                 the subject's agent folder
         derived/<folder>/<stem>.pages.json, .emb.json   a PDF's records
   <the student's files and folders, any depth>   own: OwnKind by extension
-  .<any dot-name>               hidden: app state
+  .assets/                      own: the top-level notes' pictures
+  .<any other dot-name>         hidden: app state
     .oculus/derived/<folder>/<stem>.pages.json, .emb.json   a top-level PDF's records
 ```
 
@@ -462,9 +463,11 @@ folder with its new place; [library-move.md](./library-move.md)).
   names compare ignoring ASCII case, as macOS and Windows volumes do.
   `Course` and `.oculus` are reserved at a subject's root (`reserved_name`).
 - **The top level's rule is one line.** A name that starts with a dot is
-  `Hidden`, `courses` (and a subject's folder) is `Synced`, anything else is
-  `Own`. Nothing is hidden by a list of names, so the app keeps its own files
-  under dot-names. `courses` is the one name a student's folder may not take
+  `Hidden` but the top-level notes' pictures folder (`.assets/`, `Own` as in
+  any folder), `courses` (and a subject's folder) is `Synced`, anything else
+  is `Own`. Nothing is hidden by a list of names, so the app keeps its own
+  files under dot-names; the layout's hidden folder is the state folder's
+  name (`paths::STATE_DIR`), which a test holds its spellings to. `courses` is the one name a student's folder may not take
   there (`reserved_top_name`).
 - **A path's home is a subject or the top level** (`home_of`, `Home`):
   `courses/<folder>/…` is the subject's, any other own path the top level's,
