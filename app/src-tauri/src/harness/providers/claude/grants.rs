@@ -148,5 +148,10 @@ mod tests {
         assert!(!dirs
             .iter()
             .any(|d| d.ends_with("away") || d.ends_with(".hidden")));
+        let fresh = crate::test_support::Scratch::new("claude-grants-fresh");
+        assert!(
+            add_dirs(&fresh).is_empty(),
+            "no courses/ yet, no folder to add"
+        );
     }
 }
