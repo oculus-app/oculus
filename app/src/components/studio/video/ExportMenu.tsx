@@ -163,60 +163,62 @@ function ExportRow({
   const path = row.path;
   const drive = row.drive;
   return (
-    <div className="flex items-start gap-2 rounded-lg px-2 py-1.5">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-[13px]">
-          <span className="font-medium">{PRESET_LABEL[row.preset]}</span>
-          {state === "current" && <CheckCircle size={13} weight="fill" className="shrink-0 text-brand" />}
-          {state === "stale" && <span className="text-[11px] font-medium text-warning">Out of date</span>}
+    <div className="rounded-lg px-2 py-1.5">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[13px]">
+            <span className="font-medium">{PRESET_LABEL[row.preset]}</span>
+            {state === "current" && <CheckCircle size={13} weight="fill" className="shrink-0 text-brand" />}
+            {state === "stale" && <span className="text-[11px] font-medium text-warning">Out of date</span>}
+          </div>
+          <div className="truncate text-[11.5px] text-muted-foreground">{hint}</div>
+          {state === "blocked" && (
+            <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{row.problem}</div>
+          )}
         </div>
-        <div className="truncate text-[11.5px] text-muted-foreground">{hint}</div>
-        {drive && <DriveLine file={drive} named={suggestedName(title, row.preset)} />}
-        {state === "blocked" && (
-          <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{row.problem}</div>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-1 pt-0.5">
-        {drive && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            title={SHOW_IN_DRIVE}
-            aria-label={SHOW_IN_DRIVE}
-            onClick={() => useTabStore.getState().addTab(driveFolderHref(parentRel(drive.rel)))}
-          >
-            <ArrowSquareUpRight />
-          </Button>
-        )}
-        {path && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            title={REVEAL}
-            aria-label={REVEAL}
-            onClick={() => revealItemInDir(path).catch((e) => console.error("reveal failed", e))}
-          >
-            <FolderOpen />
-          </Button>
-        )}
-        {path && (
-          <Button variant="ghost" size="icon-xs" title={TRASH} aria-label={TRASH} disabled={busy} onClick={onRemove}>
-            <Trash />
-          </Button>
-        )}
-        {rendering ? (
-          <span className="flex h-6 items-center px-1 text-muted-foreground">
-            <CircleNotch size={13} className="animate-spin" />
-          </span>
-        ) : (
-          state !== "current" &&
-          state !== "blocked" && (
-            <Button variant="outline" size="xs" disabled={busy} onClick={onRender}>
-              {state === "stale" ? "Re-render" : "Render"}
+        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+          {drive && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title={SHOW_IN_DRIVE}
+              aria-label={SHOW_IN_DRIVE}
+              onClick={() => useTabStore.getState().addTab(driveFolderHref(parentRel(drive.rel)))}
+            >
+              <ArrowSquareUpRight />
             </Button>
-          )
-        )}
+          )}
+          {path && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title={REVEAL}
+              aria-label={REVEAL}
+              onClick={() => revealItemInDir(path).catch((e) => console.error("reveal failed", e))}
+            >
+              <FolderOpen />
+            </Button>
+          )}
+          {path && (
+            <Button variant="ghost" size="icon-xs" title={TRASH} aria-label={TRASH} disabled={busy} onClick={onRemove}>
+              <Trash />
+            </Button>
+          )}
+          {rendering ? (
+            <span className="flex h-6 items-center px-1 text-muted-foreground">
+              <CircleNotch size={13} className="animate-spin" />
+            </span>
+          ) : (
+            state !== "current" &&
+            state !== "blocked" && (
+              <Button variant="outline" size="xs" disabled={busy} onClick={onRender}>
+                {state === "stale" ? "Re-render" : "Render"}
+              </Button>
+            )
+          )}
+        </div>
       </div>
+      {drive && <DriveLine file={drive} named={suggestedName(title, row.preset)} />}
     </div>
   );
 }
