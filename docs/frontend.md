@@ -731,8 +731,9 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
   `visibility: hidden` element — how background panes hide.
 - **Delete is Drive's `delete_entries`** (above), guarded by
   `layout::own_path_ok`; an upload's name never starts with a dot, which the
-  guard refuses. `deleteFileRow`, which the reconcilers use, deletes `pages`
-  and `document_versions` by hand, since the cascade fires only with
+  guard refuses. `deleteFileRow`, which the reconcilers use, deletes `pages`,
+  `document_versions` and `chat_saves` by hand, as Drive's `delete_ids` and
+  `store::files::delete_file_row` do, since the cascade fires only with
   `foreign_keys` on. A parse in flight can land after a delete, so
   `store_upload` purges artifacts on a reused name whenever the bytes differ.
 - **The PDF/markdown toggle probes file metadata**, through
@@ -751,6 +752,13 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
   replace a newer subject or refresh. File-access and document-change events
   carry their subject id, so unrelated mounted file lists do not requery;
   events without an id refresh every list.
+- **A chat output saved to Drive is an upload with a link back**
+  ([harness.md](./harness.md#saving-a-chat-output-to-drive)): Rust copies it
+  (`drive_save_copy`), `recordUploads` writes the row, and `chat_saves`
+  (`app/src/lib/db/chatSaves.ts`) keys the copy's `files.id` by the
+  workspace path with the source's size and modification time. The lookup
+  joins `files`, so a copy deleted from Drive, or moved away and deleted,
+  reads as unsaved; a moved copy keeps its id and is still found.
 - **A module video downloads from its Modules row**, and a `<canvas-video>`
   in a page from its card (the backend side is in
   [sync.md](./sync.md#a-sync-lists-module-videos-and-the-student-downloads-them)).

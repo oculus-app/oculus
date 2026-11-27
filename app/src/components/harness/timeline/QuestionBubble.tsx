@@ -4,7 +4,7 @@ import { AttachmentChip } from "@/components/markdown/AttachmentChip";
 import { CheckedFileChip } from "@/components/markdown/CheckedFileChip";
 import { LinkChip } from "@/components/markdown/LinkChip";
 import { openCitation, openLibraryPath } from "@/lib/files/openFile";
-import { attachmentSrc, splitPastedText } from "@/lib/harness/attachments";
+import { attachmentSrc, distinctPaths, splitPastedText } from "@/lib/harness/attachments";
 import { parseLink, splitLinks } from "@/lib/harness/links";
 import { openLink } from "@/lib/shell/tabRouters";
 import { ImageLightbox } from "@/components/ui/lightbox/Lightbox";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PastedTextCard, PastedTextViewer } from "../attachments/PastedText";
+import { AttachmentSaves } from "../save/AttachmentSaves";
+import { SaveToDriveAction } from "../save/SaveToDriveAction";
 import { liftPictures } from "./liftPictures";
 import { Action, CopyAction, MessageActions } from "./MessageActions";
 import { QUESTION_MAX_H, useOverflows } from "./useOverflows";
@@ -56,7 +58,7 @@ export function QuestionBubble({
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  /** The picture open in the lightbox, as the src the card drew. */
+  /** The picture open in the lightbox, data-directory-relative. */
   const [shown, setShown] = useState<string | null>(null);
   /** The pasted text open in its viewer, by index. */
   const [viewing, setViewing] = useState<number | null>(null);
@@ -69,6 +71,11 @@ export function QuestionBubble({
   // was sent; every picture is also in the row above. Only the prose is
   // measured and folded; cards and pictures always show.
   const { pictures, prose } = useMemo(() => liftPictures(words), [words]);
+  // What the student attached, which the hover row offers to keep in Drive.
+  const attached = useMemo(
+    () => distinctPaths([...pictures, ...prose.flatMap((p) => (p.kind === "image" || p.kind === "attachment" ? [p.path] : []))]),
+    [pictures, prose],
+  );
   // One batched check: a chip whose file is gone is drawn unresolved.
   useReferenceCheck(words);
 
@@ -121,10 +128,11 @@ export function QuestionBubble({
     <div className="group/msg flex w-full flex-col">
       {/* One viewer per message, not per thumbnail. */}
       <ImageLightbox
-        src={shown ?? ""}
+        src={shown ? attachmentSrc(dataDir, shown) : ""}
         alt="Attached picture"
         open={shown !== null}
         onOpenChange={(o) => !o && setShown(null)}
+        actions={shown && <SaveToDriveAction path={shown} look="toolbar" />}
       />
       {viewing !== null && pasted[viewing] != null && (
         <PastedTextViewer text={pasted[viewing]} onClose={() => setViewing(null)} />
@@ -146,7 +154,7 @@ export function QuestionBubble({
                 key={i}
                 type="button"
                 aria-label="Open the attached picture"
-                onClick={() => setShown(attachmentSrc(dataDir, p))}
+                onClick={() => setShown(p)}
                 className={cn(
                   "cursor-pointer overflow-hidden rounded-xl border border-border bg-surface transition-colors hover:border-ring",
                   pictures.length === 1
@@ -197,7 +205,7 @@ export function QuestionBubble({
                   );
                 }
                 if (p.kind === "image") {
-                  return <AttachmentChip key={i} path={p.raw} onOpen={() => setShown(attachmentSrc(dataDir, p.path))} />;
+                  return <AttachmentChip key={i} path={p.raw} onOpen={() => setShown(p.path)} />;
                 }
                 // A PDF or text file opens in the system's viewer.
                 if (p.kind === "attachment") return <AttachmentChip key={i} path={p.raw} onOpen={() => openLibraryPath(p.path)} />;
@@ -228,6 +236,7 @@ export function QuestionBubble({
       </div>
       {status}
       <MessageActions when={pending ? "Queued" : when} at={pending ? null : at} side={from ? "left" : "right"}>
+        {!pending && <AttachmentSaves paths={attached} />}
         <CopyAction text={text} />
         {onSubmit && <Action label="Edit" icon={PencilSimple} onClick={() => setEditing(text)} />}
         {onRewind && <Action label="Rewind to here" icon={ArrowCounterClockwise} onClick={onRewind} />}

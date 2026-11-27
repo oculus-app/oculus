@@ -62,6 +62,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
 | Files pasted or dropped into a composer: writing them, their chips, the shelf, their names, deleting them with their chat | `app/src-tauri/src/harness/attach.rs`, `app/src-tauri/src/harness/app/thread_files.rs`, `app/src/components/harness/threads/DeleteThreadDialog.tsx`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
+| Saving a chat output to Drive: what may be saved, the copy, the control and the saved-state link ([below](#saving-a-chat-output-to-drive)) | `app/src-tauri/src/harness/protected/savable.rs`, `app/src-tauri/src/harness/app/save_to_drive.rs`, `app/src/components/harness/save/`, `app/src/stores/chat/chatSaveStore.ts`, `app/src/lib/db/chatSaves.ts` |
 | Long pastes held as text cards: format, card, editor and viewer | `app/src/lib/harness/attachments.ts`, `app/src/components/harness/attachments/PastedText.tsx`, `app/src/components/harness/attachments/PastedTextEditor.tsx` |
 | Library paths and attachments in rows and prose (`splitLibraryPaths`); copy as markdown | `app/src/lib/files/libraryPaths.ts`, `app/src/lib/files/openFile.ts`, `app/src/lib/markdown/selection.ts` |
 | Timeline window, off-screen layout, scroll anchoring, the expand protocol | `app/src/components/harness/timeline/useRowWindow.ts`, `app/src/components/harness/timeline/rowWindow.ts`, `app/src/components/harness/timeline/useRowVisibility.ts`, `app/src/components/harness/timeline/RetainedRow.tsx`, `app/src/hooks/ui/useStickToBottom.ts`, `app/src/lib/ui/followTimeline.ts`, `app/src/lib/ui/scrollAnchor.ts`, `app/src/lib/ui/expandable.ts` |
@@ -169,7 +170,8 @@ folders beside its `Course/` and `.oculus/`, and the student's own folders
 and files at the data dir's top beside `courses/` and the dot-names
 (`layout::Zone::Own`), written without a request. `HARNESS.template.md` tells
 agents those top-level folders are the student's and theirs to write in when
-asked. Antigravity's native Auto approves its own writes, so on
+asked, and that a file the student asks to keep goes there or in the
+subject's folder, not `outputs/`. Antigravity's native Auto approves its own writes, so on
 macOS a folder guard refuses them on the protected paths
 ([below](#antigravity-asks-over-acp)).
 The protected paths are listed in `protected.rs`: each
@@ -1054,7 +1056,8 @@ folder (`Course/Recordings/<date>-<slug>/`, `recordingOf`) is that lecture,
 looked up by `lectures.folder_rel`. Read keeps to `courses/`,
 `agents/attachments/` and `agents/outputs/`, so the agent's own
 instructions, skills and memories are not listed; a file the thread made is
-listed under Made only. A Studio file
+listed under Made only. A file Made in the workspace offers Save to Drive…
+([below](#saving-a-chat-output-to-drive)). A Studio file
 opens its video, component or theme page. A failed or refused call counts for
 neither; a running one does. An `oculus read` of a fragment rather than a
 full path is not listed, since naming it takes a lookup.
@@ -3536,6 +3539,74 @@ name a file at `./attachments/…` where the sentence refers to it, and the
 agent reads it with its own file tools. How each CLI reads a PDF is its own
 and no recorded turn under `fixtures/harness/` shows any of the four doing
 it yet, so the brief says nothing per bridge.
+
+## Saving a chat output to Drive
+
+A picture, page or file an agent made in its workspace, or a file the
+student attached, can be kept: **Save to Drive…** opens the Drive picker
+(`pickDriveFolder`) on the chat's subject folder, or the top level for a
+chat with none, with the file's name to edit; the copy lands there with a
+row, and the control then reads **Open in Drive**, which opens the copy as
+Drive does (`openFileSmart`; a picture beside the chat,
+[viewers.md](./viewers.md)). The control changing is the confirmation: no
+toast. A refused or failed copy turns it into a red "Not saved" with the
+reason as its tooltip.
+
+**What may be saved is one Rust predicate, `protected::savable`**, beside the
+lists of the workspace's own files: anything in the workspace but a dot-name
+at any depth (the CLIs' folders), the folders of `WORKSPACE_DIRS` (skills
+and the links to them) and `AGENT_DIRS` (`memories/`, `threads/`), and the
+files of `WORKSPACE_FILES` at its top (the generated docs, `TASTE.md`,
+`OCULUS.md`, opencode's config, `CLAUDE.md`, `GEMINI.md`), all matched
+without case. A path in a reply is model output, so `savable` takes only a
+`.oculus/agents/…` path of plain segments (no `..`, `.` or empty step),
+walks it from the data dir refusing any symlink, wants a regular file with
+one hard link, then canonicalises it and checks the result again inside the
+canonical workspace. `drive_save_copy` asks `savable` itself, never trusting
+an earlier answer or the frontend, and reads the bytes through a handle
+opened with `O_NOFOLLOW` that must still be the same inode
+(`Savable::read`), so a file swapped for a link after the check reads
+nothing; the bytes go in through `import_bytes_as`, under the import lock.
+The tests in `protected/savable/tests.rs` hold a memory, `TASTE.md`,
+`AGENTS.md`, a skill, a thread log and a CLI config folder refused directly,
+in another case, through `..` and through a symlink in `outputs/`, and the
+database, the vault and anything outside the workspace refused.
+
+**The agent's own files show no control at all**, no disabled button and no
+hint: `drive_savable` answers null for them and the control renders nothing.
+A file already in the library needs no save and shows nothing new; its link
+opens it as before. An old chat's path (`agents/outputs/…`, or the absolute
+path before the state folder) reads as the same `.oculus/agents/…` path
+(`fullCitation`), so its picture offers the same control.
+
+**One control, `SaveToDriveAction`, in four places**, only inside a chat
+(`ChatSaveScope`, around the timeline and Thread info's Made):
+
+| Where | Look |
+| --- | --- |
+| Under a picture in a reply (`EmbedImage`) | a 28px line from the first draw, the alt on the left, the action fading in on hover at the right; nothing covers the picture and the reply never shifts |
+| The picture's lightbox | leads the toolbar, before the zoom |
+| A page in a reply (`EmbedPage`) | an icon in its header |
+| A Write or Edit row (`ToolRow`), a file chip's hover card, Made | at the row's end on hover; an icon over Made's `New` |
+| A question's hover row | an icon for one attachment, a menu naming each for several; the bubble's lightbox has it too |
+
+**What is saved is remembered by source path** in `chat_saves` (migration
+70): the copy's `files.id` and the source's size and modification time when
+it was copied. A save stands for the file only while the source still has
+that stamp, since agents reuse names in `outputs/`. Every view asks through
+`useChatSaves`, which gathers the paths that mount in one tick into one
+`drive_savable` call and one query (the timeline mounts its newest rows and
+pages older ones in, so a thread asks in a few batches, never per row), and
+asks again about every path it knows when a turn ends or Drive changes. The
+query joins `files`: a copy deleted from Drive drops out and the source
+offers Save to Drive… again; a copy moved in Drive keeps its id and is still
+found.
+
+**An agent asked to keep a file writes it there itself**: no CLI verb.
+`HARNESS.template.md` says a file the student asks to keep goes straight into
+the subject's folder or a top-level folder, and `outputs/` is for what a
+reply shows; the turn-end reconcile gives it its row
+([frontend.md](./frontend.md#own-files-written-outside-the-app-get-rows)).
 
 ### Pasted text is a card, sent inline
 

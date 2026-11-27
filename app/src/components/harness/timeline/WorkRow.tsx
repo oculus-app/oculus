@@ -60,6 +60,7 @@ import { useVisibleAnimation } from "@/hooks/ui/useVisibleAnimation";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
 import { useOverflows } from "./useOverflows";
+import { SaveToDriveAction } from "../save/SaveToDriveAction";
 
 /** Timeline work rows (tool call, reasoning, error): `[icon] [title] [status]`,
  *  expanding to detail on click. Rows stack flat wherever they sit — a run's
@@ -115,6 +116,7 @@ export function RowShell({
   children,
   defaultOpen = false,
   flush,
+  save,
 }: {
   icon?: Icon;
   title: string;
@@ -136,6 +138,9 @@ export function RowShell({
   /** Children are rows themselves (a bundle's steps): no inset, so they line
    *  up with the header. */
   flush?: boolean;
+  /** The row wrote `em`: a file the agent made in its workspace offers
+   *  Save to Drive… on hover (the agent's own files offer nothing). */
+  save?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const shimmer = useVisibleAnimation<HTMLSpanElement>(!!live);
@@ -215,6 +220,14 @@ export function RowShell({
           </button>
         )}
         {trailing}
+        {save && path && (
+          <SaveToDriveAction
+            path={path}
+            look="row"
+            reveal="group-hover/row:opacity-100 group-focus-within/row:opacity-100"
+            className="ml-auto"
+          />
+        )}
         {canOpen && (
           <button
             type="button"
@@ -366,6 +379,7 @@ export const ToolRow = memo(function ToolRow({
       live={cliStatus === "live" && !awaited}
       tone={cliStatus === "failed" || cliStatus === "refused" ? "error" : "default"}
       dim={dim && done}
+      save={kind === "write" || kind === "edit"}
       expandable={entries.length > 0 || output.length > 0 || !!review}
       trailing={
         <>

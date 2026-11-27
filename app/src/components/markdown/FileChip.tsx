@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { ReferencePreview, referenceClass, referenceRestClass } from "./ReferencePreview";
 import { StruckIcon, Unresolved, unresolvedClass } from "./Unresolved";
 import { fileReferenceDetails } from "./referenceDetails";
+import { SaveToDriveAction } from "@/components/harness/save/SaveToDriveAction";
+import { inAgentsDir } from "@/lib/files/statePaths";
 
 /** The chip's location suffix: a page, else a line range. */
 function locationLabel(cite: Citation | undefined, page: number | null): string {
@@ -71,7 +73,15 @@ export function FileChip({
     );
   }
   return (
-    <ReferencePreview icon={icon} title={title} kind={kind} detail={full} load={load}>
+    <ReferencePreview
+      icon={icon}
+      title={title}
+      kind={kind}
+      detail={full}
+      load={load}
+      // In a chat, a file the agent made can be kept from its preview.
+      action={onClick && inAgentsDir(path) ? <SaveToDriveAction path={path} look="caption" /> : undefined}
+    >
       <span
         // In the composer: atomic to the caret, and `data-path` is read back
         // into the message. Elsewhere it is what a copy writes.

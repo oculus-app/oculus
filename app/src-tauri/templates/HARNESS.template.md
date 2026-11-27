@@ -16,8 +16,11 @@ Course folders are at `../../courses/<CODE>/`: what Oculus syncs in its
 `Course/`, lecture recordings in `Course/Recordings/<YYYY-MM-DD>-<slug>/`,
 and the student's own files beside `Course/`. The student's own folders and
 files also sit at the top of the library, beside `courses/` (`../../<folder>/`);
-they are theirs, and yours to write in when they ask. Student attachments are in
-`./attachments/`; pictures and pages you make go in `./outputs/`.
+they are theirs, and yours to write in when they ask. A file the student asks
+you to keep or save goes straight into their subject's folder
+(`../../courses/<CODE>/<folder>/`) or a top-level folder, never `./outputs/`;
+it appears in their Drive when your turn ends. Student attachments are in
+`./attachments/`; pictures and pages you show in a reply go in `./outputs/`.
 
 This library's app folders moved under `.oculus/`. A path earlier in this
 conversation that starts `agents/`, `studio/` or `../courses/` now starts

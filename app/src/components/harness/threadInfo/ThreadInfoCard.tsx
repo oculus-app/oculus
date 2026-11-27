@@ -11,6 +11,7 @@ import { ThreadRows } from "./ThreadRows";
 import { useLectureFolder, useLectureTitles } from "./useLectureTitles";
 import { WorkRows } from "./WorkRows";
 import { recordingOf } from "@/lib/files/libraryLayout";
+import { ChatSaveScope } from "../save/ChatSaveScope";
 
 export interface ThreadInfoProps {
   thread: HarnessThread;
@@ -98,7 +99,9 @@ export function ThreadInfoCard({
       </div>
       <AgentsGroup thread={thread} onOpened={onOpened} />
       <InfoGroup heading="Read" rows={read} render={entry} />
-      <InfoGroup heading="Made" rows={made} render={entry} leading={<WorkRows thread={thread} onOpened={onOpened} />} />
+      <ChatSaveScope subjectId={thread.subject_id}>
+        <InfoGroup heading="Made" rows={made} render={entry} leading={<WorkRows thread={thread} onOpened={onOpened} />} />
+      </ChatSaveScope>
     </div>
   );
 }

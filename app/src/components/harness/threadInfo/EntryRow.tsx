@@ -9,6 +9,9 @@ import { InfoRow } from "./InfoRow";
 import { openTarget } from "./openTarget";
 import { recordingOf } from "@/lib/files/libraryLayout";
 import { MEMORIES_DIR, inAgentsDir, inMemoriesDir } from "@/lib/files/statePaths";
+import { useChatSaveScope } from "@/components/harness/save/ChatSaveScope";
+import { SaveToDriveAction } from "@/components/harness/save/SaveToDriveAction";
+import { useChatSave } from "@/stores/chat/chatSaveStore";
 
 const ICON = 15;
 const base = (p: string) => p.replace(/\/+$/, "").split("/").pop() ?? p;
@@ -61,6 +64,11 @@ export function EntryRow({
   onOpened?: () => void;
 }) {
   const { icon, label } = look(entry, lectureTitle);
+  // A file the thread made in its workspace can be kept; the agent's own
+  // (memories, taste) are refused by Rust and show nothing.
+  const scope = useChatSaveScope();
+  const workspace = !!scope && !!entry.made && entry.target.kind === "library" && inAgentsDir(entry.path);
+  const save = useChatSave(workspace ? entry.path : null);
   // A memory or a Studio step is named by what it is; a file says whether
   // the thread made it or changed it.
   const trailing = entry.made
@@ -74,7 +82,17 @@ export function EntryRow({
     <InfoRow
       icon={icon}
       label={label}
-      trailing={trailing}
+      trailing={save?.saved ? undefined : trailing}
+      action={
+        save ? (
+          <SaveToDriveAction
+            path={entry.path}
+            look="icon"
+            reveal="group-hover/info:opacity-100 group-focus-within/info:opacity-100"
+            className="rounded-md"
+          />
+        ) : undefined
+      }
       title={entry.target.kind === "library" ? entry.target.path : entry.path}
       onOpen={(newTab) => {
         openTarget(entry.target, newTab);
