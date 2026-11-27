@@ -14,7 +14,7 @@ use crate::harness::requests::PermissionMode;
 use crate::harness::Sink;
 
 use super::grants::{self, Grants};
-use super::settings::{settings_json, SandboxOpts};
+use super::settings::{settings_document, SandboxOpts};
 use super::translate::{Steering, Translator};
 use super::ClaudeSpawn;
 
@@ -135,9 +135,12 @@ impl ClaudeSession {
                 .arg("--strict-mcp-config")
                 .arg("--no-session-persistence");
         }
-        // The own zone's folders, for the file tools to edit unasked; the
-        // rest of the library is read through the settings' `Read` allow.
-        let dirs = grants::add_dirs(&base.library);
+        // The top level is read once, so `--add-dir`, the settings and the
+        // live grants agree on what the launch granted.
+        let top = grants::top_level(&base.library);
+        // The own zone's and Studio's folders, for the file tools to edit
+        // unasked; the rest of the library is read through the `Read` allow.
+        let dirs = grants::add_dirs(&base.library, &top);
         if !dirs.is_empty() {
             cmd.arg("--add-dir").args(dirs);
         }
@@ -159,13 +162,14 @@ impl ClaudeSession {
         };
         cmd.args([
             "--settings",
-            &settings_json(
+            &settings_document(
                 &base.library,
                 &base.cwd,
                 cfg.oculus.as_deref(),
                 &hosts,
                 sandbox.unsandboxed,
                 !cfg.one_off,
+                &top,
             ),
         ]);
         cmd.current_dir(&base.cwd)
@@ -192,7 +196,7 @@ impl ClaudeSession {
             one_off: cfg.one_off,
             callbacks: Mutex::new(HashSet::new()),
             steering: steering.clone(),
-            grants: (!cfg.one_off).then(|| Mutex::new(Grants::new(sandbox))),
+            grants: (!cfg.one_off).then(|| Mutex::new(Grants::new(sandbox, top))),
         });
 
         let reader_session = session.clone();

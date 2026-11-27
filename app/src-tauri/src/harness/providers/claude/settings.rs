@@ -31,13 +31,16 @@ pub(super) struct SandboxOpts {
 /// mid-thread is covered), and by name for each subject on disk now, which
 /// makes the sandbox refuse moving that subject's folder too. The library is
 /// read through a `Read` allow, not `--add-dir`, which would open its writes.
-pub(super) fn settings_json(
+/// `top` is the launch's one read of the student's own entries at the top
+/// (`grants::top_level`), shared with `--add-dir` and the live grants.
+pub(super) fn settings_document(
     library: &Path,
     cwd: &Path,
     oculus: Option<&Path>,
     hosts: &[String],
     unsandboxed: bool,
     thinking_summaries: bool,
+    top: &[PathBuf],
 ) -> String {
     let root = library.display().to_string();
     let abs = root.trim_start_matches('/');
@@ -83,7 +86,7 @@ pub(super) fn settings_json(
     };
     let mut settings = serde_json::json!({
         "permissions": { "allow": allow, "deny": deny },
-        "sandbox": sandbox_json(&opts, &super::grants::top_level(library)),
+        "sandbox": sandbox_json(&opts, top),
         "autoMemoryEnabled": false,
     });
     if thinking_summaries {
@@ -123,6 +126,28 @@ pub(super) fn sandbox_json(opts: &SandboxOpts, top: &[PathBuf]) -> serde_json::V
         "network": network,
         "filesystem": { "allowWrite": write },
     })
+}
+
+/// `settings_document` over the top level as the disk holds it.
+#[cfg(test)]
+pub(super) fn settings_json(
+    library: &Path,
+    cwd: &Path,
+    oculus: Option<&Path>,
+    hosts: &[String],
+    unsandboxed: bool,
+    thinking_summaries: bool,
+) -> String {
+    let top = super::grants::top_level(library);
+    settings_document(
+        library,
+        cwd,
+        oculus,
+        hosts,
+        unsandboxed,
+        thinking_summaries,
+        &top,
+    )
 }
 
 #[cfg(all(test, unix))]

@@ -6,7 +6,7 @@
 //! process stays up between turns; a thread whose process has gone resumes
 //! with `--resume <session id>`.
 //!
-//! Containment is settled at launch in `settings::settings_json`, and a
+//! Containment is settled at launch in `settings::settings_document`, and a
 //! top-level entry made later is added to it while the thread runs
 //! (`grants.rs`). What it leaves undecided in a chat comes to the host as a
 //! permission prompt, answered by Rust's policy or asked of the student

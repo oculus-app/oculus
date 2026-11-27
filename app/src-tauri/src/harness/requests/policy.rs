@@ -34,11 +34,25 @@ pub fn in_own_zone(library: &Path, cwd: &Path, path: &str) -> bool {
     library_rel(&library, &resolve(&absolute(cwd, path))).is_some_and(|rel| own_zone(&rel))
 }
 
+/// Whether an agent writes `path` without asking, on its real path: under
+/// the chat's folder (`cwd`) or a folder agents write by design
+/// (`paths::agent_write_dirs`: Studio), compared with case so a folder spelt
+/// differently is asked about, or in the own zone. Callers check
+/// `protected` first, which refuses the app's own folders inside these.
+pub fn agent_writes(library: &Path, cwd: &Path, path: &str) -> bool {
+    let real = resolve(&absolute(cwd, path));
+    let within = std::iter::once(cwd.to_path_buf())
+        .chain(crate::library::paths::agent_write_dirs(library))
+        .map(|root| resolve(&root))
+        .any(|root| real != root && real.starts_with(&root));
+    within || in_own_zone(library, cwd, path)
+}
+
 /// The option that allows `request` unseen, when all it asks is to write
-/// the student's own files (`in_own_zone`, on the real path): a file change,
-/// or a grant of file access with no network in it, naming at least one path
-/// and only such paths. The own zone is the agent's to write in every mode,
-/// so such a request is answered by this rule, not by the student.
+/// what an agent writes by design (`agent_writes`): a file change, or a
+/// grant of file access with no network in it, naming at least one path and
+/// only such paths. Those are the agent's to write in every mode, so such a
+/// request is answered by this rule, not by the student.
 pub fn own_grant(library: &Path, cwd: &Path, request: &NewRequest) -> Option<RequestOption> {
     let files_only = match request.action {
         Action::FileChange => true,
@@ -48,7 +62,7 @@ pub fn own_grant(library: &Path, cwd: &Path, request: &NewRequest) -> Option<Req
         _ => false,
     };
     let own =
-        !request.paths.is_empty() && request.paths.iter().all(|p| in_own_zone(library, cwd, p));
+        !request.paths.is_empty() && request.paths.iter().all(|p| agent_writes(library, cwd, p));
     (files_only && own)
         .then(|| {
             request
