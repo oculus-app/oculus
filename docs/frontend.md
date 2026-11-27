@@ -710,7 +710,9 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
   only where it can work: not on a failed download (the next sync fetches it),
   a non-retryable error, or a latching one.
 - **`useQualitySweep` is the recovery path, with two gates** (and it never
-  touches a skipped file): never re-kick
+  touches a skipped file). It reads PDF-backed files in selected subjects and
+  at the top level (`UNPARSED_FILES_SQL` in `lib/db/pipeline.ts`: the reserved
+  row is never selected, so it is named by `kind`). Never re-kick
   `retryable === false`, and stand down on a latching failure until a parse
   progresses or `LATCH_PROBE_AFTER_MS` allows one probe. Without them one bad
   token marches the library through the same error every sweep.
