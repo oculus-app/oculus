@@ -535,20 +535,51 @@ fn scratch_bin(lib: &Lib) -> std::sync::Arc<ScratchBin> {
     std::sync::Arc::new(ScratchBin(lib.dir.join(".fake-trash")))
 }
 
+fn videos(lib: &Lib) -> PathBuf {
+    lib.dir.join(".oculus/studio/videos")
+}
+
+/// The render's cache record and the one segment only it uses.
+fn cache(dir: &Path) {
+    std::fs::create_dir_all(dir.join(".cache/segments")).unwrap();
+    std::fs::write(dir.join(".cache/segments/final.mp4"), b"segment").unwrap();
+    let record = serde_json::json!({
+        "final": { "segments": ["final.mp4"], "track": null, "out": "renders/final.mp4" }
+    });
+    std::fs::write(dir.join(".cache/renders.json"), record.to_string()).unwrap();
+}
+
 #[tokio::test]
-async fn studios_bin_deletes_the_export_and_its_captions_as_drive_does() {
+async fn studios_bin_is_one_delete_whose_undo_brings_back_the_render_and_the_drive_copy() {
     use crate::library::drive::ops::delete::{finish_at, undo_at};
+    use crate::studio::commands::videos::delete_render_at;
     let lib = Lib::new("export-studio-bin").await;
     let (dir, report) = lib.video(Some(CODE), "v1", true);
+    cache(&dir);
     let first = lib.export(&dir, &report, None).await;
     let vtt = format!("{}.vtt", first.file.rel);
+    let bin = scratch_bin(&lib);
 
-    let sent = delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Final, scratch_bin(&lib))
-        .await
-        .unwrap()
-        .unwrap();
+    let sent = delete_render_at(
+        &videos(&lib),
+        &lib.dir,
+        &lib.pool,
+        SLUG,
+        "final",
+        bin.clone(),
+    )
+    .await
+    .unwrap();
     assert_eq!(sent.removed, vec![first.file.rel.clone(), vtt.clone()]);
+    assert_eq!(sent.count, 3);
+    for gone in ["renders/final.mp4", "renders/final.vtt"] {
+        assert!(!dir.join(gone).exists(), "{gone}");
+    }
     assert!(!lib.exists(&first.file.rel) && !lib.exists(&vtt));
+    assert!(
+        dir.join(".cache/segments/final.mp4").is_file(),
+        "kept while pending"
+    );
     assert_eq!(
         drive_file(&lib.dir, &lib.pool, SLUG, Preset::Final)
             .await
@@ -556,39 +587,76 @@ async fn studios_bin_deletes_the_export_and_its_captions_as_drive_does() {
         None,
         "while pending, the next render asks where"
     );
-    // Undo, and the link counts again.
+
     undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(dir.join("renders/final.mp4")).unwrap(),
+        "v1"
+    );
+    assert!(dir.join("renders/final.vtt").is_file());
     assert_eq!(
         drive_file(&lib.dir, &lib.pool, SLUG, Preset::Final)
             .await
             .unwrap(),
         Some(first.file.clone())
     );
-    // Final, and the link goes with the row.
-    let sent = delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Final, scratch_bin(&lib))
+    assert!(lib.exists(&vtt));
+
+    // Final: the record and its segment go, and the link with the row.
+    let sent = delete_render_at(&videos(&lib), &lib.dir, &lib.pool, SLUG, "final", bin)
         .await
-        .unwrap()
         .unwrap();
     finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+    assert!(!dir.join(".cache/segments/final.mp4").exists());
+    let record: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join(".cache/renders.json")).unwrap()).unwrap();
+    assert_eq!(record, serde_json::json!({}));
     assert_eq!(links(&lib.pool).await, 0);
-    assert!(
-        delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Small, scratch_bin(&lib))
-            .await
-            .unwrap()
-            .is_none(),
-        "no Small in Drive"
-    );
 }
 
 #[tokio::test]
-async fn studios_bin_leaves_a_drive_file_that_is_no_longer_the_export() {
+async fn studios_bin_leaves_drive_files_that_are_no_longer_the_export() {
+    use crate::library::drive::ops::delete::finish_at;
+    use crate::studio::commands::videos::delete_render_at;
     let lib = Lib::new("export-studio-bin-changed").await;
-    let (dir, report) = lib.video(Some(CODE), "v1", false);
+    let (dir, report) = lib.video(Some(CODE), "v1", true);
     let first = lib.export(&dir, &report, None).await;
-    std::fs::write(lib.dir.join(&first.file.rel), "edited by the student").unwrap();
-    let sent = delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Final, scratch_bin(&lib))
-        .await
-        .unwrap();
-    assert!(sent.is_none());
-    assert_eq!(lib.read(&first.file.rel), "edited by the student");
+    let vtt = format!("{}.vtt", first.file.rel);
+    std::fs::write(lib.dir.join(&vtt), "WEBVTT\n\nthe student's own words").unwrap();
+    let sent = delete_render_at(
+        &videos(&lib),
+        &lib.dir,
+        &lib.pool,
+        SLUG,
+        "final",
+        scratch_bin(&lib),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        sent.removed,
+        vec![first.file.rel.clone()],
+        "captions changed since"
+    );
+    assert!(lib.exists(&vtt));
+    finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+
+    // An mp4 changed since stays too; only the render goes.
+    let (dir, report) = lib.video(Some(CODE), "v2", false);
+    let second = lib.export(&dir, &report, None).await;
+    std::fs::write(lib.dir.join(&second.file.rel), "edited by the student").unwrap();
+    let sent = delete_render_at(
+        &videos(&lib),
+        &lib.dir,
+        &lib.pool,
+        SLUG,
+        "final",
+        scratch_bin(&lib),
+    )
+    .await
+    .unwrap();
+    assert!(sent.removed.is_empty());
+    assert_eq!(sent.count, 1);
+    assert_eq!(lib.read(&second.file.rel), "edited by the student");
+    finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
 }
