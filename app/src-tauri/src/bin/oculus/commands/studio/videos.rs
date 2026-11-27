@@ -3,6 +3,7 @@
 
 use crate::*;
 use app_lib::library::paths::iso8601_utc;
+use app_lib::studio::export;
 use app_lib::studio::libraries::{default_theme, libraries};
 use app_lib::studio::videos::{self, NewVideo, VideoRow};
 
@@ -32,7 +33,17 @@ impl Ctx {
             let voice = app_lib::studio::voice::VoiceOverrides::default();
             app_lib::studio::voice::resolve(&voice, &voice, &app_lib::studio::voice::settings())?;
         }
-        let dir = videos::create_in(&videos, &new)?;
+        // With no database there are no Drive links to clear.
+        let dir = if paths::db_path(&self.data_dir).exists() {
+            self.rt.block_on(async {
+                let pool = store::open(&self.data_dir).await?;
+                let made = export::create_video(&pool, &videos, &new).await;
+                pool.close().await;
+                made
+            })?
+        } else {
+            videos::create_in(&videos, &new)?
+        };
         if let Err(e) = studio_core::Project::load_with(&dir, &library) {
             std::fs::remove_dir_all(&dir).ok();
             return Err(e.to_string());

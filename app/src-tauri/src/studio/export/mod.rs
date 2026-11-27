@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use super::render::{Preset, Report};
-use crate::db::store::studio_exports_of;
+use crate::db::store::{delete_studio_exports, studio_exports_of};
 use crate::library::drive::ops::events::DriveChange;
 use crate::library::drive::ops::guard;
 use crate::library::layout::{self, Zone};
@@ -140,6 +140,23 @@ pub async fn to_drive(
         name: to.name,
     };
     rows::create(data_dir, pool, &slug, preset, &render, &to).await
+}
+
+/// Make the video `new` under `videos` (`videos::create_in`) with no Drive
+/// links: a video of the same slug whose folder was deleted outside Studio
+/// leaves its links, and this video's first render must never replace that
+/// video's file. When the links can't be cleared the new folder goes again.
+pub async fn create_video(
+    pool: &SqlitePool,
+    videos: &Path,
+    new: &crate::studio::videos::NewVideo,
+) -> Result<PathBuf, String> {
+    let dir = crate::studio::videos::create_in(videos, new)?;
+    if let Err(e) = delete_studio_exports(pool, &new.slug).await {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err(e);
+    }
+    Ok(dir)
 }
 
 /// The video's slug: its folder's name.

@@ -207,7 +207,7 @@ one folder besides `agents/` and the database an agent thread may write
 ([harness.md](./harness.md#every-thread-runs-from-agents-it-writes-there-and-in-the-students-own-files)).
 
 - `oculus studio new <slug> [--subject CODE] [--title T] [--theme NAME] [--portrait] [--scratch]`
-  (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` with
+  (`studio::export::create_video` over `studio::videos::create_in`) makes `videos/<slug>/`: `video.json` with
   `--title` as its `title` (none without it; an empty one is refused), at
   1920x1080 (1080x1920 with `--portrait`), 30 fps, the default theme, the
   subject, no `captions` key, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
@@ -2225,7 +2225,10 @@ check read it.
   pool and the frontend's SQL plugin), and an explicit delete wherever
   `files` rows are deleted (`drive::ops::rows`, `store::delete_file_row`,
   `deleteFileRow`). Deleting a video in Studio removes its links and leaves
-  the files: they are the student's exports.
+  the files: they are the student's exports. A folder deleted outside Studio
+  leaves its links, so `oculus studio new` makes a video through
+  `export::create_video`, which drops any links its slug still has: a new
+  video never replaces an older one's file.
 - **Where it goes.** With a destination (`{targetDir, name}`, the picker's
   answer), the render is copied there under a free name (`name`, else `name
   (2).mp4`, free for the captions too) ending in `.mp4`, and the link moves

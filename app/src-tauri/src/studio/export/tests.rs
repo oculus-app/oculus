@@ -300,6 +300,63 @@ async fn a_file_deleted_in_drive_is_no_link_so_the_next_render_asks_again() {
     assert_ne!(again.file.file_id, first.file.file_id);
 }
 
+async fn links(pool: &SqlitePool) -> i64 {
+    sqlx::query_scalar("SELECT COUNT(*) FROM studio_exports")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_new_video_under_a_vanished_videos_slug_never_replaces_its_drive_file() {
+    let lib = Lib::new("export-reused-slug").await;
+    let (dir, report) = lib.video(Some(CODE), "the old video", false);
+    let old = lib.export(&dir, &report, None).await;
+
+    // The folder goes outside Studio; its link is still there.
+    std::fs::remove_dir_all(&dir).unwrap();
+    assert_eq!(links(&lib.pool).await, 1);
+    let new = crate::studio::videos::NewVideo {
+        slug: SLUG.into(),
+        title: Some(TITLE.into()),
+        subject: Some(CODE.into()),
+        ..Default::default()
+    };
+    let made = create_video(&lib.pool, dir.parent().unwrap(), &new)
+        .await
+        .unwrap();
+    assert_eq!(made, dir);
+    assert_eq!(links(&lib.pool).await, 0);
+
+    std::fs::create_dir(made.join("renders")).unwrap();
+    let report = lib.rendered(&made, Preset::Final, "a different video", false);
+    let first = lib.export(&made, &report, None).await;
+    assert!(!first.replaced);
+    assert_ne!(first.file.file_id, old.file.file_id);
+    assert_eq!(lib.read(&old.file.rel), "the old video");
+    assert_eq!(lib.read(&first.file.rel), "a different video");
+    assert_eq!(lib.rows().await.len(), 2, "the old file keeps its row");
+}
+
+#[tokio::test]
+async fn deleting_a_video_in_studio_forgets_its_links_and_keeps_its_drive_files() {
+    let lib = Lib::new("export-video-deleted").await;
+    let (dir, report) = lib.video(Some(CODE), "final", true);
+    let final_ = lib.export(&dir, &report, None).await;
+    let small = lib.rendered(&dir, Preset::Small, "small", false);
+    lib.export(&dir, &small, None).await;
+    let rows = lib.rows().await;
+
+    // What `studio_video_delete` does to the database beside the folder.
+    crate::db::store::delete_studio_exports(&lib.pool, SLUG)
+        .await
+        .unwrap();
+    assert_eq!(links(&lib.pool).await, 0);
+    assert_eq!(lib.rows().await, rows, "every exported file keeps its row");
+    assert_eq!(lib.read(&final_.file.rel), "final");
+    assert!(lib.exists(&format!("{}.vtt", final_.file.rel)));
+}
+
 #[tokio::test]
 async fn deleting_the_files_row_cascades_to_the_link() {
     let lib = Lib::new("export-cascade").await;
