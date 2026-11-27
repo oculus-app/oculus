@@ -304,6 +304,7 @@ Drive's rail section at `/drive/*` and the Files tab at
   the focus when there is no name; ⌘↵ confirms from anywhere; ↑ and ↓ move
   through the rows, which share one tab stop, → or Enter opens the focused
   row, ← or ⌫ goes up; Escape drops a folder being named, then cancels.
+  Closing hands the focus back to whatever had it when the picker opened.
   Hovered and focused rows take the drop target's brand tint.
 - **Pictures** (`components/drive/thumbs/`) come from what already draws
   each kind: a PDF's, or an Office file's converted PDF's, first page through

@@ -57,6 +57,9 @@ function PickerBody({ request, onResult }: {
   const [draft, setDraft] = useState<FolderDraft | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // What had the focus when the picker opened. Radix hands focus back only
+  // to a `DialogTrigger`, and this dialog has none.
+  const [opener] = useState(() => document.activeElement);
   const contentRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -163,6 +166,10 @@ function PickerBody({ request, onResult }: {
         if (!field) return contentRef.current?.focus();
         field.focus();
         field.setSelectionRange(0, stemLength(field.value, false));
+      }}
+      onCloseAutoFocus={(e) => {
+        e.preventDefault();
+        if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
       }}
       // Escape first drops a folder being named; the next one cancels.
       onEscapeKeyDown={(e) => {
