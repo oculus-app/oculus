@@ -471,7 +471,9 @@ folder with its new place; [library-move.md](./library-move.md)).
   name (`paths::STATE_DIR`), which a test holds its spellings to. A new entry
   there may not take `courses` or one of `OLD_STATE_NAMES`, the old app
   folder names cited paths are read through (`reserved_top_name`); one
-  already there is `Own` like any other.
+  already there is `Own` like any other, but no agent writes it unasked
+  (`agent_own`, which also folds each name so one that becomes a dot-name
+  or a reserved name under NFKC is not the student's).
 - **A path's home is a subject or the top level** (`home_of`, `Home`):
   `courses/<folder>/…` is the subject's, any other own path the top level's,
   whose own folder is `""`. `in_library` is what the PDF viewer, the media
