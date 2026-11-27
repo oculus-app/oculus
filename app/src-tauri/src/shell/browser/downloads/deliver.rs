@@ -9,8 +9,8 @@ use tauri::AppHandle;
 
 use super::state::{Effect, Target};
 use super::{broadcast, SavedTo};
-use crate::library::drive::ops::guard::own_target;
-use crate::library::files::uploads::import_into;
+use crate::library::drive::ops::guard::drive_target;
+use crate::library::files::uploads::{import_file_as, import_into};
 use crate::shell::browser::with_state;
 
 /// Runs each effect off the caller's thread; a delivery reports back through
@@ -46,25 +46,21 @@ fn apply(app: &AppHandle, effect: Effect) {
 /// untouched after a failure, so another choice can be made.
 pub(super) fn deliver(data_dir: &Path, staged: &Path, to: &Target) -> Result<SavedTo, String> {
     match to {
-        Target::Oculus {
-            subject_code,
-            target_dir,
-        } => {
-            let target =
-                own_target(data_dir, subject_code, target_dir.as_deref()).map_err(|e| e.message)?;
-            let outcome = import_into(data_dir, &target, &[staged])
-                .pop()
-                .ok_or("nothing was imported")?;
+        Target::Drive { target_dir, name } => {
+            let target = drive_target(data_dir, target_dir).map_err(|e| e.message)?;
+            let outcome = match name {
+                Some(name) => import_file_as(data_dir, &target, staged, name),
+                None => import_into(data_dir, &target, &[staged])
+                    .pop()
+                    .ok_or("nothing was imported")?,
+            };
             if outcome.file.is_none() {
                 return Err(outcome
                     .error
                     .unwrap_or_else(|| "it could not be added".into()));
             }
             remove_staged(staged);
-            Ok(SavedTo::Oculus {
-                subject_code: subject_code.clone(),
-                outcome,
-            })
+            Ok(SavedTo::Drive { outcome })
         }
         Target::Path { path, may_replace } => {
             move_file(staged, path, *may_replace, |from, to| {

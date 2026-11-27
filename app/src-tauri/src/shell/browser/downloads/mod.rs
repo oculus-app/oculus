@@ -7,8 +7,9 @@
 //! `~/Downloads`, and the frontend asks where it should go meanwhile.
 //!
 //! - `stage.rs` is the hook; `correlate.rs` matches a `Finished` to its
-//!   download by staged path; `deliver.rs` moves it (In Oculus is the
-//!   uploads path, `import_into` a chosen folder); `sweep.rs` clears a crash's leftovers.
+//!   download by staged path; `deliver.rs` moves it (In Drive is the
+//!   uploads path into any folder `drive_target` allows); `sweep.rs` clears
+//!   a crash's leftovers.
 //! - The list is per session, pushed whole on `browser-downloads` to the
 //!   app's webview. A download's URL can carry a signed token, so it is
 //!   never kept, sent or logged: only its host, and a hash for matching.
@@ -69,12 +70,12 @@ pub enum State {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Dest {
-    /// A subject's files: `target_dir` (a data-dir-relative folder of the
-    /// student's own in that subject), else its root.
-    Oculus {
-        subject_code: String,
+    /// A folder in Drive: `target_dir` is data-dir-relative, `""` the top
+    /// level. `name` replaces the download's own when the student edited it.
+    Drive {
+        target_dir: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        target_dir: Option<String>,
+        name: Option<String>,
     },
     /// A path on the Mac, normally from `browser_download_save_panel`.
     Path {
@@ -87,14 +88,26 @@ pub enum Dest {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SavedTo {
-    /// `outcome.file` is the upload to write a `files` row for.
-    Oculus {
-        subject_code: String,
+    /// `outcome.file` is the upload to write a `files` row for; its path
+    /// says which subject, or the top level, the row hangs off.
+    Drive {
         outcome: ImportOutcome,
     },
     Path {
         path: String,
     },
+}
+
+impl SavedTo {
+    /// The name it landed under, which a clash or a rename may have changed.
+    fn file_name(&self) -> Option<String> {
+        match self {
+            SavedTo::Drive { outcome } => outcome.file.as_ref().map(|f| f.filename.clone()),
+            SavedTo::Path { path } => std::path::Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned()),
+        }
+    }
 }
 
 /// One row of the list, as the frontend sees it.
@@ -106,7 +119,8 @@ pub struct Download {
     /// the download-only tab it came from. The tab may be closed since; a
     /// download-only tab with no opener is itself this tab, and is closed.
     pub tab: u32,
-    /// The file name, already made safe; what the dialog and panel suggest.
+    /// The file name, already made safe; what the dialog and panel suggest,
+    /// and once saved the name it landed under.
     pub name: String,
     /// The host it came from, for display: a `blob:`'s is its page's, and a
     /// `data:` URL has none.
