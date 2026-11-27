@@ -88,10 +88,11 @@ makes sure the state folder exists. Otherwise, in order:
      merely has a WAL database open, idle included (a write lock or a
      checkpoint would succeed against an idle app), then folds the
      write-ahead log in (`wal_checkpoint(TRUNCATE)`) so one file moves.
-3. **Write the guard** (`journal.rs`). The Drive move's own journal steps
-   aside to `journal.drive.json` and its finished state to a marker of its
-   own (`.library-move/drive`); this move's journal takes
-   `.library-move/journal.json` with `"format": 2`; then `done` becomes
+3. **Write the guard** (`journal.rs`). The Drive move's own journal is
+   copied to `journal.drive.json` and synced, and its finished state goes to
+   a marker of its own (`.library-move/drive`); this move's journal then
+   replaces `.library-move/journal.json` in one rename, with `"format": 2`, so
+   a `journal.json` is there at every instant; then `done` becomes
    `state-moving`. Every build since the Drive move reads `done` first and,
    when it is not `drive`, loads `journal.json` and refuses a format it does
    not know, before it plans, opens a database or shows a window. So from

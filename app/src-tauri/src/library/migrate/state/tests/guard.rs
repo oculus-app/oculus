@@ -61,3 +61,28 @@ fn the_finished_drive_move_keeps_its_journal_and_its_own_marker() {
     assert_eq!(read(&dir, ".library-move/whiteboard"), "done");
     crate::library::migrate::at_startup(&dir).unwrap();
 }
+
+/// From a Drive move an older build left half-done (`done` absent, a
+/// format-1 `journal.json`), a kill between the Drive journal's copy and the
+/// guard's own journal still leaves a `journal.json`: an older build resumes
+/// that move instead of planning a fresh one over a half-moved library.
+#[test]
+fn a_kill_inside_the_guard_always_leaves_a_journal() {
+    let dir = library("state-move-guard-kill");
+    std::fs::remove_file(dir.join(".library-move/done")).unwrap();
+    let before = read(&dir, ".library-move/journal.json");
+
+    drive::step_aside(&dir).unwrap();
+    // Killed here: the older journal is still where an older build reads it.
+    assert_eq!(read(&dir, ".library-move/journal.json"), before);
+    assert_eq!(read(&dir, ".library-move/journal.drive.json"), before);
+    assert!(drive::load_at(&dir.join(".library-move/journal.json")).is_ok());
+
+    // The next launch takes it from there.
+    drive::step_aside(&dir).unwrap();
+    run(&dir, &env(&FakeBroker::default())).unwrap();
+    assert_eq!(read(&dir, ".library-move/journal.drive.json"), before);
+    let journal: serde_json::Value =
+        serde_json::from_str(&read(&dir, ".library-move/journal.json")).unwrap();
+    assert_eq!(journal["format"], 2);
+}

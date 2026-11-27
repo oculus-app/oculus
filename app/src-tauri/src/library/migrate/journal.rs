@@ -211,9 +211,12 @@ pub fn mark_done(data_dir: &Path) -> Result<(), String> {
 }
 
 /// Before the state move takes `journal.json` and `done`: this move's
-/// journal, as an older build left it (finished or cut short), goes to its
-/// new name, and a finished move gets its own marker. A `journal.json` that
-/// is the state move's own (a guard cut short) is left for it to replace.
+/// journal, as an older build left it (finished or cut short), is copied to
+/// its new name, synced, and a finished move gets its own marker. The old
+/// `journal.json` stays until the state move's guard replaces it in one
+/// rename, so a `journal.json` is there at every instant and an older build
+/// never plans a fresh move over a half-done one. A `journal.json` that is
+/// the state move's own (a guard cut short) is left for it to replace.
 pub fn step_aside(data_dir: &Path) -> Result<(), String> {
     if marker(data_dir).as_deref() == Some(LAYOUT) {
         mark_done(data_dir)?;
@@ -228,14 +231,20 @@ pub fn step_aside(data_dir: &Path) -> Result<(), String> {
     if format != Some(u64::from(FORMAT)) {
         return Ok(());
     }
-    if kept.exists() {
-        return Err(format!(
-            "{} and {} are both the Drive move's journal; remove the older one",
-            older.display(),
-            kept.display()
-        ));
+    match std::fs::read(&kept) {
+        // A guard cut short after the copy: it is already kept.
+        Ok(copy) if copy == raw => return Ok(()),
+        Ok(_) => {
+            return Err(format!(
+                "{} and {} are both the Drive move's journal; remove the older one",
+                older.display(),
+                kept.display()
+            ))
+        }
+        Err(_) => {}
     }
-    std::fs::rename(&older, &kept).map_err(|e| format!("keep {}: {e}", older.display()))
+    crate::runtime::atomic_write::write(&kept, &kept.with_extension("json.tmp"), &raw)
+        .map_err(|e| format!("keep {}: {e}", older.display()))
 }
 
 /// Held for the whole move; another process blocks here until it is done.
