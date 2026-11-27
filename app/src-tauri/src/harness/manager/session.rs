@@ -33,7 +33,8 @@ pub enum SendError {
     /// The write to the provider failed, so whether it has the message is
     /// not known.
     Unknown(String),
-    /// Antigravity could not load the saved session. No prompt was sent.
+    /// The provider could not load the saved session. No prompt was sent,
+    /// so the send may start a new session and hand the conversation over.
     ResumeFailed(String),
 }
 
@@ -315,7 +316,12 @@ impl Harness {
                 };
                 let ses = match resume {
                     Some(id) => {
-                        server.attach_session(id, &sopts, sink)?;
+                        server
+                            .attach_session(id, &sopts, sink)
+                            .map_err(|e| match e {
+                                opencode::AttachError::Missing(e) => SendError::ResumeFailed(e),
+                                opencode::AttachError::Failed(e) => SendError::Unsent(e),
+                            })?;
                         id.to_string()
                     }
                     None => server.start_session(&sopts, sink)?,

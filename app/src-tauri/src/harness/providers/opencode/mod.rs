@@ -33,6 +33,7 @@ pub use auth::visible_answers;
 pub use config::{write_config, OneOffPrompts};
 pub use models::split_model;
 pub use server::OpencodeServer;
+pub use session::AttachError;
 pub use skill::invoke_skill;
 pub use strays::sweep;
 pub use types::{

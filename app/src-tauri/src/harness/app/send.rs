@@ -174,10 +174,12 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
         .await?;
         match sent {
             Ok(()) => break,
-            Err(SendError::ResumeFailed(e))
-                if !recovered && provider == crate::harness::Provider::Antigravity =>
-            {
-                elog!("[oculus] agy: starting a fresh session after load failed: {e}");
+            // Any provider whose saved session could not be loaded, once.
+            Err(SendError::ResumeFailed(e)) if !recovered => {
+                elog!(
+                    "[oculus] {}: starting a fresh session after load failed: {e}",
+                    provider.label()
+                );
                 if !handoff::store::restart(&pool, &run, &text).await? {
                     return Ok(false);
                 }
@@ -194,9 +196,14 @@ async fn send(rt: &Runtime, start: Start) -> Result<bool, Failure> {
         }
     }
     if recovered {
-        (super::sink_for(&rt.bus, thread_id, provider))(crate::harness::HarnessEvent::SessionRestarted {
-            text: "Antigravity started a new session because the saved conversation could not be loaded.".into(),
-        });
+        (super::sink_for(&rt.bus, thread_id, provider))(
+            crate::harness::HarnessEvent::SessionRestarted {
+                text: format!(
+                    "{} started a new session because the saved conversation could not be loaded.",
+                    provider.label()
+                ),
+            },
+        );
     }
     if let Err(e) = store::mark_sent(&pool, &run).await {
         elog!("[oculus] harness run {}: {e}", run.run_id);
