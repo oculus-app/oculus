@@ -2,6 +2,7 @@ import { Folder, FolderSimple } from "@phosphor-icons/react";
 import { useInSidePanel } from "@/components/tabs/PaneHeader";
 import { BreadcrumbItems, type BreadcrumbItem } from "@/components/ui/Breadcrumb";
 import { driveFolderHref } from "@/lib/drive/routes";
+import { DRIVE_LABEL } from "@/lib/drive/trail";
 
 /**
  * The trail before a top-level file's title, where a subject's file has
@@ -11,7 +12,7 @@ import { driveFolderHref } from "@/lib/drive/routes";
  */
 export function DriveFileCrumbs({ folder }: { folder: string }) {
   const inSide = useInSidePanel();
-  const items: BreadcrumbItem[] = [{ label: "My Drive", href: driveFolderHref(""), icon: <Folder size={12} /> }];
+  const items: BreadcrumbItem[] = [{ label: DRIVE_LABEL, href: driveFolderHref(""), icon: <Folder size={12} /> }];
   let rel = "";
   for (const name of folder.split("/").filter(Boolean)) {
     rel = rel ? `${rel}/${name}` : name;

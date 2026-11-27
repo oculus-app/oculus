@@ -4,6 +4,7 @@ import { displayCode } from "@/lib/format/format";
 import { subjectForFolder } from "./paths";
 
 export const DRIVE_LABEL = "My Drive";
+/** What Drive calls the folder of subjects (`courses/` on disk). */
 export const SUBJECTS_LABEL = "Subjects";
 
 /** One place on the way to a Drive path. Only a `subject` is drawn with its

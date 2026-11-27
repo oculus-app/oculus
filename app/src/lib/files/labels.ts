@@ -1,4 +1,5 @@
 import type { DbFile } from "@/lib/db";
+import { SUBJECTS_LABEL } from "@/lib/drive/trail";
 import { displayCode, humanizeSlug } from "@/lib/format/format";
 import { isLessonAsset } from "./fileTypes";
 import { COURSES_DIR, TOP_LEVEL } from "./libraryLayout";
@@ -18,8 +19,7 @@ export function fileTitle(file: Pick<DbFile, "category" | "filename">): string {
     : humanizeSlug(file.filename);
 }
 
-/** What Drive calls the folder of subjects (`courses/` on disk). */
-export const SUBJECTS_LABEL = "Subjects";
+export { SUBJECTS_LABEL };
 
 /** A folder path's display name: the folder of subjects by its label, a
  *  subject's own folder by its code, any other humanised. */
