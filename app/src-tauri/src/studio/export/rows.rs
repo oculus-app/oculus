@@ -5,10 +5,10 @@
 
 use sqlx::{SqliteConnection, SqlitePool};
 
-use super::disk::{self, captions_of, Render};
+use super::disk::{self, captions_of, temp_name, Render};
 use super::place::with_mp4;
 use super::{Destination, DriveFile, Exported};
-use crate::db::store::set_studio_export;
+use crate::db::store::{set_studio_export, Written};
 use crate::library::drive::ops::error::shown;
 use crate::library::drive::ops::events::DriveChange;
 use crate::library::drive::ops::rows::{delete_rows, file_type, home_id, name_of};
@@ -39,12 +39,18 @@ pub async fn create(
 
     let folder = target.path.clone();
     let (mp4, captions) = (render.mp4.clone(), render.captions.clone());
-    let (name, size, vtt_size) = crate::runtime::blocking::run(move || {
+    let (mp4_temp, vtt_temp) = (
+        temp_name(slug, preset.name(), "mp4"),
+        temp_name(slug, preset.name(), "vtt"),
+    );
+    let (name, size, stamp, vtt_size) = crate::runtime::blocking::run(move || {
         let name = disk::free_name(&folder, &wanted);
         let path = folder.join(&name);
-        let size = disk::place(&mp4, &path).map_err(|e| format!("Could not save {name}: {e}"))?;
+        let size = disk::place(&mp4, &path, &mp4_temp)
+            .map_err(|e| format!("Could not save {name}: {e}"))?;
+        let stamp = disk::stamp(&path).map_err(|e| format!("Could not save {name}: {e}"))?;
         let vtt_size = match captions {
-            Some(vtt) => match disk::place(&vtt, &folder.join(captions_of(&name))) {
+            Some(vtt) => match disk::place(&vtt, &folder.join(captions_of(&name)), &vtt_temp) {
                 Ok(size) => Some(size),
                 Err(e) => {
                     let _ = disk::remove(&path);
@@ -53,7 +59,7 @@ pub async fn create(
             },
             None => None,
         };
-        Ok((name, size, vtt_size))
+        Ok((name, size, stamp, vtt_size))
     })
     .await?;
 
@@ -70,7 +76,12 @@ pub async fn create(
         if let Some((vtt_rel, size)) = &vtt {
             upsert_row(&mut tx, subject, vtt_rel, *size).await?;
         }
-        set_studio_export(&mut *tx, slug, preset.name(), id).await?;
+        let written = Written {
+            size: stamp.0,
+            modified_ms: stamp.1,
+            captions: vtt.is_some(),
+        };
+        set_studio_export(&mut *tx, slug, preset.name(), id, written).await?;
         tx.commit().await.map_err(db)?;
         Ok::<_, String>(id)
     }
@@ -95,17 +106,24 @@ pub async fn create(
                 .collect(),
             ..DriveChange::default()
         },
-        file: DriveFile { file_id: id, rel },
+        file: DriveFile {
+            file_id: id,
+            rel,
+            captions: captions.is_some(),
+        },
         captions,
         replaced: false,
     })
 }
 
 /// Write the render over the linked `file` where it is now, under the name it
-/// has now; its captions beside it, or removed when the video has none.
+/// has now; its captions beside it, or, when the video has none, the ones an
+/// export wrote there removed (captions Transcribe wrote stay).
 pub async fn replace(
     data_dir: &std::path::Path,
     pool: &SqlitePool,
+    slug: &str,
+    preset: Preset,
     render: &Render,
     file: DriveFile,
 ) -> Result<Exported, String> {
@@ -120,19 +138,27 @@ pub async fn replace(
     let (mp4, captions) = (render.mp4.clone(), render.captions.clone());
     let (to, vtt_to) = (path.clone(), vtt_path.clone());
     let name = shown(&file.rel).to_string();
-    let (size, vtt) = crate::runtime::blocking::run(move || {
-        let size = disk::place(&mp4, &to).map_err(|e| format!("Could not replace {name}: {e}"))?;
+    let (mp4_temp, vtt_temp) = (
+        temp_name(slug, preset.name(), "mp4"),
+        temp_name(slug, preset.name(), "vtt"),
+    );
+    let ours = file.captions;
+    let (size, stamp, vtt) = crate::runtime::blocking::run(move || {
+        let size = disk::place(&mp4, &to, &mp4_temp)
+            .map_err(|e| format!("Could not replace {name}: {e}"))?;
+        let stamp = disk::stamp(&to).map_err(|e| format!("Could not replace {name}: {e}"))?;
         let vtt = match captions {
-            Some(vtt) => disk::place(&vtt, &vtt_to)
+            Some(vtt) => disk::place(&vtt, &vtt_to, &vtt_temp)
                 .map(Captions::Written)
                 .map_err(|e| format!("Could not replace the captions of {name}: {e}"))?,
+            None if !ours => Captions::None,
             None => match disk::remove(&vtt_to) {
                 Ok(true) => Captions::Removed,
                 Ok(false) => Captions::None,
                 Err(e) => return Err(format!("Could not remove the old captions of {name}: {e}")),
             },
         };
-        Ok((size, vtt))
+        Ok((size, stamp, vtt))
     })
     .await?;
 
@@ -151,7 +177,17 @@ pub async fn replace(
     if let Captions::Written(size) = vtt {
         upsert_row(&mut tx, subject, &vtt_rel, size).await?;
     }
+    let written = Written {
+        size: stamp.0,
+        modified_ms: stamp.1,
+        captions: matches!(vtt, Captions::Written(_)),
+    };
+    set_studio_export(&mut *tx, slug, preset.name(), file.file_id, written).await?;
     tx.commit().await.map_err(db)?;
+    let file = DriveFile {
+        captions: written.captions,
+        ..file
+    };
 
     let mut change = DriveChange {
         subject_ids: vec![subject],

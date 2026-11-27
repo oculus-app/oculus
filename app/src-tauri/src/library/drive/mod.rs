@@ -15,7 +15,7 @@
 
 pub mod commands;
 mod entries;
-mod listing;
+pub(crate) mod listing;
 pub mod ops;
 mod recordings;
 

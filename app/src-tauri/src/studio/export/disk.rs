@@ -1,9 +1,11 @@
 //! The export's files on disk. Each is written beside its destination under a
 //! hidden temporary name and renamed over it, so a player with the old file
-//! open keeps reading it and nobody sees a half-written one.
+//! open keeps reading it and nobody sees a half-written one. The temporary
+//! name is the link's (`temp_name`), so one a crash left is replaced by the
+//! link's next export into that folder; a dot-name, Drive never lists or
+//! rows it.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::library::drive::ops::names;
 
@@ -20,13 +22,19 @@ pub fn captions_of(rel: &str) -> String {
     format!("{rel}.vtt")
 }
 
-/// Copy `from` to `to` (an APFS clone where the volume allows), replacing
-/// whatever is there by a rename. Returns the size written.
-pub fn place(from: &Path, to: &Path) -> std::io::Result<u64> {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
+/// The hidden name the export of `slug`'s `preset` writes `slot` (`mp4` or
+/// `vtt`) under before the rename.
+pub fn temp_name(slug: &str, preset: &str, slot: &str) -> String {
+    format!(".oculus-export-{slug}-{preset}.{slot}")
+}
+
+/// Copy `from` to `to` (an APFS clone where the volume allows) through the
+/// hidden `temp` beside it, replacing whatever is there by a rename. Returns
+/// the size written.
+pub fn place(from: &Path, to: &Path, temp: &str) -> std::io::Result<u64> {
     let folder = to.parent().unwrap_or(Path::new("."));
-    let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    let temp = folder.join(format!(".oculus-export-{}-{n}", std::process::id()));
+    let temp = folder.join(temp);
+    remove(&temp)?;
     let size = std::fs::copy(from, &temp).inspect_err(|_| {
         let _ = std::fs::remove_file(&temp);
     })?;
@@ -41,6 +49,16 @@ pub fn place(from: &Path, to: &Path) -> std::io::Result<u64> {
 pub fn free_name(dir: &Path, name: &str) -> String {
     let taken = |n: &str| std::fs::symlink_metadata(dir.join(n)).is_ok();
     names::free_name_where(name, false, |c| !taken(c) && !taken(&captions_of(c)))
+}
+
+/// The size and modification time (Unix ms) of the file at `path`.
+pub fn stamp(path: &Path) -> std::io::Result<(i64, i64)> {
+    let meta = std::fs::symlink_metadata(path)?;
+    let modified_ms = meta
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64);
+    Ok((meta.len() as i64, modified_ms))
 }
 
 /// Remove the file at `path` if it is there.

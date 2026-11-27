@@ -1079,12 +1079,18 @@ BEGIN SELECT RAISE(ABORT, 'the top-level row cannot be deleted'); END;
             description: "studio_exports: the Drive file each video's Final and Small render to",
             // Keyed by the file's row id, so a re-render finds the file
             // wherever the student moved or renamed it. Deleting the file in
-            // Drive removes the link (`store::studio_exports` says how).
+            // Drive removes the link (`store::studio_exports` says how). The
+            // size and time the export wrote tell its file from another one
+            // put under the same name; `captions` is whether it wrote the
+            // `.vtt` beside it.
             sql: r#"
 CREATE TABLE studio_exports (
     slug TEXT NOT NULL,
     preset TEXT NOT NULL,
     file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    size INTEGER NOT NULL,
+    modified_ms INTEGER NOT NULL,
+    captions INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (slug, preset)
 );
 CREATE INDEX idx_studio_exports_file ON studio_exports(file_id);

@@ -43,6 +43,9 @@ pub struct DriveFile {
     pub file_id: i64,
     /// Data-dir-relative.
     pub rel: String,
+    /// The export wrote the captions beside it, so a re-render may remove them.
+    #[serde(skip)]
+    pub captions: bool,
 }
 
 /// What an export did.
@@ -66,8 +69,9 @@ pub fn exports(preset: Preset) -> bool {
 }
 
 /// The Drive file each preset of the video `slug` is linked to, when its row
-/// is there, it is the student's and it is on disk; a link to anything else
-/// counts as none, so the next render asks again.
+/// is there, it is the student's and it is on disk with the size and time
+/// the export wrote; a link to anything else (another file put under its
+/// name, say) counts as none, so the next render asks again.
 pub async fn drive_files(
     data_dir: &Path,
     pool: &SqlitePool,
@@ -79,13 +83,17 @@ pub async fn drive_files(
         .filter_map(|link| {
             let preset = Preset::parse(&link.preset).ok()?;
             let rel = link.relative_path;
+            let written = link.written;
             let here = layout::zone_of(&rel) == Zone::Own
-                && guard::own_entry(data_dir, &rel).is_ok_and(|e| !e.dir);
+                && guard::own_entry(data_dir, &rel).is_ok_and(|e| !e.dir)
+                && disk::stamp(&data_dir.join(&rel))
+                    .is_ok_and(|stamp| stamp == (written.size, written.modified_ms));
             here.then_some((
                 preset,
                 DriveFile {
                     file_id: link.file_id,
                     rel,
+                    captions: written.captions,
                 },
             ))
         })
@@ -131,7 +139,7 @@ pub async fn to_drive(
         return rows::create(data_dir, pool, &slug, preset, &render, &to).await;
     }
     if let Some(file) = drive_file(data_dir, pool, &slug, preset).await? {
-        return rows::replace(data_dir, pool, &render, file).await;
+        return rows::replace(data_dir, pool, &slug, preset, &render, file).await;
     }
     let to = place::suggestion(pool, dir, preset).await?;
     place::make_folder(data_dir, &to.target_dir)?;

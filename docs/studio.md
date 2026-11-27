@@ -2219,8 +2219,10 @@ check read it.
   (migration 69) points each video's preset at the `files` row it was saved
   to, so a move or rename in Drive, which keeps the id, keeps the link. A
   link counts (`drive_files`) only while its row is there, the path is the
-  student's (`Zone::Own`) and a file is on disk; otherwise the next Render
-  asks again. Deleting the file in Drive deletes the link: `ON DELETE
+  student's (`Zone::Own`) and the file on disk has the size and modification
+  time the export wrote (the link's `size` and `modified_ms`, which a move or
+  rename keeps); otherwise, a file deleted in Finder and another put under
+  its name included, the next Render asks again. Deleting the file in Drive deletes the link: `ON DELETE
   CASCADE` on connections with `foreign_keys` (sqlx's default, so every Rust
   pool and the frontend's SQL plugin), and an explicit delete wherever
   `files` rows are deleted (`drive::ops::rows`, `store::delete_file_row`,
@@ -2241,8 +2243,11 @@ check read it.
   (`guard::drive_target`): `Course/`, app state and the folder of subjects
   are refused.
 - **A first copy** is written beside its destination under a hidden
-  temporary name (`.oculus-export-…`) and renamed into place (an APFS clone
-  where the volume allows). Its `files` row is what an imported file gets
+  temporary name, the link's own (`.oculus-export-<slug>-<preset>.mp4`, and
+  `.vtt` for captions, `disk::temp_name`), and renamed into place (an APFS
+  clone where the volume allows). One a crash left is replaced by the
+  link's next export into that folder; a dot-name, Drive never lists or
+  rows it. Its `files` row is what an imported file gets
   (`category_of_path`, the extension as `file_type`), in the target's home,
   inserted with the link in one transaction; a stale row on the path goes
   first. If the rows cannot be written, the copied files are removed.
@@ -2254,7 +2259,8 @@ check read it.
   the Drive player reads, with a row as reconcile would give it. Drive lists
   it as a file beside the video; a move in Drive does not carry it. A
   re-render of a video with no narration removes the old `<name>.vtt` and
-  its row.
+  its row only when an export wrote it (the link's `captions`): captions
+  Transcribe wrote beside the file stay.
 - **Drive hears it.** The app sends `drive-changed` with the home's row and
   the files written (`added`, a replaced file included) or removed, so
   listings and an open player reload. The CLI is another process and sends

@@ -231,7 +231,8 @@ async fn a_re_render_replaces_the_file_where_the_student_moved_and_renamed_it() 
         again.file,
         DriveFile {
             file_id: first.file.file_id,
-            rel: moved.clone()
+            rel: moved.clone(),
+            captions: true,
         }
     );
     assert_eq!(lib.read(&moved), "v2");
@@ -452,4 +453,68 @@ fn make_folder_makes_each_missing_level_and_refuses_the_apps_and_synced_names() 
     for refused in [".oculus/x", "courses", synced.as_str(), "a/../b"] {
         assert!(make_folder(&dir, refused).is_err(), "{refused}");
     }
+}
+
+#[tokio::test]
+async fn another_file_put_under_the_exports_name_is_no_link_and_is_never_replaced() {
+    let lib = Lib::new("export-swapped").await;
+    let (dir, report) = lib.video(Some(CODE), "the export", false);
+    let first = lib.export(&dir, &report, None).await;
+
+    // Deleted in Finder, and another video dropped in under the same name:
+    // reconcile keeps the old row, so the row and link outlive the file.
+    std::fs::remove_file(lib.dir.join(&first.file.rel)).unwrap();
+    std::fs::write(lib.dir.join(&first.file.rel), "the student's own video").unwrap();
+    assert_eq!(
+        drive_file(&lib.dir, &lib.pool, SLUG, Preset::Final)
+            .await
+            .unwrap(),
+        None
+    );
+    let again = lib.export(&dir, &report, None).await;
+    assert!(!again.replaced);
+    assert_ne!(again.file.rel, first.file.rel);
+    assert_eq!(lib.read(&first.file.rel), "the student's own video");
+}
+
+#[tokio::test]
+async fn a_crashed_exports_leftover_is_never_listed_or_rowed_and_the_next_export_takes_it() {
+    let lib = Lib::new("export-leftover").await;
+    let (dir, report) = lib.video(Some(CODE), "v1", false);
+    let folder = videos_in(CODE);
+    std::fs::create_dir_all(lib.dir.join(&folder)).unwrap();
+    let leftover = format!("{folder}/{}", disk::temp_name(SLUG, "final", "mp4"));
+    std::fs::write(lib.dir.join(&leftover), "half a video").unwrap();
+
+    let listed =
+        crate::library::drive::listing::list_folder_at(&lib.dir, &folder, false, &[]).unwrap();
+    assert!(listed.files.is_empty(), "{:?}", listed.files);
+    let unrowed = crate::library::drive::ops::reconcile::unrowed_own_files(
+        &lib.dir,
+        CODE,
+        &Default::default(),
+    );
+    assert!(unrowed.is_empty(), "{unrowed:?}");
+
+    lib.export(&dir, &report, None).await;
+    assert!(
+        !lib.exists(&leftover),
+        "the link's next export reused its name"
+    );
+}
+
+#[tokio::test]
+async fn a_re_render_leaves_captions_it_did_not_write() {
+    let lib = Lib::new("export-transcribed").await;
+    let (dir, report) = lib.video(None, "v1", false);
+    let first = lib.export(&dir, &report, None).await;
+    // Transcribe wrote captions beside the exported, un-narrated video.
+    let vtt = format!("{}.vtt", first.file.rel);
+    std::fs::write(lib.dir.join(&vtt), "WEBVTT\n\ntranscribed").unwrap();
+
+    let report = lib.rendered(&dir, Preset::Final, "v2", false);
+    let again = lib.export(&dir, &report, None).await;
+    assert!(again.replaced);
+    assert_eq!(lib.read(&vtt), "WEBVTT\n\ntranscribed");
+    assert!(again.change.removed.is_empty());
 }

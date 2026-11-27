@@ -13,12 +13,24 @@ pub struct StudioExport {
     pub file_id: i64,
     /// Data-dir-relative.
     pub relative_path: String,
+    /// The file as the export last wrote it.
+    pub written: Written,
+}
+
+/// What an export wrote: the mp4's size and modification time, and whether
+/// it wrote the captions beside it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Written {
+    pub size: i64,
+    pub modified_ms: i64,
+    pub captions: bool,
 }
 
 /// Every link of the video `slug` whose file still has a row.
 pub async fn studio_exports_of(pool: &SqlitePool, slug: &str) -> Result<Vec<StudioExport>, String> {
     let rows = sqlx::query(
-        "SELECT e.preset, e.file_id, f.relative_path FROM studio_exports e
+        "SELECT e.preset, e.file_id, f.relative_path, e.size, e.modified_ms, e.captions
+         FROM studio_exports e
          JOIN files f ON f.id = e.file_id WHERE e.slug = ?1",
     )
     .bind(slug)
@@ -31,24 +43,37 @@ pub async fn studio_exports_of(pool: &SqlitePool, slug: &str) -> Result<Vec<Stud
             preset: r.get("preset"),
             file_id: r.get("file_id"),
             relative_path: r.get("relative_path"),
+            written: Written {
+                size: r.get("size"),
+                modified_ms: r.get("modified_ms"),
+                captions: r.get::<i64, _>("captions") != 0,
+            },
         })
         .collect())
 }
 
-/// Link `slug`'s `preset` to the file `file_id`, replacing an older link.
+/// Link `slug`'s `preset` to the file `file_id` as the export `written` it,
+/// replacing an older link.
 pub async fn set_studio_export<'e>(
     executor: impl SqliteExecutor<'e>,
     slug: &str,
     preset: &str,
     file_id: i64,
+    written: Written,
 ) -> Result<(), String> {
     sqlx::query(
-        "INSERT INTO studio_exports (slug, preset, file_id) VALUES (?1, ?2, ?3)
-         ON CONFLICT(slug, preset) DO UPDATE SET file_id = excluded.file_id",
+        "INSERT INTO studio_exports (slug, preset, file_id, size, modified_ms, captions)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(slug, preset) DO UPDATE SET file_id = excluded.file_id,
+           size = excluded.size, modified_ms = excluded.modified_ms,
+           captions = excluded.captions",
     )
     .bind(slug)
     .bind(preset)
     .bind(file_id)
+    .bind(written.size)
+    .bind(written.modified_ms)
+    .bind(written.captions)
     .execute(executor)
     .await
     .map(|_| ())
