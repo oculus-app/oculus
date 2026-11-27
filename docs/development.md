@@ -579,7 +579,7 @@ is built to give the same bytes for the same source:
   leaves keyd alone, while an edit to the helper's Info.plist or icon changes
   its signature and costs one keychain prompt like a keyd update.
 - **A dev and a bundled keyd on one Mac** share the LaunchAgent label and the
-  socket. Dev's program is inside `<data_dir>/bin/Oculus Helper.app`, the
+  socket. Dev's program is inside `<data_dir>/.oculus/bin/Oculus Helper.app`, the
   bundle's inside the `.app`, so whichever installed last owns it, and
   `oculus keyd status` says which. Their code hashes differ, so switching
   costs a prompt.

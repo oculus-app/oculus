@@ -64,6 +64,22 @@ pub fn from_workspace(rel: &str) -> String {
     format!("{}{rel}", "../".repeat(up))
 }
 
+/// Whether a data-dir-relative path is one the viewers may read: inside a
+/// library folder (`layout::library_roots`) or the workspace, the asset
+/// protocol's scope in tauri.conf.json. Plain segments only.
+pub fn readable(relative: &Path) -> bool {
+    use std::path::Component;
+    let plain = relative
+        .components()
+        .all(|part| matches!(part, Component::Normal(_)));
+    let in_library = relative.components().next().is_some_and(|first| {
+        crate::library::layout::library_roots()
+            .iter()
+            .any(|root| first.as_os_str() == *root)
+    });
+    plain && (in_library || relative.starts_with(agents_rel()))
+}
+
 /// The one copy of the skills. Everything else about them is a route to here.
 pub fn skills_dir(data_dir: &Path) -> PathBuf {
     agents_dir(data_dir).join(SKILLS_DIR)
