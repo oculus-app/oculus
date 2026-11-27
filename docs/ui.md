@@ -18,6 +18,7 @@ Read this before any UI work.
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
 | Page headers, titles and breadcrumb parent popovers | `app/src/components/tabs/PaneHeader.tsx` (`PageHeader`, `PaneTitle`, `PaneTrail`), `app/src/components/ui/Breadcrumb.tsx` |
+| A path on one line that glides when it doesn't fit | `app/src/components/ui/Trail.tsx`, `app/src/hooks/ui/useTrailGlide.ts`, `app/src/lib/ui/trailGlide.ts` |
 | Page navigation and its responsive shell | `app/src/components/ui/layout/SideNav.tsx`, `app/src/components/ui/layout/SideNavShell.tsx`, `app/src/hooks/ui/useSideNavPanel.ts` |
 | Settings pane layout and stacking rows | `app/src/styles/settings.css`, `app/src/layouts/SettingsLayout.tsx`, `app/src/components/settings/SettingsNav.tsx` |
 | Drag gestures | `app/src/hooks/gestures/usePointerDrag.ts`, `app/src/hooks/gestures/useCardDrag.ts`, `app/src/hooks/gestures/useFileDrop.ts` |
@@ -452,6 +453,21 @@ themes are opt-in and keep the same structure.
   skip style writes. Set `--scroll-fade` for a ramp other than 24px, and keep
   the scroller flush against what it sits on — padding between them leaves a
   visible gap under the fade.
+- **A path that must stay on one line is a `Trail`**
+  (`app/src/components/ui/Trail.tsx`): crumbs (a `label`, an optional `icon`,
+  an optional `onClick` that makes the crumb a button) between `CaretRight`s,
+  never wrapped and never folded into a "…". One that doesn't fit is a
+  sideways scroller with no scrollbar, resting on its end so the place it
+  leads to is in view, the cut edge faded by `useScrollFade`.
+  `useTrailGlide` glides it to its start while the pointer is over it and
+  back on leave: 700 ms across the whole overflow whatever the path's
+  length, and the same share of that from part-way. A crumb focused from the
+  keyboard is glided into view, so a clipped button can be reached, and a
+  sideways wheel stops the glide and scrolls. Under reduced motion nothing
+  glides: the trail scrolls, jumps to a focused crumb and returns to its end
+  at rest. The text size is the caller's `className`; `quiet` leaves the last
+  crumb in the line's colour and weight, and `data-current` marks it. The
+  header's `Breadcrumb` is the other shape: it folds parents into a popover.
 - **Tables are full-bleed in `GridTable`**, header outside the scroller (or the
   bar runs down it). Alternate views are sibling `ViewTabs`/`PillTabs`, not a
   dropdown, over a fixed-height toolbar so switching never jolts the rows.
@@ -599,6 +615,15 @@ glyph; subject and project crumbs retain their custom identity icons.
   `webkitUserSelect`. The `select-*` utilities already emit both.
 - **Page zoom, never CSS `zoom`** — in a CSS-zoomed subtree WebKit mixes visual
   pointer coords with layout rects, breaking popups and drags.
+- **`cqw` in a registered custom property is wrong under page zoom** —
+  WKWebView resolves it to zoom times its size inside an `@property`
+  `<length-percentage>`, so a `transform` built from it lands short: in a
+  260px box a strip moved by `calc(100% - 100cqw)` had its end cut off by 39px
+  at zoom 1.15 and 78px at 1.3. Position a clipped strip by scrolling it, in
+  the scroller's own numbers (`scrollLeft`, `scrollWidth`, `offsetLeft`), as
+  `Trail` does. A scroll offset is a whole pixel and zoomed content is not:
+  reach the end by writing `scrollWidth` and letting the engine clamp, and
+  leave a pixel of padding after the last item.
 - **No native colour inputs** — `<input type="color">` opens the OS panel
   and has no alpha; use `ColorField` (`app/src/components/ui/color/`), whose
   pad and strips measure the pointer as a fraction of their own box, so page
