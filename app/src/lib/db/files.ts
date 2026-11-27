@@ -71,9 +71,9 @@ export async function resetFilePipeline(
 }
 
 /** Drop a file's row with its indexed pages, a note's versions, a Studio
- *  render's link and a chat output's save (`chatSaves.ts`). Those are
- *  deleted explicitly rather than trusting `ON DELETE CASCADE`, which only
- *  fires on a connection with `foreign_keys` on. */
+ *  render's link and a chat output's save (`chatSaves.ts`), each by hand
+ *  beside the cascade (docs/architecture.md, "The database has one schema
+ *  owner and two writers"). */
 export async function deleteFileRow(id: number): Promise<void> {
   const db = await getDb();
   await db.execute(`DELETE FROM pages WHERE file_id = $1`, [id]);

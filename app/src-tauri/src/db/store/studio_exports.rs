@@ -1,8 +1,8 @@
 //! `studio_exports`: the Drive file a video's Final or Small render was saved
 //! to, by `files.id`, so a re-render replaces it wherever the student has
 //! moved or renamed it. Written by `studio::export`. A link goes with its
-//! file: `ON DELETE CASCADE`, and an explicit delete wherever `files` rows
-//! are deleted, since a connection may lack `foreign_keys`.
+//! file, by the cascade and by hand beside it (docs/architecture.md, "The
+//! database has one schema owner and two writers").
 
 use sqlx::{Row, SqliteExecutor, SqlitePool};
 

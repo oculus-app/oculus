@@ -579,6 +579,14 @@ never creates the database, so a fresh machine opens the app once first. The
 library move applies the app's own migrations to an existing database before
 it rewrites paths, in either process ([library-move.md](./library-move.md)).
 
+- **Cascades hold on every connection the app opens.** sqlx turns
+  `foreign_keys` on by default, and every connection goes through it: the
+  Rust pools (`db::store::pool`), the CLI (`store::open`) and the frontend's
+  SQL plugin. A client outside the app (a `sqlite3` shell) has it off, so the
+  places that delete `files` rows (`deleteFileRow`, `store::files::delete_file_row`,
+  Drive's `delete_ids`) also delete the child rows by hand: `pages`,
+  `document_versions`, `studio_exports` and `chat_saves` in each, and
+  `task_files` in Drive's.
 - `subjects.kind` is `subject` for every course and `top` for one reserved
   row (`db::store::TOP_LEVEL_SUBJECT_ID`, a negative id no Canvas course has)
   that the rows of top-level files hang off, since `files.subject_id` is

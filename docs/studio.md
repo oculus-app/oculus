@@ -2222,11 +2222,9 @@ check read it.
   student's (`Zone::Own`) and the file on disk has the size and modification
   time the export wrote (the link's `size` and `modified_ms`, which a move or
   rename keeps); otherwise, a file deleted in Finder and another put under
-  its name included, the next Render asks again. Deleting the file in Drive deletes the link: `ON DELETE
-  CASCADE` on connections with `foreign_keys` (sqlx's default, so every Rust
-  pool and the frontend's SQL plugin), and an explicit delete wherever
-  `files` rows are deleted (`drive::ops::rows`, `store::delete_file_row`,
-  `deleteFileRow`). Deleting a video in Studio removes its links and leaves
+  its name included, the next Render asks again. Deleting the file in Drive deletes the link, by `ON DELETE
+  CASCADE` and by hand beside it
+  ([architecture.md](./architecture.md#the-database-has-one-schema-owner-and-two-writers)). Deleting a video in Studio removes its links and leaves
   the files: they are the student's exports. A folder deleted outside Studio
   leaves its links, so `oculus studio new` makes a video through
   `export::create_video`, which drops any links its slug still has: a new

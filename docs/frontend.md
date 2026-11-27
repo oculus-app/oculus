@@ -743,11 +743,9 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
   `visibility: hidden` element — how background panes hide.
 - **Delete is Drive's `delete_entries`** (above), guarded by
   `layout::own_path_ok`; an upload's name never starts with a dot, which the
-  guard refuses. `deleteFileRow`, which the reconcilers use, deletes `pages`,
-  `document_versions`, `studio_exports` and `chat_saves` by hand, as Drive's
-  `delete_ids` and `store::files::delete_file_row` do: the cascade fires only
-  with `foreign_keys` on, which sqlx sets on every connection the app and the
-  CLI open, the SQL plugin's included, but other SQLite clients don't. A parse
+  guard refuses. `deleteFileRow`, which the reconcilers use, deletes a file's
+  child rows by hand beside the cascade
+  ([architecture.md](./architecture.md#the-database-has-one-schema-owner-and-two-writers)). A parse
   in flight can land after a delete, so `store_bytes` purges artifacts on a
   reused name whenever the bytes differ.
 - **The PDF/markdown toggle probes file metadata**, through

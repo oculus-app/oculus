@@ -117,9 +117,9 @@ pub async fn rename_file_row(
 }
 
 /// Drop a file's row with its indexed pages, a note's versions, a Studio
-/// render's link and a chat output's save (`deleteFileRow`). Children are
-/// deleted explicitly: `ON DELETE CASCADE` only fires on a connection with
-/// `foreign_keys` on.
+/// render's link and a chat output's save (`deleteFileRow`), each by hand
+/// beside the cascade (docs/architecture.md, "The database has one schema
+/// owner and two writers").
 pub async fn delete_file_row(pool: &SqlitePool, id: i64) -> Result<(), String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     for sql in [

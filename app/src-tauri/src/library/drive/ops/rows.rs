@@ -99,8 +99,9 @@ async fn rows_at(
         .collect())
 }
 
-/// A row and everything hung off its id. Children are deleted explicitly:
-/// `ON DELETE CASCADE` fires only on a connection with `foreign_keys` on.
+/// A row and everything hung off its id, each child by hand beside the
+/// cascade (docs/architecture.md, "The database has one schema owner and two
+/// writers").
 async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()> {
     for id in ids {
         for sql in [
