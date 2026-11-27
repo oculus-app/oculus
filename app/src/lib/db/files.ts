@@ -148,14 +148,15 @@ export async function getFileByCanvasId(
   return rows[0] ?? null;
 }
 
-/** Files whose library path ends in `/<tail>` — a course-relative path or a
- *  bare filename an agent cited. At most two, so a caller can tell a unique
+/** Files whose library path ends in `/<tail>`, or is `tail` (a student's
+ *  file at the data dir's top) — a course-relative path or a bare filename
+ *  an agent cited. At most two, so a caller can tell a unique
  *  hit from an ambiguous one. */
 export async function findFilesByTail(tail: string): Promise<DbFile[]> {
   const db = await getDb();
   return db.select<DbFile[]>(
-    `SELECT * FROM files WHERE relative_path LIKE $1 ESCAPE '\\' LIMIT 2`,
-    [`%/${likeEscape(tail)}`],
+    `SELECT * FROM files WHERE relative_path LIKE $1 ESCAPE '\\' OR relative_path = $2 LIMIT 2`,
+    [`%/${likeEscape(tail)}`, tail],
   );
 }
 

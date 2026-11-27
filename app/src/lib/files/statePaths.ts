@@ -45,6 +45,13 @@ export function stateRel(rel: string): string {
   return dir ? dir + rel.slice(first.length) : rel;
 }
 
+/** True for a path whose first segment is a state folder's name as older
+ *  rows spell it at the top (`agents/…`): never read as a student's own. */
+export function namesOldStateFolder(rel: string): boolean {
+  const cut = rel.indexOf("/");
+  return TOP_LEVEL.has(cut < 0 ? rel : rel.slice(0, cut));
+}
+
 /** Regex source for a state folder in either spelling, data-dir-relative. */
 const either = (name: string) => `(?:${STATE_DIR.replace(".", "\\.")}\\/)?${name}`;
 

@@ -114,6 +114,11 @@ export function isTopLevelPath(path: string): boolean {
   return first !== "" && !first.startsWith(".") && !sameName(first, COURSES_DIR);
 }
 
+/** True for a data-dir-relative path in the library the student browses:
+ *  under `courses/`, or among their own at the top (`layout::in_library` in
+ *  Rust). Not the agents' workspace or anything else in `.oculus/`. */
+export const isLibraryPath = (path: string): boolean => isCoursePath(path) || isTopLevelPath(path);
+
 /** `files.category` of a data-dir-relative path (`category_of_path` in
  *  Rust): `categoryOf` inside a subject, and at the top level by extension
  *  alone, so a student's own `Course/` folder there holds uploads. */

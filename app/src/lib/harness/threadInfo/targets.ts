@@ -1,6 +1,6 @@
 import { fullCitation, parsedSourceOf } from "@/lib/citations/parse";
 import { videoHref } from "@/lib/studio/routes";
-import { COURSES_DIR, recordingOf } from "@/lib/files/libraryLayout";
+import { COURSES_DIR, isTopLevelPath, recordingOf } from "@/lib/files/libraryLayout";
 import { ATTACHMENTS_DIR, MEMORIES_DIR, OUTPUTS_DIR, STUDIO_PATTERN } from "@/lib/files/statePaths";
 
 /** What a Thread info row opens: a library path the way a file chip opens
@@ -17,7 +17,10 @@ const READ_ROOTS = [COURSES_DIR, ATTACHMENTS_DIR, OUTPUTS_DIR];
  *  rooted at the library) course files. */
 const MADE_ROOTS = [COURSES_DIR, OUTPUTS_DIR, MEMORIES_DIR];
 
-const under = (path: string, roots: string[]) => roots.some((root) => path.startsWith(`${root}/`));
+/** Under one of `roots`, or the student's own at the data dir's top, which
+ *  an agent reads and makes like a subject's files. */
+const under = (path: string, roots: string[]) =>
+  isTopLevelPath(path) || roots.some((root) => path.startsWith(`${root}/`));
 
 /** Studio's folders in the data directory (`docs/studio.md`), spelled either
  *  way (`lib/files/statePaths.ts`): a file in a video's folder opens that

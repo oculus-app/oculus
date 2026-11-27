@@ -8,7 +8,7 @@ import { libraryLinkTarget } from "@/lib/files/libraryLinks";
 import { readCourseFile } from "@/lib/files/courseFiles";
 import { lecturePagePath } from "@/lib/lectures";
 import { citedPage, fullCitation, quoteFromLines, type Citation } from "@/lib/citations";
-import { isCoursePath, recordingOf } from "@/lib/files/libraryLayout";
+import { isLibraryPath, recordingOf } from "@/lib/files/libraryLayout";
 import { resolveMoved } from "@/lib/files/pathMoves";
 import { filePagePath } from "./labels";
 export { filePagePath, fileTitle, folderTitle } from "./labels";
@@ -130,7 +130,8 @@ export function openNoteLink(href: string, files: DbFile[]): void {
 let locateSeq = 0;
 
 /**
- * Opens a citation. A course file opens in the side panel at the cited spot
+ * Opens a citation. A library file (in a subject or the student's own at the
+ * top) opens in the side panel at the cited spot
  * (`citationLocate`); a path with no row, an `.oculus/agents/` file, or a binary goes
  * to the system viewer; a path in a lecture's recording folder opens the lecture. `newTab` is the
  * ⌘-click, answered here rather than through `data-tab-href` because the
@@ -153,7 +154,7 @@ async function openCitationAsync(cited: Citation, newTab: boolean): Promise<void
     else openBeside(lecturePagePath(lecture, cite.at));
     return;
   }
-  if (!isCoursePath(cite.path)) return system();
+  if (!isLibraryPath(cite.path)) return system();
   const file = await resolveLibraryFile(cite.path);
   if (!file) return system();
   const locate = await citationLocate(cite, file);

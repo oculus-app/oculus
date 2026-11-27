@@ -96,12 +96,47 @@ describe("a path bare in prose", () => {
   });
 });
 
+describe("a student's own path at the data dir's top", () => {
+  test("up from the cwd and absolute under the data dir", () => {
+    expect(path("../../Receipts/march.pdf")).toBe("Receipts/march.pdf");
+    expect(path("../../timetable.png")).toBe("timetable.png");
+    expect(path(`${DATA}/Receipts/march.pdf`)).toBe("Receipts/march.pdf");
+    expect(fullCitation("../../Receipts/march.pdf#page=3")).toMatchObject({ path: "Receipts/march.pdf", page: 3 });
+  });
+
+  test("as a mention spells it, only where a mention can be", () => {
+    const mention = (raw: string) => fullCitation(raw, { topLevel: true })?.path ?? null;
+    expect(mention("Receipts/march.pdf")).toBe("Receipts/march.pdf");
+    expect(mention("Receipts/")).toBe("Receipts/");
+    expect(mention("timetable.png")).toBe("timetable.png");
+    expect(path("Receipts/march.pdf")).toBeNull();
+    for (const code of ["x", "len(x)", "numpy.array", ".oculus/oculus.db", ".library-move/done", "outputs/a.png"])
+      expect(mention(code)).not.toBe(code);
+  });
+
+  test("in prose, a file in folders is looked up, not assumed", () => {
+    expect(parseCitation("Receipts/march.pdf")).toMatchObject({ kind: "tail", tail: "Receipts/march.pdf" });
+    expect(parseCitation("src/main.rs")).toBeNull();
+  });
+
+  test("never a state folder an older chat spells at the top", () => {
+    for (const raw of [
+      `${DATA}/studio/videos/x/script.md`,
+      `${DATA}/whiteboard-pages/7/page-004.png`,
+      "../../studio/videos/x/script.md",
+    ]) {
+      expect(parseCitation(raw, { tails: false })).toBeNull();
+    }
+    expect(fullCitation("studio/videos/x/script.md", { topLevel: true })).toBeNull();
+  });
+});
+
 describe("refused", () => {
   test("a step up that lands outside the roots", () => {
     for (const raw of [
       "../secrets.md",
-      "../../secrets.md",
       "../../.oculus/oculus.db",
+      "../../.library-move/done",
       "../../.oculus/vault/keys.md",
       "../oculus.db",
       "../studio/videos/x/script.md",

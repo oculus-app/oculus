@@ -1,6 +1,6 @@
 import { parsedMdSource } from "@/lib/files/fileTypes";
 import { COURSE_DIR, COURSES_DIR, FILES_DIR, SYNCED_DIR_NAMES, inFolder, isCoursePath } from "@/lib/files/libraryLayout";
-import { AGENTS_DIR, AGENTS_PATTERN, stateRel } from "@/lib/files/statePaths";
+import { AGENTS_DIR, AGENTS_PATTERN, namesOldStateFolder, stateRel } from "@/lib/files/statePaths";
 
 /** 1-based, inclusive. */
 export interface LineRange {
@@ -16,7 +16,8 @@ export interface CiteLocation {
 }
 
 /** A citation whose file is known: `path` is data-dir-relative and where the
- *  file is, under `courses/` or `.oculus/agents/`. */
+ *  file is, under `courses/`, `.oculus/agents/` or a folder of the student's
+ *  own at the data dir's top. */
 export interface Citation extends CiteLocation {
   path: string;
 }
@@ -41,6 +42,9 @@ export const ROOTS = `(?:${COURSES_DIR}|${AGENTS_PATTERN})`;
  *  ("Application Support"), so `COMMAND` keeps a command a command. */
 const ABSOLUTE = new RegExp(`^\\/.*?\\/com\\.tchan\\.oculus\\/(${ROOTS}\\/.+)$`);
 const ABSOLUTE_COURSES = /^\/.*?\/(courses\/.+)$/;
+/** The student's own at the data dir's top, cut the same way: any first
+ *  segment that is not a dot-name (the app's). */
+const ABSOLUTE_TOP = /^\/.*?\/com\.tchan\.oculus\/([^./][^/]*(?:\/.+)?)$/;
 const COMMAND = /\s[-/]|[|&;<>$`*]/;
 
 /** The steps up a path may open with: `../../` reaches the data dir from
@@ -51,8 +55,18 @@ const UP = /^(?:\.\.\/){1,2}/;
 /** Data-dir-relative, or up from the agents' cwd onto a root. */
 const RELATIVE = new RegExp(`^(?:\\.\\.\\/){0,2}(${ROOTS}\\/.+)$`);
 
+/** Up from the agents' cwd to the data dir's top, onto a student's own
+ *  folder or file there. Exactly two steps: one reaches the state folder. */
+const UP_TOP = /^\.\.\/\.\.\/([^./][^/]*(?:\/.+)?)$/;
+
 /** Relative to the agent's cwd (`.oculus/agents/`). */
 const AGENT_CWD = /^(?:\.\/(.+)|((?:attachments|outputs)\/.+))$/;
+
+/** A data-dir-relative path at the top as a composer mention spells it: a
+ *  student's folder or file, never a dot-name or the cwd's own folders, and
+ *  nothing that reads as code. It must also hold a `/` or end in a document's
+ *  extension (`BARE_NAME`), so a backticked word stays a word. */
+const TOP_LEVEL = /^(?!(?:attachments|outputs)\/)[^./\s()[\]{}<>'"=;,][^\s()[\]{}<>'"=;,]*$/;
 
 /** A course-relative path into one of the synced folders
  *  (`Course/Files/…`), ending in an extension. */
@@ -60,9 +74,13 @@ const COURSE_RELATIVE = new RegExp(
   `^${COURSE_DIR}\\/(?:${SYNCED_DIR_NAMES.join("|")})\\/\\S+\\.[A-Za-z0-9]+$`,
 );
 
-/** A bare filename with a document or picture extension. */
+/** A bare filename with a document or picture extension, or such a file in
+ *  folders (a student's at the data dir's top, `Receipts/march.pdf`), looked
+ *  up against the library's rows: code paths stay code. */
 const BARE_NAME =
   /^[^\s/\\:]+\.(?:pdf|md|docx?|pptx?|xls[xm]?|ods|txt|csv|png|jpe?g|gif|webp|svg)$/i;
+const FOLDERED_NAME =
+  /^[^\s./\\:][^\s\\:]*\/[^\s/\\:]+\.(?:pdf|md|docx?|pptx?|xls[xm]?|ods|txt|csv|png|jpe?g|gif|webp|svg)$/i;
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
@@ -106,11 +124,13 @@ function location(m: RegExpExecArray | null): CiteLocation {
 /**
  * The citation a string spells, or null. `linkText` is a link's visible text,
  * read for a page only when the href has no location. `tails` off keeps to
- * full paths (for callers that cannot wait on a lookup).
+ * full paths (for callers that cannot wait on a lookup). `topLevel` reads a
+ * plain relative path as data-dir-relative, as a composer mention spells a
+ * student's file at the top; elsewhere such a path is a tail.
  */
 export function parseCitation(
   raw: string | null | undefined,
-  { linkText, tails = true }: { linkText?: string; tails?: boolean } = {},
+  { linkText, tails = true, topLevel = false }: { linkText?: string; tails?: boolean; topLevel?: boolean } = {},
 ): CitationShape | null {
   if (!raw) return null;
   const { path, hash } = splitLibraryHref(raw.trim());
@@ -130,22 +150,30 @@ export function parseCitation(
   // or Windows separator cannot bypass it.
   if (/[\\\x00-\x1f]/.test(s) || s.replace(UP, "").split("/").includes("..")) return null;
   if (s.startsWith("/")) {
+    if (COMMAND.test(s)) return null;
     const m = ABSOLUTE.exec(s) ?? ABSOLUTE_COURSES.exec(s);
-    return m && !COMMAND.test(s) ? { kind: "path", path: stateRel(m[1]), ...loc } : null;
+    if (m) return { kind: "path", path: stateRel(m[1]), ...loc };
+    const top = ABSOLUTE_TOP.exec(s);
+    return top && !namesOldStateFolder(top[1]) ? { kind: "path", path: top[1], ...loc } : null;
   }
   if (/\s/.test(path)) return null;
   const rel = RELATIVE.exec(s);
   if (rel) return { kind: "path", path: stateRel(rel[1]), ...loc };
+  const up = UP_TOP.exec(s);
+  if (up && !namesOldStateFolder(up[1])) return { kind: "path", path: up[1], ...loc };
   const cwd = AGENT_CWD.exec(s);
   if (cwd) return { kind: "path", path: `${AGENTS_DIR}/${cwd[1] ?? cwd[2]}`, ...loc };
-  if (tails && (COURSE_RELATIVE.test(s) || BARE_NAME.test(s)))
+  if (topLevel && TOP_LEVEL.test(s) && (s.includes("/") || BARE_NAME.test(s)) && !namesOldStateFolder(s))
+    return { kind: "path", path: s, ...loc };
+  if (tails && (COURSE_RELATIVE.test(s) || BARE_NAME.test(s) || FOLDERED_NAME.test(s)))
     return { kind: "tail", tail: s, ...loc };
   return null;
 }
 
-/** A citation with its file known from the shape alone, or null. */
-export function fullCitation(raw: string | null | undefined): Citation | null {
-  const c = parseCitation(raw, { tails: false });
+/** A citation with its file known from the shape alone, or null. `topLevel`
+ *  as for `parseCitation`. */
+export function fullCitation(raw: string | null | undefined, { topLevel = false } = {}): Citation | null {
+  const c = parseCitation(raw, { tails: false, topLevel });
   return c?.kind === "path" ? { path: c.path, line: c.line, page: c.page, ...(c.at != null ? { at: c.at } : {}) } : null;
 }
 
