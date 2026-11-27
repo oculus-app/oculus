@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::harness::antigravity::{AcpSession, AcpSpawn};
 use crate::harness::child::ThreadSpawn;
 use crate::harness::claude::{ClaudeSession, ClaudeSpawn};
-use crate::harness::codex::{self, CodexThreadOpts};
+use crate::harness::codex::CodexThreadOpts;
 use crate::harness::discover;
 use crate::harness::event::Bound;
 use crate::harness::opencode::{self, OpencodeSessionOpts};
@@ -279,7 +279,7 @@ impl Harness {
                 let server = self.codex_server()?;
                 let topts = CodexThreadOpts {
                     cwd,
-                    writable_roots: codex::writable_roots(&self.data_dir),
+                    writes_library: true,
                     model: opts.model.clone(),
                     reasoning_effort: opts.reasoning_effort.clone(),
                     instructions: instructions(

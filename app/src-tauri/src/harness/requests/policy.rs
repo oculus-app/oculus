@@ -7,10 +7,14 @@
 //! command cannot be checked this way, since nothing can tell from a
 //! command line what it will touch; its row says so instead, and the name
 //! denies and `OCULUS_AGENT` keep refusing inside an approved command.
+//! A file change or file grant naming only own files is allowed unseen
+//! (`own_grant`): the rule is read when the CLI asks, so a folder made at
+//! the top after the thread started is the student's at once.
 
 use std::path::{Component, Path, PathBuf};
 
 use crate::harness::protected::{own_zone, STATE_DIRS, STATE_FILE_GLOBS, WORKSPACE_DIRS};
+use crate::harness::requests::{Action, Decision, NewRequest, RequestOption};
 use crate::library::paths::STATE_DIR;
 
 /// The first of `paths` that no agent may write in the library at
@@ -28,6 +32,32 @@ pub fn protected(library: &Path, cwd: &Path, paths: &[String]) -> Option<String>
 pub fn in_own_zone(library: &Path, cwd: &Path, path: &str) -> bool {
     let library = resolve(library);
     library_rel(&library, &resolve(&absolute(cwd, path))).is_some_and(|rel| own_zone(&rel))
+}
+
+/// The option that allows `request` unseen, when all it asks is to write
+/// the student's own files (`in_own_zone`, on the real path): a file change,
+/// or a grant of file access with no network in it, naming at least one path
+/// and only such paths. The own zone is the agent's to write in every mode,
+/// so such a request is answered by this rule, not by the student.
+pub fn own_grant(library: &Path, cwd: &Path, request: &NewRequest) -> Option<RequestOption> {
+    let files_only = match request.action {
+        Action::FileChange => true,
+        Action::Permissions => request.payload["permissions"]
+            .as_object()
+            .is_some_and(|asked| asked.iter().all(|(k, v)| k == "fileSystem" || v.is_null())),
+        _ => false,
+    };
+    let own =
+        !request.paths.is_empty() && request.paths.iter().all(|p| in_own_zone(library, cwd, p));
+    (files_only && own)
+        .then(|| {
+            request
+                .options
+                .iter()
+                .find(|o| o.decision == Decision::Accept)
+                .cloned()
+        })
+        .flatten()
 }
 
 fn absolute(cwd: &Path, path: &str) -> PathBuf {

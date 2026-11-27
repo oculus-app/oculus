@@ -45,9 +45,10 @@ pub struct CodexSpawn {
 #[derive(Clone)]
 pub struct CodexThreadOpts {
     pub cwd: PathBuf,
-    /// Writable besides `cwd`: [`writable_roots`] for a thread, none for a
-    /// one-off turn.
-    pub writable_roots: Vec<PathBuf>,
+    /// Whether the thread writes the library: a chat's does, through
+    /// [`writable_roots`] read again at each turn's start; a one-off turn's
+    /// writes nothing outside `cwd`.
+    pub writes_library: bool,
     pub model: Option<String>,
     pub reasoning_effort: Option<String>,
     /// Appended to Codex's own instructions (`developerInstructions`).
@@ -64,12 +65,14 @@ pub struct CodexThreadOpts {
 /// database's three files (`paths::db_write_paths`), files rather than
 /// their folder since the sandbox is Codex's only containment, then
 /// `paths::agent_write_dirs`, then the student's own files and folders at
-/// the top of each subject and of the data dir as they stand at the thread's
-/// start (`layout::own_top_level`): a writable root cannot exclude `Course/`
-/// or `.oculus/` beneath it, so neither a subject's folder nor the data dir
-/// is ever one, and a new entry beside them is a request. Existing paths only: Codex fails the whole turn on a writable
-/// root it cannot stat ("failed to inspect Seatbelt writable root"), e.g. an
-/// absent WAL sidecar; the manager creates the folders first.
+/// the top of each subject and of the data dir as they stand now
+/// (`layout::own_top_level`, no symlinks): a writable root cannot exclude
+/// `Course/` or `.oculus/` beneath it, so neither a subject's folder nor the
+/// data dir is ever one. Read at each `turn/start`, so an entry made since
+/// the last turn is a root from the next; the app-server takes a sandbox
+/// policy per turn only. Existing paths only: Codex fails the whole turn on
+/// a writable root it cannot stat ("failed to inspect Seatbelt writable
+/// root"), e.g. an absent WAL sidecar; the manager creates the folders first.
 pub fn writable_roots(library: &Path) -> Vec<PathBuf> {
     crate::library::paths::db_write_paths(library)
         .into_iter()
@@ -77,6 +80,16 @@ pub fn writable_roots(library: &Path) -> Vec<PathBuf> {
         .chain(crate::library::layout::own_top_level(library))
         .filter(|p| p.exists())
         .collect()
+}
+
+impl CodexThreadOpts {
+    /// This thread's writable roots as the disk stands now.
+    pub(super) fn roots(&self) -> Vec<PathBuf> {
+        match self.writes_library {
+            true => writable_roots(&self.library),
+            false => Vec::new(),
+        }
+    }
 }
 
 #[derive(Serialize, Clone, Debug)]

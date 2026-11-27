@@ -40,6 +40,12 @@ pub(in crate::harness) enum Effect {
     /// Tell these callbacks no without asking anyone: requests the app
     /// gave up or never showed.
     Withdraw { routes: Vec<LiveRoute> },
+    /// Allow this callback without asking anyone: a write the policy gives
+    /// the agent (`requests::policy::own_grant`), never saved or shown.
+    Grant {
+        route: LiveRoute,
+        option: RequestOption,
+    },
 }
 
 pub(in crate::harness) struct Reply {
@@ -165,6 +171,17 @@ pub(in crate::harness) fn run(
                     request_id,
                     reply,
                 });
+            }
+            Effect::Grant { route, option } => {
+                let granted = crate::runtime::blocking::run(move || Ok(route.0.reply(&option)));
+                match granted.await {
+                    Ok(crate::harness::requests::Reply::Acknowledged)
+                    | Ok(crate::harness::requests::Reply::Written) => {}
+                    Ok(other) => {
+                        elog!("[oculus] harness: an own-zone grant was not written: {other:?}")
+                    }
+                    Err(e) => elog!("[oculus] harness: an own-zone grant was not written: {e}"),
+                }
             }
             Effect::Withdraw { routes } => {
                 let withdrawn = crate::runtime::blocking::run(move || {

@@ -118,6 +118,9 @@ pub(super) fn request_of(
             if paths.is_empty() {
                 return None;
             }
+            // Approving also makes this folder writable for the session.
+            let mut paths = paths;
+            paths.extend(params["grantRoot"].as_str().map(String::from));
             let payload =
                 json!({ "changes": changes, "reason": reason, "grantRoot": params["grantRoot"] });
             let options = vec![
