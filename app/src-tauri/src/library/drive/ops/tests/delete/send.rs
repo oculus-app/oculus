@@ -192,7 +192,7 @@ async fn a_second_delete_that_fails_leaves_the_first_pending() {
     assert!(lib.row_of(id).await.is_some(), "the first is still pending");
     assert_eq!(
         undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap(),
-        [first.clone()]
+        std::slice::from_ref(&first)
     );
     assert_eq!(lib.read(&first), "1");
 }

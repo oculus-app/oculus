@@ -170,7 +170,7 @@ async fn an_undo_that_fails_keeps_the_delete_pending_for_another_try() {
     std::fs::rename(&away, lib.path(&root(CODE))).unwrap();
     assert_eq!(
         undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap(),
-        [note.clone()]
+        std::slice::from_ref(&note)
     );
     assert_eq!(lib.read(&note), "x");
 }
