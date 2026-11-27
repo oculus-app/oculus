@@ -32,8 +32,10 @@ import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { displayCode, humanizeSlug } from "@/lib/format/format";
 import { SETTINGS_PAGES } from "@/lib/search/settings";
 import type { Subject } from "@/lib/db";
-import { isOwnPath } from "@/lib/files/libraryLayout";
-import { parseDriveRoute, parseFilesRoute } from "@/lib/drive/routes";
+import { isOwnPath, isTopLevelPath } from "@/lib/files/libraryLayout";
+import { DRIVE_RECENT_HREF, parseDriveRoute, parseFilesRoute } from "@/lib/drive/routes";
+import { isSubjectsFolder } from "@/lib/drive/home";
+import { SUBJECTS_LABEL, TOP_LEVEL_FILE_ROUTE } from "@/lib/files/labels";
 import { legacyTabTargets } from "@/lib/drive/legacyTabs";
 import { subjectForFolder } from "@/lib/drive/paths";
 import { pathFile } from "@/lib/files/pathCategory";
@@ -147,15 +149,20 @@ export function tabInfo(
     if (pathname.startsWith("/studio/themes")) return { title: "Themes", icon: <Palette size={size} /> };
     return { title: "Videos", icon: <FilmSlate size={size} /> };
   }
-  if (pathname === "/drive/recent") return { title: "Recent", icon: <ClockCounterClockwise size={size} /> };
+  if (pathname === DRIVE_RECENT_HREF) return { title: "Recent", icon: <ClockCounterClockwise size={size} /> };
+  // A top-level file has no subject: Drive's folder stands where its icon would.
+  if (pathname === TOP_LEVEL_FILE_ROUTE) {
+    return fileTabInfo(search, <Folder size={size} />, size) ?? { title: "Drive", icon: <Folder size={size} /> };
+  }
   const driveFolder = parseDriveRoute(pathname);
   if (driveFolder != null) {
-    // `courses/<subject>/…`: a subject's own folder by its code and icon,
-    // anything deeper by its name.
-    const parts = driveFolder.split("/").slice(1);
-    if (parts.length === 0) return { title: "Drive", icon: <Folder size={size} /> };
-    const subject = subjectForFolder(parts[0], subjects);
-    if (parts.length === 1 && subject) {
+    // The folder of subjects by its label, a subject's own folder by its
+    // code and icon, any other folder by its name.
+    if (!driveFolder) return { title: "Drive", icon: <Folder size={size} /> };
+    if (isSubjectsFolder(driveFolder)) return { title: SUBJECTS_LABEL, icon: <BookOpen size={size} /> };
+    const parts = driveFolder.split("/");
+    const subject = parts.length === 2 && isSubjectsFolder(parts[0]) ? subjectForFolder(parts[1], subjects) : undefined;
+    if (subject) {
       return { title: displayCode(subject.code), icon: <SubjectIcon code={subject.code} size={size} /> };
     }
     return { title: parts[parts.length - 1], icon: <FolderSimple size={size} /> };
@@ -176,20 +183,9 @@ export function tabInfo(
     ) : (
       <BookOpen size={size} />
     );
-    // A file is titled by its name; the student's own notes stay verbatim
-    // (humanising would title-case them and eat a leading date).
     if (m[2] === "file") {
-      const rel = new URLSearchParams(search).get("path");
-      const base = rel?.split("/").pop();
-      const own = rel && isOwnPath(rel) ? pathFile(rel).category : null;
-      if (base && own === "whiteboard")
-        return { title: base.replace(/\.whiteboard$/i, ""), icon: <Scribble size={size} /> };
-      if (base && own === "notebook")
-        return { title: base.replace(/\.notebook$/i, ""), icon: <Notebook size={size} /> };
-      if (base && own === "document")
-        return { title: base.replace(/\.md$/i, ""), icon };
-      if (base)
-        return { title: humanizeSlug(base.replace(/\.pdf$/i, "")), icon };
+      const file = fileTabInfo(search, icon, size);
+      if (file) return file;
     }
     if (m[2] === "lecture") {
       return { title: new URLSearchParams(search).get("t") ?? "Lecture", icon };
@@ -208,6 +204,22 @@ export function tabInfo(
   if (pathname.startsWith("/subjects"))
     return { title: "Subjects", icon: <BookOpen size={size} /> };
   return { title: "Oculus", icon: null };
+}
+
+/** A file page's title and icon, from its `?path=`: a file is titled by its
+ *  name, and the student's own notes stay verbatim (humanising would
+ *  title-case them and eat a leading date). `icon` is its home's. */
+function fileTabInfo(search: string, icon: React.ReactNode, size: number): TabInfo | null {
+  const rel = new URLSearchParams(search).get("path");
+  const base = rel?.split("/").pop();
+  if (!rel || !base) return null;
+  const own = isOwnPath(rel) ? pathFile(rel).category : null;
+  if (own === "whiteboard") return { title: base.replace(/\.whiteboard$/i, ""), icon: <Scribble size={size} /> };
+  if (own === "notebook") return { title: base.replace(/\.notebook$/i, ""), icon: <Notebook size={size} /> };
+  if (own === "document") return { title: base.replace(/\.md$/i, ""), icon };
+  // A top-level upload keeps the name the student gave it.
+  if (isTopLevelPath(rel)) return { title: base, icon };
+  return { title: humanizeSlug(base.replace(/\.pdf$/i, "")), icon };
 }
 
 /** `tabInfo` over the app's live subjects, browser pages and favicons: what

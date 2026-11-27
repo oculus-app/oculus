@@ -1,5 +1,6 @@
 /** Rows for the student's own files that arrived without one — written by a
- *  chat agent, Finder or another app straight into a subject's folder — so
+ *  chat agent, Finder or another app straight into a subject's folder or the
+ *  top level (`TOP_LEVEL` stands for it as a subject) — so
  *  they are parsed and searchable like an upload. Rust renames a `.canvas`
  *  drawing to `.whiteboard` and inserts the rows (`reconcile_own_files`,
  *  `app/src-tauri/src/library/drive/ops/reconcile/`, never deletes); this kicks each new file's parse as `recordUploads` does,
@@ -10,6 +11,7 @@ import { getDb } from "@/lib/db/connection";
 import { getSubjects } from "@/lib/db/subjects";
 import { parseFile } from "@/lib/files/courseFiles";
 import { isPipelineFile } from "@/lib/files/fileTypes";
+import { TOP_LEVEL } from "@/lib/files/libraryLayout";
 import { UPLOADS_CHANGED_EVENT, type ImportedFile } from "@/lib/files/uploads";
 import { reconcileDocuments } from "@/lib/notes/documents";
 import { reconcileWhiteboards, reconcileNotebooks } from "@/lib/whiteboard/files";
@@ -58,7 +60,8 @@ const slots = new Map<number, Slot>();
  * Reconcile `subject` soon: calls within `DEBOUNCE_MS` are one pass, never
  * two passes at once for a subject, and an unforced call this soon after the
  * last pass is dropped. A subject's Files tab and Drive's folders call it on
- * load; a finished chat turn forces it (`reconcileAfterTurn`).
+ * load (`TOP_LEVEL` for the top level and the student's folders there); a
+ * finished chat turn forces it (`reconcileAfterTurn`).
  */
 export function scheduleOwnReconcile(subject: ReconcileSubject, { force = false } = {}): void {
   let slot = slots.get(subject.id);
@@ -100,8 +103,9 @@ async function run(slot: Slot): Promise<void> {
   }
 }
 
-/** After a chat turn ends: the thread's subject, or every current subject for
- *  a thread filed under none, since the agent may have written anywhere. */
+/** After a chat turn ends: the top level, and the thread's subject, or every
+ *  current subject for a thread filed under none, since the agent may have
+ *  written anywhere. */
 export async function reconcileAfterTurn(threadId: number): Promise<void> {
   try {
     const db = await getDb();
@@ -110,7 +114,7 @@ export async function reconcileAfterTurn(threadId: number): Promise<void> {
       [threadId],
     );
     const subjects = filed ? [filed] : (await getSubjects()).filter((s) => s.is_current);
-    for (const s of subjects) scheduleOwnReconcile({ id: s.id, code: s.code }, { force: true });
+    for (const s of [TOP_LEVEL, ...subjects]) scheduleOwnReconcile({ id: s.id, code: s.code }, { force: true });
   } catch (e) {
     console.warn(`[reconcile] after thread ${threadId}: ${e}`);
   }

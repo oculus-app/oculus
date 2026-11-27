@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { followPath, followRoute, rekeyByPath, type PathChange } from "@/lib/shell/pathFollow";
 import { filePagePath } from "@/lib/files/labels";
+import { TOP_LEVEL } from "@/lib/files/libraryLayout";
 
 const ids: Record<string, number> = { COMP1: 1, MAST2: 2 };
 const idOf = (folder: string) => ids[folder];
@@ -59,6 +60,25 @@ describe("followRoute on a file page", () => {
       .toEqual({ kind: "removed", fallback: "/subjects/1/files" });
   });
 
+  test("a file moved to the top level and back keeps its page, under the home its path names", () => {
+    const top = TOP_LEVEL.id;
+    expect(followRoute(page(1, "courses/COMP1/a.pdf"), moved("courses/COMP1/a.pdf", "Videos/a.pdf"), idOf))
+      .toEqual({ kind: "moved", path: "/drive/.file?path=Videos%2Fa.pdf" });
+    expect(followRoute(page(top, "Videos/a.pdf"), moved("Videos", "Old"), idOf))
+      .toEqual({ kind: "moved", path: page(top, "Old/a.pdf") });
+    expect(followRoute(page(top, "Old/a.pdf"), moved("Old/a.pdf", "courses/MAST2/a.pdf"), idOf))
+      .toEqual({ kind: "moved", path: page(2, "courses/MAST2/a.pdf") });
+    expect(followRoute(`${page(top, "a.pdf")}&x=1`, moved("a.pdf", "b.pdf"), idOf))
+      .toEqual({ kind: "moved", path: `${page(top, "b.pdf")}&x=1` });
+  });
+
+  test("a deleted top-level file falls back to Drive on its folder", () => {
+    expect(followRoute(page(TOP_LEVEL.id, "Videos/Raw/a.mp4"), removed("Videos/Raw/a.mp4"), idOf))
+      .toEqual({ kind: "removed", fallback: "/drive/Videos/Raw" });
+    expect(followRoute(page(TOP_LEVEL.id, "a.pdf"), removed("a.pdf"), idOf))
+      .toEqual({ kind: "removed", fallback: "/drive" });
+  });
+
   test("an untouched file and other routes stay", () => {
     expect(followRoute(page(1, "courses/COMP1/b.pdf"), moved("courses/COMP1/a.pdf", "courses/COMP1/c.pdf"), idOf))
       .toEqual({ kind: "same" });
@@ -68,13 +88,24 @@ describe("followRoute on a file page", () => {
 
 describe("followRoute on a folder page", () => {
   test("Drive follows a moved folder, encoding each segment", () => {
-    expect(followRoute("/drive/COMP1/Week%201/Labs", moved("courses/COMP1/Week 1", "courses/COMP1/A #1"), idOf))
-      .toEqual({ kind: "moved", path: "/drive/COMP1/A%20%231/Labs" });
+    expect(followRoute("/drive/courses/COMP1/Week%201/Labs", moved("courses/COMP1/Week 1", "courses/COMP1/A #1"), idOf))
+      .toEqual({ kind: "moved", path: "/drive/courses/COMP1/A%20%231/Labs" });
+    expect(followRoute("/drive/Videos/Raw", moved("Videos", "Old videos"), idOf))
+      .toEqual({ kind: "moved", path: "/drive/Old%20videos/Raw" });
+    expect(followRoute("/drive/courses/COMP1/Exam", moved("courses/COMP1/Exam", "Exam"), idOf))
+      .toEqual({ kind: "moved", path: "/drive/Exam" });
   });
 
   test("Drive on a deleted folder moves up to what held it", () => {
-    expect(followRoute("/drive/COMP1/a/b", removed("courses/COMP1/a"), idOf))
-      .toEqual({ kind: "moved", path: "/drive/COMP1" });
+    expect(followRoute("/drive/courses/COMP1/a/b", removed("courses/COMP1/a"), idOf))
+      .toEqual({ kind: "moved", path: "/drive/courses/COMP1" });
+    expect(followRoute("/drive/Videos/Raw", removed("Videos"), idOf)).toEqual({ kind: "moved", path: "/drive" });
+    expect(followRoute("/drive/.recent", removed("Videos"), idOf)).toEqual({ kind: "same" });
+  });
+
+  test("a folder moved out of its subject takes its Files tab to Drive", () => {
+    expect(followRoute("/subjects/1/files/Exam/Past", moved("courses/COMP1/Exam", "Exam"), idOf))
+      .toEqual({ kind: "moved", path: "/drive/Exam/Past" });
   });
 
   test("the Files tab follows a moved folder, into another subject's tab", () => {

@@ -1,0 +1,27 @@
+{
+  "note": "The reserved subjects row top-level Drive files hang off, and the top level's rules. Rust (library/layout/tests/top_level.rs) and TypeScript (tests/lib/files/topLevel.test.ts) are both held to it.",
+  "id": -100,
+  "code": "My Drive",
+  "own": ["Videos", "Videos/Raw/talk.mp4", "timetable.png", "lectures/abc/x.mp4", "Course/Files/a.pdf"],
+  "not_own": [".oculus", ".oculus/agents/x.md", ".library-move/done", ".DS_Store", "courses", "courses/loose.pdf", ""],
+  "categories": [
+    ["timetable.png", "upload"],
+    ["Videos/talk.mp4", "upload"],
+    ["notes.md", "document"],
+    ["Plans/board.whiteboard", "whiteboard"],
+    ["Plans/book.notebook", "notebook"],
+    ["Course/Files/a.pdf", "upload"],
+    ["Course/home.md", "document"],
+    ["courses/X/Course/Files/a.pdf", "file"],
+    ["courses/X/notes.md", "document"],
+    [".oculus/agents/x.md", "other"],
+    ["courses", "other"]
+  ],
+  "records": [
+    ["Videos/Raw/talk.pdf", ".oculus/derived/Videos/Raw/talk.pages.json"],
+    ["scan.pdf", ".oculus/derived/scan.pages.json"],
+    ["courses/X/scan.pdf", "courses/X/.oculus/derived/scan.pages.json"],
+    [".oculus/agents/a.pdf", ".oculus/agents/a.pages.json"],
+    ["courses/loose.pdf", "courses/loose.pages.json"]
+  ]
+}

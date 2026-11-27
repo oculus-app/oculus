@@ -9,7 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { READ_ONLY_TEXT } from "@/lib/drive/commands";
-import { itemEditable, itemZone, type DriveItem } from "@/lib/drive/items";
+import { isFixedFolder, itemEditable, itemZone, type DriveItem } from "@/lib/drive/items";
 import { isMac } from "@/lib/platform";
 import { useDriveView } from "../DriveContext";
 
@@ -17,8 +17,10 @@ const SHOW_IN = isMac ? "Show in Finder" : "Show in File Explorer";
 
 /**
  * An entry's right-click menu. It acts on the selection when the entry is in
- * it. Everything that reads is always there; a synced entry adds Copy to my
- * files, and keeps Rename, Move and Delete greyed with the reason under them.
+ * it. Everything that reads is always there, Show in Finder on every entry;
+ * a synced entry adds Copy to my files, and keeps Rename, Move and Delete
+ * greyed with the reason under them. The folder of subjects, a subject's
+ * folder and a recording offer only what reads.
  */
 export function EntryMenu({ item, children }: { item: DriveItem; children: ReactElement }) {
   return (
@@ -38,9 +40,9 @@ function MenuItems({ item }: { item: DriveItem }) {
   const one = targets.length === 1;
   const href = view.hrefOf(item);
   const synced = targets.filter((t) => t.type !== "recording" && itemZone(t) === "synced");
-  // Recordings and subjects are never the student's to rename or delete, and
-  // say nothing about it.
-  const recordings = targets.some((t) => t.type === "recording" || (t.type === "folder" && t.subject));
+  // Recordings, subjects and the folder of subjects are never the student's
+  // to rename or delete, and say nothing about it.
+  const recordings = targets.some((t) => t.type === "recording" || isFixedFolder(t));
   const editable = targets.every(itemEditable);
   const locked = !editable && !recordings;
   return (

@@ -1,19 +1,28 @@
 import type { DbFile, Subject } from "@/lib/db";
 import { fileTitle } from "@/lib/files/openFile";
+import { SUBJECTS_LABEL } from "@/lib/files/labels";
 import { displayCode } from "@/lib/format/format";
 import type { DriveZone, FileEntry, FolderEntry, RecordingEntry } from "./listing";
-import { subjectForFolder } from "./paths";
+import { isSubjectsFolder } from "./home";
+import { parentRel, subjectForFolder } from "./paths";
 
 /** One entry on screen. `key` is its path, unique in a listing; the order of
  *  a list of these is the order on screen (selection ranges follow it). */
 export type DriveItem =
-  | { type: "folder"; key: string; name: string; entry: FolderEntry; subject?: Subject }
+  | { type: "folder"; key: string; name: string; entry: FolderEntry; subject?: Subject; subjects?: boolean }
   | { type: "recording"; key: string; name: string; entry: RecordingEntry }
   | { type: "file"; key: string; name: string; entry: FileEntry; row?: DbFile };
 
-/** `atRoot` folders are subject folders, named by their subject. */
-export function folderItem(entry: FolderEntry, subjects: readonly Subject[], atRoot: boolean): DriveItem {
-  const subject = atRoot ? subjectForFolder(entry.name, subjects) : undefined;
+/** A folder as it is named on screen: the folder of subjects is Subjects
+ *  (`subjects`), a folder directly inside it is named by its subject, and
+ *  any other, the student's top-level folders included, by its own name. */
+export function folderItem(entry: FolderEntry, subjects: readonly Subject[]): DriveItem {
+  if (isSubjectsFolder(entry.relativePath)) {
+    return { type: "folder", key: entry.relativePath, name: SUBJECTS_LABEL, entry, subjects: true };
+  }
+  const subject = isSubjectsFolder(parentRel(entry.relativePath))
+    ? subjectForFolder(entry.name, subjects)
+    : undefined;
   return {
     type: "folder",
     key: entry.relativePath,
@@ -21,6 +30,12 @@ export function folderItem(entry: FolderEntry, subjects: readonly Subject[], atR
     entry,
     subject,
   };
+}
+
+/** The folder of subjects or one subject's folder: Oculus's own, which the
+ *  student never renames, moves or deletes, and which says nothing of it. */
+export function isFixedFolder(item: DriveItem): boolean {
+  return item.type === "folder" && (!!item.subject || !!item.subjects || isSubjectsFolder(parentRel(item.key)));
 }
 
 export function recordingItem(entry: RecordingEntry): DriveItem {

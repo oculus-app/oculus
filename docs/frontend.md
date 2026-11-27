@@ -174,17 +174,38 @@ its last-opened time.
 
 `DriveBrowser({ root, folder, folderHref, rootLabel?, leading? })`
 (`app/src/components/drive/`) shows one folder of the library. `root` is
-`""` for every subject (the Drive rail section) or `courses/<code>` for one
-(a subject's Files tab); `folder` is the folder on screen at or below it and
-`folderHref` the route that shows a folder, so the route's path is the only
-state. `DriveTree({ current, folderHref })` is the nav column's tree beside
-it: subjects under Subjects, the rest folded under Past subjects, each opening
-in place to its folders, read when first opened; which rows are open is a
-`useStoredSet`. With `onPick` and a subject `root` the same tree is the folder
-picker of Copy to my files…, Move to… and the browser's Save dialog. Both
-are routed: Drive's rail section at `/drive/*` and the Files tab at
+`""` for the data folder's top level (the Drive rail section) or
+`courses/<code>` for one subject (its Files tab); `folder` is the folder on
+screen at or below it and `folderHref` the route that shows a folder, so the
+route's path is the only state. `DriveTree({ current, folderHref })` is the
+nav column's tree beside it: Subjects, then the student's own top-level
+folders, each opening in place to its folders, read when first opened;
+Subjects opens to the current subjects and the rest folded under Past
+subjects (`SubjectsBranch`). Which rows are open is a `useStoredSet`. With
+`onPick` the same tree is a folder picker: over one subject (`root`) for
+Copy to my files…, Move to… and the browser's Save dialog, or for a Drive
+entry with no subject over all of Drive, under a My Drive row that picks the
+top level. Both are routed:
+Drive's rail section at `/drive/*` and the Files tab at
 `/subjects/<id>/files/*`, whose splats are the folder
 ([shell.md](./shell.md#each-pane-has-its-own-router-and-the-path-is-its-only-state)).
+
+- **The top level is the data folder.** My Drive lists Subjects first (the
+  folder of subjects, `courses/` on disk, with the rail's book), then the
+  student's own folders and files, which sit beside it on disk; a name that
+  starts with a dot is the app's and never lists. Subjects is a place to go
+  through: it cannot be renamed, moved or deleted, offers no New, takes no
+  drop and shows no lock or read-only line, and inside it are the subject
+  folders alone, the current ones first and the rest under Past subjects.
+  Top-level folders and files are never named or drawn as subjects
+  (`folderItem`, `isFixedFolder` in `lib/drive/items.ts`).
+- **A folder's home is its subject or the top level** (`homeOf` in
+  `lib/drive/home.ts`). A top-level file's row hangs off the reserved
+  `subjects` row `TOP_LEVEL` (`lib/files/libraryLayout.ts`,
+  [architecture.md](./architecture.md#the-database-has-one-schema-owner-and-two-writers)),
+  and every creator and reconciler that takes a subject takes `TOP_LEVEL` for
+  the top level, so New, imports, drops, parses and rows work there as in a
+  subject. `getSubjects` never returns it.
 
 - **`list_folder({ rel, recursive? })` reads the disk**
   (`app/src-tauri/src/library/drive/`), so empty folders show and a file
@@ -192,35 +213,41 @@ are routed: Drive's rail section at `/drive/*` and the Files tab at
   (a file or folder made there would be the student's), its `folders`
   (`relativePath`, `name`, `zone`, `writable`, `editable`, `childCount`,
   `modified`), `files` (`relativePath`, `name`, `zone`, `editable`, `size`,
-  `modified` in Unix ms) and `recordings`. `rel` must be `""` (whose folders are
-  the subject folders) or inside a subject, with no dot-name and no symlink on
-  the way; anything else, app state included, is refused. Left out of every
+  `modified` in Unix ms) and `recordings`. `rel` is `""` (the top level, whose
+  first folder is `courses`), `courses` (the subject folders, and nothing
+  loose beside them) or any folder below, with no dot-name and no symlink on
+  the way; anything else, app state included, is refused. The top level's own
+  `zone` is `own` and it is `writable`. Left out of every
   listing: dot-names, symlinks, what `layout::zone_of` hides, and each file's
   parse artifacts and converted PDF (`paths::parse_artifacts`, the same rule
   the purge deletes by, so a student's own `x.md` beside an unparsed `x.pdf`
-  stays). `recursive` lists every folder and file below `rel`, flat (at the
-  root, every subject's).
+  stays). `recursive` lists every folder and file below `rel`, flat (from the
+  top level, the student's and every subject's; `courses` itself is walked
+  but not listed).
 - **A recording lists as its lecture.** The command reads the subject's
   `lectures` rows and asks `layout::recording_dir` for each one's folder; a
   lecture whose folder sits in the listed folder is a `recordings` entry
   (`lectureId`, `subjectId`, `title`, `date`), listed whether or not its folder
   exists yet, and opens the lecture page. The folder itself is not listed.
 - **Rows are joined in the frontend**, as every file list reads them
-  (`getFilesForSubject`, `useDriveRows`), by `relative_path`. A file's name is
+  (`getFilesForSubject`, `useDriveRows`, for the folder's home or, in the
+  flat list, every home below it), by `relative_path`. A file's name is
   its row's (`fileTitle`), its parse state `ParseStateBadge` and
   `useFileParseState` (the parse store over `files.parse_status`), its new dot
   `RecencyDot`. Listings and rows re-read on `DRIVE_CHANGED_EVENT` and the
   upload, note, whiteboard and scrape events, once they stop for 300 ms. The PDFs
   on screen have their parse state read back from disk
   (`useReconcileParseStatus`), for a parse an earlier session finished, and a
-  folder in a subject asks for its own files' rows (below).
+  folder in a subject or at the top level asks for its own files' rows
+  (below).
 - **The view.** The header holds the trail, a search scoped to the folder
   and everything below it, and New (folder, note, whiteboard, notebook, upload
-  files or a folder), drawn only where the folder is `writable`. The Type,
+  files or a folder), drawn only where the folder is `writable`, the top
+  level included. The Type,
   From and Modified pills, like the search, switch to the flat recursive list,
   narrowed by `filterListing` (`lib/drive/filters.ts`); a search alone keeps
   matching folders. Grid or list is remembered per root (`useStoredState`,
-  grid at the Drive root, list in a subject by default). The grid draws folder
+  grid in Drive, list in a subject's Files tab by default). The grid draws folder
   cards (one fixed width, so nothing in them moves when the pane does) and
   picture cards, the two runs unlabelled; the list is `GridTable` with Name,
   Kind (Status: the parse state, in a synced folder), Modified (Synced) and
@@ -274,8 +301,10 @@ are routed: Drive's rail section at `/drive/*` and the Files tab at
   folder. A new folder, and Rename, edit the name in place.
 - **The right-click menu** (`components/ui/context-menu.tsx`) acts on the
   selection when the entry is in it: Open, Open in new tab, Copy to my files…
-  for synced entries, Show in Finder, then Rename, Move to… and Delete, greyed
-  on synced entries with "Course files are read-only" under them.
+  for synced entries, Show in Finder (on every entry, Subjects and top-level
+  ones included), then Rename, Move to… and Delete, greyed
+  on synced entries with "Course files are read-only" under them. Subjects, a
+  subject's folder and a recording offer only the first group.
 - **Drag and drop.** Finder files drop through the webview's native events
   on a folder card, a list row, a tree row or empty space (the folder on
   screen), and go to `import_uploads` with that folder as `targetDir`. Entries
@@ -291,7 +320,9 @@ are routed: Drive's rail section at `/drive/*` and the Files tab at
 The folder commands Drive calls are typed in `app/src/lib/drive/commands.ts`
 and live in `app/src-tauri/src/library/drive/ops/`. All take data-dir-relative
 paths and touch only the student's own files (`layout::own_path_ok`); a
-target folder is a subject's root or an existing folder of the student's:
+target folder is a subject's root, the top level (`""`) or an existing folder
+of the student's in either (`guard::drive_target`, whose `Target::home` is
+the folder's subject or none):
 
 | Command | Arguments | Returns |
 | --- | --- | --- |
@@ -306,7 +337,7 @@ target folder is a subject's root or an existing folder of the student's:
 
 - **Names.** A name may not be empty, start with a dot, hold `/`, `\`, `:`,
   NUL or a control character, or start or end with a space; `Course` and
-  `.oculus` are refused at a subject's root. A taken name is `exists` for
+  `.oculus` are refused at a subject's root, and `courses` at the top level. A taken name is `exists` for
   `create_folder`, `rename_entry` and `move_entries` (nothing is
   overwritten): names are compared as the volume does (Unicode NFC, case
   folded), so `Étude.pdf` and `étude.pdf` moved into one folder refuse, and
@@ -316,11 +347,11 @@ target folder is a subject's root or an existing folder of the student's:
   bytes reuses its name. A picked file or folder keeps its name, with what
   the rules refuse replaced (`names::entry_name`). A path whose subject
   segment is empty, `.`, `..` or a dot-name is refused, and no command makes
-  a subject folder.
+  a subject folder or puts anything loose in `courses`.
 - **Rows follow by id.** A move or rename updates the `files` row in place:
   path, name, `file_type` on a rename, `category` (`layout::category_of`, so
-  `.md` to `.txt` stops being a note) and, across subjects, `subject_id`; a
-  folder's rows all follow. The disk moves first and goes back if the rows
+  `.md` to `.txt` stops being a note) and, across subjects or between a
+  subject and the top level, `subject_id`; a folder's rows all follow. The disk moves first and goes back if the rows
   fail (`ops/journal.rs`): folders it made or emptied, and a stale record a
   merge replaced, which is set aside under a dot-name until the rows commit
   rather than deleted. A parsed file takes its artifacts with it and
@@ -356,10 +387,12 @@ read-only" and shows any other message, or the raw text when it isn't one.
 ### Own files written outside the app get rows
 
 A chat agent, Finder or another app can write straight into a subject's own
-files. Such a file lists in Drive (the listing reads the disk) but has no
+files, or into the top level. Such a file lists in Drive (the listing reads
+the disk) but has no
 `files` row until `reconcile_own_files`
 (`app/src-tauri/src/library/drive/ops/reconcile/`) gives it one. It walks
-the subject's own zone (`layout::own_files`) and inserts a row for each file
+the subject's own zone (`layout::own_files`; for the top-level code,
+everything of the student's beside `courses/`) and inserts a row for each file
 with none, with `category_of`'s category, leaving out what Drive hides:
 parse artifacts, converted PDFs, and the markdown of a parse still running
 (checked by claiming the PDF for a moment). It never deletes a row, and
@@ -390,12 +423,13 @@ row claims it, and leaves it otherwise. `import_uploads` gives a picked
 upload's is kicked, then brings notes and drawings in line
 (`reconcileDocuments`, `reconcileDrawings`, which also drop rows whose file
 is gone). `scheduleOwnReconcile` runs it when the browser opens a folder in
-a subject (the Files tab, or Drive below a subject): calls are debounced per
-subject, never overlap, and are skipped for 10 s after a pass, so the
+a subject (the Files tab, or Drive below a subject), or the top level or a
+folder of the student's there (as `TOP_LEVEL`): calls are debounced per
+home, never overlap, and are skipped for 10 s after a pass, so the
 listing reloading on the pass's own event does not start another.
 `reconcileAfterTurn` forces it when a chat turn ends (`turn_finished` in
-`useHarnessEvents`), for the thread's subject, or every current subject for
-a thread filed under none.
+`useHarnessEvents`), for the top level and the thread's subject, or every
+current subject for a thread filed under none.
 
 ### Path-keyed state follows Drive
 
@@ -406,11 +440,12 @@ folder's entries match by prefix at a `/` boundary, and the longest moved
 prefix wins.
 
 - **Routes.** A file page (`?path=`) takes its file's new path, and its
-  subject's id when the file changed subject; other query parameters stay.
+  subject's id when the file changed subject (Drive's `/drive/.file` when it
+  left for the top level, and back); other query parameters stay.
   A Drive or Files folder page follows its folder, and when the folder is
   deleted it moves up to the folder that held it. A deleted file's main pane
-  goes to the Files tab on that file's folder, and a side item on it is
-  removed.
+  goes to the Files tab on that file's folder (Drive, for a top-level file),
+  and a side item on it is removed.
 - **Where.** Open tabs and side items (a pane with a router is navigated
   with `replace`, so its older history entries keep the old path; one never
   built only has its stored path changed), the closed-tab stack and Recent

@@ -1,30 +1,26 @@
 import { useMemo, useRef } from "react";
-import { Archive } from "@phosphor-icons/react";
-import { SideNavGroupLabel } from "@/components/ui/layout/SideNav";
-import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { useSubjects } from "@/hooks/data/useSubjects";
 import { useDriveDrop } from "@/hooks/drive/useDriveDrop";
 import { useFolderListing } from "@/hooks/drive/useFolderListing";
 import { useStoredSet } from "@/hooks/ui/useStoredState";
 import { dropInto, importInto, reportDriveProblem } from "@/lib/drive/actions";
 import { READ_ONLY_TEXT } from "@/lib/drive/commands";
-import { subjectForFolder } from "@/lib/drive/paths";
-import { displayCode, displayName } from "@/lib/format/format";
+import { isSubjectsFolder } from "@/lib/drive/home";
+import { COURSES_DIR } from "@/lib/files/libraryLayout";
 import { navigateActive } from "@/lib/shell/tabRouters";
+import { SubjectsBranch, SubjectRow } from "./SubjectsBranch";
 import { TreeFolder, type TreeEnv } from "./TreeFolder";
-import { TreeRow } from "./TreeRow";
-
-const PAST = ":past";
 
 /**
- * Drive's folder tree, for its nav column: every subject with a folder,
- * current ones under Subjects and the rest folded under Past subjects, each
- * opening in place to its folders (read when first opened). Which rows are
- * open is remembered (`useStoredSet`). Rows are drop targets for Finder files
- * and for entries dragged from the browser, as its folder cards are.
+ * Drive's folder tree, for its nav column: Subjects (the folder of
+ * subjects), then the student's own top-level folders, each opening in place
+ * to its folders (read when first opened). Which rows are open is remembered
+ * (`useStoredSet`). Rows are drop targets for Finder files and for entries
+ * dragged from the browser, as its folder cards are.
  *
- * With `onPick` it is a folder picker over one subject (`root`): rows pick
- * instead of navigating, and folders the student can't add to are off.
+ * With `onPick` it is a folder picker: rows pick instead of navigating, and
+ * folders the student can't add to are off. `root` narrows it to one
+ * subject's folders.
  */
 export function DriveTree({
   current,
@@ -37,7 +33,7 @@ export function DriveTree({
   current: string | null;
   folderHref?: (rel: string) => string;
   onPick?: (rel: string) => void;
-  /** A subject folder (`courses/<code>`) to show alone; the Drive root when unset. */
+  /** A subject folder (`courses/<code>`) to show alone; all of Drive when unset. */
   root?: string;
   storageKey?: string;
 }) {
@@ -67,46 +63,19 @@ export function DriveTree({
     navigate: (rel) => folderHref && navigateActive(folderHref(rel)),
   };
 
-  const { listing } = useFolderListing("");
-  const folders = useMemo(() => {
-    const all = listing?.folders ?? [];
-    return root == null ? all : all.filter((f) => f.relativePath === root);
-  }, [listing, root]);
-  const withSubject = folders.map((entry) => ({ entry, subject: subjectForFolder(entry.name, subjects) }));
-  const currentOnes = root == null ? withSubject.filter((s) => s.subject?.is_current) : withSubject;
-  const pastOnes = root == null ? withSubject.filter((s) => !s.subject?.is_current) : [];
-
-  const subjectRow = ({ entry, subject }: (typeof withSubject)[number], depth = 0) => (
-    <TreeFolder
-      key={entry.relativePath}
-      entry={entry}
-      depth={depth}
-      env={env}
-      parentWritable={false}
-      icon={subject ? <SubjectIcon code={subject.code} size={14} /> : undefined}
-      label={subject ? displayCode(subject.code) : entry.name}
-      title={subject ? displayName(subject.name, subject.code) : entry.name}
-    />
-  );
+  const top = useFolderListing(root == null ? "" : null).listing;
+  const one = useFolderListing(root == null ? null : COURSES_DIR).listing;
+  const subjectFolder = one?.folders.find((f) => f.relativePath === root);
 
   return (
     <div ref={ref} role="tree" aria-label="Folders" {...handlers}>
-      {root == null && currentOnes.length > 0 && <SideNavGroupLabel>Subjects</SideNavGroupLabel>}
-      {currentOnes.map((s) => subjectRow(s))}
-      {pastOnes.length > 0 && (
-        <>
-          <TreeRow
-            depth={0}
-            icon={<Archive size={14} />}
-            label="Past subjects"
-            expanded={open.has(PAST)}
-            onToggle={() => env.toggle(PAST)}
-            onActivate={() => env.toggle(PAST)}
-            active={false}
-            hover={null}
-          />
-          {open.has(PAST) && pastOnes.map((s) => subjectRow(s, 1))}
-        </>
+      {subjectFolder && <SubjectRow entry={subjectFolder} depth={0} env={env} subjects={subjects} />}
+      {top?.folders.map((entry) =>
+        isSubjectsFolder(entry.relativePath) ? (
+          <SubjectsBranch key={entry.relativePath} entry={entry} env={env} subjects={subjects} />
+        ) : (
+          <TreeFolder key={entry.relativePath} entry={entry} depth={0} env={env} parentWritable />
+        ),
       )}
     </div>
   );

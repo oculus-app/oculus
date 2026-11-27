@@ -19,7 +19,7 @@ beside each tab's page, every window shortcut, ⌘F, and search.
 | ⌘F: routing, find in rendered DOM, the find bar | `app/src/lib/menu/find.ts`, `app/src/hooks/find/useDomFind.ts`, `app/src/lib/menu/findText.ts`, `app/src/components/ui/search/FindBar.tsx`, `app/src/components/ui/search/PageFind.tsx`, `app/src/components/documents/editor/chrome/useEditorFind.ts` |
 | Shared page navigation: responsive drawer and desktop panel | `app/src/components/ui/layout/SideNavShell.tsx`, `app/src/hooks/ui/useSideNavPanel.ts` |
 | Subject page: the nav column, subject switcher and `/subjects` redirect | `app/src/layouts/SubjectLayout.tsx`, `app/src/components/subjects/SubjectNav.tsx`, `app/src/pages/start/SubjectsRedirect.tsx` |
-| Drive: the section's nav column, its folder and Recent pages, the folder routes, the Files tab and the older paths it redirects | `app/src/layouts/DriveLayout.tsx`, `app/src/components/drive/nav/`, `app/src/pages/drive/`, `app/src/lib/drive/routes.ts`, `app/src/pages/subject/files/FilesPage.tsx`, `app/src/lib/drive/legacyTabs.ts` |
+| Drive: the section's nav column, its folder and Recent pages, the folder routes, a top-level file's page, the Files tab and the older paths both redirect | `app/src/layouts/DriveLayout.tsx`, `app/src/components/drive/nav/`, `app/src/pages/drive/`, `app/src/lib/drive/routes.ts`, `app/src/lib/drive/legacyRoutes.ts`, `app/src/lib/files/labels.ts`, `app/src/pages/subject/files/FilesPage.tsx`, `app/src/lib/drive/legacyTabs.ts` |
 | Home: sections, the Recent row's query, the Activity chart and its pings | `app/src/pages/start/HomePage.tsx`, `app/src/components/home/`, `app/src/lib/activity/home.ts`, `app/src/lib/activity/usage/`, `app/src/lib/activity/usageContext.ts`, `app/src/hooks/backend/useActivityPing.ts` |
 | Settings: the nav column, its search and section jumps | `app/src/layouts/SettingsLayout.tsx`, `app/src/components/settings/SettingsNav.tsx`, `app/src/lib/search/settings.ts` |
 
@@ -148,19 +148,33 @@ before leaving a playing lecture.
   click goes through `navigateActive`. A file's trail is its folders: the
   subject, Files, then each folder it sits in, each opening that folder in
   the Files tab.
-- **`/drive` is every subject's folders** (`DriveLayout`): a nav column with
-  My Drive (`/drive`), Recent (`/drive/recent`) and the folder tree
-  (`DriveTree`: current subjects under Subjects, the rest folded under Past
-  subjects) beside the browser rooted at the library (`DriveFolderPage`).
-  The splat is the folder under `courses/`, each segment URL-encoded
-  (`driveFolderHref`), so `/drive/<code>/Course/Files` is a subject's synced
-  files. **Recent** (`DriveRecentPage`) is a `GridTable` of the files opened
+- **`/drive` is the data folder** (`DriveLayout`): a nav column with
+  My Drive (`/drive`, the top level), Recent (`/drive/.recent`) and the
+  folder tree (`DriveTree`: Subjects, which opens to the current subjects and
+  the rest folded under Past subjects, then the student's own top-level
+  folders) beside the browser (`DriveFolderPage`). The splat is the
+  data-dir-relative folder, each segment URL-encoded (`driveFolderHref`):
+  `/drive/courses` is Subjects, `/drive/courses/<code>/Course/Files` a
+  subject's synced files, `/drive/Videos` a folder of the student's. Drive's
+  own pages are dot-names, which no folder it shows can take. A route saved
+  when the splat was the path under `courses/` (`/drive/<code>/…`, and
+  `/drive/recent`) is replaced once the page loads
+  (`resolveLegacyDriveRoute`), unless a folder by that name exists.
+  **Recent** (`DriveRecentPage`) is a `GridTable` of the files opened
   in the last 30 days and the student's own files made or changed then,
-  across subjects and newest first (`getRecentDriveFiles` in
-  `app/src/lib/db/recency.ts`): name with its new dot, subject and folder,
+  across subjects and the top level, newest first (`getRecentDriveFiles` in
+  `app/src/lib/db/recency.ts`): name with its new dot, subject (My Drive for
+  a top-level file) and folder,
   "Opened" or "Changed" and when, size; a row opens as Drive opens a file.
   Synced changes are left out, since a sync rewrites too many rows. A Drive
-  tab is titled by its folder (a subject's by its code and icon).
+  tab is titled by its folder (Subjects with the rail's book, a subject's by
+  its code and icon).
+- **A top-level file's page is `/drive/.file?path=…`**, the same `FilePage`
+  outside `DriveLayout`: it has no subject, so `filePagePath` gives that
+  route for a row on the reserved top-level row (`TOP_LEVEL`), and
+  `fileRouteSubject` reads either route back. Its trail is My Drive and its
+  folders (`DriveFileCrumbs`), and its tab carries Drive's folder where a
+  subject's file carries the subject's icon. In Recent it is its own row.
 
 Saved tabs and Recent entries with an unknown route return to Home, and an
 unknown Settings page opens Settings. A path in `app/src/lib/shell/goneRoutes.ts`
