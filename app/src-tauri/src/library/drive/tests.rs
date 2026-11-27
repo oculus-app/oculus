@@ -421,3 +421,44 @@ fn a_notebook_cover_is_its_first_page_picture() {
 fn parent(rel: &str) -> String {
     rel.rsplit_once('/').unwrap().0.to_string()
 }
+
+/// A new install: the launch makes the state folder and marks every launch
+/// move done, the schema brings the reserved top-level row, and Drive's top
+/// level shows Subjects and nothing of the app's.
+#[test]
+fn a_new_install_lists_subjects_alone_at_the_top() {
+    let root = Scratch::new("drive-new-install");
+    crate::library::at_launch(&root).unwrap();
+    assert!(crate::library::paths::state_dir(&root).is_dir());
+    for marker in ["done", "drive", "whiteboard", "loose"] {
+        assert!(
+            root.join(".library-move").join(marker).is_file(),
+            "{marker}"
+        );
+    }
+    let id: Option<i64> = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect_with(
+                    sqlx::sqlite::SqliteConnectOptions::new()
+                        .filename(crate::library::paths::db_path(&root))
+                        .create_if_missing(true),
+                )
+                .await
+                .unwrap();
+            crate::library::migrate::db::ensure(&pool).await.unwrap();
+            sqlx::query_scalar("SELECT id FROM subjects WHERE id = ?1")
+                .bind(crate::db::store::TOP_LEVEL_SUBJECT_ID)
+                .fetch_optional(&pool)
+                .await
+                .unwrap()
+        });
+    assert_eq!(id, Some(crate::db::store::TOP_LEVEL_SUBJECT_ID));
+    let listing = list(&root, "");
+    assert_eq!(folder_names(&listing), ["courses"]);
+    assert!(file_names(&listing).is_empty());
+}

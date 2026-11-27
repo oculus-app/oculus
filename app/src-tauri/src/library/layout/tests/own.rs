@@ -197,6 +197,7 @@ fn the_top_level_walk_lists_the_students_files_beside_the_subjects() {
         "Videos/talk.mp4",
         "Videos/Raw/board.whiteboard",
         "Videos/.assets/p.png",
+        ".assets/p.png",
         "courses/X/a.md",
         "courses/loose.pdf",
         ".oculus/oculus.db",

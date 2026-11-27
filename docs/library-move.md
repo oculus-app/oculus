@@ -25,7 +25,9 @@ through `path_moves`.
 sequence, in both processes, since they share `oculus.db` and the folders:
 the state move, then Start over's cleanup
 ([auth.md](./auth.md#one-institution-profile-says-which-university)), then
-the Drive move and the whiteboard rename, then the loose files' move.
+the Drive move and the whiteboard rename, then the loose files' move. Last
+it makes `courses/` if it is missing, so a new library's My Drive shows the
+folder of subjects before the first sync.
 
 - **The app** calls it first in `run()` (`app/src-tauri/src/lib.rs`), before
   the Tauri builder, so no window, database pool, job queue, watcher, media
