@@ -105,3 +105,11 @@ export function renderNoteWords({
 export function narratingLabel({ n, of }: { n: number; of: number }): string {
   return of > 0 && n > 0 ? `Narrating ${n}/${of}` : "Narrating…";
 }
+
+/** What the render bar says for a render in flight, and whether Cancel can
+ *  still stop it: once the render is saving to Drive, nothing can. */
+export function renderingWords(phase: "planning" | "rendering" | "muxing" | "exporting", preset: string): { label: string; cancellable: boolean } {
+  if (phase === "exporting") return { label: "Saving to Drive", cancellable: false };
+  if (phase === "muxing") return { label: "Adding the narration", cancellable: true };
+  return { label: `Rendering ${preset.toLowerCase()}${phase === "planning" ? "…" : ""}`, cancellable: true };
+}

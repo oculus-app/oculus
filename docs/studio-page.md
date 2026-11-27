@@ -337,7 +337,8 @@ any render of the folder runs, and is off while a narration does), and
   draft, Export and Re-render start them through `renderStore`, Export's and
   Re-render's through `renderToDrive`, below), takes the
   bar's place with a bar naming the preset, the percentage and Cancel, and
-  "Saving to Drive" while a Final or Small one is copied there; a
+  "Saving to Drive" with no Cancel while a Final or Small one is copied there,
+  since nothing stops the copy (`renderingWords`); a
   narration in flight does the same with "Narrating 4/12" (`narratingLabel`).
   A failure shows under the row (`RenderError`, `NarrateError`) and stays
   until the next render or narration starts. Rendering is local (ffmpeg), so
