@@ -101,9 +101,19 @@ test("every spelling of a notebook page is remapped to the snapshot subtree", ()
   const own = dir + "/.oculus/agents/outputs/canvas-pages/a.png";
   expect(readPicturePath(own, dir)).toBe(own);
   expect(readPicturePath("canvas-pages/../private/a.png", dir)).toBeNull();
-  expect(readPicturePath("../../whiteboard-pages/7/page-004.png", dir)).toBeNull();
+  expect(readPicturePath("../../whiteboard-pages/7/page-004.png", dir)).toBe(page);
+  expect(readPicturePath("../../../whiteboard-pages/7/page-004.png", dir)).toBeNull();
   expect(readPicturePath("unrecorded/a.png", dir)).toBeNull();
   expect(readPicturePath("agents/outputs/a.png", dir)).toBeNull();
+});
+
+test("a picture up from the cwd is the data dir's, two steps from the workspace or one in older chats", () => {
+  for (const raw of ["../../courses/X/Course/Images/a.png", "../courses/X/Course/Images/a.png"]) {
+    expect(readPicturePath(raw, dir)).toBe(dir + "/courses/X/Course/Images/a.png");
+  }
+  expect(readPicturePath("../../Receipts/scan.png", dir)).toBe(dir + "/Receipts/scan.png");
+  expect(readPicturePath("../agents/outputs/plot.png", dir)).toBe(dir + "/.oculus/agents/outputs/plot.png");
+  expect(readPicturePath("../../courses/../../etc/a.png", dir)).toBeNull();
 });
 
 test("a picture a stored Read names under the data dir loads from where the file is", () => {
