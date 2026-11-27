@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { Subject } from "@/lib/db";
 import type { FolderEntry, FolderListing } from "@/lib/drive/listing";
-import { isPickerPlace, pickerFolders, settleStart } from "@/lib/drive/picker";
+import { isPickerPlace, pendingStart, pickerFolders, settleStart } from "@/lib/drive/picker";
 
 const subject = (id: number, code: string, current = true) => ({ id, code, name: code, is_current: current }) as Subject;
 const subjects = [subject(1, "COMP30026_2026_SM2"), subject(2, "MAST20009_2025_SM1", false)];
@@ -82,4 +82,18 @@ test("Subjects lists the subjects Oculus knows by code, the past ones apart", ()
   const { current, past } = pickerFolders(all, subjects);
   expect(current.map((f) => [f.rel, f.label, f.subject?.id])).toEqual([["courses/COMP30026_2026_SM2", "COMP30026", 1]]);
   expect(past.map((f) => [f.rel, f.label, f.subject?.id])).toEqual([["courses/MAST20009_2025_SM1", "MAST20009", 2]]);
+});
+
+test("a missing start the caller would have made opens as the destination still to make", () => {
+  const subjectRoot = listing("courses/COMP30026_2026_SM2", true, [folder("courses/COMP30026_2026_SM2/Exam prep")]);
+  const ask = { start: "courses/COMP30026_2026_SM2/Videos", makeStart: true };
+  expect(pendingStart(ask, subjectRoot)).toBe("courses/COMP30026_2026_SM2/Videos");
+  // Only when asked, only from the folder that would hold it, and only while it is missing.
+  expect(pendingStart({ ...ask, makeStart: false }, subjectRoot)).toBeNull();
+  expect(pendingStart(ask, listing("courses", false))).toBeNull();
+  expect(pendingStart(ask, listing("", true))).toBeNull();
+  const made = listing("courses/COMP30026_2026_SM2", true, [folder("courses/COMP30026_2026_SM2/videos")]);
+  expect(pendingStart(ask, made)).toBeNull();
+  expect(pendingStart({ start: "Videos", makeStart: true }, listing("", true))).toBe("Videos");
+  expect(pendingStart(ask, null)).toBeNull();
 });

@@ -3,7 +3,7 @@ import { getSetting, setSetting } from "@/lib/db";
 import { displayCode } from "@/lib/format/format";
 import { isSubjectsFolder } from "./home";
 import type { FolderEntry, FolderListing } from "./listing";
-import { parentRel, subjectForFolder } from "./paths";
+import { baseName, parentRel, subjectForFolder } from "./paths";
 import { SUBJECTS_LABEL } from "./trail";
 
 /**
@@ -20,6 +20,10 @@ export interface DrivePickerRequest {
    *  that the student can't add to, falls back to the nearest folder above
    *  it that will do. */
   start?: string | null;
+  /** When `start` is missing but the folder holding it is a place: open on
+   *  `start` anyway, drawn as the destination, and make it only when the
+   *  student confirms there (Studio's suggested `Videos`). */
+  makeStart?: boolean;
   /** A file name to show and let the student edit. */
   name?: string;
 }
@@ -61,6 +65,22 @@ export async function settleStart(
     }
     if (!rel) throw new Error("Drive has no folder to save in");
   }
+}
+
+/**
+ * The request's start, when `makeStart` asks to open on it though it is
+ * missing: `place`, where the picker settled, is the folder that would hold
+ * it, takes new entries and has no folder of that name. Null otherwise. The
+ * dialog asks only until the student goes elsewhere.
+ */
+export function pendingStart(
+  request: Pick<DrivePickerRequest, "start" | "makeStart">,
+  place: Pick<FolderListing, "rel" | "writable" | "folders"> | null,
+): string | null {
+  const start = request.makeStart ? request.start : null;
+  if (!start || !place?.writable || place.rel !== parentRel(start)) return null;
+  const name = baseName(start).toLowerCase();
+  return place.folders.some((f) => f.name.toLowerCase() === name) ? null : start;
 }
 
 /** One row of the picker's list. `subject` is set for a subject's folder

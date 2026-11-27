@@ -512,7 +512,10 @@ bar. Every video streams from Rust's media server via `mediaSrc()`
   system viewer), where `VideoFileViewer` renders its own `<video>`. Its
   captions are the sibling `<video>.vtt`, and one that exists but won't read
   is an error, never a Transcribe offer. The element pauses when its tab goes
-  to the back, since nothing parks it, and keeps no position.
+  to the back, since nothing parks it, and keeps no position. A
+  `drive-changed` naming the file in `added` (a Studio re-render replacing
+  it) reloads the element on a fresh URL; one naming its `.vtt` re-reads the
+  captions.
 - **A Studio render uses it two ways** (`VideoPlayer`, see
   [studio-page.md](./studio-page.md)): on a video's detail page with a dock
   (Script and Scenes in a `MediaDock`, sharing the dock size and open state

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import {
   cancelRender,
   renderVideo,
+  type DriveDestination,
   type RenderPreset,
   type RenderProgress,
 } from "@/lib/studio/render";
@@ -15,7 +16,7 @@ export interface ActiveRender {
   /** 0 to 1, or null while the plan is still being made. */
   fraction: number | null;
   /** What the render is doing, for the line under the bar. */
-  phase: "planning" | "rendering" | "muxing";
+  phase: "planning" | "rendering" | "muxing" | "exporting";
 }
 
 interface RenderState {
@@ -27,8 +28,12 @@ interface RenderState {
   /** Bumped when a render for the folder ends, however it ended: a page
    *  showing its files reloads on it. */
   settled: Record<string, number>;
-  start: (dir: string, slug: string, preset: RenderPreset) => Promise<void>;
+  /** `destination` is where a first Final or Small render goes in Drive
+   *  (`renderToDrive` asks for it); a Draft never takes one. */
+  start: (dir: string, slug: string, preset: RenderPreset, destination?: DriveDestination) => Promise<void>;
   cancel: (dir: string) => void;
+  /** A render that failed before it started (asking where it goes). */
+  fail: (dir: string, preset: RenderPreset, error: string) => void;
   apply: (progress: RenderProgress) => void;
 }
 
@@ -71,7 +76,7 @@ export const useRenderStore = create<RenderState>((set, get) => {
     failedPresets: {},
     settled: {},
 
-    start: async (dir, slug, preset) => {
+    start: async (dir, slug, preset, destination) => {
       if (dir in get().active) return;
       set((s) => {
         const { [dir]: _cleared, ...errors } = s.errors;
@@ -79,7 +84,7 @@ export const useRenderStore = create<RenderState>((set, get) => {
       });
       try {
         // Null is a cancel; a failure rejects with a sentence fit to show.
-        await renderVideo(dir, preset);
+        await renderVideo(dir, preset, destination);
         settle(dir);
       } catch (e) {
         settle(dir, e instanceof Error ? e.message : String(e));
@@ -88,6 +93,13 @@ export const useRenderStore = create<RenderState>((set, get) => {
 
     cancel: (dir) => {
       cancelRender(dir).catch((e) => console.error("cancel render failed", e));
+    },
+
+    fail: (dir, preset, error) => {
+      set((s) => ({
+        errors: { ...s.errors, [dir]: error },
+        failedPresets: { ...s.failedPresets, [dir]: preset },
+      }));
     },
 
     apply: (p) => {
@@ -101,12 +113,16 @@ export const useRenderStore = create<RenderState>((set, get) => {
           return;
         case "planning":
         case "muxing":
+        case "exporting":
         case "rendering": {
           const prev = get().active[p.dir];
           const next: ActiveRender = {
             slug: prev?.slug ?? slugOf(p.dir),
             preset: prev?.preset ?? p.preset,
-            fraction: p.phase === "rendering" ? fractionOf(p) : p.phase === "muxing" ? 1 : (prev?.fraction ?? null),
+            fraction:
+              p.phase === "rendering" ? fractionOf(p)
+              : p.phase === "muxing" || p.phase === "exporting" ? 1
+              : (prev?.fraction ?? null),
             phase: p.phase,
           };
           set((s) => ({ active: { ...s.active, [p.dir]: next } }));

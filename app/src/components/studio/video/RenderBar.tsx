@@ -9,6 +9,7 @@ import type { NarrationRead } from "@/hooks/studio/useNarrationStatus";
 import type { VideoPlayback } from "@/hooks/studio/useVideoPlayback";
 import { fmtAgo } from "@/lib/format/format";
 import { exportState, PRESET_LABEL } from "@/lib/studio/exports";
+import { renderToDrive } from "@/lib/studio/renderToDrive";
 import { narrateBlocker, narrateHint, narratingLabel, renderNote, renderNoteWords } from "@/lib/studio/videoControls";
 import type { VideoDetail } from "@/lib/studio/videos";
 import { useNarrateStore } from "@/stores/studio/narrateStore";
@@ -37,7 +38,6 @@ export function RenderBar({
   const { dir, slug } = detail.row;
   const active = useRenderStore((s) => s.active[dir]);
   const cancelRender = useRenderStore((s) => s.cancel);
-  const startRender = useRenderStore((s) => s.start);
   const narrating = useNarrateStore((s) => s.active[dir]);
   const cancelNarration = useNarrateStore((s) => s.cancel);
   const { rows } = useExportStatus(dir);
@@ -52,9 +52,9 @@ export function RenderBar({
   if (active) {
     const pct = active.fraction == null ? null : Math.round(active.fraction * 100);
     const label =
-      active.phase === "muxing"
-        ? "Adding the narration"
-        : `Rendering ${PRESET_LABEL[active.preset].toLowerCase()}${active.phase === "planning" ? "…" : ""}`;
+      active.phase === "muxing" ? "Adding the narration"
+      : active.phase === "exporting" ? "Saving to Drive"
+      : `Rendering ${PRESET_LABEL[active.preset].toLowerCase()}${active.phase === "planning" ? "…" : ""}`;
     return <InFlight label={label} pct={pct} onCancel={() => cancelRender(dir)} />;
   }
 
@@ -91,7 +91,7 @@ export function RenderBar({
         </span>
       )}
       {note === "stale" && shown && (
-        <Button variant="outline" size="sm" onClick={() => void startRender(dir, slug, shown.preset)}>
+        <Button variant="outline" size="sm" onClick={() => void renderToDrive(dir, slug, shown.preset)}>
           Re-render
         </Button>
       )}

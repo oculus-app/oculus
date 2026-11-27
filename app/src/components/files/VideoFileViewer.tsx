@@ -2,7 +2,8 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { DbFile } from "@/lib/db";
 import { mediaSrc, parseVtt, type Cue } from "@/lib/lectures/media";
 import { courseFileHasContent, readCourseFile } from "@/lib/files/courseFiles";
-import { useWindowEvent } from "@/hooks/backend/useEvents";
+import { useTauriEvent, useWindowEvent } from "@/hooks/backend/useEvents";
+import { DRIVE_CHANGED_BACKEND_EVENT, type DriveChange } from "@/lib/drive/listing";
 import { useTranscriptSearch } from "@/hooks/lectures/useTranscriptSearch";
 import {
   TRANSCRIBED_EVENT,
@@ -29,6 +30,8 @@ const noop = () => {};
  * A video in the library (a Canvas module's `.mp4`, say) in the media player.
  * Its captions are the `<file>.vtt` beside it, which Transcribe writes when
  * there is none. The element is this component's own, not the lectures'.
+ * A file written over in place (a Studio re-render, `drive-changed`'s
+ * `added`) reloads, captions too.
  */
 export function VideoFileViewer({ file }: { file: DbFile }) {
   const rel = file.relative_path;
@@ -36,14 +39,16 @@ export function VideoFileViewer({ file }: { file: DbFile }) {
   const onScreen = useTabActive();
 
   const [src, setSrc] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let stale = false;
     setSrc(null);
-    mediaSrc(rel).then((url) => !stale && setSrc(url));
+    // A new URL is what makes the element drop the replaced file.
+    mediaSrc(rel).then((url) => !stale && setSrc(version ? `${url}&v=${version}` : url));
     return () => {
       stale = true;
     };
-  }, [rel]);
+  }, [rel, version]);
 
   const [cues, setCues] = useState<Cue[]>([]);
   /** The sibling VTT is on disk; null until the probe answers, so Transcribe
@@ -89,6 +94,11 @@ export function VideoFileViewer({ file }: { file: DbFile }) {
 
   useWindowEvent(TRANSCRIBED_EVENT, (e) => {
     if ((e as CustomEvent<TranscribedDetail>).detail.path === rel) loadCues();
+  });
+
+  useTauriEvent<DriveChange>(DRIVE_CHANGED_BACKEND_EVENT, ({ payload }) => {
+    if (payload.added.includes(rel)) setVersion((v) => v + 1);
+    if (payload.added.includes(vttRel) || payload.removed.includes(vttRel)) loadCues();
   });
 
   const player = useMediaPlayer({

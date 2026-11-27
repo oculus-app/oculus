@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Trail } from "@/components/ui/Trail";
 import { useSubjects } from "@/hooks/data/useSubjects";
 import { usePresence } from "@/hooks/ui/usePresence";
-import { createFolder, driveErrorText } from "@/lib/drive/commands";
+import { createFolder, driveErrorText, parseDriveError } from "@/lib/drive/commands";
 import { homeOf } from "@/lib/drive/home";
 import { announceDriveChange } from "@/lib/drive/listing";
 import { freeName, nameProblem, parentRel, stemLength } from "@/lib/drive/paths";
-import { pickerFolders, rememberDestination, type DrivePick, type DrivePickerRequest } from "@/lib/drive/picker";
+import { pendingStart, pickerFolders, rememberDestination, type DrivePick, type DrivePickerRequest } from "@/lib/drive/picker";
 import { driveTrail } from "@/lib/drive/trail";
 import { isMac } from "@/lib/platform";
 import { driveTrailCrumbs } from "../trail/crumbs";
@@ -24,8 +24,10 @@ const EXIT_MS = 200;
  * Choose a folder in Drive: a trail of where you are over the folders there.
  * The folder you are in is the destination, so a row opens its folder and a
  * crumb goes back up; New folder names one in place. With `request.name` it
- * also asks for a file name. Callers open it through `pickDriveFolder`
- * (`DrivePickerHost` mounts the one copy); docs/frontend.md has the contract.
+ * also asks for a file name. With `request.makeStart` a missing start is the
+ * destination still to make (`pendingStart`), made only on confirm. Callers
+ * open it through `pickDriveFolder` (`DrivePickerHost` mounts the one copy);
+ * docs/frontend.md has the contract.
  */
 export function DrivePickerDialog({ request, onResult }: {
   request: DrivePickerRequest | null;
@@ -56,6 +58,9 @@ function PickerBody({ request, onResult }: {
   const [name, setName] = useState(request.name ?? "");
   const [draft, setDraft] = useState<FolderDraft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [navigated, setNavigated] = useState(false);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const pending = settled && !navigated ? pendingStart(request, place) : null;
 
   // What had the focus when the picker opened. Radix hands focus back only
   // to a `DialogTrigger`, and this dialog has none.
@@ -65,15 +70,22 @@ function PickerBody({ request, onResult }: {
   const listRef = useRef<HTMLDivElement>(null);
   const actionRef = useRef<HTMLButtonElement>(null);
 
-  const rows = useMemo(() => (place ? pickerFolders(place, subjects) : { current: [], past: [] }), [place, subjects]);
+  const rows = useMemo(
+    () => (place && !pending ? pickerFolders(place, subjects) : { current: [], past: [] }),
+    [place, pending, subjects],
+  );
   // A folder opened from the keyboard hands the keys to its first row.
   const toRows = useRef(false);
   const open = (rel: string, byKey = false) => {
     toRows.current = byKey;
     setDraft(null);
+    setNavigated(true);
+    setPendingError(null);
     go(rel);
   };
-  const crumbs = place ? driveTrailCrumbs(driveTrail(place.rel, subjects), { onOpen: open }) : [];
+  /** Where a confirm lands: the folder still to make, or the one shown. */
+  const here = pending ?? place?.rel ?? null;
+  const crumbs = here != null ? driveTrailCrumbs(driveTrail(here, subjects), { onOpen: open }) : [];
   useEffect(() => {
     if (!place || !toRows.current) return;
     toRows.current = false;
@@ -91,9 +103,25 @@ function PickerBody({ request, onResult }: {
   const canAdd = settled && !!place?.writable && !busy;
   const canConfirm = canAdd && !nameError;
 
+  /** The folder still to make, made (one made meanwhile will do); false
+   *  when it could not be. */
+  async function makePending(): Promise<boolean> {
+    if (!pending) return true;
+    try {
+      await createFolder(pending);
+      announceDriveChange(homeOf(pending, subjects)?.id);
+    } catch (error) {
+      if (parseDriveError(error).kind !== "exists") {
+        setPendingError(driveErrorText(error));
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** The folder being named, made; null when it could not be. */
   async function makeDraft(): Promise<string | null> {
-    if (!draft || !place) return null;
+    if (!draft || here == null) return null;
     const typed = draft.name.trim();
     const problem = nameProblem(typed);
     if (problem) {
@@ -102,8 +130,9 @@ function PickerBody({ request, onResult }: {
     }
     setBusy(true);
     try {
-      const made = await createFolder(place.rel ? `${place.rel}/${typed}` : typed);
-      announceDriveChange(homeOf(place.rel, subjects)?.id);
+      if (!(await makePending())) return null;
+      const made = await createFolder(here ? `${here}/${typed}` : typed);
+      announceDriveChange(homeOf(here, subjects)?.id);
       return made;
     } catch (error) {
       setDraft({ name: draft.name, problem: driveErrorText(error) });
@@ -120,9 +149,15 @@ function PickerBody({ request, onResult }: {
   }
 
   async function confirm() {
-    if (!canConfirm || !place) return;
+    if (!canConfirm || here == null) return;
     // A folder still being named is made first, and is where this lands.
-    const targetDir = draft?.name.trim() ? await makeDraft() : place.rel;
+    let targetDir: string | null = here;
+    if (draft?.name.trim()) targetDir = await makeDraft();
+    else if (pending) {
+      setBusy(true);
+      targetDir = (await makePending()) ? pending : null;
+      setBusy(false);
+    }
     if (targetDir == null) return;
     void rememberDestination(targetDir).catch((e) => console.warn(`[drive] last destination: ${e}`));
     onResult({ targetDir, name: asksName ? name.trim() : null });
@@ -144,7 +179,7 @@ function PickerBody({ request, onResult }: {
     const up = e.key === "ArrowLeft" || e.key === "Backspace" || (mod && e.key === "ArrowUp");
     if (up) {
       e.preventDefault();
-      if (place?.rel) open(parentRel(place.rel), true);
+      if (here) open(parentRel(here), true);
     } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       stepRow(listRef.current, e.key === "ArrowDown" ? 1 : -1);
@@ -208,7 +243,7 @@ function PickerBody({ request, onResult }: {
           onOpen={open}
           onDraft={(typed) => setDraft({ name: typed, problem: null })}
           onCommit={() => void commitDraft()}
-          note={failed ?? (place ? "No folders here" : null)}
+          note={pendingError ?? failed ?? (place ? "No folders here" : null)}
         />
       </div>
       <div className="flex items-center gap-2">
@@ -217,7 +252,8 @@ function PickerBody({ request, onResult }: {
           className="-ml-2"
           disabled={!canAdd}
           onClick={() => place && setDraft({
-            name: freeName("Untitled folder", place.folders.map((f) => f.name).concat(place.files.map((f) => f.name))),
+            name: pending ? "Untitled folder"
+              : freeName("Untitled folder", place.folders.map((f) => f.name).concat(place.files.map((f) => f.name))),
             problem: null,
           })}
         >

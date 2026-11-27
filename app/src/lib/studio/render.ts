@@ -2,8 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 // Rendering a Studio video folder to one export preset's file with ffmpeg
-// (`app/src-tauri/src/studio/commands/render.rs`). One render per folder at a
-// time; nothing here touches the network.
+// (`app/src-tauri/src/studio/commands/render.rs`), a Final or Small one then
+// copied into Drive (`studio/export/`). One render per folder at a time;
+// nothing here touches the network.
 
 /** Mirrors `render::Preset`. */
 export type RenderPreset = "draft" | "final" | "small";
@@ -43,11 +44,48 @@ export interface RenderReport {
   ms: number;
 }
 
-/** Renders `dir` to `<dir>/renders/<preset>.<ext>`. Resolves to the report,
- *  or null when cancelled; rejects with a sentence fit to show when the
- *  render fails or `dir` already has one running. */
-export function renderVideo(dir: string, preset: RenderPreset): Promise<RenderReport | null> {
-  return invoke<RenderReport | null>("studio_render", { dir, preset });
+/** A Final or Small render's Drive file, by its `files` row. */
+export interface DriveFile {
+  fileId: number;
+  /** Data-dir-relative. */
+  rel: string;
+}
+
+/** Where a first Final or Small render goes: a Drive folder (data-dir-relative,
+ *  `""` is the top level) and the file's name. */
+export interface DriveDestination {
+  targetDir: string;
+  name: string;
+}
+
+/** Mirrors `Exported`: what putting a render into Drive did. */
+export interface DriveExport {
+  file: DriveFile;
+  /** Absolute. */
+  path: string;
+  /** The `.vtt` beside it, data-dir-relative, when the video is narrated. */
+  captions: string | null;
+  /** The linked file was replaced where it is now. */
+  replaced: boolean;
+}
+
+/** Renders `dir` to `<dir>/renders/<preset>.<ext>`; a Final or Small render
+ *  then goes into Drive: to `destination` when given, else over its linked
+ *  file. Resolves to the report, or null when cancelled; rejects with a
+ *  sentence fit to show when the render or its copy fails or `dir` already
+ *  has one running. */
+export function renderVideo(
+  dir: string,
+  preset: RenderPreset,
+  destination?: DriveDestination,
+): Promise<(RenderReport & { drive: DriveExport | null }) | null> {
+  return invoke("studio_render", { dir, preset, destination: destination ?? null });
+}
+
+/** Where a first Final or Small render of `slug` is suggested to go:
+ *  `Videos` in its subject, or at the top level, named after its title. */
+export function exportSuggestion(slug: string, preset: RenderPreset): Promise<DriveDestination> {
+  return invoke<DriveDestination>("studio_export_suggestion", { slug, preset });
 }
 
 /** Mirrors `render::ExportStatus`: one preset's file and whether a render now
@@ -61,6 +99,9 @@ export interface ExportStatus {
   current: boolean;
   /** Why the preset cannot render now, a sentence fit to show. */
   problem: string | null;
+  /** The Drive file a Final or Small render went to; null for a Draft and
+   *  until the first export, or once that file is gone from Drive. */
+  drive: DriveFile | null;
 }
 
 /** Every preset's status, in the menu's order. Renders nothing. */
@@ -106,7 +147,9 @@ export type RenderProgress = { dir: string; preset: RenderPreset } & (
       fps: number;
     }
   | { phase: "muxing" }
-  | { phase: "complete"; path: string; report: RenderReport }
+  /** A Final or Small render being copied into Drive. */
+  | { phase: "exporting" }
+  | { phase: "complete"; path: string; report: RenderReport; drive?: DriveExport }
   | { phase: "cancelled" }
   | { phase: "error"; error: string }
 );

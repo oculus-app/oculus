@@ -43,6 +43,19 @@ export function exportState(status: ExportStatus): ExportState {
   return status.path ? "stale" : "none";
 }
 
+/** A row's state in the Export menu: a Final or Small render that is not
+ *  in Drive is still to make there, so it offers Render, which asks where. */
+export function menuState(status: ExportStatus): ExportState {
+  const state = exportState(status);
+  return status.preset !== "draft" && !status.drive && state !== "blocked" ? "none" : state;
+}
+
+/** The name a first export of `preset` is offered under (`export::place`),
+ *  for telling whether the student has renamed the file since. */
+export function suggestedName(title: string, preset: RenderPreset): string {
+  return `${preset === "small" ? `${title} (small)` : title}.mp4`;
+}
+
 /** The video renders the player can show, newest first. */
 export function playableRenders(renders: RenderFile[]): RenderFile[] {
   return renders.filter((r) => VIDEO_PRESETS.includes(r.preset)).sort((a, b) => b.modified - a.modified);

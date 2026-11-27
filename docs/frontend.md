@@ -277,7 +277,7 @@ Drive's rail section at `/drive/*` and the Files tab at
   caller that draws a Drive path uses these two. The browser's own header
   is the one other shape: `driveCrumbs` turns the same places, from the
   browser's root down, into `Breadcrumb` items.
-- **One folder picker.** `pickDriveFolder({ title, action, start?, name? })`
+- **One folder picker.** `pickDriveFolder({ title, action, start?, makeStart?, name? })`
   (`app/src/stores/shell/drivePickerStore.ts`) opens `DrivePickerDialog`
   (`components/drive/picker/`), which `DrivePickerHost` mounts once in
   `AppLayout`, and resolves to `{ targetDir, name }` or `null` on a cancel;
@@ -294,7 +294,12 @@ Drive's rail section at `/drive/*` and the Files tab at
   `drive_picker_last_destination`; one that is gone or synced falls back to
   the nearest folder above it that will do (`settleStart` in
   `lib/drive/picker.ts`), and a folder deleted under the dialog sends it up
-  the same way. With `name` the dialog shows the file name to edit, its
+  the same way. With `makeStart`, a missing `start` whose folder is a place
+  that takes files (`pendingStart`) is still the destination: the trail ends
+  at it, the list says "No folders here", and it is made (`create_folder`)
+  only when the student confirms there or names a New folder inside it;
+  going anywhere else drops it for good. Studio's Render Final and Small
+  open on their suggested `Videos` this way. With `name` the dialog shows the file name to edit, its
   stem selected, and answers the trimmed name (`null` otherwise); a name
   `nameProblem` refuses turns the action off. New folder names a folder in
   a row of the list ("Untitled folder", selected): Enter makes it
