@@ -2,10 +2,9 @@ use sqlx::{Row, SqlitePool};
 
 use crate::sync::Course;
 
-/// The `subjects` row every file at the data dir's top level hangs off
-/// (`kind = 'top'`, code `layout::TOP_LEVEL_CODE`), inserted by migration 68.
-/// It is no subject: negative, so no Canvas course id meets it, and not `-1`,
-/// which the revision topics' indexes use for "no subject".
+/// The `subjects` row (`kind = 'top'`, code `layout::TOP_LEVEL_CODE`) every
+/// top-level file's row hangs off. Negative, so no Canvas course id meets
+/// it; not `-1`, which the revision topics' indexes use for "no subject".
 pub const TOP_LEVEL_SUBJECT_ID: i64 = -100;
 
 /// The reserved row's id, read rather than assumed, so a database without

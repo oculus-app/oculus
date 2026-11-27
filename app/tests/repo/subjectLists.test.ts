@@ -42,8 +42,7 @@ function* sources(dir: string): Generator<string> {
   }
 }
 
-/** A file's code: a Rust file's inline tests (after its `#[cfg(test)]`) and
- *  the frozen migration list left out. */
+/** A file's code: a Rust file's inline tests (after its `#[cfg(test)]`) left out. */
 function code(path: string): string {
   const text = readFileSync(path, "utf8");
   if (!path.endsWith(".rs")) return text;

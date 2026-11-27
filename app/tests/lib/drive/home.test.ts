@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { FolderEntry } from "@/lib/drive/listing";
 import type { Subject } from "@/lib/db";
-import { homeOf, isSubjectsFolder, isTopLevel } from "@/lib/drive/home";
+import { homeOf, isSubjectsFolder } from "@/lib/drive/home";
 import { folderItem, isFixedFolder, itemEditable } from "@/lib/drive/items";
 import { TOP_LEVEL } from "@/lib/files/libraryLayout";
 
@@ -26,8 +26,6 @@ test("a path's home is its subject, or the top level", () => {
   expect(homeOf("courses", subjects)).toBeUndefined();
   expect(homeOf("courses/GONE1/a", subjects)).toBeUndefined();
   expect(homeOf(".oculus/agents", subjects)).toBeUndefined();
-  expect(isTopLevel(homeOf("Videos", subjects))).toBe(true);
-  expect(isTopLevel(homeOf("courses/CS_101", subjects))).toBe(false);
   expect(isSubjectsFolder("courses") && !isSubjectsFolder("courses/X") && !isSubjectsFolder("")).toBe(true);
 });
 

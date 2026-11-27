@@ -13,8 +13,6 @@ export interface FileHome {
  *  the student's. */
 export const isSubjectsFolder = (rel: string): boolean => rel === COURSES_DIR;
 
-export const isTopLevel = (home: FileHome | undefined): boolean => home?.id === TOP_LEVEL.id;
-
 /** The home of a data-dir-relative path: its subject, or `TOP_LEVEL` for the
  *  top level (`""`) and the student's folders there. Undefined for the
  *  folder of subjects itself and for a folder of no known subject. */
