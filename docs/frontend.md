@@ -348,9 +348,9 @@ Drive's rail section at `/drive/*` and the Files tab at
   scrolls the entries when held near their top or bottom edge, and the click
   ending it is swallowed so it doesn't clear what it picked. Double-click or Enter opens
   (`openItem`: a folder here, a recording's lecture page, a file as
-  `openFileSmart` does). Delete or ⌘⌫ on the student's own entries asks first,
-  listing every file the delete removes (`delete_preview`). ⇧⌘N makes a
-  folder. A new folder, and Rename, edit the name in place.
+  `openFileSmart` does). Delete or ⌘⌫ sends the student's own entries to
+  the system Trash without asking; the toast's Undo is the way back (below).
+  ⇧⌘N makes a folder. A new folder, and Rename, edit the name in place.
 - **The right-click menu** (`components/ui/context-menu.tsx`) acts on the
   selection when the entry is in it: Open, Open in new tab, Copy to my files…
   for synced entries, Show in Finder (on every entry, Subjects and top-level
@@ -384,8 +384,9 @@ the folder's subject or none):
 | `create_folder` | `rel` | the new folder's path |
 | `rename_entry` | `rel`, `newName` | the new path |
 | `move_entries` | `rels`, `targetDir` | the new paths, in order |
-| `delete_entries` | `rels` | nothing |
-| `delete_preview` | `rels` | every file a delete would remove |
+| `delete_entries` | `rels` | `{ handle, removed }`: the pending delete, or `handle: null` when final at once |
+| `drive_delete_finish` | `handle` | nothing |
+| `drive_delete_undo` | `handle` | where each entry is now |
 | `copy_to_own` | `rels`, `targetDir` | the copies' paths, in order |
 | `import_uploads` | `subjectCode`, `paths`, optional `targetDir` | one outcome per file |
 | `create_document`, `create_whiteboard` | as before, optional `targetDir` | the new file |
@@ -412,9 +413,8 @@ the folder's subject or none):
   rather than deleted. A parsed file takes its artifacts with it and
   stays parsed and embedded ([architecture.md](./architecture.md#one-module-owns-every-path-shape-in-the-library)),
   a note its pictures ([editor.md](./editor.md#pictures-mentions-and-citations-resolve-to-library-files)).
-  A delete removes rows with their pages, versions and task links, then the
-  files and artifacts; there is no trash. `delete_preview` lists what Drive
-  would show of it. A copy is a new file with its own row, written before the
+  A delete sends the entries to the system Trash (below). A copy is a new
+  file with its own row, written before the
   command returns, with no parse artifacts (an Office file's converted PDF
   is copied); `copyInto` kicks each copied file's parse, a folder's files
   included.
@@ -428,7 +428,7 @@ the folder's subject or none):
   those files (`parse::InFlight`, `InFlight::embedding`) until its rows are
   written, so no parse starts on a file mid-move; a drawing shared to a device
   is refused the same way.
-- **`drive-changed`.** Each command but `delete_preview` emits
+- **`drive-changed`.** Each command but `drive_delete_finish` emits
   `{ subjectIds, moved: [{ from, to }], removed, added }`, and so does
   `reconcile_own_files` when it adds rows or renames a drawing's; `useDriveEvents` turns it into
   `DRIVE_CHANGED_EVENT` for each subject and hands the moves and deletes to
@@ -438,6 +438,56 @@ A refusal arrives as a JSON-serialised `{ kind, message }`, `kind` one of
 `read_only` (anything synced or hidden), `exists`, `not_found`,
 `invalid_name`, `io`; `driveErrorText` words `read_only` as "Course files are
 read-only" and shows any other message, or the raw text when it isn't one.
+
+### A delete goes to the system Trash, with Undo until its toast closes
+
+`delete_entries` (`app/src-tauri/src/library/drive/ops/delete/`) takes the
+student's own entries only (`guard::own_entry`: no synced path, `courses/`,
+a subject's folder, `Course/`, dot-name, symlink or `..`; a path inside
+another one sent goes with it) and works in two steps, so Undo is exact.
+
+- **Sent.** Under the job fence, each entry is moved to the system Trash
+  through `runtime::trash::trash_item` (`NSFileManager`'s
+  `trashItemAtURL:resultingItemURL:` on macOS, which says where it went;
+  Studio's renders go the same way). If one cannot go (a volume with no
+  Trash), those already sent come back and the delete fails with the
+  Trash's reason: nothing is ever unlinked. Nothing else changes yet: the
+  rows with their pages, vectors, versions and links, and the app's own
+  records of the entry (a file's parsed text, pictures folder, parse record,
+  vectors and converted PDF; a folder's derived records) stay. The delete is
+  pending under a handle Rust issued, returned with the paths and announced
+  as `removed`, so open tabs and queues let go of it.
+- **Pending.** Its names are held (`delete::held`): every Drive name chooser
+  (`names::is_taken`, imports, copies, new notes and drawings, a Studio
+  export, a move or rename) steps aside from them, so nothing the app makes
+  takes its place or its rows. A listing leaves out its leftovers
+  (`delete::hides`), Recent leaves out its rows (`pendingDeleteStore`), and
+  the note and drawing reconcilers keep its rows. Opened from elsewhere
+  (search, a mention), it is a file not on disk, as one deleted in Finder.
+- **The toast** (`DeleteToast`, mounted in `AppLayout`): "Moved to Trash", or
+  "3 items moved to Trash", with **Undo** and the ×, for the toast's 6 s
+  (paused while hovered). Its closing, whichever way, calls
+  `drive_delete_finish`; a newer delete replaces it, Rust having made the
+  older one final first (one Undo at a time).
+- **Final** (`delete::finish_at`): the rows go with everything on them, as a
+  delete always did, so links cascade (Studio asks where on the next
+  Render; chat offers Save to Drive… again), then the app's leftovers and a
+  drawing's page pictures. What is in the Trash stays there; Finder's Put
+  Back returns it as a new file, without its parse. A pending delete nothing
+  finishes (the page went away) is final after 60 s, and every one is at
+  the app's exit.
+- **Undo** (`delete::undo_at`, by handle) moves each entry back from where
+  the Trash put it. Folders on the way that are gone are made again (only
+  below a home whose folder is still there). A place something else took
+  meanwhile (Finder, an agent) gives Drive's next free name, its records and
+  rows following as a rename's do (`moves::carry_out`). An entry no longer in
+  the Trash is made final instead, and Undo reports it.
+- **If the app dies** while a delete is pending, the entry is in the Trash
+  and its rows remain, as after a delete in Finder: Drive does not list it,
+  the note and drawing reconcilers drop its rows when they next run, and
+  any other row stays until something removes it.
+- **Windows** says nothing of where the Recycle Bin put an entry, so a
+  delete there is final at once and its toast has no Undo.
 
 ### Own files written outside the app get rows
 
@@ -741,7 +791,7 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
 - **Finder drops land on Drive's folders** (`useDriveDrop`): a folder card,
   list row or tree row, else the folder on screen. `useFileDrop` ignores a
   `visibility: hidden` element — how background panes hide.
-- **Delete is Drive's `delete_entries`** (above), guarded by
+- **Delete is Drive's `delete_entries`** (above), to the Trash, guarded by
   `layout::own_path_ok`; an upload's name never starts with a dot, which the
   guard refuses. `deleteFileRow`, which the reconcilers use, deletes a file's
   child rows by hand beside the cascade

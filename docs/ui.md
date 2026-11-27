@@ -545,7 +545,11 @@ themes are opt-in and keep the same structure.
 - **Toasts are allowed for short notices that need nothing back**: top
   centre, dismissed by themselves after a few seconds (paused while hovered),
   with a × ringed by the countdown. A failure or anything that asks for a decision stays inline where
-  it happened. **No bottom progress bars** — background jobs surface in the
+  it happened. The one toast with an action is the delete's: "Moved to
+  Trash" with **Undo**, in place of an "are you sure" dialog, since the
+  delete only becomes final when the toast closes
+  ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)).
+  **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
@@ -558,8 +562,8 @@ themes are opt-in and keep the same structure.
   the top centre, below the tab strip and the page's 48px header row, so it
   never moves layout or covers a title: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
-  wide at most unless the caller's `className` reshapes it (Groq's is a
-  content-wide pill). It springs in and out from its top edge
+  wide at most unless the caller's `className` reshapes it (Groq's and the
+  delete's `DeleteToast` are content-wide pills). It springs in and out from its top edge
   (`popup-motion`, below), is `role="status"` with `aria-live="polite"`, closes
   after 6 s with the timer paused while hovered or focused, on Escape or
   its `ToastClose`, and only the newest stays open. `ToastClose` is the ×

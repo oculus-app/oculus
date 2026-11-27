@@ -2222,7 +2222,9 @@ check read it.
   student's (`Zone::Own`) and the file on disk has the size and modification
   time the export wrote (the link's `size` and `modified_ms`, which a move or
   rename keeps); otherwise, a file deleted in Finder and another put under
-  its name included, the next Render asks again. Deleting the file in Drive deletes the link, by `ON DELETE
+  its name included, the next Render asks again (a file in the Trash with
+  its Undo still open is not on disk, so it asks then too, and counts again
+  after an Undo). Deleting the file in Drive, once final, deletes the link, by `ON DELETE
   CASCADE` and by hand beside it
   ([architecture.md](./architecture.md#the-database-has-one-schema-owner-and-two-writers)). Deleting a video in Studio removes its links and leaves
   the files: they are the student's exports. A folder deleted outside Studio
@@ -2275,7 +2277,7 @@ The list reads both the video folders and the series outlines. Commands on one v
 | `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series`, `part` and nullable `seconds`. Each series has its ordered outline, `modified` (newest outline or matching part time), and a nullable video row per part with `exists` and `made` flags; a part's row carries its own `threadId`. A matching folder has a row before it has a render; `made` means it has an MP4. |
 | `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
 | `studio_video_delete(slug)` | moves the video folder to the Trash and removes its thread link and its Drive links (the Drive files stay). Its series outline still lists the part, now without a video. |
-| `studio_render_delete(slug, preset)` | moves the preset's MP4 and any WebVTT sidecar to the Trash, then drops its cache record and deletes segments and tracks unused by the remaining records. A missing MP4 is an error. |
+| `studio_render_delete(slug, preset)` | moves the preset's MP4 and any WebVTT sidecar to the Trash, then drops its cache record and deletes segments and tracks unused by the remaining records; then a Final or Small's Drive copy, while it is still the export, is deleted as Drive deletes it, with the captions the export wrote, and that delete is returned for the Undo toast ([studio-page.md](./studio-page.md)). A missing MP4 is an error. |
 | `studio_render_captions(slug, preset)` | the WebVTT text beside that preset's render (`renders/<preset>.vtt`), for the player's CC |
 | `studio_set_theme(slug, theme)` | sets video.json's theme to a name that parses through the video's subject, global and bundled cascade |
 | `studio_set_voice(slug, voice)` | sets the voice id over Settings, or clears it with `null`. The other voice overrides stay, and an empty block is removed. The resulting voice must resolve. |
@@ -2291,7 +2293,7 @@ The list reads both the video folders and the series outlines. Commands on one v
 
 - **Deletion** requires the video to be idle. The Trash helper in
   `app/src-tauri/src/runtime/trash.rs` uses `NSFileManager` on macOS and
-  the Recycle Bin on Windows.
+  the Recycle Bin on Windows; Drive's deletes go through it too.
 - **Video edits and narration.** Theme and voice edits preserve video.json's
   text outside the edited member and are refused while the app renders or
   narrates the folder. The narration status reads cache keys and model

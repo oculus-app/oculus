@@ -1229,8 +1229,10 @@ opening the list acknowledges problems. A waiting row opens the dialog. A
 saved row says where it went as a `Trail`, from its subject when it is in
 one, and every settled row has one ⋮ menu (`DownloadMenu`). Saved to Drive:
 Open, Show in Drive (a new tab on its folder), Show in Finder, Clear from
-list and Delete, which asks, deletes through Drive's `delete_entries` and
-clears the row; each finds the file by its row id
+list and Delete, which asks nothing: it sends the file to the Trash through
+Drive's `delete_entries`, with the toast's Undo
+([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)),
+and clears the row; each finds the file by its row id
 (`app/src/pages/tools/browser/downloads/savedFile.ts`), and a file gone
 since just leaves the list. Delete is offered only for a file the download
 wrote, once its row id is known (`mayDelete` in
