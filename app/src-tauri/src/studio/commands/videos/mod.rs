@@ -15,7 +15,9 @@ mod thumbnail;
 
 use tauri::ipc::Response;
 
-use crate::db::store::{delete_studio_link, open_pool, setting, studio_links};
+use crate::db::store::{
+    delete_studio_exports, delete_studio_link, open_pool, setting, studio_links,
+};
 use crate::runtime::{blocking, trash::move_to_trash};
 use crate::studio::libraries::libraries;
 use crate::studio::videos::videos_dir;
@@ -81,6 +83,8 @@ pub async fn studio_video_delete(slug: String) -> Result<(), String> {
     let video = slug.clone();
     blocking::run(move || delete::video_in(&videos_dir(), &video, &move_to_trash)).await?;
     delete_studio_link(&mut *tx, &slug).await?;
+    // Its Drive copies are the student's exports and stay; only the links go.
+    delete_studio_exports(&mut *tx, &slug).await?;
     tx.commit().await.map_err(|e| {
         format!("Could not save the removal of the thread link for video `{slug}`: {e}")
     })

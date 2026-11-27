@@ -1074,6 +1074,23 @@ BEGIN SELECT RAISE(ABORT, 'the top-level row cannot be deleted'); END;
                         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 69,
+            description: "studio_exports: the Drive file each video's Final and Small render to",
+            // Keyed by the file's row id, so a re-render finds the file
+            // wherever the student moved or renamed it. Deleting the file in
+            // Drive removes the link (`store::studio_exports` says how).
+            sql: r#"
+CREATE TABLE studio_exports (
+    slug TEXT NOT NULL,
+    preset TEXT NOT NULL,
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    PRIMARY KEY (slug, preset)
+);
+CREATE INDEX idx_studio_exports_file ON studio_exports(file_id);
+                        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

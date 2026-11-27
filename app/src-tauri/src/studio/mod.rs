@@ -1,7 +1,8 @@
 //! Studio's half that studio-core may not do: the TTS client, audio decode,
 //! word timing against a local ONNX model, `narrate`, which writes the
 //! manifest studio-core reads, `render`, which encodes a video with ffmpeg,
-//! the data directory's libraries and videos, `brief`, a scene's context and
+//! `export`, which puts a Final or Small render into Drive, the data
+//! directory's libraries and videos, `brief`, a scene's context and
 //! word times, `slides`, crops of library PDF pages as video assets,
 //! and the Tauri commands behind
 //! Settings -> Studio and rendering
@@ -12,6 +13,7 @@ pub mod audio;
 pub mod brief;
 pub mod commands;
 pub mod error;
+pub mod export;
 pub mod libraries;
 pub mod narrate;
 pub mod render;

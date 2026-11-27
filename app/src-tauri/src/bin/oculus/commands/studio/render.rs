@@ -1,15 +1,21 @@
 //! `oculus studio render`: a video folder to an export preset's mp4
 //! through `app_lib::studio::render` (docs/studio.md, "Rendering a video").
-//! A terminal gets frame progress; piped output, which an agent re-reads
-//! on every later call, gets only the plan, each scene rendered and the
-//! mp4.
+//! A final or small render of a Studio video then goes into Drive
+//! (`app_lib::studio::export`): over the file it went to last time, else
+//! into `--to` or the suggested folder, since a terminal can't ask. A
+//! terminal gets frame progress; piped output, which an agent re-reads on
+//! every later call, gets only the plan, each scene rendered, the mp4 and
+//! where it is in Drive.
 
 use super::studio_error;
 use crate::*;
+use app_lib::studio::export::{self, Destination, Exported};
 use app_lib::studio::libraries;
 use app_lib::studio::render::{self, Finished, Outcome, Preset, Progress, Report, SegmentReport};
+use app_lib::studio::videos as video_dirs;
 use std::fmt::Write as _;
 use std::io::IsTerminal;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
@@ -23,6 +29,11 @@ impl Ctx {
             (None, true) => Preset::Final,
             (None, false) => Preset::Draft,
         };
+        // `-o` writes a file of the caller's, never an export.
+        let exports = export::exports(preset) && args.out.is_none();
+        if args.to.is_some() && !exports {
+            return Err("--to is for a final or small render".into());
+        }
         let ffmpeg = app_lib::sources::echo360::find_ffmpeg(None)
             .ok_or("ffmpeg not found; run `bun run ffmpeg` in app/, or install it")?;
         let options = render::Options {
@@ -47,17 +58,86 @@ impl Ctx {
             Finished::Cancelled => return Err("cancelled".into()),
         };
 
+        let drive = if exports {
+            self.export_render(&args.dir, &report, args.to.as_deref())
+                .map_err(|e| {
+                    format!(
+                        "wrote {} but could not save it to Drive: {e}",
+                        report.path.display()
+                    )
+                })?
+        } else {
+            None
+        };
+
         if self.json {
             return self.emit(&serde_json::json!({
                 "dir": args.dir.to_string_lossy(),
                 "report": report,
+                "drive": drive,
             }));
         }
         let mut end = String::new();
         printer.finished(&report, &mut end);
+        if let Some(drive) = &drive {
+            printer.exported(drive, &mut end);
+        }
         print!("{end}");
         Ok(())
     }
+
+    /// Put a final or small render of the Studio video in `dir` into Drive;
+    /// `None` for a folder outside Studio's videos, which has no Drive file.
+    fn export_render(
+        &self,
+        dir: &Path,
+        report: &Report,
+        to: Option<&Path>,
+    ) -> Result<Option<Exported>, String> {
+        let Ok(folder) = video_dirs::scoped(dir) else {
+            return Ok(None);
+        };
+        let pool = self.rt.block_on(store::open(&self.data_dir))?;
+        let exported = self.rt.block_on(async {
+            let destination = match to {
+                Some(to) => {
+                    let target_dir = drive_rel(&self.data_dir, to)?;
+                    export::make_folder(&self.data_dir, &target_dir)?;
+                    let name = export::suggestion(&pool, &folder, report.preset)
+                        .await?
+                        .name;
+                    Some(Destination { target_dir, name })
+                }
+                None => None,
+            };
+            export::to_drive(&self.data_dir, &pool, &folder, report, destination).await
+        });
+        self.rt.block_on(pool.close());
+        exported.map(Some)
+    }
+}
+
+/// `--to` as a data-dir-relative folder: absolute inside the data folder, or
+/// relative to it already.
+fn drive_rel(data_dir: &Path, to: &Path) -> Result<String, String> {
+    let inside = if to.is_absolute() {
+        let root = data_dir
+            .canonicalize()
+            .unwrap_or_else(|_| data_dir.to_owned());
+        let canon = to.canonicalize().unwrap_or_else(|_| to.to_owned());
+        canon
+            .strip_prefix(&root)
+            .or_else(|_| to.strip_prefix(data_dir))
+            .map(Path::to_owned)
+            .map_err(|_| format!("{} is not in the library", to.display()))?
+    } else {
+        to.to_owned()
+    };
+    let parts: Vec<String> = inside
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    Ok(parts.join("/"))
 }
 
 /// Render's text: in a terminal the plan, frame progress every `EVERY`,
@@ -181,6 +261,23 @@ impl Printer {
                 DIM,
             ),
         );
+    }
+}
+
+impl Printer {
+    /// Where the render went in Drive, for the agent to tell the student.
+    pub(super) fn exported(&self, drive: &Exported, out: &mut String) {
+        let verb = if drive.replaced {
+            "replaced in Drive"
+        } else {
+            "saved to Drive"
+        };
+        let verb = if self.terminal {
+            paint(verb, GREEN)
+        } else {
+            verb.to_string()
+        };
+        line(out, &format!("{verb}: {}", drive.path.display()));
     }
 }
 

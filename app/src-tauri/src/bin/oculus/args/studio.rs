@@ -1016,6 +1016,14 @@ pub(crate) struct StudioThemesPromoteArgs {
 /// Before anything renders, ffmpeg is asked what it was built with: a
 /// missing encoder or demuxer is an error naming it.
 ///
+/// A final or small render of a Studio video is the student's video, so it
+/// also goes into Drive, its captions beside it: over the file it went to
+/// last time, wherever the student has moved or renamed it, else into
+/// `--to`, else into `Videos` in the video's subject (`Videos` at the top
+/// level for a video with no subject), made if missing, named after the
+/// video's title. A draft, or a render written with `-o`, never goes to
+/// Drive.
+///
 /// Render never narrates: run `oculus studio narrate` first, or it stops
 /// with the stale narration's scene. A frame that fails stops the render,
 /// naming its time and scene; an ffmpeg failure quotes ffmpeg.
@@ -1023,13 +1031,16 @@ pub(crate) struct StudioThemesPromoteArgs {
 /// In a terminal it prints the plan, a frame progress line about every two
 /// seconds, each scene rendered or cached, the files written and a
 /// summary. Piped (as an agent runs it) it prints only the plan, one line
-/// per scene rendered and the mp4 written.
+/// per scene rendered and the mp4 written. Last comes `saved to Drive:` or
+/// `replaced in Drive:` and the file's path: tell the student where it is.
 ///
 ///     oculus studio render lectures/week-4
 ///
-///     oculus studio render lectures/week-4 --final -o ~/Desktop/week-4.mp4
+///     oculus studio render lectures/week-4 --final
 ///
-///     oculus studio render lectures/week-4 --preset small
+///     oculus studio render lectures/week-4 --preset small --to "Videos/Shorts"
+///
+///     oculus studio render lectures/week-4 --final -o ~/Desktop/week-4.mp4
 #[derive(Args)]
 #[command(group(clap::ArgGroup::new("which").args(["draft", "final_", "preset"]).multiple(false)))]
 pub(crate) struct StudioRenderArgs {
@@ -1045,9 +1056,15 @@ pub(crate) struct StudioRenderArgs {
     /// The export preset: draft, final or small
     #[arg(long, value_name = "NAME")]
     pub(crate) preset: Option<String>,
-    /// Where to write the file (default: `<DIR>/renders/<preset>.mp4`)
-    #[arg(short, long, value_name = "OUT")]
+    /// Where to write the file (default: `<DIR>/renders/<preset>.mp4`). A
+    /// render written elsewhere is not saved to Drive
+    #[arg(short, long, value_name = "OUT", conflicts_with = "to")]
     pub(crate) out: Option<PathBuf>,
+    /// The Drive folder a final or small render goes to (default: the file
+    /// it went to last time, else `Videos` in the video's subject), relative
+    /// to the data folder or absolute inside it; made if missing
+    #[arg(long, value_name = "FOLDER")]
+    pub(crate) to: Option<PathBuf>,
     /// Frame-rendering threads (default: half the cores, capped to keep
     /// their memory under 2 GB). The encoder runs its own: libx264 always
     /// uses 8, so its output is the same at any `--threads`

@@ -70,13 +70,14 @@ export async function resetFilePipeline(
   );
 }
 
-/** Drop a file's row with its indexed pages and a note's versions. Those are
- *  deleted explicitly rather than trusting `ON DELETE CASCADE`, which only
- *  fires on a connection with `foreign_keys` on. */
+/** Drop a file's row with its indexed pages, a note's versions and a Studio
+ *  render's link to it. Those are deleted explicitly rather than trusting
+ *  `ON DELETE CASCADE`, which only fires on a connection with `foreign_keys` on. */
 export async function deleteFileRow(id: number): Promise<void> {
   const db = await getDb();
   await db.execute(`DELETE FROM pages WHERE file_id = $1`, [id]);
   await db.execute(`DELETE FROM document_versions WHERE file_id = $1`, [id]);
+  await db.execute(`DELETE FROM studio_exports WHERE file_id = $1`, [id]);
   await db.execute(`DELETE FROM files WHERE id = $1`, [id]);
 }
 

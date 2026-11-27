@@ -19,7 +19,7 @@ mod copy;
 mod create;
 mod delete;
 pub(crate) mod error;
-mod events;
+pub(crate) mod events;
 pub mod guard;
 mod journal;
 mod moves;
@@ -27,7 +27,7 @@ pub(crate) mod names;
 mod pictures;
 pub mod reconcile;
 mod relink;
-mod rows;
+pub(crate) mod rows;
 
 #[cfg(test)]
 mod tests;

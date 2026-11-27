@@ -107,6 +107,7 @@ async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()>
             "DELETE FROM pages WHERE file_id = ?1",
             "DELETE FROM document_versions WHERE file_id = ?1",
             "DELETE FROM task_files WHERE file_id = ?1",
+            "DELETE FROM studio_exports WHERE file_id = ?1",
             "DELETE FROM files WHERE id = ?1",
         ] {
             sqlx::query(sql)
@@ -131,13 +132,13 @@ async fn clear_stale(conn: &mut SqliteConnection, rel: &str, keep: i64) -> Drive
     delete_ids(conn, &stale).await
 }
 
-pub(super) fn file_type(name: &str) -> String {
+pub(crate) fn file_type(name: &str) -> String {
     name.rsplit_once('.')
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default()
 }
 
-pub(super) fn name_of(rel: &str) -> &str {
+pub(crate) fn name_of(rel: &str) -> &str {
     rel.rsplit('/').next().unwrap_or(rel)
 }
 

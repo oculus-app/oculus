@@ -290,6 +290,7 @@ pub fn run() {
             studio::commands::pronunciations::studio_pronunciation_wrong,
             studio::commands::pronunciations::studio_pronunciation_sample,
             studio::commands::render::studio_render,
+            studio::commands::render::studio_export_suggestion,
             studio::commands::render::studio_render_cancel,
             studio::commands::render::studio_exports,
             studio::commands::videos::studio_set_captions,
