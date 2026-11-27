@@ -735,10 +735,12 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
 - **Delete is Drive's `delete_entries`** (above), guarded by
   `layout::own_path_ok`; an upload's name never starts with a dot, which the
   guard refuses. `deleteFileRow`, which the reconcilers use, deletes `pages`,
-  `document_versions` and `chat_saves` by hand, as Drive's `delete_ids` and
-  `store::files::delete_file_row` do, since the cascade fires only with
-  `foreign_keys` on. A parse in flight can land after a delete, so
-  `store_upload` purges artifacts on a reused name whenever the bytes differ.
+  `document_versions`, `studio_exports` and `chat_saves` by hand, as Drive's
+  `delete_ids` and `store::files::delete_file_row` do: the cascade fires only
+  with `foreign_keys` on, which sqlx sets on every connection the app and the
+  CLI open, the SQL plugin's included, but other SQLite clients don't. A parse
+  in flight can land after a delete, so `store_bytes` purges artifacts on a
+  reused name whenever the bytes differ.
 - **The PDF/markdown toggle probes file metadata**, through
   `course_file_has_content` in `app/src-tauri/src/library/files/commands.rs`, without reading or
   transferring the parsed text. `app/src/components/files/FileMarkdown.tsx`
