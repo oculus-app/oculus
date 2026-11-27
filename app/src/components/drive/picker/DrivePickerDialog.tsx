@@ -31,8 +31,9 @@ const EXIT_MS = 200;
  */
 export function DrivePickerDialog({ request, onResult }: {
   request: DrivePickerRequest | null;
-  /** A pick, or null when the student cancels. */
-  onResult: (pick: DrivePick | null) => void;
+  /** The answer to `request`: a pick, or null when the student cancels. A
+   *  body answers only its own request, even after an await. */
+  onResult: (request: DrivePickerRequest, pick: DrivePick | null) => void;
 }) {
   // The last request stays drawn through the exit, then the body (and its
   // listing) goes; each new request starts the body afresh.
@@ -41,9 +42,12 @@ export function DrivePickerDialog({ request, onResult }: {
     shown.current = { request, key: (shown.current?.key ?? 0) + 1 };
   }
   const { mounted } = usePresence(!!request, EXIT_MS);
+  const body = shown.current;
   return (
-    <Dialog open={!!request} onOpenChange={(open) => !open && onResult(null)}>
-      {mounted && shown.current && <PickerBody key={shown.current.key} request={shown.current.request} onResult={onResult} />}
+    <Dialog open={!!request} onOpenChange={(open) => !open && request && onResult(request, null)}>
+      {mounted && body && (
+        <PickerBody key={body.key} request={body.request} onResult={(pick) => onResult(body.request, pick)} />
+      )}
     </Dialog>
   );
 }

@@ -283,7 +283,10 @@ Drive's rail section at `/drive/*` and the Files tab at
   (`app/src/stores/shell/drivePickerStore.ts`) opens `DrivePickerDialog`
   (`components/drive/picker/`), which `DrivePickerHost` mounts once in
   `AppLayout`, and resolves to `{ targetDir, name }` or `null` on a cancel;
-  a request made while one is open cancels the earlier one. The dialog is a
+  a request made while one is open cancels the earlier one, which resolves
+  `null` at once. Each dialog answers only its own request (`settle(request,
+  pick)`), so a confirm still making a folder when it was cancelled answers
+  nothing. The dialog is a
   small Drive browser: a `Trail` from My Drive to the folder it stands in
   (each crumb goes back up) over the folders there, each opening on a click.
   The folder it stands in is the destination. The list is the dialog's one

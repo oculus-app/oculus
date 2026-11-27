@@ -47,7 +47,7 @@ const { useDrivePicker } = await import("@/stores/shell/drivePickerStore");
 async function answer(pick: { targetDir: string; name: string }) {
   while (!useDrivePicker.getState().pending) await Bun.sleep(1);
   const request = useDrivePicker.getState().pending!.request;
-  useDrivePicker.getState().settle(pick);
+  useDrivePicker.getState().settle(request, pick);
   return request;
 }
 
