@@ -52,7 +52,8 @@ impl Scratch {
     pub fn new(name: &str) -> Self {
         let n = NEXT.fetch_add(1, Ordering::SeqCst);
         let dir = std::env::temp_dir().join(format!("keyd-{name}-{}-{n}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        // A data dir as a launch leaves it: the state folder is there.
+        crate::paths::ensure_state_dir(&dir).unwrap();
         Scratch(dir)
     }
 }

@@ -1,5 +1,5 @@
 //! The secret store behind `oculus-keyd`: every secret as one AEAD-sealed JSON
-//! map in `<data_dir>/vault.bin`, under one 256-bit master key that lives in
+//! map in `<data_dir>/.oculus/vault.bin`, under one 256-bit master key that lives in
 //! the OS secret store (`platform::master_key`). See docs/architecture.md.
 //!
 //! `vault.bin` is a version byte, a 12-byte nonce, then the ChaCha20-Poly1305

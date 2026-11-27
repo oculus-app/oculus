@@ -146,9 +146,9 @@ fn the_binary_saves_credentials_and_signs_in_for_the_cli_only() {
         replies[8],
         json!({"canvas": true, "sso": true, "ed": false, "authenticated": true, "signed_out": false, "generation": 2})
     );
-    assert!(!keyd.dir.join("canvas-session.cookie").exists());
-    assert!(!keyd.dir.join("sso-session.cookie").exists());
-    let vault = std::fs::read(keyd.dir.join("vault.bin")).unwrap();
+    assert!(!keyd_core::paths::cookie(&keyd.dir).exists());
+    assert!(!keyd_core::paths::sso_cookie(&keyd.dir).exists());
+    let vault = std::fs::read(keyd_core::paths::vault(&keyd.dir)).unwrap();
     for secret in [PASSWORD, COOKIE, "sid=sess1"] {
         assert!(
             !vault.windows(secret.len()).any(|w| w == secret.as_bytes()),

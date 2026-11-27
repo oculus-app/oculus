@@ -1,6 +1,8 @@
 //! Where keyd's files live. The data dir is defined here once, and both keyd
-//! and the app's `paths::data_dir` use it. What sits in it is named here too;
-//! where the OS keeps its own registration is the registrar's business.
+//! and the app's `paths::data_dir` use it, as is the hidden state folder at
+//! its top that holds everything of the app's own. What sits in it is named
+//! here too; where the OS keeps its own registration is the registrar's
+//! business.
 
 use std::path::{Path, PathBuf};
 
@@ -34,7 +36,35 @@ pub fn data_dir() -> PathBuf {
         .join(IDENTIFIER)
 }
 
-/// keyd's endpoint. Short on purpose: a macOS `sun_path` holds 104 bytes.
+/// The hidden folder at the data dir's top that holds the app's own state
+/// (docs/architecture.md, "The data directory"). The rest of the top level
+/// is the library.
+pub const STATE_DIR: &str = ".oculus";
+
+pub fn state_dir(data_dir: &Path) -> PathBuf {
+    data_dir.join(STATE_DIR)
+}
+
+/// The state folder, created when missing and hidden from Explorer on
+/// Windows, where the data dir is a folder the student browses.
+pub fn ensure_state_dir(data_dir: &Path) -> std::io::Result<PathBuf> {
+    let dir = state_dir(data_dir);
+    std::fs::create_dir_all(&dir)?;
+    #[cfg(windows)]
+    crate::platform::files::hide(&dir)?;
+    Ok(dir)
+}
+
+/// What a unix `sun_path` holds, NUL included (macOS; Linux has 108).
+pub const SUN_PATH: usize = 104;
+
+/// The socket's name at the data dir's top, used when the state folder's
+/// would not fit `sun_path`.
+const SHALLOW_SOCKET: &str = ".keyd.sock";
+
+/// keyd's endpoint: `.oculus/keyd.sock`, or `.keyd.sock` at the top when the
+/// data dir is too deep for that to fit a `sun_path`. keyd, the registrar and
+/// the client all ask here, so they agree.
 pub fn socket(data_dir: &Path) -> PathBuf {
     #[cfg(windows)]
     {
@@ -52,12 +82,27 @@ pub fn socket(data_dir: &Path) -> PathBuf {
         return endpoint;
     }
     #[cfg(not(windows))]
-    data_dir.join("keyd.sock")
+    {
+        let inside = state_dir(data_dir).join("keyd.sock");
+        if inside.as_os_str().len() < SUN_PATH {
+            inside
+        } else {
+            data_dir.join(SHALLOW_SOCKET)
+        }
+    }
 }
 
 /// Every secret, sealed under the master key only keyd reads.
 pub fn vault(data_dir: &Path) -> PathBuf {
-    data_dir.join("vault.bin")
+    state_dir(data_dir).join(VAULT)
+}
+
+const VAULT: &str = "vault.bin";
+
+/// Where the vault sat before the state folder: still there in a library the
+/// launch move (`library::migrate::state` in the app) has not reached.
+pub fn unmoved_vault(data_dir: &Path) -> PathBuf {
+    data_dir.join(VAULT)
 }
 
 /// The lock the vault is read and replaced under, beside it.
@@ -70,24 +115,24 @@ pub fn vault_lock(vault_file: &Path) -> PathBuf {
 /// Where the Canvas session's files sit: the sign-in's attempt record and
 /// its signed-out marker, and the app's authenticated flag.
 pub fn session_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join("canvas-session")
+    state_dir(data_dir).join("canvas-session")
 }
 
 /// The Canvas session cookie as an earlier version kept it, a bare
 /// `name=value; …` header. keyd imports it once (`ops/legacy.rs`).
 pub fn cookie(data_dir: &Path) -> PathBuf {
-    data_dir.join("canvas-session.cookie")
+    state_dir(data_dir).join("canvas-session.cookie")
 }
 
 /// Okta's cookies for the SSO host as an earlier version kept them, the same
 /// bare header as the Canvas one.
 pub fn sso_cookie(data_dir: &Path) -> PathBuf {
-    data_dir.join("sso-session.cookie")
+    state_dir(data_dir).join("sso-session.cookie")
 }
 
 /// Ed's `x-token`, as an earlier version kept it. keyd imports it once.
 pub fn ed_token(data_dir: &Path) -> PathBuf {
-    data_dir.join("ed-session.token")
+    state_dir(data_dir).join("ed-session.token")
 }
 
 /// Present while a session Canvas has accepted is believed held. The app's
@@ -115,7 +160,7 @@ pub fn sign_in_lock(data_dir: &Path) -> PathBuf {
 
 /// Every headless Okta sign-in attempt, whoever made it.
 pub fn sign_in_log(data_dir: &Path) -> PathBuf {
-    data_dir.join("okta-sign-in.log")
+    state_dir(data_dir).join("okta-sign-in.log")
 }
 
 /// Writes a session file readable by this user only.
@@ -205,7 +250,7 @@ pub fn bundled_program(exe: &Path) -> Option<PathBuf> {
 /// Where an install that does not run in place puts keyd's helper app, and
 /// its stamp.
 pub fn bin_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join("bin")
+    state_dir(data_dir).join("bin")
 }
 
 pub fn installed_helper(data_dir: &Path) -> PathBuf {
@@ -232,18 +277,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn everything_sits_in_the_data_dir() {
+    fn everything_sits_in_the_state_folder() {
         let d = Path::new("/d");
-        assert_eq!(socket(d), Path::new("/d/keyd.sock"));
-        assert_eq!(vault(d), Path::new("/d/vault.bin"));
-        assert_eq!(vault_lock(&vault(d)), Path::new("/d/vault.bin.lock"));
+        assert_eq!(socket(d), Path::new("/d/.oculus/keyd.sock"));
+        assert_eq!(vault(d), Path::new("/d/.oculus/vault.bin"));
+        assert_eq!(
+            vault_lock(&vault(d)),
+            Path::new("/d/.oculus/vault.bin.lock")
+        );
+        assert_eq!(session_dir(d), Path::new("/d/.oculus/canvas-session"));
+        assert_eq!(sign_in_log(d), Path::new("/d/.oculus/okta-sign-in.log"));
         assert_eq!(
             installed_bin(d),
-            Path::new("/d/bin/Oculus Helper.app/Contents/MacOS/Oculus Helper")
+            Path::new("/d/.oculus/bin/Oculus Helper.app/Contents/MacOS/Oculus Helper")
         );
-        assert_eq!(bare_installed_bin(d), Path::new("/d/bin/oculus-keyd"));
-        assert_eq!(stamp(d), Path::new("/d/bin/oculus-keyd.stamp"));
+        assert_eq!(
+            bare_installed_bin(d),
+            Path::new("/d/.oculus/bin/oculus-keyd")
+        );
+        assert_eq!(stamp(d), Path::new("/d/.oculus/bin/oculus-keyd.stamp"));
+        assert_eq!(unmoved_vault(d), Path::new("/d/vault.bin"));
         assert!(data_dir().ends_with(IDENTIFIER));
+    }
+
+    /// `/Users/<name>` plus the macOS data dir: the longest name whose socket
+    /// still fits inside the state folder is 33 bytes; one more falls back.
+    #[test]
+    fn a_socket_too_long_for_the_state_folder_sits_at_the_top() {
+        let data = |name: usize| {
+            PathBuf::from(format!("/Users/{}", "u".repeat(name)))
+                .join("Library/Application Support")
+                .join(IDENTIFIER)
+        };
+        let fits = data(33);
+        assert_eq!(socket(&fits), fits.join(".oculus/keyd.sock"));
+        assert_eq!(socket(&fits).as_os_str().len(), SUN_PATH - 1);
+
+        let deep = data(34);
+        assert_eq!(socket(&deep), deep.join(".keyd.sock"));
+        assert!(socket(&deep).as_os_str().len() < SUN_PATH);
+
+        // Past the shallow name's own limit nothing fits; the registrar refuses it.
+        let deepest = data(41);
+        assert_eq!(socket(&deepest), deepest.join(".keyd.sock"));
+        assert_eq!(socket(&deepest).as_os_str().len(), SUN_PATH);
     }
 
     #[test]
