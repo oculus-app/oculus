@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { downloads } from "@/lib/browser/downloads/commands";
 import { mayDelete } from "@/lib/browser/downloads/deletable";
-import { getFileById } from "@/lib/db";
 import { sizeWords } from "@/lib/browser/downloads/describe";
 import { isSettled, isWaiting, type Download } from "@/lib/browser/downloads/types";
 import { fileIconFor } from "@/lib/files/fileTypes";
+import { usePendingDeleteStore } from "@/stores/drive/pendingDeleteStore";
 import { useBrowserDownloadsStore } from "@/stores/shell/browserDownloadsStore";
 import { DownloadMenu, type DownloadActions } from "./DownloadMenu";
 import { DownloadState } from "./DownloadState";
@@ -46,7 +46,10 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
   const row = useBrowserDownloadsStore((s) => s.files[download.id]);
   const unrecorded = useBrowserDownloadsStore((s) => s.unrecorded[download.id]);
   const [error, setError] = useState<string | null>(null);
+  // Its file in the Trash with the Undo toast up: back on Undo, cleared once final.
+  const hidden = usePendingDeleteStore((s) => s.current?.download === download.id && !s.current.final);
 
+  if (hidden) return null;
   if (isWaiting(download)) {
     return (
       <button
@@ -75,10 +78,7 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
       // A file moved or renamed since is found by its row and goes to the
       // Trash, with the Undo toast; one gone just leaves the list.
       delete: row != null && mayDelete(download, row)
-        ? () => act(async () => {
-          if (await getFileById(row)) await deleteSaved(row);
-          await clear();
-        })
+        ? () => act(() => deleteSaved(download.id, row))
         : undefined,
     }
     : saved?.kind === "path" ? {

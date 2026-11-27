@@ -4,6 +4,7 @@ import { getFileById, getFileByRelativePath, getSubjects, type DbFile } from "@/
 import { deleteEntries } from "@/lib/drive/commands";
 import { homeOf } from "@/lib/drive/home";
 import { stillRowFile } from "@/lib/browser/downloads/deletable";
+import { downloads } from "@/lib/browser/downloads/commands";
 import { announceDriveChange, listFolder } from "@/lib/drive/listing";
 import { parentRel } from "@/lib/drive/paths";
 import { driveFolderHref } from "@/lib/drive/routes";
@@ -50,15 +51,18 @@ export async function revealSaved(d: Download, row: number | undefined): Promise
   await revealItemInDir(`${await loadDataDir()}/${file.relative_path}`);
 }
 
-/** Sends the download's file to the Trash as Drive deletes it
+/** Sends the download `id`'s file to the Trash as Drive deletes it
  *  (`delete_entries`, with the Undo toast), found by its row id alone
- *  (`mayDelete`). One gone, or no longer the file the row holds
- *  (`stillRowFile`), deletes nothing: the list entry is all that clears. */
-export async function deleteSaved(row: number): Promise<void> {
+ *  (`mayDelete`); its list entry hides while the delete is pending and
+ *  clears once it is final. One gone, or no longer the file the row holds
+ *  (`stillRowFile`), deletes nothing: the entry just clears. */
+export async function deleteSaved(id: number, row: number): Promise<void> {
+  const clear = () => void downloads.clear(id);
   const file = await getFileById(row);
-  if (!file) return;
+  if (!file) return clear();
   const listing = await listFolder(parentRel(file.relative_path)).catch(() => null);
-  if (!listing || !stillRowFile(file, listing.files)) return;
-  usePendingDeleteStore.getState().show(await deleteEntries([file.relative_path]));
+  if (!listing || !stillRowFile(file, listing.files)) return clear();
+  const sent = await deleteEntries([file.relative_path]);
+  usePendingDeleteStore.getState().show(sent, { download: id, onFinal: clear });
   announceDriveChange(homeOf(file.relative_path, await getSubjects())?.id);
 }

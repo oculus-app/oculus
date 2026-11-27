@@ -69,6 +69,8 @@ export interface SentDelete {
   handle: number | null;
   /** The entries' paths. */
   removed: string[];
+  /** What the toast counts: each entry, and Studio's render as one. */
+  count: number;
 }
 
 /** Moves files and folders to the system Trash. Their rows, parses and
