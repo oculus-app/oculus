@@ -3,7 +3,7 @@ use std::path::Path;
 use super::links::link_agent_skills;
 use super::{
     agents_dir, refresh_taste, skills_dir, Refresh, AGENTS_DOC_NAME, MEMORIES_DIR,
-    MEMORY_INDEX_NAME, SKILL_DOC_NAME, TASTE_DOC_NAME,
+    MEMORY_INDEX_NAME, OCULUS_DOC_NAME, SKILL_DOC_NAME, TASTE_DOC_NAME,
 };
 
 /// One `AGENTS.md` for every subject. Per-subject additions go in that
@@ -146,7 +146,7 @@ pub fn ensure_library_docs(data_dir: &Path) -> Result<LibraryDocs, String> {
     // Stubs: written once, then the user's. The memory index is stubbed so an
     // empty bucket says what goes in it.
     for (name, path, body) in [
-        ("OCULUS.md", dir.join("OCULUS.md"), OCULUS_DOC),
+        (OCULUS_DOC_NAME, dir.join(OCULUS_DOC_NAME), OCULUS_DOC),
         (TASTE_DOC_NAME, dir.join(TASTE_DOC_NAME), TASTE_DOC),
         (
             "memories/MEMORY.md",

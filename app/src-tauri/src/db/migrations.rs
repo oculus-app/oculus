@@ -1074,6 +1074,25 @@ BEGIN SELECT RAISE(ABORT, 'the top-level row cannot be deleted'); END;
                         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 70,
+            description: "chat_saves: the Drive copy of each chat output the student saved",
+            // Keyed by the workspace path (`.oculus/agents/…`); the copy counts
+            // only while the source still has the stamp it was saved with. Every
+            // `files` delete also clears its row here, since the cascade needs
+            // `foreign_keys`.
+            sql: r#"
+CREATE TABLE IF NOT EXISTS chat_saves (
+    source       TEXT    PRIMARY KEY,
+    file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    source_size  INTEGER NOT NULL,
+    source_mtime INTEGER NOT NULL,
+    saved_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_saves_file ON chat_saves(file_id);
+                        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

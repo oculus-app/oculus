@@ -197,6 +197,8 @@ pub fn run() {
             library::files::commands::open_course_file,
             library::files::commands::scan_parsed_files,
             library::files::uploads::import_uploads,
+            harness::app::save_to_drive::drive_savable,
+            harness::app::save_to_drive::drive_save_copy,
             library::files::whiteboards::export::export_whiteboard_image,
             library::files::whiteboards::imports::whiteboard_open_library_pdf,
             library::files::whiteboards::images::whiteboard_read_dropped_image,

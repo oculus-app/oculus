@@ -106,6 +106,7 @@ async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()>
         for sql in [
             "DELETE FROM pages WHERE file_id = ?1",
             "DELETE FROM document_versions WHERE file_id = ?1",
+            "DELETE FROM chat_saves WHERE file_id = ?1",
             "DELETE FROM task_files WHERE file_id = ?1",
             "DELETE FROM files WHERE id = ?1",
         ] {

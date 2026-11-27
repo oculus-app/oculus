@@ -79,13 +79,9 @@ fn picked_name(src: &Path) -> String {
 
 /// Stores each of `paths` in `target`, the one way files enter the student's
 /// folders from outside (picked files and folders, Finder drops, browser
-/// downloads). Imports share name allocation, so one lock keeps simultaneous
-/// batches from choosing the same unused name while conversion runs.
+/// downloads).
 pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<ImportOutcome> {
-    static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = IMPORT_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = import_lock();
     let mut out = Vec::new();
     for src in paths {
         let source = picked_name(src);
@@ -96,6 +92,39 @@ pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<Imp
         }
     }
     out
+}
+
+/// `import_into` for bytes already read, stored under `name`: a chat output
+/// the student saves (`harness::app::save_to_drive`), read through the
+/// handle its check opened so no second read can see another file.
+pub fn import_bytes_as(
+    data_dir: &Path,
+    target: &Target,
+    name: &str,
+    bytes: Vec<u8>,
+) -> ImportOutcome {
+    let _guard = import_lock();
+    match store_bytes(data_dir, target, name, bytes) {
+        Ok((file, error)) => ImportOutcome {
+            source: name.to_string(),
+            file: Some(file),
+            error,
+        },
+        Err(e) => ImportOutcome {
+            source: name.to_string(),
+            file: None,
+            error: Some(e),
+        },
+    }
+}
+
+/// Imports share name allocation: one lock keeps simultaneous batches from
+/// choosing the same unused name while conversion runs.
+fn import_lock() -> std::sync::MutexGuard<'static, ()> {
+    static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    IMPORT_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn import_one(data_dir: &Path, target: &Target, src: &Path, source: String) -> ImportOutcome {
@@ -178,6 +207,15 @@ fn store_upload(
         .and_then(|s| s.to_str())
         .ok_or_else(|| "that file has no name".to_string())?;
     let bytes = std::fs::read(src).map_err(|e| format!("could not read it — {e}"))?;
+    store_bytes(data_dir, target, picked, bytes)
+}
+
+fn store_bytes(
+    data_dir: &Path,
+    target: &Target,
+    picked: &str,
+    bytes: Vec<u8>,
+) -> Result<(ImportedFile, Option<String>), String> {
     let picked = legacy_drawing_name(picked, &bytes);
 
     let name = upload_free_name(data_dir, target, &upload_name(target, &picked), &bytes);

@@ -116,14 +116,15 @@ pub async fn rename_file_row(
     .map_err(|e| e.to_string())
 }
 
-/// Drop a file's row with its indexed pages and a note's versions
-/// (`deleteFileRow`). Children are deleted explicitly: `ON DELETE CASCADE`
+/// Drop a file's row with its indexed pages, a note's versions and a chat
+/// output's save (`deleteFileRow`). Children are deleted explicitly: `ON DELETE CASCADE`
 /// only fires on a connection with `foreign_keys` on.
 pub async fn delete_file_row(pool: &SqlitePool, id: i64) -> Result<(), String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     for sql in [
         "DELETE FROM pages WHERE file_id = ?1",
         "DELETE FROM document_versions WHERE file_id = ?1",
+        "DELETE FROM chat_saves WHERE file_id = ?1",
         "DELETE FROM files WHERE id = ?1",
     ] {
         sqlx::query(sql)
