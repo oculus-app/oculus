@@ -184,6 +184,7 @@ mod tests {
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/*.cookie)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/canvas-session/**)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/bin/**)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/derived/**)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.library-move/**)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/vault.bin*)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/.vault.bin.*)",
@@ -214,6 +215,7 @@ mod tests {
             assert!(
                 inside.starts_with("/canvas-session/")
                     || inside.starts_with("/bin/")
+                    || inside.starts_with("/derived/")
                     || inside.starts_with("/agents/")
                     || (inside.starts_with('/') && !inside[1..].contains(['/'])),
                 "{rule} reaches too far into the state folder"

@@ -81,6 +81,7 @@ protected_rule! {
     oculus_is_refused_unseen: ".oculus" => "courses/maths/.oculus/agents/INSTRUCTIONS.md";
     canvas_session_is_refused_unseen: "canvas-session" => ".oculus/canvas-session/cookies";
     keyds_helper_is_refused_unseen: "bin" => ".oculus/bin/Oculus Helper.app/Contents/Info.plist";
+    top_level_parse_records_are_refused_unseen: "derived" => ".oculus/derived/Receipts/order/order.md";
     agents_skills_is_refused_unseen: "skills" => ".oculus/agents/skills/oculus/SKILL.md";
     agents_claude_is_refused_unseen: ".claude" => ".oculus/agents/.claude/settings.json";
     agents_agents_is_refused_unseen: ".agents" => ".oculus/agents/.agents/skills/x/SKILL.md";

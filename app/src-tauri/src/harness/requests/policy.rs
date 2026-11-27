@@ -172,6 +172,7 @@ mod tests {
             "/lib/oculus/courses/maths/.oculus/agents/INSTRUCTIONS.md",
             "/lib/oculus/courses/maths/.oculus",
             "/lib/oculus/.oculus/canvas-session/x",
+            "/lib/oculus/.oculus/derived/Receipts/order/order.md",
             "/lib/oculus/.oculus/vault.bin",
             "/lib/oculus/.oculus/.vault.bin.tmp",
             "/lib/oculus/.oculus/settings.json",

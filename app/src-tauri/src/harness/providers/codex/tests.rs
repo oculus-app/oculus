@@ -136,6 +136,7 @@ fn a_thread_may_write_the_students_own_files_and_not_course_or_oculus() {
         "timetable.png",
         ".library-move/done",
         ".oculus/canvas-session/authenticated",
+        ".oculus/derived/Receipts/order/order.md",
     ] {
         let path = library.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -157,7 +158,9 @@ fn a_thread_may_write_the_students_own_files_and_not_course_or_oculus() {
             assert_ne!(rel, held, "{held:?} holds what no agent writes");
         }
         assert!(
-            !rel.starts_with(".library-move") && !rel.starts_with(".oculus/canvas-session"),
+            !rel.starts_with(".library-move")
+                && !rel.starts_with(".oculus/canvas-session")
+                && !rel.starts_with(".oculus/derived"),
             "{rel} is protected"
         );
         assert!(

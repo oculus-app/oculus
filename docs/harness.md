@@ -178,8 +178,9 @@ The protected paths are listed in `protected.rs`: each
 subject's `Course/` and `.oculus/` (`subject_dirs`, the layout's
 `reserved_names`), the subjects' folder itself and anything in it outside a
 subject, the launch moves' `.library-move/` and the state folder's
-`canvas-session/` and `bin/` (keyd's installed helper, which launchd runs)
-(`library_dirs`), its files by pattern (`state_file_globs`, including the
+`canvas-session/`, `bin/` (keyd's installed helper, which launchd runs)
+and `derived/` (the top level's parse records, as each subject's `.oculus/`
+holds its own) (`library_dirs`), its files by pattern (`state_file_globs`, including the
 vault and its lock and temp files) and the workspace folders
 (`workspace_dir_rels`). Rust's request check (`requests/policy.rs`) is one
 rule outside the state folder: anything not in the own zone is protected, so

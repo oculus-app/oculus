@@ -40,11 +40,12 @@ pub fn library_dirs() -> Vec<String> {
 }
 
 /// Folders of the state folder (`library::paths::state_dir`) no agent
-/// writes: the sign-in's attempt record and flags, and keyd's installed
-/// helper, which launchd runs. The state folder is not protected whole,
+/// writes: the sign-in's attempt record and flags, keyd's installed helper,
+/// which launchd runs, and the top level's parse records (`derived`, as
+/// each subject's `.oculus/` holds its own). The state folder is not protected whole,
 /// because the database, the agents' workspace and Studio are in it and
 /// writable (see `providers/claude/settings.rs`).
-pub const STATE_DIRS: [&str; 2] = ["canvas-session", "bin"];
+pub const STATE_DIRS: [&str; 3] = ["canvas-session", "bin", "derived"];
 
 /// The data-dir folder holding the subjects: writable, but for each
 /// subject's `SUBJECT_DIRS` and anything directly inside it that is not in a
@@ -314,7 +315,12 @@ mod tests {
         );
         assert_eq!(
             library_dirs(),
-            [".library-move", ".oculus/canvas-session", ".oculus/bin"]
+            [
+                ".library-move",
+                ".oculus/canvas-session",
+                ".oculus/bin",
+                ".oculus/derived"
+            ]
         );
         assert_eq!(
             workspace_dir_rels(),

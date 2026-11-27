@@ -212,6 +212,7 @@ mod tests {
             "courses/A",
             "courses/loose.pdf",
             ".oculus/canvas-session/x",
+            ".oculus/derived/Receipts/order/order.md",
             ".oculus/oculus.db",
             ".oculus/oculus.db-wal",
             ".oculus/settings.json",
