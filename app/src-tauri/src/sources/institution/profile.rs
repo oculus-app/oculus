@@ -8,7 +8,7 @@ use std::time::SystemTime;
 use super::{unimelb, Institution, NOT_CONFIGURED};
 
 pub fn path(data_dir: &Path) -> PathBuf {
-    data_dir.join("institution.json")
+    crate::library::paths::state_dir(data_dir).join("institution.json")
 }
 
 /// Read the profile. A missing file beside sign-in or sync state means an
@@ -51,7 +51,7 @@ fn predates_profile(data_dir: &Path) -> bool {
 }
 
 pub fn save(data_dir: &Path, inst: &Institution) -> Result<(), String> {
-    std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
+    crate::library::paths::ensure_state_dir(data_dir).map_err(|e| e.to_string())?;
     let body = serde_json::to_vec_pretty(inst).map_err(|e| e.to_string())?;
     let target = path(data_dir);
     crate::runtime::atomic_write::write(&target, &target.with_extension("json.tmp"), &body)

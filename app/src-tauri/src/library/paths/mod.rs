@@ -1,13 +1,14 @@
 //! App data locations, resolved without a Tauri `AppHandle`.
 //!
 //! One definition of the app's data directory, computed from the bundle
-//! identifier as Tauri does, so the CLI and the app agree on where the vault,
-//! the database and `courses/` live.
+//! identifier as Tauri does, so the CLI and the app agree on where `courses/`
+//! and the app's state folder (`state`) live.
 
 mod course;
 mod db;
 mod file_types;
 mod notebook;
+mod state;
 mod studio;
 #[cfg(test)]
 mod tests;
@@ -16,6 +17,7 @@ pub use course::*;
 pub use db::*;
 pub use file_types::*;
 pub use notebook::*;
+pub use state::*;
 pub use studio::*;
 
 use std::path::PathBuf;

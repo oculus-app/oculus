@@ -6,49 +6,77 @@ use super::docs::SKILLS;
 use super::links::SCANNED_SKILL_DIRS;
 use super::*;
 
-/// A hand-written AGENTS.md in a course folder must survive relinking.
+/// The root `AGENTS.md` link an earlier layout made goes; a link or a file
+/// the student put there stays, and none is made.
 #[cfg(unix)]
 #[test]
-fn linking_replaces_stale_links_but_never_real_files() {
+fn linking_removes_the_retired_root_link_but_never_the_students_own() {
     let root = Scratch::new("agents-link");
     let courses = root.join("courses");
-    for name in ["fresh", "stale", "handwritten"] {
+    for name in ["fresh", "retired", "elsewhere", "handwritten"] {
         std::fs::create_dir_all(courses.join(name)).unwrap();
     }
-    std::os::unix::fs::symlink("../../elsewhere.md", courses.join("stale/AGENTS.md")).unwrap();
+    std::os::unix::fs::symlink(RETIRED_AGENTS_DOC_REL, courses.join("retired/AGENTS.md")).unwrap();
+    std::os::unix::fs::symlink("../../elsewhere.md", courses.join("elsewhere/AGENTS.md")).unwrap();
     std::fs::write(courses.join("handwritten/AGENTS.md"), "mine").unwrap();
 
     let report = link_all(&root).unwrap();
-    assert_eq!(report.linked, ["fresh", "stale"]);
-    assert_eq!(report.skipped, ["handwritten"]);
+    assert_eq!(report.linked, ["retired"]);
+    assert!(report.skipped.is_empty());
+    assert!(std::fs::symlink_metadata(courses.join("retired/AGENTS.md")).is_err());
+    assert!(std::fs::symlink_metadata(courses.join("fresh/AGENTS.md")).is_err());
     assert_eq!(
-        std::fs::read_link(courses.join("stale/AGENTS.md")).unwrap(),
-        PathBuf::from(AGENTS_DOC_REL)
+        std::fs::read_link(courses.join("elsewhere/AGENTS.md")).unwrap(),
+        PathBuf::from("../../elsewhere.md")
     );
     assert_eq!(
         std::fs::read_to_string(courses.join("handwritten/AGENTS.md")).unwrap(),
         "mine"
     );
-    // The bucket is under `agents/`; the course folder gets a link to it.
-    assert!(root.join("agents/memories/fresh").is_dir());
-    assert!(
-        std::fs::symlink_metadata(courses.join("fresh/.oculus/agents/memories"))
-            .unwrap()
-            .file_type()
-            .is_symlink()
+    // The bucket is under the workspace; the course folder gets a link to it.
+    assert!(subject_memories(&root, "fresh").is_dir());
+    let link = courses.join("fresh/.oculus/agents/memories");
+    assert_eq!(
+        std::fs::read_link(&link).unwrap(),
+        PathBuf::from("../../../../.oculus/agents/memories/fresh")
     );
-    assert!(
-        courses.join("fresh/.oculus/agents/memories").is_dir(),
-        "the link resolves"
-    );
+    assert!(link.is_dir(), "the link resolves");
     // Named for the subject, so the bucket a memory lands in is unambiguous.
-    let index = std::fs::read_to_string(root.join("agents/memories/fresh/MEMORY.md")).unwrap();
+    let index =
+        std::fs::read_to_string(subject_memories(&root, "fresh").join("MEMORY.md")).unwrap();
     assert!(index.starts_with("# Memories — fresh"));
 
     // Second run is a no-op.
     let again = link_all(&root).unwrap();
     assert!(again.linked.is_empty());
-    assert_eq!(again.current, 2);
+    assert_eq!(again.current, 4);
+}
+
+/// A memories link from before the state folder aims at the old workspace;
+/// it is re-pointed, and what it held is where the new one leads.
+#[cfg(unix)]
+#[test]
+fn a_memories_link_into_the_old_workspace_is_re_pointed() {
+    let root = Scratch::new("agents-relink");
+    let course_agents = root.join("courses/X/.oculus/agents");
+    std::fs::create_dir_all(&course_agents).unwrap();
+    std::fs::create_dir_all(subject_memories(&root, "X")).unwrap();
+    std::fs::write(subject_memories(&root, "X").join("fact.md"), "kept").unwrap();
+    std::os::unix::fs::symlink(
+        "../../../../agents/memories/X",
+        course_agents.join("memories"),
+    )
+    .unwrap();
+
+    link_all(&root).unwrap();
+    assert_eq!(
+        std::fs::read_link(course_agents.join("memories")).unwrap(),
+        PathBuf::from("../../../../.oculus/agents/memories/X")
+    );
+    assert_eq!(
+        std::fs::read_to_string(course_agents.join("memories/fact.md")).unwrap(),
+        "kept"
+    );
 }
 
 /// Memories already filed in a course folder move into the library bucket.
@@ -66,7 +94,7 @@ fn memories_filed_in_a_course_folder_are_adopted() {
 
     link_all(&root).unwrap();
 
-    let bucket = root.join("agents/memories/INFO30006_2026_SM2");
+    let bucket = subject_memories(&root, "INFO30006_2026_SM2");
     assert_eq!(
         std::fs::read_to_string(bucket.join("info30006-mst.md")).unwrap(),
         "the MST is week 7"
@@ -97,14 +125,15 @@ fn a_sync_links_scraped_subjects_and_invents_no_folders() {
     let root = Scratch::new("agents-course");
     std::fs::create_dir_all(root.join("courses/COMP30026_2026_SM2")).unwrap();
 
-    assert_eq!(
-        link_course(&root, "COMP30026_2026_SM2").unwrap(),
-        Link::Linked
-    );
-    assert_eq!(
-        link_course(&root, "COMP30026_2026_SM2").unwrap(),
-        Link::Current
-    );
+    for _ in 0..2 {
+        assert_eq!(
+            link_course(&root, "COMP30026_2026_SM2").unwrap(),
+            Link::Current
+        );
+    }
+    assert!(root
+        .join("courses/COMP30026_2026_SM2/.oculus/agents/memories")
+        .is_dir());
 
     // A scrape that wrote nothing must not leave an empty course folder.
     assert_eq!(
@@ -114,18 +143,26 @@ fn a_sync_links_scraped_subjects_and_invents_no_folders() {
     assert!(!root.join("courses/NEW10001_2026_SM2").exists());
 }
 
-/// A sync writes the central copy before linking to it.
+/// A subject's folder holds nothing of the agents' docs: threads start in
+/// the workspace, where the one copy is.
 #[test]
-fn sync_side_links_are_never_dangling() {
+fn a_sync_leaves_no_agent_doc_among_the_students_files() {
     let root = Scratch::new("agents-central");
-    std::fs::create_dir_all(root.join("courses/MULT20015_2026_SM2")).unwrap();
+    let course = root.join("courses/MULT20015_2026_SM2");
+    std::fs::create_dir_all(&course).unwrap();
 
     ensure_library_docs(&root).unwrap();
     link_course(&root, "MULT20015_2026_SM2").unwrap();
 
-    let through_link =
-        std::fs::read_to_string(root.join("courses/MULT20015_2026_SM2/AGENTS.md")).unwrap();
-    assert_eq!(through_link, AGENTS_DOC);
+    let names: Vec<String> = std::fs::read_dir(&course)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(names, [".oculus"]);
+    assert_eq!(
+        std::fs::read_to_string(agents_dir(&root).join(AGENTS_DOC_NAME)).unwrap(),
+        AGENTS_DOC
+    );
 }
 
 /// `TASTE.md`'s guidance moves; the user's bullets do not.
@@ -509,16 +546,14 @@ fn a_real_skill_on_the_link_path_is_left_alone() {
 
 #[cfg(windows)]
 #[test]
-fn windows_course_docs_are_managed_copies_and_memories_are_junctions() {
+fn windows_memories_are_junctions_and_a_retired_course_doc_copy_is_removed() {
     let root = Scratch::new("agents-windows-link");
     let course = root.join("courses/X");
     std::fs::create_dir_all(&course).unwrap();
     ensure_library_docs(&root).unwrap();
-    assert_eq!(link_course(&root, "X").unwrap(), Link::Linked);
-    assert!(course.join("AGENTS.md.oculus-managed").is_file());
-    assert!(junction::exists(course.join("agents/memories")).unwrap());
     assert_eq!(link_course(&root, "X").unwrap(), Link::Current);
-    let memories = course.join("agents/memories");
+    let memories = crate::library::layout::agents_under(&course).join("memories");
+    assert!(junction::exists(&memories).unwrap());
     let wrong = root.join("wrong-bucket");
     std::fs::create_dir_all(&wrong).unwrap();
     std::fs::write(wrong.join("keep.md"), "keep").unwrap();
@@ -532,14 +567,27 @@ fn windows_course_docs_are_managed_copies_and_memories_are_junctions() {
     );
     assert_eq!(
         crate::runtime::platform::canonicalize(junction::get_target(&memories).unwrap()).unwrap(),
-        crate::runtime::platform::canonicalize(root.join("agents/memories/X")).unwrap()
+        crate::runtime::platform::canonicalize(subject_memories(&root, "X")).unwrap()
     );
-    std::fs::write(course.join("AGENTS.md"), "mine").unwrap();
-    assert_eq!(link_course(&root, "X").unwrap(), Link::Skipped);
-    assert_eq!(
-        std::fs::read_to_string(course.join("AGENTS.md")).unwrap(),
-        "mine"
+
+    // The copy an earlier layout managed goes with its marker; an edited one stays.
+    let (doc, marker) = (
+        course.join("AGENTS.md"),
+        course.join("AGENTS.md.oculus-managed"),
     );
+    std::fs::write(&doc, "old doc").unwrap();
+    let hash: String = ring::digest::digest(&ring::digest::SHA256, b"old doc")
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    std::fs::write(&marker, &hash).unwrap();
+    assert_eq!(link_course(&root, "X").unwrap(), Link::Linked);
+    assert!(!doc.exists() && !marker.exists());
+    std::fs::write(&doc, "mine").unwrap();
+    std::fs::write(&marker, &hash).unwrap();
+    assert_eq!(link_course(&root, "X").unwrap(), Link::Current);
+    assert_eq!(std::fs::read_to_string(&doc).unwrap(), "mine");
 }
 
 /// Every path the agent docs spell is the layout's: the folder tree names
@@ -604,7 +652,7 @@ fn the_agent_docs_spell_the_layout_they_describe() {
         &recording_name("2026-09-08", "MULT20015_2026_SM2 MO L105", code),
     );
     assert!(
-        lectures.contains(&format!("../{folder}/outline.md")),
+        lectures.contains(&format!("{}/outline.md", from_workspace(&folder))),
         "{folder}"
     );
     for category in CATEGORIES {

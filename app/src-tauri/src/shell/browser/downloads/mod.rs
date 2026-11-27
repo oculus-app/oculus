@@ -128,11 +128,9 @@ pub struct Snapshot {
     pub downloads: Vec<Download>,
 }
 
-/// `downloads/.incoming/` in the data directory, on the library's volume.
+/// `downloads/.incoming/` in the state folder, on the library's volume.
 pub(super) fn incoming_root() -> PathBuf {
-    crate::library::paths::data_dir()
-        .join("downloads")
-        .join(".incoming")
+    crate::library::paths::incoming_downloads_dir(&crate::library::paths::data_dir())
 }
 
 fn snapshot(app: &AppHandle) -> Snapshot {

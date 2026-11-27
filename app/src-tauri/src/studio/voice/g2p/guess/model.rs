@@ -55,7 +55,5 @@ pub const PACK: Pack = Pack {
 
 /// Where the pack is kept.
 pub fn dir() -> PathBuf {
-    crate::library::paths::data_dir()
-        .join("models")
-        .join("voice")
+    crate::library::paths::models_dir(&crate::library::paths::data_dir()).join("voice")
 }

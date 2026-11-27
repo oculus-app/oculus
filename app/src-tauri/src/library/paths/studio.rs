@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
-/// `<data dir>/studio`: Studio's videos, series outlines and component and theme
+/// `<data dir>/.oculus/studio`: Studio's videos, series outlines and component and theme
 /// libraries (docs/studio.md). It holds no secrets.
 pub fn studio_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join("studio")
+    super::state_dir(data_dir).join("studio")
 }
 
 /// The outlines alongside a Studio videos root, including in a scratch library.

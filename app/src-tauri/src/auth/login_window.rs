@@ -17,7 +17,7 @@ use confirmation::Confirmation;
 
 #[cfg(not(target_os = "windows"))]
 fn canvas_session_dir() -> std::path::PathBuf {
-    crate::library::paths::data_dir().join("canvas-session")
+    keyd_core::paths::session_dir(&crate::library::paths::data_dir())
 }
 
 /// Opens the login window. On success it hands the webview's cookies to
