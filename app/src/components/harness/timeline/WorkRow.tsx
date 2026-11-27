@@ -172,7 +172,9 @@ export function RowShell({
           aria-expanded={open}
           onClick={() => canOpen && setOpen((o) => !o)}
           className={cn(
-            "flex min-w-0 shrink gap-1.5 text-left",
+            // Beside a path link the verb holds and the link truncates.
+            "flex min-w-0 gap-1.5 text-left",
+            em && path ? "shrink-0" : "shrink",
             wrap ? "items-start" : "items-center",
             canOpen ? "cursor-pointer" : "cursor-default",
           )}
