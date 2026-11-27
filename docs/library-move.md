@@ -1,6 +1,6 @@
 # The launch moves
 
-Three one-shot moves bring an older data directory into the current layout
+Four one-shot moves bring an older data directory into the current layout
 ([architecture.md](./architecture.md#one-data-directory-resolved-without-a-tauri-handle)),
 each run once at launch and a no-op after:
 
@@ -12,7 +12,9 @@ each run once at launch and a no-op after:
    `lectures/<media id>/`) moves into the current one
    ([architecture.md](./architecture.md#one-module-owns-every-path-shape-in-the-library)),
    by `app/src-tauri/src/library/migrate/`;
-3. drawings named `.canvas` are renamed (`library/migrate/whiteboard/`).
+3. drawings named `.canvas` are renamed (`library/migrate/whiteboard/`);
+4. files loose in `courses/`, beside the subject folders, move up to the data
+   dir's top (`library/migrate/loose/`).
 
 Nothing in the app reads an old layout afterwards; old paths stay readable
 through `path_moves`.
@@ -23,7 +25,7 @@ through `path_moves`.
 sequence, in both processes, since they share `oculus.db` and the folders:
 the state move, then Start over's cleanup
 ([auth.md](./auth.md#one-institution-profile-says-which-university)), then
-the Drive move and the whiteboard rename.
+the Drive move and the whiteboard rename, then the loose files' move.
 
 - **The app** calls it first in `run()` (`app/src-tauri/src/lib.rs`), before
   the Tauri builder, so no window, database pool, job queue, watcher, media
@@ -275,6 +277,27 @@ disk gets a rule for its own spelling too. A
 agent) is renamed by Drive's reconcile and imports
 ([frontend.md](./frontend.md#own-files-written-outside-the-app-get-rows)), with
 the same test and naming (`library/files/whiteboards/legacy.rs`).
+
+## Files loose in `courses/`
+
+`courses/` holds subject folders only, but an older library can have files
+sitting directly in it, which no subject lists. Last at launch, under the
+same lock and once the Drive move is done, `library::migrate::loose` moves
+each regular file there (never a folder, a dot-name or a symlink) up to the
+data dir's top, where the student's own files are listed and the top level's
+reconcile gives them rows. A file goes with what parsing made of it
+(`paths::artifact_slots`): an Office file's converted PDF and the text beside
+it, its parse record and page vectors into the top level's
+`.oculus/derived/`. It keeps its name unless something at the top holds it,
+or a companion's name: then it takes Drive's next free name (`name (2).ext`,
+`drive::ops::names::free_name_where`), its companions following; nothing is
+ever overwritten. A companion that is a folder (a PDF's pictures) stays and is
+logged. The plan, its done log and its marker are `.library-move/loose.json`,
+`loose.log` and `loose`; each rename goes through the Drive move's `apply`,
+so a crash resumes, and each old path the student could have cited gets a
+`path_moves` rule through `record_moves`. A failure is logged, not fatal:
+every step is a whole rename, so the library is consistent between any two,
+and the next launch finishes.
 
 ## Running them by hand
 

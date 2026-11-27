@@ -65,6 +65,9 @@ pub enum Kind {
     /// A drawing's page pictures or recovery drafts, to their folder's
     /// whiteboard name (`whiteboard`).
     DrawingRecords,
+    /// A file loose in `courses/`, or what parsing made of it, up to the
+    /// data dir's top (`loose`).
+    Loose,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,7 +1,8 @@
 //! What the app and the CLI do before anything else opens a file in the
 //! data dir, in this order: the app's own state moves into its state folder
-//! (`migrate::state`), Start over's cleanup finishes, and an old library
-//! moves into the Drive tree (`migrate`).
+//! (`migrate::state`), Start over's cleanup finishes, an old library moves
+//! into the Drive tree (`migrate`), and files loose in `courses/` move up to
+//! the top (`migrate::loose`).
 
 use std::path::Path;
 
@@ -10,5 +11,7 @@ use std::path::Path;
 pub fn at_launch(data_dir: &Path) -> Result<(), String> {
     super::migrate::state::at_startup(data_dir)?;
     super::storage::finish_start_over(data_dir);
-    super::migrate::at_startup(data_dir)
+    super::migrate::at_startup(data_dir)?;
+    super::migrate::loose::at_startup(data_dir);
+    Ok(())
 }

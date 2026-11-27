@@ -17,6 +17,7 @@ mod contents;
 pub(crate) mod db;
 pub(crate) mod journal;
 mod links;
+pub mod loose;
 pub(crate) mod plan;
 mod resolve;
 mod rules;
@@ -110,6 +111,7 @@ pub fn kind_label(kind: Kind) -> &'static str {
         Kind::Cleanup => "emptied folders, stale links and .DS_Store removed",
         Kind::Whiteboard => "canvases renamed to whiteboards",
         Kind::DrawingRecords => "drawing page pictures and drafts folders renamed",
+        Kind::Loose => "files loose in courses/ moved to the top",
     }
 }
 
