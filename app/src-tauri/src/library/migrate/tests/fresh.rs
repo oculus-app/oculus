@@ -13,8 +13,10 @@ fn a_library_already_in_the_tree_only_gets_the_marker() {
         run(&d, &Hooks::default()).unwrap(),
         Outcome::NothingToMove
     ));
-    assert!(exists(&d, ".library-move/done"));
-    assert!(!exists(&d, ".library-move/journal.json"));
+    assert!(exists(&d, ".library-move/drive"));
+    assert!(!exists(&d, ".library-move/journal.drive.json"));
+    // `done` and `journal.json` are the state move's.
+    assert!(!exists(&d, ".library-move/done") && !exists(&d, ".library-move/journal.json"));
     // An agent's scratch in a new library is not the move's to delete.
     assert!(exists(&d, "courses/X/.claude/.cc-writes"));
     assert!(matches!(

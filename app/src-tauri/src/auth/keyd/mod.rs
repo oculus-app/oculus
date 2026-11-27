@@ -14,5 +14,7 @@ mod install;
 mod status;
 
 pub use candidate::{candidate, installed_stamp, no_candidate_reason, source_hash_of};
-pub use install::{ensure_installed, install, install_if_changed, uninstall, Installed};
+pub use install::{
+    ensure_installed, ensure_installed_in, install, install_if_changed, uninstall, Installed,
+};
 pub use status::{status, Status};

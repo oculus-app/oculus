@@ -35,11 +35,12 @@ pub fn exists(dir: &Path, rel: &str) -> bool {
 }
 
 pub async fn pool(dir: &Path) -> SqlitePool {
+    crate::library::paths::ensure_state_dir(dir).unwrap();
     sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
         .connect_with(
             sqlx::sqlite::SqliteConnectOptions::new()
-                .filename(dir.join("oculus.db"))
+                .filename(crate::library::paths::db_path(dir))
                 .create_if_missing(true),
         )
         .await
@@ -50,6 +51,18 @@ pub fn library(name: &str) -> Scratch {
     let dir = Scratch::new(name);
     disk(&dir);
     block(database(&dir));
+    dir
+}
+
+/// The same library as a build from before the state folder left it: the
+/// app's own files at the data dir's top.
+pub fn library_at_the_top(name: &str) -> Scratch {
+    let dir = library(name);
+    let state = crate::library::paths::state_dir(&dir);
+    for entry in std::fs::read_dir(&state).unwrap().flatten() {
+        std::fs::rename(entry.path(), dir.join(entry.file_name())).unwrap();
+    }
+    std::fs::remove_dir(&state).unwrap();
     dir
 }
 
@@ -122,7 +135,7 @@ fn disk(d: &Path) {
     // The agent folder: the memories link, the student's guidance, an
     // agent's notes, Finder's file.
     std::fs::create_dir_all(d.join(s("agents"))).unwrap();
-    std::fs::create_dir_all(d.join("agents/memories").join(CODE)).unwrap();
+    std::fs::create_dir_all(crate::agents::subject_memories(d, CODE)).unwrap();
     #[cfg(unix)]
     std::os::unix::fs::symlink(
         format!("../../../agents/memories/{CODE}"),
@@ -144,7 +157,7 @@ fn disk(d: &Path) {
     // Records outside the library that name paths in it.
     file(
         d,
-        "canvas-pages/14/pages.json",
+        ".oculus/canvas-pages/14/pages.json",
         &format!(r#"{{"canvas":"{S}/notebooks/nb.notebook","pageCount":0,"pages":[]}}"#),
     );
     file(d, "courses/loose.pdf", "in no subject");

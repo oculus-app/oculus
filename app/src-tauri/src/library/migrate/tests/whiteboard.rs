@@ -37,11 +37,11 @@ fn drive_library(name: &str) -> Scratch {
     file(&d, &s("nb.notebook"), DRAWING);
     file(
         &d,
-        "canvas-pages/7/pages.json",
+        ".oculus/canvas-pages/7/pages.json",
         &format!(r#"{{"canvas":"{S}/nb.notebook","pageCount":1,"pages":[]}}"#),
     );
-    file(&d, "canvas-pages/7/page-001.png", "png");
-    file(&d, "recovery/canvases/1.json", "draft");
+    file(&d, ".oculus/canvas-pages/7/page-001.png", "png");
+    file(&d, ".oculus/recovery/canvases/1.json", "draft");
     block(database(&d));
     d
 }
@@ -180,18 +180,18 @@ fn canvases_become_whiteboards_with_their_rows_and_old_paths() {
     );
     assert_eq!(moved(&d, &s("canvases/other.pdf")), Some(s("other.pdf")));
 
-    assert!(!exists(&d, "canvas-pages"));
-    assert_eq!(read(&d, "whiteboard-pages/7/page-001.png"), "png");
+    assert!(!exists(&d, ".oculus/canvas-pages"));
+    assert_eq!(read(&d, ".oculus/whiteboard-pages/7/page-001.png"), "png");
     let manifest: serde_json::Value =
-        serde_json::from_str(&read(&d, "whiteboard-pages/7/pages.json")).unwrap();
+        serde_json::from_str(&read(&d, ".oculus/whiteboard-pages/7/pages.json")).unwrap();
     assert_eq!(manifest["whiteboard"], s("nb.notebook"));
     assert!(manifest.get("canvas").is_none());
     assert!(
         crate::library::paths::read_notebook_pages(&d, 7).is_some(),
         "the app reads the manifest"
     );
-    assert!(!exists(&d, "recovery/canvases"));
-    assert_eq!(read(&d, "recovery/whiteboards/1.json"), "draft");
+    assert!(!exists(&d, ".oculus/recovery/canvases"));
+    assert_eq!(read(&d, ".oculus/recovery/whiteboards/1.json"), "draft");
 
     assert!(exists(&d, ".library-move/whiteboard"));
     assert_eq!(read(&d, ".library-move/done"), "drive");
@@ -250,17 +250,23 @@ fn a_crash_after_the_database_commit_finishes_without_changing_it() {
 #[test]
 fn records_already_under_the_new_name_are_never_overwritten() {
     let d = drive_library("whiteboard-records");
-    file(&d, "whiteboard-pages/7/pages.json", "newer");
-    file(&d, "recovery/canvases/2.json", "other draft");
-    file(&d, "recovery/whiteboards/1.json", "newer draft");
+    file(&d, ".oculus/whiteboard-pages/7/pages.json", "newer");
+    file(&d, ".oculus/recovery/canvases/2.json", "other draft");
+    file(&d, ".oculus/recovery/whiteboards/1.json", "newer draft");
     let Outcome::Renamed(summary) = run(&d, &Hooks::default()).unwrap() else {
         panic!("expected the rename to run");
     };
-    assert_eq!(read(&d, "whiteboard-pages/7/pages.json"), "newer");
-    assert_eq!(read(&d, "canvas-pages/7/page-001.png"), "png");
-    assert_eq!(read(&d, "recovery/whiteboards/1.json"), "newer draft");
-    assert_eq!(read(&d, "recovery/whiteboards/2.json"), "other draft");
-    assert_eq!(read(&d, "recovery/canvases/1.json"), "draft");
+    assert_eq!(read(&d, ".oculus/whiteboard-pages/7/pages.json"), "newer");
+    assert_eq!(read(&d, ".oculus/canvas-pages/7/page-001.png"), "png");
+    assert_eq!(
+        read(&d, ".oculus/recovery/whiteboards/1.json"),
+        "newer draft"
+    );
+    assert_eq!(
+        read(&d, ".oculus/recovery/whiteboards/2.json"),
+        "other draft"
+    );
+    assert_eq!(read(&d, ".oculus/recovery/canvases/1.json"), "draft");
     assert_eq!(
         summary
             .left
@@ -277,7 +283,7 @@ fn a_new_library_only_gets_the_marker() {
     file(&d, "courses/X/Course/Files/a.pdf", "pdf");
     // The Drive move first, then this; each leaves its own marker.
     at_startup(&d).unwrap();
-    assert_eq!(read(&d, ".library-move/done"), "drive");
+    assert_eq!(read(&d, ".library-move/drive"), "done");
     assert_eq!(read(&d, ".library-move/whiteboard"), "done");
     assert!(!exists(&d, ".library-move/whiteboard.json"));
     assert!(matches!(
@@ -315,7 +321,7 @@ fn an_old_library_moves_then_renames_at_launch() {
         Some(s("board.whiteboard"))
     );
     let manifest: serde_json::Value =
-        serde_json::from_str(&read(&d, "whiteboard-pages/14/pages.json")).unwrap();
+        serde_json::from_str(&read(&d, ".oculus/whiteboard-pages/14/pages.json")).unwrap();
     assert_eq!(manifest["whiteboard"], s("nb.notebook"));
 }
 

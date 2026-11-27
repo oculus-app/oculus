@@ -33,12 +33,11 @@ pub fn bind_layers() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     bind_layers();
-    // Before anything opens a file in the data dir (`storage::storage_start_over`).
-    library::storage::finish_start_over(&library::paths::data_dir());
-    // An old library moves into the Drive tree before any window, job or
-    // watcher can touch it (docs/library-move.md); a failure is said in
+    // Before anything opens a file in the data dir: the app's own files move
+    // into the state folder, Start over finishes, and an old library moves
+    // into the Drive tree (docs/library-move.md). A failure is said in
     // `setup` and the app closes.
-    let library_move = library::migrate::at_startup(&library::paths::data_dir());
+    let library_move = library::at_launch(&library::paths::data_dir());
     if let Err(e) = &library_move {
         elog!("[oculus] library move failed: {e}");
     }
@@ -145,7 +144,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_sql::Builder::new()
-                .add_migrations("sqlite:oculus.db", db::migrations::all())
+                .add_migrations(library::paths::DB_URL, db::migrations::all())
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
