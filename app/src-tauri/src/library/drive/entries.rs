@@ -4,14 +4,14 @@ use serde::Serialize;
 
 use crate::library::layout::Zone;
 
-/// One folder's contents. `rel` is `""` for the Drive root, whose folders are
-/// the subjects.
+/// One folder's contents. `rel` is `""` for the top level: the folder of
+/// subjects, then the student's own folders and files.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderListing {
     pub rel: String,
-    /// `"synced"` or `"own"`; the Drive root and a subject's folder count as
-    /// synced, since Oculus makes them.
+    /// `"synced"` or `"own"`; the folder of subjects and a subject's folder
+    /// count as synced, since Oculus makes them, and the top level as own.
     pub zone: &'static str,
     /// True when a file or folder made here would be the student's own: the
     /// New menu and drops are offered only then.

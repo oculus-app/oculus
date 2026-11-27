@@ -1,9 +1,10 @@
 //! What travels with a file when it moves: its converted PDF and its parse
 //! artifacts (`paths::artifact_slots`), each to where the same slot lives
 //! for the new path. The text and its pictures sit beside the file; the parse
-//! record and the page vectors sit in the subject's hidden derived folder,
-//! mirroring the file's folder, so a move to another folder or subject moves
-//! them there too and the file stays parsed and embedded.
+//! record and the page vectors sit in the hidden derived folder of the file's
+//! home (its subject, or the top level), mirroring the file's folder, so a
+//! move to another folder or home moves them there too and the file stays
+//! parsed and embedded.
 
 use std::path::{Path, PathBuf};
 
@@ -48,10 +49,11 @@ fn is_hidden(data_dir: &Path, path: &Path) -> bool {
 /// The hidden folder mirroring `folder_rel` that holds its files' parse
 /// records, when the layout keeps them apart from the files.
 pub fn derived_dir(data_dir: &Path, folder_rel: &str) -> Option<PathBuf> {
-    let folder = data_dir.join(folder_rel);
-    let probe = layout::derived(&folder.join("probe.pdf"), DerivedKind::Pages);
-    let dir = probe.parent()?.to_path_buf();
-    (dir != folder).then_some(dir)
+    let probe = layout::child_rel(folder_rel, "probe.pdf");
+    let dir = layout::derived_at(data_dir, &probe, DerivedKind::Pages)
+        .parent()?
+        .to_path_buf();
+    (dir != data_dir.join(folder_rel)).then_some(dir)
 }
 
 /// The link prefix a parsed file's markdown carries for its pictures (the

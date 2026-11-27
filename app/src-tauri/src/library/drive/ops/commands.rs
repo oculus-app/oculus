@@ -10,23 +10,11 @@ use super::create::create_folder_at;
 use super::delete::{delete_entries_at, delete_preview_at};
 use super::error::{DriveError, DriveResult};
 use super::events::{emit, DriveChange, Moved};
-use super::guard::subject_folder;
 use super::moves::{blocking, move_entries_at, rename_entry_at, Moves};
-use super::rows::subject_ids;
+use super::rows::home_ids;
 
 async fn pool() -> DriveResult<SqlitePool> {
     crate::db::store::open_pool().await.map_err(DriveError::io)
-}
-
-/// Every subject folder `paths` are in.
-fn folders<'a>(paths: impl IntoIterator<Item = &'a String>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for folder in paths.into_iter().filter_map(|p| subject_folder(p)) {
-        if !out.iter().any(|f| f == folder) {
-            out.push(folder.to_string());
-        }
-    }
-    out
 }
 
 async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
@@ -37,7 +25,7 @@ async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
         .chain(change.removed.iter().cloned())
         .chain(change.added.iter().cloned())
         .collect();
-    change.subject_ids = subject_ids(pool, &folders(&paths)).await;
+    change.subject_ids = home_ids(pool, &paths).await;
     emit(app, &change);
 }
 

@@ -148,15 +148,21 @@ fn pdf_view_paths_stay_inside_the_library_roots() {
         resolve_in(root, "courses/X/Course/Files/a.pdf"),
         Ok(PathBuf::from("/data/courses/X/Course/Files/a.pdf"))
     );
-    assert!(resolve_in(root, "lectures/a.pdf").is_err());
     assert!(resolve_in(root, "agents/a.pdf").is_ok());
+    // A student's own top-level folders are library too.
+    assert_eq!(
+        resolve_in(root, "Receipts/a.pdf"),
+        Ok(PathBuf::from("/data/Receipts/a.pdf"))
+    );
+    assert!(resolve_in(root, "a.pdf").is_ok());
     for bad in [
         "",
         "/etc/passwd",
         "../a.pdf",
         "courses/../../a.pdf",
-        "data/a.pdf",
-        "oculus.db",
+        "Receipts/../.oculus/oculus.db",
+        ".oculus/oculus.db",
+        ".library-move/done",
     ] {
         assert_eq!(
             resolve_in(root, bad),

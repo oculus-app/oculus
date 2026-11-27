@@ -14,7 +14,16 @@ impl Ctx {
             .ok_or("the retrieval index lives in the database")?;
         let subjects = self.rt.block_on(store::subjects(&pool))?;
         let ids = subject_ids(&subjects, args.subject.as_slice())?;
-        let codes: HashMap<i64, String> = subjects.iter().map(|s| (s.id, s.code.clone())).collect();
+        // A top-level file's page has no subject; it is labelled as its row is.
+        let top = (
+            store::TOP_LEVEL_SUBJECT_ID,
+            app_lib::library::layout::TOP_LEVEL_CODE.to_string(),
+        );
+        let codes: HashMap<i64, String> = subjects
+            .iter()
+            .map(|s| (s.id, s.code.clone()))
+            .chain([top])
+            .collect();
 
         let db_file = app_lib::library::paths::db_path(&self.data_dir);
         let stats = self

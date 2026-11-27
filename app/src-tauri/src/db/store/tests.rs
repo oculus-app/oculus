@@ -595,7 +595,7 @@ async fn term_sort_backfill_reads_names_and_keeps_stamped_keys() {
 
     assert_eq!(backfill_term_sort(&pool, true).await.unwrap(), 2);
     let sorts: Vec<Option<String>> =
-        sqlx::query_scalar("SELECT term_sort FROM subjects ORDER BY id")
+        sqlx::query_scalar("SELECT term_sort FROM subjects WHERE kind = 'subject' ORDER BY id")
             .fetch_all(&pool)
             .await
             .unwrap();
@@ -725,4 +725,85 @@ async fn a_recordings_folder_is_chosen_once_and_kept() {
         data_dir.join(&a)
     );
     assert!(recording_folder(&pool, &data_dir, "missing").await.is_err());
+}
+
+/// Migration 68's reserved row: the constants the code reads it by, and the
+/// ways it must stay out of sight and in place.
+#[tokio::test]
+async fn the_top_level_row_is_reserved_hidden_and_cannot_be_deleted() {
+    let pool = migrated_pool().await;
+    let (id, code, kind): (i64, String, String) =
+        sqlx::query_as("SELECT id, code, kind FROM subjects WHERE kind != 'subject'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(id, TOP_LEVEL_SUBJECT_ID);
+    assert_ne!(id, 0, "callers test `if (!subjectId)`");
+    assert_eq!(code, crate::library::layout::TOP_LEVEL_CODE);
+    assert_eq!(kind, "top");
+    assert_eq!(top_level_id(&pool).await.unwrap(), Some(id));
+
+    assert!(
+        subjects(&pool).await.unwrap().is_empty(),
+        "no subject list shows it"
+    );
+    let topics: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM revision_topics WHERE subject_id = ?1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(topics, 0, "Revision has no topic for it");
+
+    sqlx::query(
+        "INSERT INTO files (subject_id, filename, relative_path, file_type) VALUES (?1, 'a', 'a', '')",
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let refused = sqlx::query("DELETE FROM subjects WHERE id = ?1")
+        .bind(id)
+        .execute(&pool)
+        .await;
+    assert!(refused.is_err(), "its files would cascade");
+    assert!(sqlx::query("DELETE FROM subjects")
+        .execute(&pool)
+        .await
+        .is_err());
+    assert_eq!(top_level_id(&pool).await.unwrap(), Some(id));
+}
+
+#[tokio::test]
+async fn a_sync_never_lists_or_rewrites_the_top_level_row() {
+    let pool = migrated_pool().await;
+    let course = crate::sync::Course {
+        id: 7,
+        code: "COMP30026_2026_SM2".into(),
+        name: "Models".into(),
+        term: Some("2026 Semester 2".into()),
+        term_sort: Some("2026-2".into()),
+        is_current: true,
+        workflow_state: "available".into(),
+    };
+    upsert_subjects(&pool, &[course]).await.unwrap();
+    let listed = subjects(&pool).await.unwrap();
+    assert_eq!(listed.iter().map(|s| s.id).collect::<Vec<_>>(), [7]);
+    let topics: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM revision_topics WHERE subject_id = 7")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(topics, 1, "a real subject still gets its Unsorted topic");
+    assert_eq!(backfill_term_sort(&pool, true).await.unwrap(), 0);
+    let (name, state, selected): (String, String, i64) =
+        sqlx::query_as("SELECT name, workflow_state, selected FROM subjects WHERE id = ?1")
+            .bind(TOP_LEVEL_SUBJECT_ID)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        (name.as_str(), state.as_str(), selected),
+        ("My Drive", "reserved", 0)
+    );
 }

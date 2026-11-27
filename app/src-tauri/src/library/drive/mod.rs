@@ -1,4 +1,6 @@
 //! Drive: one folder of the library at a time, as the folder browser shows it.
+//! The top level is the data dir itself: `courses/` (shown as Subjects),
+//! then the student's own folders and files; a dot-name is the app's.
 //!
 //! `list_folder` reads the disk, so empty folders show and a file with no
 //! `files` row still lists; the frontend joins rows (parse and embed state,

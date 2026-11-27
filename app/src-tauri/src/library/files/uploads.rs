@@ -1,6 +1,7 @@
 //! Files and folders brought in from outside the library: copied into one of
-//! the student's folders (`targetDir`, else the subject's root), a folder
-//! with everything inside it. The rest of the pipeline keys off the path.
+//! the student's folders (`targetDir`, else the subject's root, or the top
+//! level for `layout::TOP_LEVEL_CODE`), a folder with everything inside it.
+//! The rest of the pipeline keys off the path.
 
 use std::path::Path;
 
@@ -31,7 +32,7 @@ impl ImportedFile {
                 .next()
                 .unwrap_or_default()
                 .to_string(),
-            category: layout::category_of(layout::within_course(&relative_path)).to_string(),
+            category: layout::category_of_path(&relative_path).to_string(),
             relative_path,
             file_type: file_type.to_string(),
             size_bytes,
@@ -51,7 +52,8 @@ pub struct ImportOutcome {
 }
 
 /// Copy picked files and folders into `target_dir` (data-dir-relative, in
-/// the subject), or its root; one outcome per file, and one failure does not
+/// the subject or, for the top-level code, at the top level), or its root;
+/// one outcome per file, and one failure does not
 /// fail the rest. A target that is not the student's is the whole command's
 /// typed error (`DriveError`).
 #[tauri::command]
@@ -156,10 +158,10 @@ fn import_folder(
     }
 }
 
-/// A picked folder's name; at a subject's root never one the layout keeps.
+/// A picked folder's name; never one the layout keeps where it lands.
 fn folder_name(target: &Target, src: &Path) -> String {
     let name = entry_name(&picked_name(src));
-    if target.is_subject_root() && layout::reserved_name(&name) {
+    if target.keeps_name(&name) {
         format!("{name} (2)")
     } else {
         name
@@ -249,11 +251,11 @@ fn upload_free_name(data_dir: &Path, target: &Target, name: &str, bytes: &[u8]) 
 }
 
 /// A picked file's name in the library (`entry_name`: never a dot-name,
-/// which the own-file guard refuses, so it could never be deleted); at a
-/// subject's root never a name the layout keeps.
+/// which the own-file guard refuses, so it could never be deleted); never a
+/// name the layout keeps where it lands.
 fn upload_name(target: &Target, picked: &str) -> String {
     let name = entry_name(picked);
-    if target.is_subject_root() && layout::reserved_name(&name) {
+    if target.keeps_name(&name) {
         format!("{name} (2)")
     } else {
         name

@@ -127,10 +127,11 @@ pub async fn subject(
 ) -> Result<Option<(i64, String)>, String> {
     let Some(code) = code else { return Ok(None) };
     let folded = crate::library::paths::fold_code(code);
-    let rows = sqlx::query("SELECT id,code,is_current FROM subjects ORDER BY id")
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows =
+        sqlx::query("SELECT id,code,is_current FROM subjects WHERE kind='subject' ORDER BY id")
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| e.to_string())?;
     let matched: Vec<_> = rows
         .iter()
         .filter(|r| {

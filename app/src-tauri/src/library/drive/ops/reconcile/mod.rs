@@ -1,5 +1,6 @@
 //! Rows for the student's own files that arrived without one: written by a
-//! chat agent, Finder or another app straight into a subject's folder. Such a
+//! chat agent, Finder or another app straight into a subject's folder or the
+//! top level (`layout::TOP_LEVEL_CODE` stands for it as a subject code). Such a
 //! file lists in Drive (the listing reads the disk) but, with no `files` row,
 //! is never parsed or searched. `reconcile_own_files` first renames a
 //! drawing still named `.canvas` to `.whiteboard` (`drawings`), its row
@@ -19,15 +20,15 @@ use super::error::{DriveError, DriveResult};
 use super::events::{emit, DriveChange, Moved};
 use super::journal::Journal;
 use super::moves::blocking;
-use super::rows::{apply_moves, file_type, name_of, subject_id, RowMove};
+use super::rows::{apply_moves, code_id, file_type, name_of, RowMove};
 use crate::library::files::uploads::ImportedFile;
 use crate::library::layout::{self, DerivedKind};
 use crate::library::migrate::{record_moves, OwnRule, Rule};
-use crate::library::paths::{artifact_at, doc_pdf_rel, parse_artifacts, safe_dir, ArtifactSlot};
+use crate::library::paths::{artifact_at, doc_pdf_rel, parse_artifacts, ArtifactSlot};
 use crate::parse::InFlight;
 
-/// Every own file of the subject `code` that `known` (the subject's row
-/// paths) lacks, as the row it should get. Left out, as Drive leaves them
+/// Every own file of the subject `code` (or of the top level) that `known`
+/// (its row paths) lacks, as the row it should get. Left out, as Drive leaves them
 /// out: another file's parse artifacts and converted PDF, and the markdown a
 /// parse running right now is writing before its record says whose it is.
 pub fn unrowed_own_files(
@@ -92,7 +93,7 @@ pub async fn reconcile_own_files_at(
     code: &str,
 ) -> DriveResult<(i64, Vec<ImportedFile>, Vec<Moved>)> {
     let db = |e: sqlx::Error| DriveError::io(format!("the database refused it — {e}"));
-    let Some(subject) = subject_id(pool, &safe_dir(code)).await? else {
+    let Some(subject) = code_id(pool, code).await? else {
         return Err(DriveError::io(format!("no subject {code}")));
     };
     let rows: HashMap<String, i64> = sqlx::query_as::<_, (i64, String)>(

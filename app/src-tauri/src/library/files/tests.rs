@@ -151,3 +151,19 @@ fn an_office_import_never_writes_over_a_pdf_of_its_name() {
         "identical bytes keep their name"
     );
 }
+
+#[test]
+fn a_note_is_made_at_the_top_level_for_the_top_level_code() {
+    use super::documents::create_document_body_in;
+    use crate::library::layout::TOP_LEVEL_CODE;
+    let dir = crate::test_support::Scratch::new("document-top-level");
+    let made = create_document_body_in(&dir, TOP_LEVEL_CODE, "Plans", b"# plans").unwrap();
+    assert_eq!(made.relative_path, "Plans.md");
+    assert_eq!(made.category, "document");
+    let again = create_document_body_in(&dir, TOP_LEVEL_CODE, "Plans", b"").unwrap();
+    assert_eq!(again.relative_path, "Plans-2.md");
+    assert!(
+        !dir.join("courses").exists(),
+        "no subject folder is made for the top level"
+    );
+}

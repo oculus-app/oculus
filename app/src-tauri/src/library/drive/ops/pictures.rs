@@ -110,7 +110,7 @@ fn linked_elsewhere(data_dir: &Path, dir_rel: &str, name: &str) -> bool {
         return false;
     };
     read.flatten().any(|entry| {
-        let rel = format!("{dir_rel}/{}", entry.file_name().to_string_lossy());
+        let rel = layout::child_rel(dir_rel, &entry.file_name().to_string_lossy());
         is_note(data_dir, &rel)
             && std::fs::read_to_string(entry.path()).is_ok_and(|text| linked(&text).contains(name))
     })

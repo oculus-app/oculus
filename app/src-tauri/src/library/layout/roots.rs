@@ -8,12 +8,20 @@ use crate::library::paths::safe_dir;
 /// The data-dir folder holding one folder per subject.
 pub const COURSES_DIR: &str = "courses";
 
-/// The data-dir folders the library occupies: what an agent may read, the
-/// media server may serve, and a picture may be imported from.
+/// The data-dir folders Oculus fills for the library: `courses/`, and a
+/// recordings folder outside the subjects (none in the Drive tree). The
+/// student's own top-level folders are library too (`in_library`).
 pub fn library_roots() -> Vec<&'static str> {
     std::iter::once(COURSES_DIR)
         .chain(CURRENT.recordings_root())
         .collect()
+}
+
+/// True for a data-dir-relative path in the library: under one of
+/// `library_roots`, or the student's own at the data dir's top level.
+pub fn in_library(rel: &str) -> bool {
+    let first = rel.split('/').next().unwrap_or_default();
+    library_roots().contains(&first) || super::zone_of(rel) == super::Zone::Own
 }
 
 /// `<data dir>/courses`.

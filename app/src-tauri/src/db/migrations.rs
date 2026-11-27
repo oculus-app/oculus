@@ -1054,6 +1054,26 @@ UPDATE chat_proposals SET told_run_id = (
                         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 68,
+            description: "subjects: the reserved row top-level files hang off",
+            // `files.subject_id` is NOT NULL, so a file at the data dir's top
+            // level hangs off one row that is no subject (`store::subjects`).
+            // It gets no revision topic and cannot be deleted: `files` cascades.
+            sql: r#"
+ALTER TABLE subjects ADD COLUMN kind TEXT NOT NULL DEFAULT 'subject';
+DROP TRIGGER IF EXISTS revision_topics_subject_insert;
+CREATE TRIGGER revision_topics_subject_insert AFTER INSERT ON subjects
+WHEN NEW.kind = 'subject'
+BEGIN INSERT INTO revision_topics(subject_id,name,is_unsorted) VALUES(NEW.id,'Unsorted',1); END;
+INSERT INTO subjects (id, code, name, is_current, workflow_state, selected, kind)
+VALUES (-100, 'My Drive', 'My Drive', 0, 'reserved', 0, 'top');
+CREATE TRIGGER subjects_top_level_stays BEFORE DELETE ON subjects
+WHEN OLD.kind = 'top'
+BEGIN SELECT RAISE(ABORT, 'the top-level row cannot be deleted'); END;
+                        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

@@ -91,3 +91,62 @@ fn parsed_and_sheet_text_is_not_a_note() {
     assert!(!is_derived_text(&dir, "courses/X/draft.md"));
     assert!(!is_derived_text(&dir, "courses/X/notes.md"));
 }
+
+#[test]
+fn a_top_level_files_records_sit_under_the_top_levels_hidden_folder() {
+    use crate::library::layout::derived_at;
+    assert_eq!(
+        derived_rel("Videos/Raw/talk.pdf", DerivedKind::Pages),
+        ".oculus/derived/Videos/Raw/talk.pages.json"
+    );
+    assert_eq!(
+        derived_rel("scan.pdf", DerivedKind::Embeddings),
+        ".oculus/derived/scan.emb.json"
+    );
+    // The text and its pictures stay beside the file.
+    assert_eq!(
+        derived_rel("Videos/talk.pdf", DerivedKind::Markdown),
+        "Videos/talk.md"
+    );
+    assert_eq!(
+        derived_rel("Videos/talk.pdf", DerivedKind::Images),
+        "Videos/talk_images"
+    );
+    // A folder of the student's that holds its own `courses` is not a subject.
+    assert_eq!(
+        derived_rel("Old/courses/X/a.pdf", DerivedKind::Pages),
+        ".oculus/derived/Old/courses/X/a.pages.json"
+    );
+    // App state and a loose file among the subjects keep theirs beside them.
+    assert_eq!(
+        derived_rel(".oculus/agents/outputs/a.pdf", DerivedKind::Pages),
+        ".oculus/agents/outputs/a.pages.json"
+    );
+    assert_eq!(
+        derived_rel("courses/loose.pdf", DerivedKind::Pages),
+        "courses/loose.pages.json"
+    );
+    assert_eq!(
+        derived_at(Path::new("/lib"), "Videos/talk.pdf", DerivedKind::Pages),
+        Path::new("/lib/.oculus/derived/Videos/talk.pages.json")
+    );
+}
+
+/// The parser is handed an absolute path: under the app's data dir it lands
+/// where the relative spelling does. Path arithmetic only; nothing is read.
+#[test]
+fn an_absolute_top_level_path_is_read_against_the_data_dir() {
+    let data_dir = crate::library::paths::data_dir();
+    assert_eq!(
+        derived(&data_dir.join("Videos/talk.pdf"), DerivedKind::Pages),
+        data_dir.join(".oculus/derived/Videos/talk.pages.json")
+    );
+    assert_eq!(
+        derived(&data_dir.join("courses/X/a.pdf"), DerivedKind::Pages),
+        data_dir.join("courses/X/.oculus/derived/a.pages.json")
+    );
+    assert_eq!(
+        derived(&data_dir.join(".oculus/agents/a.pdf"), DerivedKind::Pages),
+        data_dir.join(".oculus/agents/a.pages.json")
+    );
+}

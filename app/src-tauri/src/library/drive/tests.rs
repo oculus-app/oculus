@@ -50,8 +50,8 @@ fn folder_names(listing: &FolderListing) -> Vec<&str> {
 }
 
 #[test]
-fn the_root_lists_subject_folders_only() {
-    let root = Scratch::new("drive-root");
+fn the_folder_of_subjects_lists_subject_folders_only() {
+    let root = Scratch::new("drive-subjects");
     put(&root, &files_rel("a.pdf"), b"%PDF");
     mkdir(&root, &course_rel("INFO30006_2026_SM2"));
     let subjects = parent(&course_rel(CODE));
@@ -59,14 +59,108 @@ fn the_root_lists_subject_folders_only() {
     let loose = format!("{subjects}/cheatsheet.pdf");
     put(&root, &loose, b"%PDF");
 
-    let listing = list(&root, "");
+    let listing = list(&root, &subjects);
     assert_eq!(
         folder_names(&listing),
         ["COMP30026_2026_SM2", "INFO30006_2026_SM2"]
     );
-    assert!(listing.files.is_empty());
+    assert!(listing.files.is_empty(), "a loose file is no subject");
+    assert_eq!(listing.zone, "synced");
     assert!(!listing.writable);
     assert_eq!(listing.folders[1].child_count, 0);
+    assert!(listing.folders.iter().all(|f| f.writable && !f.editable));
+}
+
+/// The data dir as it is once the app's state sits under `.oculus/`.
+fn top_level(name: &str) -> Scratch {
+    let root = Scratch::new(name);
+    put(&root, &files_rel("a.pdf"), b"%PDF");
+    mkdir(&root, &course_rel("INFO30006_2026_SM2"));
+    put(&root, ".oculus/oculus.db", b"db");
+    put(&root, ".oculus/agents/AGENTS.md", b"x");
+    put(&root, ".library-move/done", b"done");
+    put(&root, ".DS_Store", b"x");
+    put(&root, "Videos/talk.mp4", b"mp4");
+    mkdir(&root, "Receipts");
+    mkdir(&root, "archive 2");
+    put(&root, "timetable.png", b"png");
+    root
+}
+
+#[test]
+fn the_top_level_lists_subjects_first_then_the_students_own() {
+    let root = top_level("drive-top");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(".oculus/agents", root.join("linked")).unwrap();
+
+    let listing = list(&root, "");
+    assert_eq!(
+        folder_names(&listing),
+        ["courses", "archive 2", "Receipts", "Videos"]
+    );
+    assert_eq!(file_names(&listing), ["timetable.png"]);
+    assert_eq!(listing.zone, "own");
+    assert!(listing.writable, "New is offered at the top level");
+
+    let subjects = &listing.folders[0];
+    assert_eq!(subjects.zone, "synced");
+    assert!(!subjects.writable && !subjects.editable);
+    assert_eq!(subjects.child_count, 2, "the two subject folders");
+    for own in &listing.folders[1..] {
+        assert_eq!(own.zone, "own", "{}", own.name);
+        assert!(own.writable && own.editable, "{}", own.name);
+    }
+    assert!(listing.files[0].editable);
+    assert_eq!(listing.files[0].zone, "own");
+}
+
+#[test]
+fn a_top_level_folder_lists_like_any_own_folder() {
+    let root = top_level("drive-top-folder");
+    record(&root, "Videos/slides.pdf");
+    put(&root, "Videos/slides.pdf", b"%PDF");
+    put(&root, "Videos/slides.md", b"parsed");
+    assert!(
+        root.join(".oculus/derived/Videos/slides.pages.json")
+            .is_file(),
+        "a top-level file's parse record sits under the top level's .oculus"
+    );
+
+    let listing = list(&root, "Videos");
+    assert_eq!(file_names(&listing), ["slides.pdf", "talk.mp4"]);
+    assert_eq!(listing.zone, "own");
+    assert!(listing.writable);
+    assert!(listing.files.iter().all(|f| f.editable));
+}
+
+#[test]
+fn app_state_is_never_listed_or_opened() {
+    let root = top_level("drive-top-hidden");
+    for rel in [
+        ".oculus",
+        ".oculus/agents",
+        ".library-move",
+        "Videos/../.oculus",
+    ] {
+        assert!(list_folder_at(&root, rel, false, &[]).is_err(), "{rel}");
+    }
+    let all = list_folder_at(&root, "", true, &[]).unwrap();
+    let paths: Vec<&str> = all
+        .folders
+        .iter()
+        .map(|f| f.relative_path.as_str())
+        .chain(all.files.iter().map(|f| f.relative_path.as_str()))
+        .collect();
+    assert!(!paths
+        .iter()
+        .any(|p| p.split('/').any(|s| s.starts_with('.'))));
+    assert!(paths.contains(&"Videos/talk.mp4"));
+    assert!(paths.contains(&files_rel("a.pdf").as_str()));
+    assert!(paths.contains(&course_rel(CODE).as_str()));
+    assert!(
+        !paths.contains(&"courses"),
+        "a flat list holds the subjects, not the folder they sit in"
+    );
 }
 
 #[test]
@@ -265,13 +359,16 @@ fn paths_outside_what_drive_shows_are_refused() {
     put(&root, &files_rel("a.pdf"), b"%PDF");
     put(&root, &format!("{}/memory.md", agents_rel(CODE)), b"x");
     mkdir(&root, &format!("{}/.oculus", course_rel(CODE)));
-    mkdir(&root, "studio");
+    mkdir(&root, ".oculus/studio");
+    put(&root, "timetable.png", b"png");
 
     for rel in [
         "/etc",
         "../x",
-        "studio",
-        &parent(&course_rel(CODE)),
+        ".oculus",
+        ".oculus/studio",
+        "timetable.png",
+        "Missing",
         &agents_rel(CODE),
         &format!("{}/.oculus", course_rel(CODE)),
         &files_rel("a.pdf"),

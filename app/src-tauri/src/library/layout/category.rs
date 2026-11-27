@@ -1,7 +1,8 @@
 //! A row's `files.category`, from its path inside the subject.
 
+use super::roots::split_course;
 use super::shape::{Shape, CURRENT};
-use super::zone::same_name;
+use super::zone::{same_name, zone_of, Zone};
 use super::{OwnKind, SyncedKind};
 
 /// Every category `category_of` can return, in reading order. The
@@ -33,6 +34,16 @@ pub const CATEGORIES: &[&str] = &[
 /// anything else is `other`.
 pub fn category_of(inner: &str) -> &'static str {
     CURRENT.category_of(inner)
+}
+
+/// The category of a data-dir-relative path: `category_of` inside a subject,
+/// and at the top level an own file's kind by its extension.
+pub fn category_of_path(rel: &str) -> &'static str {
+    match split_course(rel) {
+        Some((_, inner)) => category_of(inner),
+        None if zone_of(rel) == Zone::Own => OwnKind::by_extension(rel).category(),
+        None => "other",
+    }
 }
 
 impl Shape {

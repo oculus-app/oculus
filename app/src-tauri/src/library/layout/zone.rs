@@ -9,11 +9,12 @@ use crate::runtime::platform::canonicalize;
 /// * `Synced` — written by Oculus's sync, read-only to the student and the
 ///   agents (a subject's `Course/` with its lecture recordings, and the
 ///   `courses/` and subject folders themselves).
-/// * `Own` — the student's own files: everything else in a subject.
+/// * `Own` — the student's own files: everything else in a subject, and
+///   everything at the data dir's top level beside `courses/` whose name
+///   does not start with a dot.
 /// * `Hidden` — inside the data dir but not a library file: a subject's
-///   `.oculus/` (its agent workspace and derived records), and everything at
-///   the data dir's top level outside the library (the agents' workspace,
-///   Studio, the database).
+///   `.oculus/` (its agent workspace and derived records), and every
+///   dot-name at the data dir's top level (the app's state).
 /// * `Outside` — could leave the data dir: absolute, `..`, a backslash, a
 ///   drive, an empty or `.` segment, a NUL.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +48,12 @@ pub fn reserved_name(name: &str) -> bool {
     reserved_names().into_iter().any(|r| same_name(name, r))
 }
 
+/// True for the one name the layout keeps at the data dir's top level,
+/// ignoring case: the folder of subjects. Dot-names are refused as names.
+pub fn reserved_top_name(name: &str) -> bool {
+    same_name(name, COURSES_DIR)
+}
+
 /// `/`-separated segments, or `None` for any spelling that could leave the
 /// directory it is joined onto.
 pub(super) fn segments(rel: &str) -> Option<Vec<&str>> {
@@ -68,6 +75,9 @@ impl Shape {
         let Some(parts) = segments(rel) else {
             return Zone::Outside;
         };
+        if parts[0].starts_with('.') {
+            return Zone::Hidden;
+        }
         if same_name(parts[0], COURSES_DIR) {
             return match parts.get(2..) {
                 Some(inner) if !inner.is_empty() => self.subject_zone(inner),
@@ -80,7 +90,11 @@ impl Shape {
         {
             return Zone::Synced;
         }
-        Zone::Hidden
+        if self.top_level_own {
+            Zone::Own
+        } else {
+            Zone::Hidden
+        }
     }
 
     /// The zone of a path inside one subject, by its first segment.

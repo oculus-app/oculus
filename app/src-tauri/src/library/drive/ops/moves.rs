@@ -14,14 +14,12 @@ use sqlx::SqlitePool;
 use super::busy::fenced;
 use super::companions::{companions, derived_dir, images_prefix};
 use super::error::{shown, DriveError, DriveResult};
-use super::guard::{
-    files_under, is_subject_root, own_entry, parent_rel, subject_folder, target_folder, Entry,
-};
+use super::guard::{drive_target, files_under, own_entry, parent_rel, Entry};
 use super::journal::{merge_move, Journal};
 use super::names::check_name;
 use super::pictures;
 use super::rows::{self, MovedRow, RowMove};
-use crate::library::layout::DerivedKind;
+use crate::library::layout::{self, derived_at, DerivedKind, Home};
 use crate::library::paths::{doc_pdf_rel, ArtifactSlot};
 
 /// One entry and where it goes.
@@ -58,7 +56,7 @@ pub async fn move_entries_at(
     rels: &[String],
     target_dir: &str,
 ) -> DriveResult<Moves> {
-    let target = target_folder(data_dir, target_dir)?;
+    let target = drive_target(data_dir, target_dir)?;
     let mut plans = Vec::new();
     for rel in rels {
         let entry = own_entry(data_dir, rel)?;
@@ -69,7 +67,7 @@ pub async fn move_entries_at(
             )));
         }
         let to = target.child_rel(shown(rel));
-        if is_subject_root(&target.rel) && crate::library::layout::reserved_name(shown(rel)) {
+        if target.keeps_name(shown(rel)) {
             return Err(DriveError::invalid_name(format!(
                 "{} is a name Oculus keeps for itself",
                 shown(rel)
@@ -77,7 +75,7 @@ pub async fn move_entries_at(
         }
         plans.push(Plan { entry, to });
     }
-    run(data_dir, pool, plans, target.subject_folder()).await
+    run(data_dir, pool, plans, target.home()).await
 }
 
 /// Rename the entry at `rel` in place; returns its new path.
@@ -89,28 +87,30 @@ pub async fn rename_entry_at(
 ) -> DriveResult<Moves> {
     let entry = own_entry(data_dir, rel)?;
     let parent = parent_rel(rel);
-    check_name(new_name, is_subject_root(parent))?;
-    let to = format!("{parent}/{new_name}");
-    let folder = subject_folder(rel).unwrap_or_default().to_string();
-    run(data_dir, pool, vec![Plan { entry, to }], &folder).await
+    check_name(new_name, parent)?;
+    let to = layout::child_rel(parent, new_name);
+    let home = layout::home_of(rel).ok_or_else(|| DriveError::read_only(rel))?;
+    run(data_dir, pool, vec![Plan { entry, to }], home).await
 }
 
+/// `target` is the home every plan lands in; an entry from another home (a
+/// subject to the top level, or back) has its rows change `subject_id`.
 async fn run(
     data_dir: &Path,
     pool: &SqlitePool,
     plans: Vec<Plan>,
-    target_subject: &str,
+    target: Home<'_>,
 ) -> DriveResult<Moves> {
     check_free(&plans)?;
     let crossing = plans
         .iter()
-        .any(|p| subject_folder(&p.entry.rel) != Some(target_subject));
+        .any(|p| layout::home_of(&p.entry.rel) != Some(target));
     let subject = if crossing {
-        Some(
-            rows::subject_id(pool, target_subject)
-                .await?
-                .ok_or_else(|| DriveError::not_found(target_subject))?,
-        )
+        let missing = || match target {
+            Home::Subject(folder) => DriveError::not_found(folder),
+            Home::TopLevel => DriveError::io("the database has no row for the top level"),
+        };
+        Some(rows::home_id(pool, target).await?.ok_or_else(missing)?)
     } else {
         None
     };
@@ -250,23 +250,22 @@ fn move_file(
     let (from_rel, to_rel) = (plan.entry.rel.as_str(), plan.to.as_str());
     let note = pictures::is_note(data_dir, from_rel);
     let parts = companions(data_dir, from_rel, to_rel);
-    let pdf = |rel: &str| doc_pdf_rel(rel).map(|p| data_dir.join(p));
     let parsed = parts
         .iter()
         .any(|c| c.slot == ArtifactSlot::Derived(DerivedKind::Pages));
-    let relink = match (pdf(from_rel), pdf(to_rel)) {
+    let relink = match (doc_pdf_rel(from_rel), doc_pdf_rel(to_rel)) {
         (Some(old), Some(new)) if parsed => {
-            let (old_prefix, new_prefix) = (images_prefix(&old), images_prefix(&new));
+            let (old_prefix, new_prefix) = (
+                images_prefix(Path::new(&old)),
+                images_prefix(Path::new(&new)),
+            );
             (old_prefix != new_prefix).then(|| {
                 after.push(After::Relink {
-                    record: crate::library::layout::derived(&new, DerivedKind::Pages),
-                    markdown: crate::library::layout::derived(&new, DerivedKind::Markdown),
+                    record: derived_at(data_dir, &new, DerivedKind::Pages),
+                    markdown: derived_at(data_dir, &new, DerivedKind::Markdown),
                     old: old_prefix.clone(),
                     new: new_prefix.clone(),
-                    pdf_name: new
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
+                    pdf_name: shown(&new).to_string(),
                 });
                 (old_prefix, new_prefix)
             })

@@ -12,6 +12,7 @@ mod names;
 mod pictures;
 mod reconcile;
 mod rename;
+mod top_level;
 
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Row, SqlitePool};
@@ -21,6 +22,8 @@ use crate::test_support::Scratch;
 
 pub const CODE: &str = "COMP30026_2026_SM2";
 pub const OTHER: &str = "INFO30006_2026_SM2";
+/// The reserved row top-level files hang off.
+pub const TOP: i64 = crate::db::store::TOP_LEVEL_SUBJECT_ID;
 
 pub struct Lib {
     pub dir: Scratch,
@@ -82,7 +85,11 @@ impl Lib {
     }
 
     pub async fn row(&self, rel: &str) -> i64 {
-        let subject = if rel.contains(OTHER) { 2 } else { 1 };
+        let subject = match crate::library::layout::home_of(rel) {
+            Some(crate::library::layout::Home::TopLevel) => TOP,
+            _ if rel.contains(OTHER) => 2,
+            _ => 1,
+        };
         let name = rel.rsplit('/').next().unwrap();
         let ext = name.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
         sqlx::query(
@@ -93,9 +100,7 @@ impl Lib {
         .bind(name)
         .bind(rel)
         .bind(ext)
-        .bind(crate::library::layout::category_of(
-            crate::library::layout::within_course(rel),
-        ))
+        .bind(crate::library::layout::category_of_path(rel))
         .execute(&self.pool)
         .await
         .unwrap()

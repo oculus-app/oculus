@@ -118,13 +118,13 @@ fn close(owner: &str, id: &str) {
 
 fn library_path(root: &Path, relative: &str) -> Result<std::path::PathBuf, String> {
     let path = Path::new(relative);
-    let mut components = path.components();
-    let inside = matches!(components.next(), Some(Component::Normal(first))
-    if first.to_str().is_some_and(|first| {
-        crate::library::layout::library_roots().contains(&first)
-            || first == crate::agents::AGENTS_DIR
-    }));
-    if !inside || !components.all(|part| matches!(part, Component::Normal(_))) {
+    let inside = crate::library::layout::in_library(relative)
+        || relative.split('/').next() == Some(crate::agents::AGENTS_DIR);
+    if !inside
+        || !path
+            .components()
+            .all(|part| matches!(part, Component::Normal(_)))
+    {
         return Err("Choose a PDF inside the library".into());
     }
     let root = root.canonicalize().map_err(|e| e.to_string())?;

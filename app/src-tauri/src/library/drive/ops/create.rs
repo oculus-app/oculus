@@ -4,12 +4,12 @@
 use std::path::Path;
 
 use super::error::{shown, DriveError, DriveResult};
-use super::guard::{parent_rel, target_folder};
+use super::guard::{drive_target, parent_rel};
 use super::names::check_name;
 
 pub fn create_folder_at(data_dir: &Path, rel: &str) -> DriveResult<String> {
-    let parent = target_folder(data_dir, parent_rel(rel))?;
-    check_name(shown(rel), parent.is_subject_root())?;
+    let parent = drive_target(data_dir, parent_rel(rel))?;
+    check_name(shown(rel), &parent.rel)?;
     match std::fs::create_dir(data_dir.join(rel)) {
         Ok(()) => Ok(rel.to_string()),
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(DriveError::exists(rel)),

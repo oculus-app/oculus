@@ -6,17 +6,21 @@
 use sqlx::{Row, SqliteConnection, SqlitePool};
 
 use super::error::{DriveError, DriveResult};
-use crate::library::layout;
+use crate::library::layout::{self, Home};
 use crate::library::paths::{fold_code, safe_dir};
 
 fn db(e: sqlx::Error) -> DriveError {
     DriveError::io(format!("the database refused it — {e}"))
 }
 
-/// The subject whose folder is `folder` (`courses/<folder>`).
-pub async fn subject_id(pool: &SqlitePool, folder: &str) -> DriveResult<Option<i64>> {
+/// The `subjects` row a home's files hang off: the subject whose folder is
+/// `courses/<folder>`, or the reserved row for the top level.
+pub async fn home_id(pool: &SqlitePool, home: Home<'_>) -> DriveResult<Option<i64>> {
+    let Home::Subject(folder) = home else {
+        return crate::db::store::top_level_id(pool).await.map_err(db);
+    };
     let wanted = fold_code(folder);
-    let rows = sqlx::query("SELECT id, code FROM subjects")
+    let rows = sqlx::query("SELECT id, code FROM subjects WHERE kind = 'subject'")
         .fetch_all(pool)
         .await
         .map_err(db)?;
@@ -26,11 +30,21 @@ pub async fn subject_id(pool: &SqlitePool, folder: &str) -> DriveResult<Option<i
     }))
 }
 
-/// The subjects whose folders are `folders`, skipping any without a row.
-pub async fn subject_ids(pool: &SqlitePool, folders: &[String]) -> Vec<i64> {
+/// `home_id` for the code a command was given (`layout::TOP_LEVEL_CODE` is
+/// the top level).
+pub async fn code_id(pool: &SqlitePool, code: &str) -> DriveResult<Option<i64>> {
+    if layout::is_top_level_code(code) {
+        home_id(pool, Home::TopLevel).await
+    } else {
+        home_id(pool, Home::Subject(&safe_dir(code))).await
+    }
+}
+
+/// The rows of the homes `paths` are in, skipping any without one.
+pub async fn home_ids(pool: &SqlitePool, paths: &[String]) -> Vec<i64> {
     let mut ids = Vec::new();
-    for folder in folders {
-        if let Ok(Some(id)) = subject_id(pool, folder).await {
+    for home in paths.iter().filter_map(|p| layout::home_of(p)) {
+        if let Ok(Some(id)) = home_id(pool, home).await {
             if !ids.contains(&id) {
                 ids.push(id);
             }
@@ -153,7 +167,7 @@ pub async fn apply_moves(
             .bind(name_of(&to))
             .bind(renamed)
             .bind(file_type(name_of(&to)))
-            .bind(layout::category_of(layout::within_course(&to)))
+            .bind(layout::category_of_path(&to))
             .bind(id)
             .execute(&mut *tx)
             .await
@@ -232,7 +246,7 @@ pub async fn insert_copies(pool: &SqlitePool, subject: i64, rows: &[NewRow]) -> 
         .bind(&row.rel)
         .bind(file_type(name))
         .bind(row.size as i64)
-        .bind(layout::category_of(layout::within_course(&row.rel)))
+        .bind(layout::category_of_path(&row.rel))
         .execute(&mut *tx)
         .await
         .map_err(db)?;
