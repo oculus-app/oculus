@@ -19,6 +19,7 @@ mod broker;
 mod journal;
 mod names;
 pub(super) mod others;
+pub(super) mod stray;
 
 #[cfg(test)]
 mod tests;
@@ -113,13 +114,18 @@ impl Summary {
     }
 }
 
-/// The launch check: nothing but making sure the state folder exists once
-/// the move is done, else the whole move, logged in one line.
+/// The launch check: once the move is done, the state folder made sure of
+/// and what an older build undid tidied (`stray`), else the whole move,
+/// logged in one line.
 pub fn at_startup(data_dir: &Path) -> Result<(), String> {
     if is_done(data_dir) {
-        return ensure_state_dir(data_dir)
-            .map(|_| ())
-            .map_err(|e| format!("create the state folder in {}: {e}", data_dir.display()));
+        ensure_state_dir(data_dir)
+            .map_err(|e| format!("create the state folder in {}: {e}", data_dir.display()))?;
+        stray::tidy(
+            data_dir,
+            &chrono::Local::now().format("%Y-%m-%d").to_string(),
+        );
+        return Ok(());
     }
     let var = std::env::var(ALLOW_ENV).ok();
     let env = Env {

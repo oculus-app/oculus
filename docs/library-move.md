@@ -56,8 +56,14 @@ app did not make stays at the top: `courses/`, the student's own folders and
 files, a `lectures/` left from before the Drive tree, any other dot-folder.
 
 `.library-move/done` says where a data dir stands: absent or `drive` (not
-moved), `state-moving`, `state` (done). Once it says `state` a launch only
-makes sure the state folder exists. Otherwise, in order:
+moved), `state-moving`, `state` (done). Once it says `state` a launch makes sure
+the state folder exists and undoes what an older build's `oculus docs` does
+to a moved library (`stray.rs`): an `agents/` at the top holding the CLI doc
+only `oculus docs` writes (`OCULUS-CLI.md` with its generated banner) is set
+aside whole, in one rename, as `.oculus/stray-agents-<date>` (never merged or
+deleted, logged in one line), and the subjects are linked to `.oculus/agents/`
+again (`link_all`, about half a millisecond for thirty subjects). An `agents/`
+without that doc is the student's and stays. Otherwise, in order:
 
 1. **Plan** the renames from the names that are at the top. None there (a
    new install) writes the state folder, the guard and `state`, and returns.
