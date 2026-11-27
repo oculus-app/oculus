@@ -13,8 +13,10 @@
 //!
 //! The library's own zone (`layout::Zone::Own`) is writable without a
 //! request: everything in a subject beside `Course/` and `.oculus/`, and the
-//! student's own folders and files at the data dir's top. `courses/` itself,
-//! a file loose in it and every other dot-name at the top are not.
+//! student's own folders and files at the data dir's top, including one made
+//! after the thread started. `courses/` itself, a file loose in it, every
+//! other dot-name at the top and the old state folders' names
+//! (`layout::OLD_STATE_NAMES`) are not.
 
 use std::path::{Path, PathBuf};
 
@@ -70,9 +72,10 @@ pub fn subject_dir_globs() -> Vec<String> {
 }
 
 /// Whether a data-dir-relative path is in the own zone, which an agent
-/// writes without asking.
+/// writes without asking: `layout::agent_own`, so never a name that folds to
+/// a dot-name or a reserved one, nor an old state folder's name at the top.
 pub fn own_zone(rel: &str) -> bool {
-    layout::zone_of(rel) == layout::Zone::Own
+    layout::agent_own(rel)
 }
 
 /// App-owned folders inside the writable agents' workspace: generated
@@ -306,6 +309,9 @@ mod tests {
             ".DS_Store",
             "courses/X/../../.oculus/oculus.db",
             "",
+            "agents/notes.md",
+            "Lectures",
+            "\u{FF0E}oculus/x",
         ] {
             assert!(!own_zone(rel), "{rel}");
         }

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use super::home::{child_rel, own_root, own_root_rel, TOP_LEVEL_CODE};
 use super::roots::COURSES_DIR;
 use super::shape::{Shape, CURRENT};
-use super::zone::{same_name, segments, zone_of, Zone};
+use super::zone::{same_name, segments, zone_of, Zone, OLD_STATE_NAMES};
 
 /// A file the student made or brought in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,9 +105,10 @@ pub fn own_top_level(data_dir: &Path) -> Vec<PathBuf> {
 }
 
 /// The own entries directly in a subject's folder (for `TOP_LEVEL_CODE`, the
-/// data dir's), files and folders: what sits beside `Course/` and `.oculus/`,
-/// or beside `courses/` and the dot-names, less symlinks (a subject's
-/// `AGENTS.md`). Sorted.
+/// data dir's), files and folders, that an agent may write (`agent_own`):
+/// what sits beside `Course/` and `.oculus/`, or beside `courses/` and the
+/// dot-names, less symlinks (a subject's `AGENTS.md`) and the old state
+/// folders' names. Sorted.
 pub fn own_entries(data_dir: &Path, code: &str) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(own_root(data_dir, code)) else {
         return Vec::new();
@@ -118,13 +119,31 @@ pub fn own_entries(data_dir: &Path, code: &str) -> Vec<PathBuf> {
             let Ok(name) = entry.file_name().into_string() else {
                 return false;
             };
-            zone_of(&child_rel(&own_root_rel(code), &name)) == Zone::Own
+            agent_own(&child_rel(&own_root_rel(code), &name))
                 && !entry.file_type().is_ok_and(|t| t.is_symlink())
         })
         .map(|entry| entry.path())
         .collect();
     out.sort();
     out
+}
+
+/// True when an agent may write `rel` without asking: in the own zone as
+/// spelt and again with each name compatibility-folded and trimmed (so
+/// `．oculus` or ` courses` is not taken for the student's), and not under
+/// an old state folder's name at the top (`OLD_STATE_NAMES`). By spelling
+/// alone: a caller holding a real path resolves its symlinks first.
+pub fn agent_own(rel: &str) -> bool {
+    use unicode_normalization::UnicodeNormalization;
+    let Some(parts) = segments(rel).filter(|_| zone_of(rel) == Zone::Own) else {
+        return false;
+    };
+    let folded: Vec<String> = parts
+        .iter()
+        .map(|p| p.nfkc().collect::<String>().trim().to_string())
+        .collect();
+    zone_of(&folded.join("/")) == Zone::Own
+        && !OLD_STATE_NAMES.iter().any(|old| same_name(&folded[0], old))
 }
 
 /// The same folder, data-dir-relative.

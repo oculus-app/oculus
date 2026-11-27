@@ -1,6 +1,6 @@
 use crate::library::layout::{
-    category_of_path, own_dir_rel, own_file_ok, own_files, own_kind_of, own_path_ok, own_root,
-    own_root_rel, own_top_level, subjects_on_disk, OwnKind, TOP_LEVEL_CODE,
+    agent_own, category_of_path, own_dir_rel, own_file_ok, own_files, own_kind_of, own_path_ok,
+    own_root, own_root_rel, own_top_level, subjects_on_disk, OwnKind, TOP_LEVEL_CODE,
 };
 use crate::test_support::Scratch;
 
@@ -158,6 +158,8 @@ fn the_top_level_own_entries_leave_out_course_oculus_courses_and_dot_names() {
         ".oculus/oculus.db",
         ".library-move/done",
         ".DS_Store",
+        "agents/old.md",
+        "Studio/v.json",
     ] {
         let path = dir.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -248,5 +250,56 @@ fn a_top_level_file_takes_its_kind_from_its_extension_alone() {
     ];
     for (rel, category) in cases {
         assert_eq!(category_of_path(rel), category, "{rel}");
+    }
+}
+
+/// What an agent writes unasked: the own zone, read again after folding, and
+/// never a name the layout keeps at the top.
+#[test]
+fn an_agent_writes_the_own_zone_but_no_folded_dot_name_or_old_state_folder() {
+    for rel in [
+        "Receipts",
+        "Receipts/march.pdf",
+        "timetable.png",
+        ".assets/p.png",
+        "courses/X/notes.md",
+        "courses/X/agents/a.md",
+        "Receipts/agents/a.md",
+        "courses/X/U\u{308}bung.pdf",
+        "数学/笔记.md",
+    ] {
+        assert!(agent_own(rel), "{rel}");
+    }
+    for rel in [
+        "",
+        "courses",
+        "courses/loose.pdf",
+        "courses/X",
+        "courses/X/Course/a.pdf",
+        "courses/X/.oculus/x",
+        ".oculus/oculus.db",
+        ".library-move/done",
+        ".Oculus/x",
+        ".anything/x",
+        "Courses/loose.pdf",
+        "Receipts/../.oculus/vault.bin",
+        "./Receipts",
+        // Names that fold or trim to a dot-name or a reserved name.
+        "\u{FF0E}oculus/x",
+        " .oculus/x",
+        "\u{FF43}ourses/loose.pdf",
+        " courses/loose.pdf",
+        "courses/X/\u{FF23}ourse/a.pdf",
+        "\u{3000}",
+        // The old state folders' names, in any case or width.
+        "agents",
+        "agents/notes.md",
+        "Studio/v.json",
+        "WHITEBOARD-PAGES/x",
+        "canvas-pages",
+        "lectures/a.mp4",
+        "\u{FF41}gents/x",
+    ] {
+        assert!(!agent_own(rel), "{rel:?}");
     }
 }

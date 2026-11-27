@@ -120,21 +120,34 @@ fn glob_matches(glob: &str, name: &str) -> bool {
 }
 
 /// `path` with `.` and `..` worked out, and its deepest existing folder
-/// through its symlinks, so `/tmp` and `/private/tmp` compare equal.
+/// through its symlinks, so `/tmp` and `/private/tmp` compare equal. A
+/// dangling symlink on the way is followed to its target, which is what a
+/// write through it would create.
 pub(in crate::harness) fn resolve(path: &Path) -> PathBuf {
-    let mut lexical = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => {
-                lexical.pop();
-            }
-            Component::CurDir => {}
-            other => lexical.push(other.as_os_str()),
-        }
-    }
+    resolve_from(path, 0)
+}
+
+/// Symlinks followed before a chain is taken as a loop, as the kernel's
+/// `MAXSYMLINKS`.
+const MAX_LINKS: u8 = 32;
+
+fn resolve_from(path: &Path, links: u8) -> PathBuf {
+    let lexical = lexical(path);
     let mut existing = lexical.clone();
     let mut tail = Vec::new();
     while !existing.exists() {
+        if let Ok(target) = std::fs::read_link(&existing) {
+            // A loop names nothing; an empty path holds the library, so
+            // it is refused.
+            if links >= MAX_LINKS {
+                return PathBuf::new();
+            }
+            let parent = existing.parent().unwrap_or(Path::new("/"));
+            let mut next = parent.canonicalize().unwrap_or(parent.to_path_buf());
+            next.push(target);
+            next.extend(tail.iter().rev());
+            return resolve_from(&next, links + 1);
+        }
         match existing.file_name() {
             Some(name) => tail.push(name.to_os_string()),
             None => return lexical,
@@ -144,8 +157,20 @@ pub(in crate::harness) fn resolve(path: &Path) -> PathBuf {
         }
     }
     let mut out = existing.canonicalize().unwrap_or(existing);
-    for name in tail.into_iter().rev() {
-        out.push(name);
+    out.extend(tail.into_iter().rev());
+    out
+}
+
+fn lexical(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
     }
     out
 }
@@ -268,5 +293,97 @@ mod tests {
         assert!(glob_matches("vault.bin*", "vault.bin"));
         assert!(!glob_matches("*.json", "a.jsonl"));
         assert!(!glob_matches("vault.bin*", "my.vault.bin"));
+    }
+
+    /// The rule is read when the request comes, on the real path: a folder
+    /// made after the thread started is the student's, and no symlink, case
+    /// variant, `..` or folded name reaches past it.
+    #[cfg(unix)]
+    #[test]
+    fn the_top_level_is_judged_on_the_real_path_when_asked() {
+        use std::os::unix::fs::symlink;
+        let scratch = crate::test_support::Scratch::new("policy-real-top");
+        let library = scratch.join("library");
+        let outside = scratch.join("outside");
+        for dir in [
+            "courses/S/Course",
+            "courses/S/.oculus",
+            ".oculus/agents",
+            ".library-move",
+            "agents",
+        ] {
+            std::fs::create_dir_all(library.join(dir)).unwrap();
+        }
+        std::fs::create_dir_all(&outside).unwrap();
+        let cwd = crate::agents::agents_dir(&library);
+        // Made after the thread started, as the student or the agent would.
+        std::fs::create_dir_all(library.join("Receipts")).unwrap();
+        symlink(&outside, library.join("away")).unwrap();
+        symlink(".oculus", library.join("state")).unwrap();
+        symlink("courses/S/Course", library.join("synced")).unwrap();
+        symlink(outside.join("new.txt"), library.join("dangling")).unwrap();
+        symlink(".oculus/vault.bin", library.join("vault")).unwrap();
+        symlink(&outside, library.join("Receipts/inner")).unwrap();
+        symlink("../.oculus", library.join("Receipts/up")).unwrap();
+        symlink("loop", library.join("loop")).unwrap();
+        let at = |rel: &str| library.join(rel).display().to_string();
+        let own = |rel: &str| in_own_zone(&library, &cwd, &at(rel));
+        let refused = |rel: &str| protected(&library, &cwd, &[at(rel)]).is_some();
+
+        for rel in [
+            "Receipts",
+            "Receipts/march.pdf",
+            "Receipts/new/deep.md",
+            "New.md",
+        ] {
+            assert!(own(rel) && !refused(rel), "{rel}");
+        }
+        assert!(in_own_zone(&library, &cwd, "../../Receipts/a.pdf"));
+        // Refused unseen: never the student's to grant.
+        for rel in [
+            "",
+            "courses",
+            "courses/loose.pdf",
+            "courses/S",
+            "courses/New",
+            "courses/S/Course/a.pdf",
+            "courses/S/.oculus/x",
+            ".oculus",
+            ".oculus/vault.bin",
+            ".library-move/done",
+            ".anything/x",
+            ".Oculus/vault.bin",
+            "Courses/loose.pdf",
+            "Receipts/../.oculus/vault.bin",
+            "Receipts/./../courses/S/Course/a.pdf",
+            "\u{FF0E}oculus/x",
+            " .oculus/x",
+            "agents/x.md",
+            "Agents",
+            "studio/v.json",
+            "Whiteboard-Pages/p",
+            "canvas-pages",
+            "LECTURES/a.mp4",
+            // A symlink leads to what it names.
+            "state/vault.bin",
+            "synced/a.pdf",
+            "vault",
+            "Receipts/up/vault.bin",
+        ] {
+            assert!(refused(rel) && !own(rel), "{rel:?} is refused");
+        }
+        // A symlink out of the library is never the own zone: the student
+        // is asked, as for any path outside it.
+        for rel in [
+            "away",
+            "away/key",
+            "dangling",
+            "Receipts/inner",
+            "Receipts/inner/key",
+        ] {
+            assert!(!own(rel), "{rel} is not the student's");
+            assert!(!refused(rel), "{rel} is outside the library");
+        }
+        assert!(!own("loop/x") && refused("loop/x"));
     }
 }
