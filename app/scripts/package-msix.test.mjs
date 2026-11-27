@@ -164,5 +164,10 @@ test("Windows bundle keeps custom chrome, separate GUI and CLI names, and all re
   expect(config.bundle.icon).toEqual(["windows/icon.ico"]);
   expect(config.bundle.windows.nsis.installMode).toBe("currentUser");
   expect(config.bundle.externalBin.slice().sort()).toEqual(["binaries/ffmpeg", "binaries/oculus", "binaries/oculus-keyd"]);
-  expect(config.app.security.assetProtocol.scope).toEqual(["$HOME/Oculus/courses/**", "$HOME/Oculus/.oculus/agents/**"]);
+  expect(config.app.security.assetProtocol.scope).toEqual([
+    "$HOME/Oculus/[!.]*",
+    "$HOME/Oculus/[!.]*/**",
+    "$HOME/Oculus/.assets/**",
+    "$HOME/Oculus/.oculus/agents/**",
+  ]);
 });

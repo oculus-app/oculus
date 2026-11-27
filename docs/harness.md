@@ -592,9 +592,10 @@ still update the picker.
   (`../../courses/…` from the cwd), the workspace as `.oculus/agents/…` or,
   as older rows spell it, `agents/…`, absolute, agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`.
   A student's own file at the data dir's top is `../../<folder>/…` from the
-  cwd or absolute under the data dir (never a dot-name, nor a state folder's
-  name an older row spells at the top: `agents`, `studio`,
-  `whiteboard-pages`, `canvas-pages`), and in a composer mention (`topLevel`,
+  cwd or absolute under the data dir (never a dot-name, nor a name an older
+  row spells at the top for the app's: `agents`, `studio`,
+  `whiteboard-pages`, `canvas-pages`, and the old recordings root `lectures`,
+  `namesOldStateFolder`), and in a composer mention (`topLevel`,
   `splitLibraryPaths`) its plain data-dir-relative path when it holds a `/`
   or ends in a document's extension. It is
   shape-only and decodes first (the data dir has a space); a course-relative

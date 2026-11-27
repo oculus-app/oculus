@@ -45,11 +45,16 @@ export function stateRel(rel: string): string {
   return dir ? dir + rel.slice(first.length) : rel;
 }
 
-/** True for a path whose first segment is a state folder's name as older
- *  rows spell it at the top (`agents/…`): never read as a student's own. */
+/** The recordings folder at the top before the Drive tree; older rows spell
+ *  it and `path_moves` sends it into the subjects. */
+const OLD_RECORDINGS = "lectures";
+
+/** True for a path whose first segment is a folder older rows spell at the
+ *  top (`agents/…`, `lectures/…`): never read as a student's own. */
 export function namesOldStateFolder(rel: string): boolean {
   const cut = rel.indexOf("/");
-  return TOP_LEVEL.has(cut < 0 ? rel : rel.slice(0, cut));
+  const first = cut < 0 ? rel : rel.slice(0, cut);
+  return TOP_LEVEL.has(first) || first === OLD_RECORDINGS;
 }
 
 /** Regex source for a state folder in either spelling, data-dir-relative. */
