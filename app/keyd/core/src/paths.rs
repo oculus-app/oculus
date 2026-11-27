@@ -300,25 +300,21 @@ mod tests {
         assert!(data_dir().ends_with(IDENTIFIER));
     }
 
-    /// `/Users/<name>` plus the macOS data dir: the longest name whose socket
-    /// still fits inside the state folder is 33 bytes; one more falls back.
+    /// The socket's name inside the state folder costs 18 bytes after the
+    /// data dir and the shallow one 11, against a 104-byte `sun_path`.
     #[test]
     fn a_socket_too_long_for_the_state_folder_sits_at_the_top() {
-        let data = |name: usize| {
-            PathBuf::from(format!("/Users/{}", "u".repeat(name)))
-                .join("Library/Application Support")
-                .join(IDENTIFIER)
-        };
-        let fits = data(33);
+        let data = |len: usize| PathBuf::from(format!("/{}", "d".repeat(len - 1)));
+        let fits = data(SUN_PATH - 1 - 18);
         assert_eq!(socket(&fits), fits.join(".oculus/keyd.sock"));
         assert_eq!(socket(&fits).as_os_str().len(), SUN_PATH - 1);
 
-        let deep = data(34);
+        let deep = data(SUN_PATH - 18);
         assert_eq!(socket(&deep), deep.join(".keyd.sock"));
         assert!(socket(&deep).as_os_str().len() < SUN_PATH);
 
         // Past the shallow name's own limit nothing fits; the registrar refuses it.
-        let deepest = data(41);
+        let deepest = data(SUN_PATH - 11);
         assert_eq!(socket(&deepest), deepest.join(".keyd.sock"));
         assert_eq!(socket(&deepest).as_os_str().len(), SUN_PATH);
     }
