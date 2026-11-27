@@ -26,9 +26,7 @@ pub const PACK: Pack = Pack {
 
 /// Where the model is kept.
 pub fn dir() -> PathBuf {
-    crate::library::paths::data_dir()
-        .join("models")
-        .join("align")
+    crate::library::paths::models_dir(&crate::library::paths::data_dir()).join("align")
 }
 
 /// Whether the model is in `dir`. Local only.

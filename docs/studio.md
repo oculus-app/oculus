@@ -199,7 +199,9 @@ Everything Studio keeps is under `<app data>/studio/`
 `series/<slug>/` (one outline per series), `library/` (the global library), `subjects/<CODE>/` (each subject's) and
 `pronunciations/` (the readings waiting for the student's review, see
 "The student reviews the agent's suggested readings").
-`courses/` stays read-only to agents, so no library lives there. It is the
+`courses/` stays read-only to agents, so no library lives there. `studio/`
+sits beside `agents/` in the state folder (`library::paths::studio_dir`,
+`<data>/.oculus/studio`), and is the
 one folder besides `agents/` and the database an agent thread may write
 ([harness.md](./harness.md#every-thread-runs-from-agents-it-writes-there-and-in-the-students-own-files)).
 
@@ -2144,7 +2146,9 @@ error before any frame renders.
   burned in, for the player's CC. Segments, the track and the output are
   written as `.part` and renamed. After a render, `.cache/renders.json`
   records, under the preset's name, the segments and track it used and the
-  file it wrote; segments and tracks no preset's last render used, and any
+  file it wrote, relative to the video's folder when it is inside it
+  (`recorded_out` in `render/cache.rs`), so whether a render is current does
+  not depend on where the folder is; segments and tracks no preset's last render used, and any
   `.part`, are deleted. A record of a preset since removed is dropped with
   them.
 - **Status** (`status.rs`, `render::exports`). For each preset: the file
@@ -2254,7 +2258,7 @@ The list reads both the video folders and the series outlines. Commands on one v
   (``run `oculus studio narrate` ``); it never falls back to a silent frame.
 - **A render plays from the media server.** `lectures/media.rs` serves
   files under `studio/videos/` (Range requests, so a seek works), and the
-  asset protocol's scope in `tauri.conf.json` names `$APPDATA/studio/videos/**`;
+  asset protocol's scope in `tauri.conf.json` names `$APPDATA/.oculus/studio/videos/**`;
   the page reaches `renders/draft.mp4` with `mediaSrc(path)`.
 - **Stills share render slots**, half the cores (`slot.rs`, as the PDF
   viewer's `on_render_slot`), so a page of thumbnails queues without holding

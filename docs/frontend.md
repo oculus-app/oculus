@@ -311,7 +311,7 @@ Drive's rail section at `/drive/*` and the Files tab at
   the viewer's renderer (`openPdf`, `renderPage`); a recording's frame from
   `lecture_thumbnail`; an image itself. A notebook shows the first-page
   picture its editor writes for chat agents (`drive_notebook_cover`, PNG
-  bytes from `whiteboard-pages/<file id>/`), kept per notebook and read again
+  bytes from `.oculus/whiteboard-pages/<file id>/`), kept per notebook and read again
   when the kept one was read within 5 seconds of the file's last save, since
   the editor redraws it just after. A notebook never opened has none; it and a
   `.whiteboard` are drawn from the file by the whiteboard renderer at card size

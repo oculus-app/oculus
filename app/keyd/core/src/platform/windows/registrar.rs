@@ -16,17 +16,23 @@ struct Broker {
     image: PathBuf,
 }
 fn record(data_dir: &Path) -> PathBuf {
-    data_dir.join("bin/keyd-program")
+    crate::paths::bin_dir(data_dir).join("keyd-program")
 }
+/// The record, or the one a library not yet moved under the state folder
+/// still has at the top, so its running broker can be recognised and stopped.
 fn recorded(data_dir: &Path) -> Result<Option<PathBuf>, String> {
-    match std::fs::read_to_string(record(data_dir)) {
-        Ok(value) => Ok(Some(PathBuf::from(value.trim()))),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.to_string()),
+    for path in [record(data_dir), data_dir.join("bin/keyd-program")] {
+        match std::fs::read_to_string(&path) {
+            Ok(value) => return Ok(Some(PathBuf::from(value.trim()))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.to_string()),
+        }
     }
+    Ok(None)
 }
 fn lifecycle_lock(data_dir: &Path) -> Result<super::files::FileLock, String> {
-    let dir = data_dir.join("bin");
+    crate::paths::ensure_state_dir(data_dir).map_err(|e| e.to_string())?;
+    let dir = crate::paths::bin_dir(data_dir);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     super::files::lock(&dir.join("keyd-lifecycle.lock")).map_err(|e| e.to_string())
 }

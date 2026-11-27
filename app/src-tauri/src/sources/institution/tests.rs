@@ -27,6 +27,7 @@ fn normalise_keeps_only_the_origin() {
 #[test]
 fn a_fresh_data_dir_has_no_profile() {
     let dir = Scratch::new("inst-fresh");
+    crate::library::paths::ensure_state_dir(&dir).unwrap();
     // The database exists before anyone signs in, so it is no evidence.
     std::fs::write(crate::library::paths::db_path(&dir), b"").unwrap();
     assert_eq!(load(&dir), None);
@@ -36,6 +37,7 @@ fn a_fresh_data_dir_has_no_profile() {
 #[test]
 fn an_older_install_is_given_the_unimelb_profile() {
     let dir = Scratch::new("inst-legacy");
+    crate::library::paths::ensure_state_dir(&dir).unwrap();
     std::fs::write(keyd_core::paths::cookie(&dir), b"canvas_session=x").unwrap();
     assert_eq!(load(&dir), Some(unimelb()));
     assert!(path(&dir).exists(), "the migration is written once");
@@ -53,6 +55,7 @@ fn an_older_install_is_given_the_unimelb_profile() {
 #[test]
 fn a_saved_profile_round_trips_and_defaults_missing_fields() {
     let dir = Scratch::new("inst-roundtrip");
+    crate::library::paths::ensure_state_dir(&dir).unwrap();
     std::fs::write(path(&dir), r#"{"canvas":"https://rmit.instructure.com"}"#).unwrap();
     let inst = load(&dir).unwrap();
     assert_eq!(inst.login_path, "/login");

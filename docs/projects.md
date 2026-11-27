@@ -206,7 +206,7 @@ whose parent is missing rather than dropping it.
   tools, tables and shortcuts, and its formatting toolbar above the text
   while it is edited. `@` searches the project's subject, or the whole
   library for a task without one. A picture pasted, dropped or picked is
-  written to `agents/attachments/` on arrival (`writeAttachment`) and linked
+  written to `.oculus/agents/attachments/` on arrival (`writeAttachment`) and linked
   as `![name](agents/attachments/…)`. Blur, ⌘↵ or leaving the page writes
   through `updateTask` (body) or `updateProject` (brief); `taskBodyEdit`
   makes unchanged text write nothing and empty text write `null`. The page keys the body by task (`body-<id>`, the

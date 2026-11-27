@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{json, Value};
 
 use crate::harness::event::{HarnessEvent, Turns};
-use crate::harness::protected::{library_dirs, subject_dirs, ROOT_FILE_GLOBS, WORKSPACE_DIRS};
+use crate::harness::protected::{subject_dirs, STATE_DIRS, STATE_FILE_GLOBS, WORKSPACE_DIRS};
 use crate::harness::requests::{Action, PermissionMode};
 
 use super::policy::{allowed_command, judge, Verdict};
@@ -13,7 +13,7 @@ use super::updates::Translator;
 const LIBRARY: &str = "/lib/oculus";
 
 fn cwd() -> PathBuf {
-    Path::new(LIBRARY).join("agents")
+    crate::agents::agents_dir(Path::new(LIBRARY))
 }
 
 /// A permission request for a native write of `path`, as agy 1.5.9 sends it.
@@ -79,28 +79,28 @@ macro_rules! protected_rule {
 protected_rule! {
     course_is_refused_unseen: "Course" => "courses/maths/Course/Files/a.pdf";
     oculus_is_refused_unseen: ".oculus" => "courses/maths/.oculus/agents/INSTRUCTIONS.md";
-    canvas_session_is_refused_unseen: "canvas-session" => "canvas-session/cookies";
-    agents_skills_is_refused_unseen: "skills" => "agents/skills/oculus/SKILL.md";
-    agents_claude_is_refused_unseen: ".claude" => "agents/.claude/settings.json";
-    agents_agents_is_refused_unseen: ".agents" => "agents/.agents/skills/x/SKILL.md";
-    cookie_files_are_refused_unseen: "*.cookie" => "canvas.cookie";
-    token_files_are_refused_unseen: "*.token" => "ed.token";
-    root_json_is_refused_unseen: "*.json" => "settings.json";
-    root_logs_are_refused_unseen: "*.log" => "oculus.log";
-    the_vault_is_refused_unseen: "vault.bin*" => "vault.bin";
-    the_vaults_temp_file_is_refused_unseen: ".vault.bin.*" => ".vault.bin.4242.tmp";
-    the_database_is_refused_unseen: "oculus.db" => "oculus.db";
-    the_databases_wal_is_refused_unseen: "oculus.db-wal" => "oculus.db-wal";
-    the_databases_shm_is_refused_unseen: "oculus.db-shm" => "oculus.db-shm";
+    canvas_session_is_refused_unseen: "canvas-session" => ".oculus/canvas-session/cookies";
+    agents_skills_is_refused_unseen: "skills" => ".oculus/agents/skills/oculus/SKILL.md";
+    agents_claude_is_refused_unseen: ".claude" => ".oculus/agents/.claude/settings.json";
+    agents_agents_is_refused_unseen: ".agents" => ".oculus/agents/.agents/skills/x/SKILL.md";
+    cookie_files_are_refused_unseen: "*.cookie" => ".oculus/canvas.cookie";
+    token_files_are_refused_unseen: "*.token" => ".oculus/ed.token";
+    root_json_is_refused_unseen: "*.json" => ".oculus/settings.json";
+    root_logs_are_refused_unseen: "*.log" => ".oculus/oculus.log";
+    the_vault_is_refused_unseen: "vault.bin*" => ".oculus/vault.bin";
+    the_vaults_temp_file_is_refused_unseen: ".vault.bin.*" => ".oculus/.vault.bin.4242.tmp";
+    the_database_is_refused_unseen: "oculus.db" => ".oculus/oculus.db";
+    the_databases_wal_is_refused_unseen: "oculus.db-wal" => ".oculus/oculus.db-wal";
+    the_databases_shm_is_refused_unseen: "oculus.db-shm" => ".oculus/oculus.db-shm";
 }
 
 #[test]
 fn every_protected_rule_has_a_test() {
-    for rule in library_dirs()
+    for rule in STATE_DIRS
         .iter()
         .chain(subject_dirs().iter())
         .chain(WORKSPACE_DIRS.iter())
-        .chain(ROOT_FILE_GLOBS.iter())
+        .chain(STATE_FILE_GLOBS.iter())
     {
         assert!(RULES.contains(rule), "no ACP policy test for {rule}");
     }
@@ -111,13 +111,24 @@ fn every_protected_rule_has_a_test() {
 
 #[test]
 fn the_library_its_folders_above_and_agents_itself_are_refused_unseen() {
-    for path in ["/lib/oculus", "/lib", "/", "/lib/oculus/agents"] {
+    for path in [
+        "/lib/oculus",
+        "/lib",
+        "/",
+        "/lib/oculus/.oculus",
+        "/lib/oculus/.oculus/agents",
+    ] {
         assert!(refused(path), "{path}");
     }
     // Spelt with other case, or through `..`, it is the same folder.
     assert!(refused("/lib/oculus/Courses/x/COURSE/home.md"));
-    assert!(refused("/lib/oculus/agents/../courses/x/Course/y"));
-    assert!(refused("../courses/x.md"), "relative to the chat's folder");
+    assert!(refused(
+        "/lib/oculus/.oculus/agents/../../courses/x/Course/y"
+    ));
+    assert!(
+        refused("../../courses/x.md"),
+        "relative to the chat's folder"
+    );
     // The subjects' folder and a subject's folder hold `Course/`.
     assert!(refused("/lib/oculus/courses"));
     assert!(refused("/lib/oculus/courses/maths"));
@@ -134,7 +145,7 @@ fn writes_to_any_subjects_own_files_are_allowed_unseen() {
         assert_eq!(verdict(&write(path)), Verdict::Allow, "{path}");
     }
     let mut both = write("/lib/oculus/courses/maths/notes.md");
-    both["toolCall"]["locations"] = json!([{ "path": "/lib/oculus/agents/draft.md" }]);
+    both["toolCall"]["locations"] = json!([{ "path": "/lib/oculus/.oculus/agents/draft.md" }]);
     assert_eq!(
         verdict(&both),
         Verdict::Allow,
@@ -144,7 +155,7 @@ fn writes_to_any_subjects_own_files_are_allowed_unseen() {
 
 #[test]
 fn a_write_with_any_protected_path_is_refused_whatever_else_it_names() {
-    let mut params = write("/lib/oculus/agents/notes.md");
+    let mut params = write("/lib/oculus/.oculus/agents/notes.md");
     params["toolCall"]["locations"] = json!([{ "path": "/lib/oculus/courses/x.md" }]);
     assert!(matches!(verdict(&params), Verdict::Protected(_)));
 }
@@ -162,9 +173,9 @@ fn a_write_that_names_no_path_is_refused() {
 #[test]
 fn writes_under_the_chats_folder_and_studio_are_allowed_unseen() {
     for path in [
-        "/lib/oculus/agents/notes.md",
-        "/lib/oculus/agents/attachments/a.png",
-        "/lib/oculus/studio/video/video.json",
+        "/lib/oculus/.oculus/agents/notes.md",
+        "/lib/oculus/.oculus/agents/attachments/a.png",
+        "/lib/oculus/.oculus/studio/video/video.json",
     ] {
         assert_eq!(verdict(&write(path)), Verdict::Allow, "{path}");
     }
@@ -175,7 +186,7 @@ fn a_relative_write_is_judged_from_the_library_root_and_the_chats_folder() {
     // agy's commands run from the library root, so `courses/x.md` may
     // mean the protected folder.
     assert!(refused("courses/x.md"));
-    assert!(refused("../courses/x.md"));
+    assert!(refused("../../courses/x.md"));
     assert!(
         matches!(verdict(&write("scratch/out.txt")), Verdict::Ask(_)),
         "not under the write root read from the library root"
@@ -201,7 +212,7 @@ fn a_write_elsewhere_is_asked_as_a_file_change_naming_its_paths() {
 #[test]
 fn a_symlinked_write_is_judged_by_where_agy_says_it_lands() {
     // `12-path-checks`: the input names the link, `locations` the target.
-    let mut params = write("/lib/oculus/agents/outside-link/symlink.txt");
+    let mut params = write("/lib/oculus/.oculus/agents/outside-link/symlink.txt");
     params["toolCall"]["locations"] = json!([{ "path": "/elsewhere/symlink.txt" }]);
     let Verdict::Ask(request) = verdict(&params) else {
         panic!("not allowed by its link's folder");

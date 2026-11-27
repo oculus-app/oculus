@@ -207,8 +207,9 @@ A sync never resolves an embed: the tag in the page is the only record of it.
 
 ## A scrape scaffolds the agent docs
 
-`Engine::scrape` writes the central `agents/AGENTS.md` once per run, then links
-each subject's course folder after scraping it (`app/src-tauri/src/agents/mod.rs`),
+`Engine::scrape` writes the workspace's `AGENTS.md` (`.oculus/agents/`) once
+per run, then links each scraped subject's memories into the workspace's
+store (`link_course` in `app/src-tauri/src/agents/links.rs`),
 so a subject enrolled mid-semester is usable by a coding agent from its first
 sync. The central copy is written first because the links are relative. A
 subject with no folder is skipped, and a failure is a warning, never a failed

@@ -85,9 +85,7 @@ pub(super) const VAD_URL: &str =
 
 /// Where the models are kept.
 pub fn dir() -> PathBuf {
-    crate::library::paths::data_dir()
-        .join("models")
-        .join("whisper")
+    crate::library::paths::models_dir(&crate::library::paths::data_dir()).join("whisper")
 }
 
 pub fn find(id: &str) -> Option<&'static Model> {

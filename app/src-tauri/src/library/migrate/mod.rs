@@ -14,13 +14,14 @@
 
 mod apply;
 mod contents;
-mod db;
-mod journal;
+pub(crate) mod db;
+pub(crate) mod journal;
 mod links;
 pub(crate) mod plan;
 mod resolve;
 mod rules;
 mod startup;
+pub mod state;
 pub mod whiteboard;
 
 #[cfg(test)]
@@ -36,6 +37,11 @@ pub use rules::Rule;
 pub use startup::refuse_to_start;
 
 use journal::Phase;
+
+/// `<data dir>/.library-move/`, the record every launch move keeps.
+pub fn record_dir(data_dir: &Path) -> PathBuf {
+    journal::dir(data_dir)
+}
 
 /// What a run did.
 #[derive(Debug)]
@@ -168,7 +174,10 @@ where
 }
 
 /// The database, when there is one. Read-only for a dry run.
-async fn open(data_dir: &Path, read_only: bool) -> Result<Option<sqlx::SqlitePool>, String> {
+pub(crate) async fn open(
+    data_dir: &Path,
+    read_only: bool,
+) -> Result<Option<sqlx::SqlitePool>, String> {
     let path: PathBuf = crate::library::paths::db_path(data_dir);
     if !path.is_file() {
         return Ok(None);
@@ -249,7 +258,7 @@ async fn run_async(data_dir: &Path, hooks: &Hooks) -> Result<Outcome, String> {
 /// opencode's config names the library's folders in its permission globs;
 /// rendered again only when opencode has been used here. Its next server
 /// start renders it anyway, so a failure is logged, not fatal.
-fn regenerate_opencode_config(data_dir: &Path) {
+pub(crate) fn regenerate_opencode_config(data_dir: &Path) {
     let config = crate::agents::agents_dir(data_dir).join(crate::agents::OPENCODE_CONFIG_NAME);
     if !config.is_file() {
         return;

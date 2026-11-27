@@ -194,18 +194,25 @@ pub fn uninstall(data_dir: &Path) -> Result<Vec<PathBuf>, String> {
 /// reports a missing bundled keyd as well). Runs on the calling thread, which
 /// may wait on launchd.
 pub fn ensure_installed() {
-    if cfg!(debug_assertions) && !cfg!(windows) {
-        return;
+    if let Err(e) = ensure_installed_in(&crate::library::paths::data_dir()) {
+        elog!("[oculus] could not install keyd: {e}");
     }
-    match ensure_bundled(&crate::library::paths::data_dir()) {
-        Ok(Some(i)) => elog!(
+}
+
+/// [`ensure_installed`] over `data_dir`, with why it could not. The launch
+/// move calls it once keyd's files are in the state folder.
+pub fn ensure_installed_in(data_dir: &Path) -> Result<(), String> {
+    if cfg!(debug_assertions) && !cfg!(windows) {
+        return Ok(());
+    }
+    if let Some(i) = ensure_bundled(data_dir)? {
+        elog!(
             "[oculus] keyd installed from {} ({})",
             i.program.display(),
             &i.source_hash[..12]
-        ),
-        Ok(None) => {}
-        Err(e) => elog!("[oculus] could not install keyd: {e}"),
+        );
     }
+    Ok(())
 }
 
 fn ensure_bundled(data_dir: &Path) -> Result<Option<Installed>, String> {
@@ -299,7 +306,7 @@ mod tests {
                 data,
                 Path::new("/x/target/signed/Oculus Helper.app/Contents/MacOS/Oculus Helper")
             ),
-            Path::new("/d/bin/Oculus Helper.app/Contents/MacOS/Oculus Helper")
+            Path::new("/d/.oculus/bin/Oculus Helper.app/Contents/MacOS/Oculus Helper")
         );
     }
 

@@ -124,6 +124,27 @@ export function buildKeyd(variant, signedDir = variants[variant].signedDir) {
 }
 
 /**
+ * Whether this checkout is the main one, not a worktree. Every checkout
+ * shares the one data folder, so what changes it for good (keyd's
+ * registration, the move of the app's files into `.oculus/`) is the main
+ * checkout's alone.
+ */
+export function isMainCheckout() {
+  const git = (...args) =>
+    execFileSync("git", ["rev-parse", "--path-format=absolute", ...args], {
+      cwd: app,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  try {
+    return realpathSync(git("--git-dir")) === realpathSync(git("--git-common-dir"));
+  } catch {
+    // No git, or not a checkout.
+    return false;
+  }
+}
+
+/**
  * Install the helper app `helper` when the checkout is the main one and its
  * source changed. A worktree's build must never take over the registration
  * the running app depends on.
@@ -138,19 +159,7 @@ export function installFromMainCheckout(helper) {
     log("staged dev keyd beside the app; Oculus starts it");
     return;
   }
-  const git = (...args) =>
-    execFileSync("git", ["rev-parse", "--path-format=absolute", ...args], {
-      cwd: app,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  let main = false;
-  try {
-    main = realpathSync(git("--git-dir")) === realpathSync(git("--git-common-dir"));
-  } catch {
-    // No git, or not a checkout: nothing to install from.
-  }
-  if (!main) {
+  if (!isMainCheckout()) {
     log(`not the main checkout — not installed (by hand: oculus keyd install --from "${helper}")`);
     return;
   }
@@ -159,5 +168,10 @@ export function installFromMainCheckout(helper) {
   // an unchanged source installs nothing.
   const cli = process.env.OCULUS_BIN ?? cliPath("debug");
   if (!existsSync(cli)) buildCli("debug");
-  execFileSync(cli, ["keyd", "install", "--if-changed", "--from", helper], { stdio: "inherit" });
+  // Every command first moves a library's own files into `.oculus/`, which a
+  // debug build does only when told to (docs/library-move.md).
+  execFileSync(cli, ["keyd", "install", "--if-changed", "--from", helper], {
+    stdio: "inherit",
+    env: { ...process.env, OCULUS_STATE_MOVE: "1" },
+  });
 }

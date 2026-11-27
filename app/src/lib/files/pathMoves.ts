@@ -1,6 +1,7 @@
-/** Paths cited before the library moved into the Drive tree, or before a
- *  drawing was renamed from `.canvas` (a chat's tool output, an undo
- *  snapshot, a saved tab), followed through `path_moves`:
+/** Paths cited before the library moved into the Drive tree, before a
+ *  drawing was renamed from `.canvas`, or before the app's own folders went
+ *  into `.oculus/` (a chat's tool output, an undo snapshot, a saved tab),
+ *  followed through `path_moves`:
  *  the longest old prefix a path starts with, at a path boundary, with the
  *  rest carried over. `resolve_moved` in
  *  `app/src-tauri/src/library/migrate/resolve.rs` is the same rule in Rust;

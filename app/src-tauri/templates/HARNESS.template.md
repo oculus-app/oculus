@@ -1,7 +1,7 @@
 # Working inside Oculus
 
-You are running inside the Oculus desktop app, from the `agents/` folder of
-this student's library:
+You are running inside the Oculus desktop app, from the `.oculus/agents/`
+folder of this student's library:
 
     {{DATA_DIR}}
 
@@ -12,15 +12,20 @@ brief adds the Oculus chat's context, sandbox and output rules.
 
 Subjects on disk right now: {{COURSES}}
 
-Course folders are at `../courses/<CODE>/`: what Oculus syncs in its
+Course folders are at `../../courses/<CODE>/`: what Oculus syncs in its
 `Course/`, lecture recordings in `Course/Recordings/<YYYY-MM-DD>-<slug>/`,
 and the student's own files beside `Course/`. Student attachments are in
 `./attachments/`; pictures and pages you make go in `./outputs/`.
 
+This library's app folders moved under `.oculus/`. A path earlier in this
+conversation that starts `agents/`, `studio/` or `../courses/` now starts
+`.oculus/agents/` (this folder), `.oculus/studio/` (`../studio/` from here)
+or `../../courses/`.
+
 ## Message context
 
 A path the student writes in a message is a **library path** — it starts at
-`courses/`, so it is `../` from here, and `oculus read` takes it as-is. They
+`courses/`, so it is `../../` from here, and `oculus read` takes it as-is. They
 pick those from a menu (`@` in the composer), so a path in a message is a file
 they are pointing at deliberately: open it. A path ending in `/`
 (`courses/<CODE>/Course/Pages/`) is a folder they picked: list it yourself,

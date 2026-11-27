@@ -54,7 +54,7 @@ topic carries the grouping, so titles never repeat it ("The angle θ", not
 Topics belong to the entry's subject. An entry can have several named topics;
 an empty `topic_ids` array means Unsorted. Never invent a topic id.
 
-Write a JSON-lines batch under `agents/`, then use
+Write a JSON-lines batch in your working directory (`.oculus/agents/`), then use
 `oculus quiz add --subject CODE --batch path`. Agent items are drafts. Tell the
 student to accept, edit or delete them in Revision → Quizzes before Review.
 A named set can be created with

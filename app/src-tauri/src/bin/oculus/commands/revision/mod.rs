@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn widget_artifacts_round_trip_through_the_cli() {
         let dir = std::env::temp_dir().join(format!("oculus-artifact-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        app_lib::library::paths::ensure_state_dir(&dir).unwrap();
         let ctx = Ctx {
             data_dir: dir.clone(),
             rt: Runtime::new().unwrap(),

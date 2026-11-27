@@ -344,7 +344,8 @@ classes work even when there are no dollar delimiters.
   - **Rust's half is `app/src-tauri/src/library/pdf_view/`, on the pure-Rust
     renderer hayro**, opened and rendered through
     `app/src-tauri/src/library/pdf_render/`, which the embedder shares. A path
-    must sit under `courses/` or `agents/` in the data directory.
+    must sit under `courses/` or the workspace, `.oculus/agents/`, in the data
+    directory (`agents::readable`).
     The four most recent documents stay open, keyed by path and modification
     time. Renders and text extraction share half the cores, each on its own
     big-stack thread so a deeply nested page cannot overflow a stack and abort

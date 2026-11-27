@@ -216,3 +216,35 @@ fn malformed_requests_are_request_errors() {
     }
     assert!(!crate::paths::vault(&dir.0).exists(), "nothing was written");
 }
+
+/// A vault from before the state folder, still at the data dir's top: no op
+/// opens an empty one beside it, and the old one is read once it has moved.
+#[test]
+fn a_vault_still_at_the_top_is_refused_until_it_moves() {
+    let dir = Scratch::new("unmoved-vault");
+    let state = state_in(&dir);
+    call(
+        &state,
+        "store",
+        json!({"secret": "voyage", "value": "pa-K"}),
+    )
+    .unwrap();
+    let moved = crate::paths::vault(&dir.0);
+    let unmoved = crate::paths::unmoved_vault(&dir.0);
+    std::fs::rename(&moved, &unmoved).unwrap();
+
+    for (op, req) in [
+        ("has", json!({"secret": "voyage"})),
+        ("store", json!({"secret": "groq", "value": "gsk-K"})),
+        ("session_status", json!({})),
+    ] {
+        let err = call(&state, op, req).unwrap_err();
+        assert_eq!(err.kind, "vault", "{op}");
+        assert!(err.detail.contains("open Oculus to finish the update"));
+    }
+    assert!(!moved.exists(), "no second vault was started");
+
+    std::fs::rename(&unmoved, &moved).unwrap();
+    let has = call(&state, "has", json!({"secret": "voyage"})).unwrap();
+    assert_eq!(has["has"], true);
+}

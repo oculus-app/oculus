@@ -292,7 +292,7 @@ pub struct MomentFrame {
 ///
 /// Every source is grabbed, not the one on screen: either stream may be the
 /// one with the teaching on it. Returns paths the agent reads
-/// (`../<recording folder>/frames/live/<seconds>-source<n>.jpg`), in `live/` so
+/// (`../../<recording folder>/frames/live/<seconds>-source<n>.jpg`), in `live/` so
 /// they never collide with a chaptering run's. A stream that fails to decode
 /// is skipped; only no frame at all is an error.
 #[tauri::command]
@@ -341,7 +341,9 @@ pub async fn lecture_grab_frames(
         .into_iter()
         .map(|source| MomentFrame {
             source,
-            path: format!("../{folder}/frames/live/{seconds}-source{source}.jpg"),
+            path: crate::agents::from_workspace(&format!(
+                "{folder}/frames/live/{seconds}-source{source}.jpg"
+            )),
         })
         .collect())
 }

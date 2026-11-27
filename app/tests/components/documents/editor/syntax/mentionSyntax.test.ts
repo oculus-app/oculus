@@ -14,6 +14,8 @@ describe("note mentions", () => {
   test("a span holding only a citation is a chip", () => {
     expect(inlineCodeCitation("`courses/X/Course/Files/a.pdf#page=3`")).toBe("courses/X/Course/Files/a.pdf#page=3");
     expect(inlineCodeCitation("`agents/attachments/x.png`")).toBe("agents/attachments/x.png");
+    expect(inlineCodeCitation("`.oculus/agents/attachments/x.png`")).toBe(".oculus/agents/attachments/x.png");
+    expect(inlineCodeCitation("`../../courses/X/Course/Files/a.pdf`")).toBe("../../courses/X/Course/Files/a.pdf");
     expect(inlineCodeCitation("`` courses/X/Course/Files/a.pdf ``")).toBe("courses/X/Course/Files/a.pdf");
   });
 

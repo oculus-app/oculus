@@ -1,4 +1,4 @@
-//! Where a notebook's page images live, for chat agents: `whiteboard-pages/<file id>/`
+//! Where a notebook's page images live, for chat agents: `.oculus/whiteboard-pages/<file id>/`
 //! holds one PNG per page and a `pages.json` manifest naming them. The app writes
 //! them as the student writes (`library::files::whiteboards::snapshots`); `oculus read`
 //! and the agents read them. Keyed by the `files` row, so a rename moves nothing.
@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// The folder's name inside the state folder (`super::state_dir`).
 pub const PAGES_DIR: &str = "whiteboard-pages";
 pub const PAGES_MANIFEST: &str = "pages.json";
 
@@ -33,7 +34,9 @@ pub struct NotebookPages {
 }
 
 pub fn notebook_pages_dir(data_dir: &Path, file_id: i64) -> PathBuf {
-    data_dir.join(PAGES_DIR).join(file_id.to_string())
+    super::state_dir(data_dir)
+        .join(PAGES_DIR)
+        .join(file_id.to_string())
 }
 
 pub fn notebook_page_image(page: usize) -> String {

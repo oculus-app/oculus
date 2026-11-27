@@ -25,7 +25,7 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(data_dir: &Path, reporter: Box<dyn Reporter>) -> Self {
-        let manifest = std::fs::read_to_string(data_dir.join("file-manifest.json"))
+        let manifest = std::fs::read_to_string(crate::library::paths::file_manifest_path(data_dir))
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
@@ -50,7 +50,10 @@ impl Engine {
     /// Best-effort; a lost manifest only costs re-downloads, never data.
     fn save_manifest(&self) {
         if let Ok(json) = serde_json::to_string(&*self.manifest.borrow()) {
-            let _ = std::fs::write(self.data_dir.join("file-manifest.json"), json);
+            let _ = std::fs::write(
+                crate::library::paths::file_manifest_path(&self.data_dir),
+                json,
+            );
         }
     }
 

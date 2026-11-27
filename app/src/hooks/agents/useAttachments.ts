@@ -30,7 +30,7 @@ import { useReferenceCheck } from "@/stores/chat/referenceStore";
 const NO_PASTES: PastedText[] = [];
 const NO_SHELF: string[] = [];
 
-/** A picture on a draft's shelf, already in `agents/attachments/`. */
+/** A picture on a draft's shelf, already in `.oculus/agents/attachments/`. */
 export interface ShelfItem {
   /** Its `./attachments/…` path, which is also its identity. */
   id: string;
@@ -83,7 +83,7 @@ const textOf = (key: string) => useDraftStore.getState().drafts[key] ?? "";
 
 /**
  * Files on their way into a message, for both chat composers: pasted or
- * dropped (`useFileDrop`), each written to `agents/attachments/` the moment
+ * dropped (`useFileDrop`), each written to `.oculus/agents/attachments/` the moment
  * it arrives and put into the sentence as a chip at the caret, through the
  * box's handle (`input`). A picture also joins the draft's shelf of
  * thumbnails (`draftStore`), which outlives the box; a PDF or text file is

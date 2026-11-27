@@ -4,17 +4,19 @@ import { checkablePaths, missingReferences, type ReferenceLookups } from "@/stor
 
 const message =
   "compare `./attachments/a.png` with `agents/attachments/gone.pdf`, see `courses/MAST20004/Course/Files/w1.pdf`, " +
-  "`courses/MAST20004/Course/Files/deleted.pdf`, `courses/MAST20004/Course/Pages/` and `lectures/abc/transcript.vtt`\n\n`./attachments/b.png`";
+  "`courses/MAST20004/Course/Files/deleted.pdf`, `courses/MAST20004/Course/Pages/` and `lectures/abc/transcript.vtt`, " +
+  "then `.oculus/agents/attachments/kept.pdf`\n\n`./attachments/b.png`";
 
 describe("checkablePaths", () => {
   test("names each attachment and `@` library path once, data-directory-relative, and nothing else", () => {
     expect(checkablePaths(`${message} again \`./attachments/a.png\``)).toEqual([
-      "agents/attachments/a.png",
-      "agents/attachments/gone.pdf",
+      ".oculus/agents/attachments/a.png",
+      ".oculus/agents/attachments/gone.pdf",
       "courses/MAST20004/Course/Files/w1.pdf",
       "courses/MAST20004/Course/Files/deleted.pdf",
       "courses/MAST20004/Course/Pages/",
-      "agents/attachments/b.png",
+      ".oculus/agents/attachments/kept.pdf",
+      ".oculus/agents/attachments/b.png",
     ]);
   });
 });
@@ -35,9 +37,10 @@ describe("missingReferences", () => {
   test("marks a gone attachment and a gone `@` file, in one call per kind", async () => {
     const found = await missingReferences(checkablePaths(message), lookups);
     expect(Object.fromEntries(found)).toEqual({
-      "agents/attachments/a.png": false,
-      "agents/attachments/gone.pdf": true,
-      "agents/attachments/b.png": false,
+      ".oculus/agents/attachments/a.png": false,
+      ".oculus/agents/attachments/gone.pdf": true,
+      ".oculus/agents/attachments/kept.pdf": false,
+      ".oculus/agents/attachments/b.png": false,
       "courses/MAST20004/Course/Files/w1.pdf": false,
       "courses/MAST20004/Course/Files/deleted.pdf": true,
       "courses/MAST20004/Course/Pages/": false,

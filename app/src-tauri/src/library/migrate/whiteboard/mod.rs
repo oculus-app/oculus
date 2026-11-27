@@ -30,6 +30,9 @@ use super::apply::{self, Hooks};
 use super::journal::{DoneLog, Kind, Phase};
 use super::rules::Rules;
 
+/// The two records folders below are named inside the state folder, like
+/// the ones that replace them.
+///
 /// The extension a drawing had (`whiteboards::legacy`).
 pub const LEGACY_EXTENSION: &str = crate::library::files::whiteboards::legacy::EXTENSION;
 /// What a drawing's `files` row said it was, in `file_type` and `category`.

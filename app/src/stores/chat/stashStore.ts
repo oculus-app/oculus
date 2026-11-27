@@ -15,7 +15,7 @@ export interface StashEntry {
   text: string;
   /** Long pastes that were cards, in order. */
   pastes: string[];
-  /** Pictures, written to `agents/attachments/` when stashed: each the
+  /** Pictures, written to `.oculus/agents/attachments/` when stashed: each the
    *  `./attachments/<name>` path a message would carry. */
   pictures: string[];
 }

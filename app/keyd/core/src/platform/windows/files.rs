@@ -126,6 +126,21 @@ fn owner_only(file: &File) -> io::Result<bool> {
 pub fn is_owner_only(path: &Path) -> io::Result<bool> {
     owner_only(&File::open(path)?)
 }
+/// Adds the hidden attribute, so Explorer does not list `path`.
+pub fn hide(path: &Path) -> io::Result<()> {
+    let name = wide(path);
+    let attributes = unsafe { GetFileAttributesW(name.as_ptr()) };
+    if attributes == INVALID_FILE_ATTRIBUTES {
+        return Err(io::Error::last_os_error());
+    }
+    if attributes & FILE_ATTRIBUTE_HIDDEN != 0 {
+        return Ok(());
+    }
+    if unsafe { SetFileAttributesW(name.as_ptr(), attributes | FILE_ATTRIBUTE_HIDDEN) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
 // File contents are flushed before the MOVEFILE_WRITE_THROUGH rename. Windows
 // does not provide POSIX directory fsync on an ordinary directory handle.
 pub fn sync_dir(_dir: &Path) -> io::Result<()> {

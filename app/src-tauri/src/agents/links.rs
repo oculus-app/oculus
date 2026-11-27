@@ -4,8 +4,8 @@ use crate::library::layout;
 
 use super::docs::{Skill, SKILLS};
 use super::{
-    agents_dir, AGENTS_DIR, AGENTS_DOC, AGENTS_DOC_NAME, AGENTS_DOC_REL, MEMORIES_DIR,
-    MEMORY_INDEX_NAME, SKILLS_DIR,
+    agents_dir, AGENTS_DOC_NAME, MEMORIES_DIR, MEMORY_INDEX_NAME, RETIRED_AGENTS_DOC_REL,
+    SKILLS_DIR,
 };
 
 /// Claude Code walks up from its cwd for `.claude/skills` and Codex for
@@ -55,8 +55,9 @@ fn link_skill(link: &Path, target: &str, skill: &Skill) -> Result<Link, String> 
 /// What linking one course folder did.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Link {
+    /// Something changed: an earlier layout's root `AGENTS.md` link went.
     Linked,
-    /// Already pointing at the right place.
+    /// Already as it should be.
     Current,
     /// A real file was there; left alone rather than overwritten.
     Skipped,
@@ -75,7 +76,8 @@ pub fn link_course(data_dir: &Path, code: &str) -> Result<Link, String> {
     link_dir(data_dir, &dir)
 }
 
-/// Point every existing course folder at the one `AGENTS.md`.
+/// Link every existing course folder's memories into the library's store,
+/// and drop the `AGENTS.md` link an earlier layout left at its root.
 ///
 /// The sweep behind `oculus docs`.
 pub fn link_all(data_dir: &Path) -> Result<LinkReport, String> {
@@ -95,12 +97,10 @@ pub fn link_all(data_dir: &Path) -> Result<LinkReport, String> {
         match link_dir(data_dir, &dir)? {
             Link::Linked => report.linked.push(name),
             Link::Current => report.current += 1,
-            Link::Skipped => report.skipped.push(name),
-            Link::Absent => {}
+            Link::Skipped | Link::Absent => {}
         }
     }
     report.linked.sort();
-    report.skipped.sort();
     Ok(report)
 }
 
@@ -115,7 +115,7 @@ pub fn subject_memories(data_dir: &Path, course_dir: &str) -> PathBuf {
 fn subject_memories_rel(name: &str) -> PathBuf {
     let depth = layout::agents_rel(name).matches('/').count() + 1;
     PathBuf::from("../".repeat(depth))
-        .join(AGENTS_DIR)
+        .join(super::agents_rel())
         .join(MEMORIES_DIR)
 }
 
@@ -185,7 +185,8 @@ fn adopt_course_memories(course_agents: &Path, bucket: &Path, name: &str) -> Res
     Ok(())
 }
 
-/// A relative symlink, skipped rather than clobbered when a real file is there.
+/// One subject's memories bucket and the link to it. `Linked` when the root
+/// `AGENTS.md` link an earlier layout made was removed.
 fn link_dir(data_dir: &Path, dir: &Path) -> Result<Link, String> {
     let name = dir
         .file_name()
@@ -216,39 +217,56 @@ fn link_dir(data_dir: &Path, dir: &Path) -> Result<Link, String> {
             .map_err(|e| format!("cannot write agents/memories/{name}/{MEMORY_INDEX_NAME}: {e}"))?;
     }
 
+    retire_root_doc(dir).map_err(|e| format!("cannot remove {name}'s {AGENTS_DOC_NAME} link: {e}"))
+}
+
+/// Removes the `AGENTS.md` an earlier layout linked at a subject's root: no
+/// thread starts there, and it showed among the student's files. Only what
+/// the app made goes: the symlink to its old target, or (Windows) the copy
+/// whose marker still matches it. Anything else there is the student's.
+fn retire_root_doc(dir: &Path) -> std::io::Result<Link> {
     let link = dir.join(AGENTS_DOC_NAME);
-    match std::fs::symlink_metadata(&link) {
-        Ok(meta) if meta.file_type().is_symlink() => {
-            if std::fs::read_link(&link).is_ok_and(|t| t == *AGENTS_DOC_REL) {
-                return Ok(Link::Current);
-            }
-            std::fs::remove_file(&link).map_err(|e| format!("cannot relink {name}: {e}"))?;
+    let marker = dir.join(format!("{AGENTS_DOC_NAME}.oculus-managed"));
+    let Ok(meta) = std::fs::symlink_metadata(&link) else {
+        return Ok(Link::Current);
+    };
+    if meta.file_type().is_symlink() {
+        if !std::fs::read_link(&link).is_ok_and(|t| t == Path::new(RETIRED_AGENTS_DOC_REL)) {
+            return Ok(Link::Current);
         }
-        #[cfg(windows)]
-        Ok(meta) if meta.is_file() => {
-            return managed_copy(&link, AGENTS_DOC).map_err(|e| e.to_string())
-        }
-        Ok(_) => return Ok(Link::Skipped),
-        Err(_) => {}
+        std::fs::remove_file(&link)?;
+        return Ok(Link::Linked);
     }
-    symlink_or_copy(AGENTS_DOC_REL, &link, AGENTS_DOC)
-        .map_err(|e| format!("cannot link {name}: {e}"))?;
+    let managed = meta.is_file()
+        && std::fs::read(&link).is_ok_and(|body| {
+            std::fs::read_to_string(&marker).is_ok_and(|recorded| recorded == sha256_hex(&body))
+        });
+    if !managed {
+        return Ok(Link::Current);
+    }
+    std::fs::remove_file(&link)?;
+    std::fs::remove_file(&marker)?;
     Ok(Link::Linked)
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    ring::digest::digest(&ring::digest::SHA256, bytes)
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// What a sweep of the course folders did.
 #[derive(Default)]
 pub struct LinkReport {
+    /// Folders whose root `AGENTS.md` link from an earlier layout was removed.
     pub linked: Vec<String>,
+    /// Folders already as they should be.
     pub current: usize,
-    pub skipped: Vec<String>,
 }
 
-/// A relative symlink, or a plain copy where symlinks need a privilege (Windows).
-#[cfg(unix)]
-fn symlink_or_copy(target: &str, link: &Path, _body: &str) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(target, link)
-}
-
+/// A plain copy, where symlinks need a privilege (Windows).
 #[cfg(not(unix))]
 fn symlink_or_copy(_target: &str, link: &Path, body: &str) -> std::io::Result<()> {
     #[cfg(windows)]
@@ -298,13 +316,7 @@ fn managed_copy(path: &Path, body: &str) -> std::io::Result<Link> {
         "{}.oculus-managed",
         path.file_name().unwrap_or_default().to_string_lossy()
     ));
-    let hash = |bytes: &[u8]| {
-        ring::digest::digest(&ring::digest::SHA256, bytes)
-            .as_ref()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-    };
+    let hash = sha256_hex;
     if let Ok(existing) = std::fs::read(path) {
         let recorded = std::fs::read_to_string(&marker).unwrap_or_default();
         if recorded != hash(&existing) {

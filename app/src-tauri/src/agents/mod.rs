@@ -41,14 +41,42 @@ pub const MEMORIES_DIR: &str = "memories";
 /// opencode's config, which `harness::write_opencode_config` renders here.
 pub const OPENCODE_CONFIG_NAME: &str = "opencode.json";
 
-/// From a course folder to the one central copy; relative so the library can move.
-const AGENTS_DOC_REL: &str = "../../agents/AGENTS.md";
+/// What a course folder's root `AGENTS.md` link pointed at before the state
+/// folder; `links` removes a link that still does.
+const RETIRED_AGENTS_DOC_REL: &str = "../../agents/AGENTS.md";
 
-/// The agents' workspace, at the data dir's top: every thread's cwd.
+/// The agents' workspace, in the state folder: every thread's cwd.
 pub const AGENTS_DIR: &str = "agents";
 
 pub fn agents_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join(AGENTS_DIR)
+    crate::library::paths::state_dir(data_dir).join(AGENTS_DIR)
+}
+
+/// `.oculus/agents`, the workspace as a data-dir-relative path spells it.
+pub fn agents_rel() -> String {
+    crate::library::paths::state_rel(AGENTS_DIR)
+}
+
+/// A data-dir-relative path as a thread spells it from its cwd, the
+/// workspace: `courses/X` is `../../courses/X` from `.oculus/agents`.
+pub fn from_workspace(rel: &str) -> String {
+    let up = agents_rel().split('/').count();
+    format!("{}{rel}", "../".repeat(up))
+}
+
+/// Whether a data-dir-relative path is one the viewers may read: in the
+/// library (`layout::in_library`: `courses/` and the student's own top-level
+/// folders) or the workspace. Plain segments only, so never a dot-name at the
+/// top but the workspace.
+pub fn readable(relative: &Path) -> bool {
+    use std::path::Component;
+    let plain = relative
+        .components()
+        .all(|part| matches!(part, Component::Normal(_)));
+    let in_library = relative
+        .to_str()
+        .is_some_and(crate::library::layout::in_library);
+    plain && (in_library || relative.starts_with(agents_rel()))
 }
 
 /// The one copy of the skills. Everything else about them is a route to here.

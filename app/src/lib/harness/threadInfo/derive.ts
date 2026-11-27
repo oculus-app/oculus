@@ -1,4 +1,5 @@
 import { splitLibraryPaths } from "@/lib/files/libraryPaths";
+import { AGENTS_PATTERN, MEMORIES_DIR } from "@/lib/files/statePaths";
 import { messageAt, parseToolMeta } from "@/lib/harness/meta";
 import { shellCommands } from "@/lib/harness/oculusCli";
 import type { HarnessItem } from "@/lib/harness/types";
@@ -52,8 +53,14 @@ const READERS = new Set(["cat", "head", "tail", "sed", "nl", "less", "more", "ba
 /** Path arguments each CLI's file tools spell (`classify.rs`). */
 const PATH_KEYS = ["file_path", "path", "notebook_path", "Path", "AbsolutePath", "TargetFile"];
 
-/** A path under the agent's `outputs/`, as a shell line can spell it. */
-const OUTPUT_PATH = /(?:^|[\s'"=(>])((?:\/[^\s'"|;&<>()]*?\/agents\/|\.\.\/agents\/|\.\/|agents\/)?outputs\/[^\s'"|;&<>()]+\.[A-Za-z0-9]+)/g;
+/** A path under the agent's `outputs/`, as a shell line can spell it:
+ *  absolute, from the cwd, or data-dir-relative with the agents' folder
+ *  spelled either way (`lib/files/statePaths.ts`). */
+const OUTPUT_PATH = new RegExp(
+  `(?:^|[\\s'"=(>])((?:\\/[^\\s'"|;&<>()]*?\\/agents\\/|(?:\\.\\.\\/){0,2}${AGENTS_PATTERN}\\/|\\.\\/)?` +
+    `outputs\\/[^\\s'"|;&<>()]+\\.[A-Za-z0-9]+)`,
+  "g",
+);
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 
@@ -166,7 +173,7 @@ function scanOculus(rest: string[], at: number, lists: Lists) {
   if (cmd === "memory" && (action === "write" || action === "append" || action === "fold")) {
     const name = action === "fold" ? flagValue(more, "--into") : more[0] && !more[0].startsWith("-") ? more[0] : undefined;
     const code = flagValue(more, "-s", "--subject");
-    const bucket = `agents/memories/${code ? `${code}/` : ""}`;
+    const bucket = `${MEMORIES_DIR}/${code ? `${code}/` : ""}`;
     const path = name ? `${bucket}${name}.md` : bucket;
     lists.addMadeTarget(path, { kind: "library", path }, path, at);
     return;

@@ -148,7 +148,11 @@ fn pdf_view_paths_stay_inside_the_library_roots() {
         resolve_in(root, "courses/X/Course/Files/a.pdf"),
         Ok(PathBuf::from("/data/courses/X/Course/Files/a.pdf"))
     );
-    assert!(resolve_in(root, "agents/a.pdf").is_ok());
+    assert!(resolve_in(root, ".oculus/agents/outputs/a.pdf").is_ok());
+    // The state folder beside the workspace is not the viewer's to read.
+    assert!(resolve_in(root, ".oculus/vault.bin").is_err());
+    assert!(resolve_in(root, ".oculus/a.pdf").is_err());
+    assert!(resolve_in(root, ".library-move/a.pdf").is_err());
     // A student's own top-level folders are library too.
     assert_eq!(
         resolve_in(root, "Receipts/a.pdf"),

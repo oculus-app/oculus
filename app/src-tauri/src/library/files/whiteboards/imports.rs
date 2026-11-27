@@ -2,7 +2,7 @@
 //! Later raster requests carry a session ID, never an arbitrary path.
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
-use std::path::{Component, Path};
+use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hayro::hayro_syntax::Pdf;
@@ -118,13 +118,7 @@ fn close(owner: &str, id: &str) {
 
 fn library_path(root: &Path, relative: &str) -> Result<std::path::PathBuf, String> {
     let path = Path::new(relative);
-    let inside = crate::library::layout::in_library(relative)
-        || relative.split('/').next() == Some(crate::agents::AGENTS_DIR);
-    if !inside
-        || !path
-            .components()
-            .all(|part| matches!(part, Component::Normal(_)))
-    {
+    if !crate::agents::readable(path) {
         return Err("Choose a PDF inside the library".into());
     }
     let root = root.canonicalize().map_err(|e| e.to_string())?;

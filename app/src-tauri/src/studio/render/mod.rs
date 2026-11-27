@@ -219,7 +219,7 @@ fn video(
     let used = cache::Used {
         segments: segments.iter().map(|s| format!("{}.mp4", s.key)).collect(),
         track: track.as_deref().and_then(cache::file_name),
-        out: Some(out.to_string_lossy().into_owned()),
+        out: Some(cache::recorded_out(dir, out)),
     };
     let pruned = cache::record_and_prune(dir, options.preset, used)?;
     Ok(Report {

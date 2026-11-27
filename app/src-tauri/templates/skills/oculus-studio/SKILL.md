@@ -136,7 +136,7 @@ Both are in `skills/oculus-studio/` under your working directory.
 
 ## Where things are
 
-From your working directory (`agents/`):
+From your working directory (`.oculus/agents/`):
 
 ```
 ../studio/videos/<slug>/      one video

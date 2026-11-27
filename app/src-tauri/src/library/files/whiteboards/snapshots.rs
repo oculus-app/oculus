@@ -38,7 +38,11 @@ fn dir_at(root: &Path, file_id: i64, create: bool) -> Result<Option<PathBuf>, St
         return Err("Invalid drawing file ID".into());
     }
     let mut path = root.to_path_buf();
-    for part in [PAGES_DIR.to_string(), file_id.to_string()] {
+    for part in crate::library::paths::state_rel(PAGES_DIR)
+        .split('/')
+        .map(str::to_string)
+        .chain([file_id.to_string()])
+    {
         path.push(part);
         match std::fs::symlink_metadata(&path) {
             Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
@@ -311,7 +315,12 @@ mod tests {
     fn refuses_a_symlinked_folder() {
         let root = root();
         let elsewhere = crate::test_support::Scratch::new("whiteboard-pages-elsewhere");
-        std::os::unix::fs::symlink(&elsewhere, root.join(PAGES_DIR)).unwrap();
+        std::fs::create_dir_all(crate::library::paths::state_dir(&root)).unwrap();
+        std::os::unix::fs::symlink(
+            &elsewhere,
+            crate::library::paths::state_dir(&root).join(PAGES_DIR),
+        )
+        .unwrap();
         assert!(write_at(&root, 7, REL, 1, vec![page(0)], 1).is_err());
         assert!(std::fs::read_dir(&elsewhere).unwrap().next().is_none());
     }

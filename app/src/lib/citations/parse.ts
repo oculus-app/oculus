@@ -1,5 +1,6 @@
 import { parsedMdSource } from "@/lib/files/fileTypes";
-import { COURSE_DIR, FILES_DIR, SYNCED_DIR_NAMES, inFolder, isCoursePath } from "@/lib/files/libraryLayout";
+import { COURSE_DIR, COURSES_DIR, FILES_DIR, SYNCED_DIR_NAMES, inFolder, isCoursePath } from "@/lib/files/libraryLayout";
+import { AGENTS_DIR, AGENTS_PATTERN, stateRel } from "@/lib/files/statePaths";
 
 /** 1-based, inclusive. */
 export interface LineRange {
@@ -14,8 +15,8 @@ export interface CiteLocation {
   at?: number;
 }
 
-/** A citation whose file is known: `path` is data-dir-relative, under
- *  `courses/` or `agents/`. */
+/** A citation whose file is known: `path` is data-dir-relative and where the
+ *  file is, under `courses/` or `.oculus/agents/`. */
 export interface Citation extends CiteLocation {
   path: string;
 }
@@ -30,7 +31,9 @@ export type CitationShape =
  *  `#page=12`, or a lecture moment `#t=723`. */
 const SUFFIX = /(?::L?(\d+)(?:-L?(\d+))?|#L(\d+)(?:-L?(\d+))?|#page=(\d+)|#t=(\d+(?:\.\d+)?))$/;
 
-export const ROOTS = "(?:courses|agents)";
+/** The folders a citation may name, data-dir-relative: a course, or the
+ *  agents' workspace in either spelling (`lib/files/statePaths.ts`). */
+export const ROOTS = `(?:${COURSES_DIR}|${AGENTS_PATTERN})`;
 
 /** From the filesystem root, cut at the data dir (`IDENTIFIER` in
  *  `app/src-tauri/src/library/paths/mod.rs`); any `/…/courses/…` also counts, but
@@ -40,10 +43,15 @@ const ABSOLUTE = new RegExp(`^\\/.*?\\/com\\.tchan\\.oculus\\/(${ROOTS}\\/.+)$`)
 const ABSOLUTE_COURSES = /^\/.*?\/(courses\/.+)$/;
 const COMMAND = /\s[-/]|[|&;<>$`*]/;
 
-/** Data-dir-relative, or `../` from `agents/`, where every thread runs. */
-const RELATIVE = new RegExp(`^(?:\\.\\.\\/)?(${ROOTS}\\/.+)$`);
+/** The steps up a path may open with: `../../` reaches the data dir from
+ *  `.oculus/agents/`, where every thread runs; older chats spell it `../`,
+ *  from `agents/`. */
+const UP = /^(?:\.\.\/){1,2}/;
 
-/** Relative to the agent's cwd (`agents/`). */
+/** Data-dir-relative, or up from the agents' cwd onto a root. */
+const RELATIVE = new RegExp(`^(?:\\.\\.\\/){0,2}(${ROOTS}\\/.+)$`);
+
+/** Relative to the agent's cwd (`.oculus/agents/`). */
 const AGENT_CWD = /^(?:\.\/(.+)|((?:attachments|outputs)\/.+))$/;
 
 /** A course-relative path into one of the synced folders
@@ -117,18 +125,19 @@ export function parseCitation(
     if (p) loc.page = Number(p[1]);
   }
 
-  // Only the leading ../ from agents/ may leave its directory. Check after
-  // decoding so a markdown-encoded parent or Windows separator cannot bypass it.
-  if (/[\\\x00-\x1f]/.test(s) || s.replace(/^\.\.\//, "").split("/").includes("..")) return null;
+  // Only the leading steps up may leave the agents' directory, and `RELATIVE`
+  // lands them on a root. Check after decoding so a markdown-encoded parent
+  // or Windows separator cannot bypass it.
+  if (/[\\\x00-\x1f]/.test(s) || s.replace(UP, "").split("/").includes("..")) return null;
   if (s.startsWith("/")) {
     const m = ABSOLUTE.exec(s) ?? ABSOLUTE_COURSES.exec(s);
-    return m && !COMMAND.test(s) ? { kind: "path", path: m[1], ...loc } : null;
+    return m && !COMMAND.test(s) ? { kind: "path", path: stateRel(m[1]), ...loc } : null;
   }
   if (/\s/.test(path)) return null;
   const rel = RELATIVE.exec(s);
-  if (rel) return { kind: "path", path: rel[1], ...loc };
+  if (rel) return { kind: "path", path: stateRel(rel[1]), ...loc };
   const cwd = AGENT_CWD.exec(s);
-  if (cwd) return { kind: "path", path: `agents/${cwd[1] ?? cwd[2]}`, ...loc };
+  if (cwd) return { kind: "path", path: `${AGENTS_DIR}/${cwd[1] ?? cwd[2]}`, ...loc };
   if (tails && (COURSE_RELATIVE.test(s) || BARE_NAME.test(s)))
     return { kind: "tail", tail: s, ...loc };
   return null;

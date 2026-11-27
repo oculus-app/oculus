@@ -135,7 +135,7 @@ fn an_old_library_moves_into_the_tree() {
         let link = std::fs::read_link(d.join(s(".oculus/agents/memories"))).unwrap();
         assert_eq!(
             link,
-            std::path::Path::new(&format!("../../../../agents/memories/{CODE}"))
+            std::path::Path::new(&format!("../../../../.oculus/agents/memories/{CODE}"))
         );
         assert!(
             d.join(s(".oculus/agents/memories")).is_dir(),
@@ -151,7 +151,7 @@ fn an_old_library_moves_into_the_tree() {
     assert!(!exists(&d, "lectures"));
 
     // Records outside the library.
-    assert!(read(&d, "canvas-pages/14/pages.json").contains(&s("nb.notebook")));
+    assert!(read(&d, ".oculus/canvas-pages/14/pages.json").contains(&s("nb.notebook")));
     assert!(exists(&d, "courses/loose.pdf"), "loose files stay");
     assert!(summary.left.iter().any(|l| l.contains("loose.pdf")));
 

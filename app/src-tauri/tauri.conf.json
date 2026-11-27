@@ -32,9 +32,9 @@
         "scope": {
           "allow": [
             "$APPDATA/courses/**",
-            "$APPDATA/agents/**",
-            "$APPDATA/whiteboard-pages/**",
-            "$APPDATA/studio/videos/**"
+            "$APPDATA/.oculus/agents/**",
+            "$APPDATA/.oculus/whiteboard-pages/**",
+            "$APPDATA/.oculus/studio/videos/**"
           ],
           "requireLiteralLeadingDot": false
         }

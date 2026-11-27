@@ -33,7 +33,7 @@ describe('libraryLayout', () => {
 
   test('paths inside a subject lose the subject prefix, others are kept', () => {
     expect(courseRelOf('courses/X/Course/Files/a.pdf')).toBe('Course/Files/a.pdf');
-    expect(courseRelOf('agents/outputs/a.md')).toBe('agents/outputs/a.md');
+    expect(courseRelOf('.oculus/agents/outputs/a.md')).toBe('.oculus/agents/outputs/a.md');
     expect(inFolder('courses/X/Course/Lessons/1-l.md', LESSONS_DIR)).toBe(true);
     expect(inFolder('courses/X/Lessons/Course/Files/a.pdf', FILES_DIR)).toBe(false);
   });

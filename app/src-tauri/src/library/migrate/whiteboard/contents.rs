@@ -60,7 +60,8 @@ pub fn rewrite(data_dir: &Path, plan: &Plan, linker: &Linker<'_>) -> Result<Cont
 /// Every `<file id>/pages.json` with its notebook's path under the key the
 /// app reads.
 fn manifests(data_dir: &Path) -> Result<usize, String> {
-    let Ok(read) = std::fs::read_dir(data_dir.join(PAGES_DIR)) else {
+    let Ok(read) = std::fs::read_dir(crate::library::paths::state_dir(data_dir).join(PAGES_DIR))
+    else {
         return Ok(0);
     };
     let mut changed = 0;

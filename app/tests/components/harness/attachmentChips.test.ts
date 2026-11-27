@@ -10,7 +10,7 @@ import {
   refersTo,
   withShelf,
 } from "@/lib/harness/attachments";
-import { addName, attachmentKindLabel } from "@/stores/chat/attachmentNames";
+import { addName, attachmentKindLabel, currentNames } from "@/stores/chat/attachmentNames";
 import { useDraftStore } from "@/stores/chat/draftStore";
 
 // `dom.ts` reaches modules that may listen on `window` and `document` at
@@ -39,11 +39,12 @@ describe("attachment chips in the box", () => {
   });
 
   test("a chip in either spelling keeps the message's own", () => {
-    const draft = "`agents/attachments/x.png` and `../agents/attachments/y.pdf`";
+    const draft = "`agents/attachments/x.png` and `../agents/attachments/y.pdf`, `.oculus/agents/attachments/z.png`";
     expect(chunksText(toChunks(draft))).toBe(draft);
     expect(toChunks(draft).filter((c) => c.kind === "attachment")).toEqual([
       att("agents/attachments/x.png"),
       att("../agents/attachments/y.pdf"),
+      att(".oculus/agents/attachments/z.png"),
     ]);
   });
 
@@ -129,6 +130,7 @@ describe("the shelf and the sentence", () => {
 
   test("an attachment in any spelling counts as named", () => {
     expect(refersTo(`x \`agents/attachments/${A.slice(14)}\``, A)).toBe(true);
+    expect(refersTo(`x \`.oculus/agents/attachments/${A.slice(14)}\``, A)).toBe(true);
     expect(refersTo(`x \`${B}\``, A)).toBe(false);
   });
 
@@ -149,16 +151,61 @@ describe("attachment paths", () => {
     expect(attachmentPath("./attachments/..")).toBeNull();
     expect(attachmentPath("./attachments/.env")).toBeNull();
     expect(attachmentPath("attachments/../x.png")).toBeNull();
-    expect(attachmentPath("./attachments/a.b.txt")).toBe("agents/attachments/a.b.txt");
+    expect(attachmentPath("./attachments/a.b.txt")).toBe(".oculus/agents/attachments/a.b.txt");
+    expect(attachmentPath(".oculus/agents/attachments/.env")).toBeNull();
+    expect(attachmentPath(".oculus/agents/attachments/../x.png")).toBeNull();
+  });
+
+  test("every spelling of an attachment is the file in .oculus/agents/attachments/", () => {
+    for (const raw of [
+      "./attachments/x.png",
+      "../attachments/x.png",
+      "attachments/x.png",
+      "agents/attachments/x.png",
+      "../agents/attachments/x.png",
+      ".oculus/agents/attachments/x.png",
+      "../../.oculus/agents/attachments/x.png",
+    ]) {
+      expect(attachmentPath(raw)).toBe(".oculus/agents/attachments/x.png");
+    }
+    const parts = splitLibraryPaths("`agents/attachments/x.png` `.oculus/agents/attachments/y.pdf`");
+    expect(parts.filter((p) => p.kind !== "text")).toEqual([
+      { kind: "image", path: ".oculus/agents/attachments/x.png", raw: "agents/attachments/x.png" },
+      { kind: "attachment", path: ".oculus/agents/attachments/y.pdf", raw: ".oculus/agents/attachments/y.pdf" },
+    ]);
+  });
+
+  test("a folder that only resembles attachments/ is not one", () => {
+    for (const raw of [
+      "../../../attachments/x.png",
+      "courses/X/attachments/x.png",
+      ".oculus/attachments/x.png",
+      ".oculus/studio/attachments/x.png",
+      "agents/attachments/sub/x.png",
+      "attachments\\x.png",
+    ]) {
+      expect(attachmentPath(raw)).toBeNull();
+    }
   });
 
   test("names are kept newest last, the oldest dropped past the cap", () => {
     let names: Record<string, string> = {};
-    for (let i = 0; i < 4; i++) names = addName(names, `agents/attachments/${i}.png`, `n${i}`, 3);
-    expect(Object.keys(names)).toEqual(["agents/attachments/1.png", "agents/attachments/2.png", "agents/attachments/3.png"]);
-    expect(attachmentKindLabel("agents/attachments/x.pdf")).toBe("PDF");
-    expect(attachmentKindLabel("agents/attachments/x.png")).toBe("Picture");
-    expect(attachmentKindLabel("agents/attachments/x.md")).toBe("Text file");
+    for (let i = 0; i < 4; i++) names = addName(names, `.oculus/agents/attachments/${i}.png`, `n${i}`, 3);
+    expect(Object.keys(names)).toEqual([
+      ".oculus/agents/attachments/1.png",
+      ".oculus/agents/attachments/2.png",
+      ".oculus/agents/attachments/3.png",
+    ]);
+    expect(attachmentKindLabel(".oculus/agents/attachments/x.pdf")).toBe("PDF");
+    expect(attachmentKindLabel(".oculus/agents/attachments/x.png")).toBe("Picture");
+    expect(attachmentKindLabel(".oculus/agents/attachments/x.md")).toBe("Text file");
+  });
+
+  test("a name stored under the older spelling is read under the file's path", () => {
+    expect(currentNames({ "agents/attachments/1.png": "old", ".oculus/agents/attachments/2.png": "new" })).toEqual({
+      ".oculus/agents/attachments/1.png": "old",
+      ".oculus/agents/attachments/2.png": "new",
+    });
   });
 });
 

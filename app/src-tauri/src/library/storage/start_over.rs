@@ -12,30 +12,37 @@ use std::path::{Path, PathBuf};
 /// the sign-in attempt record are its install. A running keyd may hold that
 /// lock: a new file at its path would let a second process take it too.
 /// Sign-out has already dropped the sessions and the Okta credentials from the
-/// vault.
+/// vault. The launch moves' record stays too: it says which layout the folder
+/// is in, and is what a build from before the state folder refuses on.
 fn kept(data_dir: &Path) -> Vec<PathBuf> {
+    use crate::library::paths::{mineru_usage_path, models_dir, voyage_usage_path};
     use keyd_core::paths;
 
     let vault = paths::vault(data_dir);
     vec![
-        data_dir.join("mineru-usage.json"),
-        data_dir.join("voyage-usage.json"),
-        data_dir.join("models"),
+        mineru_usage_path(data_dir),
+        voyage_usage_path(data_dir),
+        models_dir(data_dir),
         paths::vault_lock(&vault),
         vault,
         paths::socket(data_dir),
         paths::bin_dir(data_dir),
         paths::sign_in_lock(data_dir),
+        crate::library::migrate::record_dir(data_dir),
     ]
 }
 
+/// In the state folder: a file of this name at the top would be the
+/// student's. One an earlier build left at the top is moved here by the
+/// launch move, which runs first.
 fn start_over_marker(data_dir: &Path) -> std::path::PathBuf {
-    data_dir.join("start-over")
+    crate::library::paths::state_dir(data_dir).join("start-over")
 }
 
 /// Empty the data dir if Start over asked for it, keeping what [`kept`]
-/// names. The first thing the app and the CLI do. The marker goes last, so an
-/// interrupted run finishes on the next launch.
+/// names. Right after the state move in the app and the CLI
+/// (`library::at_launch`). The marker goes last, so an interrupted run
+/// finishes on the next launch.
 pub fn finish_start_over(data_dir: &Path) {
     let marker = start_over_marker(data_dir);
     if !marker.exists() {
@@ -106,41 +113,55 @@ pub async fn storage_start_over(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::library::paths::{db_path, ensure_state_dir, state_dir};
     use crate::test_support::Scratch;
 
-    #[test]
-    fn start_over_empties_the_library_but_keeps_cloud_usage_models_and_keyd() {
-        let dir = Scratch::new("start-over");
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// A used library in this build's layout.
+    fn library(name: &str) -> Scratch {
+        let dir = Scratch::new(name);
+        let state = ensure_state_dir(&dir).unwrap();
         std::fs::create_dir_all(dir.join("courses/COMP30026/Course/Files")).unwrap();
         std::fs::write(dir.join("courses/COMP30026/Course/Files/a.pdf"), b"%PDF").unwrap();
-        std::fs::write(dir.join("oculus.db"), b"").unwrap();
-        std::fs::write(dir.join("institution.json"), b"{}").unwrap();
-        std::fs::write(dir.join("voyage-usage.json"), b"{}").unwrap();
-        std::fs::write(dir.join("mineru-usage.json"), b"{}").unwrap();
+        std::fs::write(db_path(&dir), b"").unwrap();
+        std::fs::write(state.join("institution.json"), b"{}").unwrap();
+        std::fs::write(state.join("voyage-usage.json"), b"{}").unwrap();
+        std::fs::write(state.join("mineru-usage.json"), b"{}").unwrap();
+        std::fs::create_dir_all(state.join("agents/memories")).unwrap();
         std::fs::write(keyd_core::paths::vault(&dir), b"sealed").unwrap();
         std::fs::create_dir_all(keyd_core::paths::bin_dir(&dir)).unwrap();
         std::fs::create_dir_all(keyd_core::paths::session_dir(&dir)).unwrap();
         std::fs::write(keyd_core::paths::sign_in_record(&dir), b"{}").unwrap();
         std::fs::write(keyd_core::paths::signed_out(&dir), b"").unwrap();
         std::fs::write(keyd_core::paths::sign_in_lock(&dir), b"").unwrap();
-        std::fs::create_dir_all(dir.join("models/whisper")).unwrap();
-        std::fs::write(dir.join("models/whisper/ggml-base.bin"), b"model").unwrap();
+        std::fs::create_dir_all(state.join("models/whisper")).unwrap();
+        std::fs::write(state.join("models/whisper/ggml-base.bin"), b"model").unwrap();
+        let record = crate::library::migrate::record_dir(&dir);
+        std::fs::create_dir_all(&record).unwrap();
+        std::fs::write(record.join("done"), b"state").unwrap();
+        std::fs::write(record.join("journal.json"), b"{\"format\": 2}").unwrap();
+        dir
+    }
 
+    #[test]
+    fn start_over_empties_the_library_but_keeps_cloud_usage_models_keyd_and_the_layout_record() {
+        let dir = library("start-over");
         finish_start_over(&dir);
-        assert!(
-            dir.join("oculus.db").exists(),
-            "nothing happens without the marker"
-        );
+        assert!(db_path(&dir).exists(), "nothing happens without the marker");
 
         std::fs::write(start_over_marker(&dir), b"1").unwrap();
         finish_start_over(&dir);
-        let mut left: Vec<_> = std::fs::read_dir(&*dir)
-            .unwrap()
-            .map(|e| e.unwrap().file_name().into_string().unwrap())
-            .collect();
-        left.sort();
+        assert_eq!(names(&dir), [".library-move", ".oculus"]);
         assert_eq!(
-            left,
+            names(&state_dir(&dir)),
             [
                 "bin",
                 "canvas-session",
@@ -150,12 +171,31 @@ mod tests {
                 "voyage-usage.json"
             ]
         );
-        assert!(dir.join("models/whisper/ggml-base.bin").exists());
-        let session: Vec<_> = std::fs::read_dir(keyd_core::paths::session_dir(&dir))
-            .unwrap()
-            .map(|e| e.unwrap().file_name().into_string().unwrap())
-            .collect();
-        assert_eq!(session, ["sign-in.json.lock"], "keyd's lock stays put");
+        assert!(state_dir(&dir)
+            .join("models/whisper/ggml-base.bin")
+            .exists());
+        assert_eq!(
+            names(&keyd_core::paths::session_dir(&dir)),
+            ["sign-in.json.lock"],
+            "keyd's lock stays put"
+        );
+        // What a build from before the state folder refuses on is still there.
+        assert_eq!(
+            names(&crate::library::migrate::record_dir(&dir)),
+            ["done", "journal.json"]
+        );
         assert!(!start_over_marker(&dir).exists());
+    }
+
+    /// At the top the name is the student's: a file called `start-over`
+    /// there never empties a library that has moved.
+    #[test]
+    fn a_file_named_like_the_marker_at_the_top_is_not_the_marker() {
+        let dir = library("start-over-top");
+        std::fs::write(dir.join("start-over"), b"my notes").unwrap();
+        finish_start_over(&dir);
+        assert!(db_path(&dir).exists());
+        assert!(dir.join("courses/COMP30026/Course/Files/a.pdf").exists());
+        assert_eq!(std::fs::read(dir.join("start-over")).unwrap(), b"my notes");
     }
 }

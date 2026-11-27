@@ -3,7 +3,7 @@ import { attachmentPath, isImagePath } from "@/lib/harness/attachments";
 
 /** Prose, a fenced library path, or an attachment: a picture (`image`) or a
  *  PDF or text file (`attachment`). Their `path` is data-directory-relative
- *  (`agents/attachments/…`, `<img>`-loadable through `attachmentSrc`); `raw`
+ *  (`.oculus/agents/attachments/…`, `<img>`-loadable through `attachmentSrc`); `raw`
  *  is the message's own spelling. See `app/src/lib/harness/attachments.ts`. */
 export type TextPart =
   | { kind: "text"; text: string }

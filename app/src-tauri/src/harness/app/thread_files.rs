@@ -1,5 +1,5 @@
 //! A chat's attachments when the chat is deleted: the files the student
-//! pasted or dropped into it (`agents/attachments/`), never what the agent
+//! pasted or dropped into it (the workspace's `attachments/`), never what the agent
 //! made. The folder is shared by every chat, so a file goes only while no
 //! other chat's messages or queue name it; the check runs again at delete
 //! time, after the chat's own rows are gone.
@@ -25,7 +25,7 @@ const NAMED_ELSEWHERE: &str = "SELECT EXISTS(
        WHERE instr(queued_text, ?1) > 0 AND (?2 IS NULL OR thread_id != ?2))";
 
 /// The attachments `thread_id` names that no other chat does, as
-/// `agents/attachments/<name>`, whether or not each is still on disk.
+/// `.oculus/agents/attachments/<name>`, whether or not each is still on disk.
 pub(crate) async fn own_attachments(
     pool: &SqlitePool,
     thread_id: i64,
@@ -127,8 +127,8 @@ mod tests {
             .unwrap();
     }
 
-    const MINE: &str = "agents/attachments/20261120-063301-0a1b2c3d.png";
-    const SHARED: &str = "agents/attachments/20261120-063302-00ff00ff.pdf";
+    const MINE: &str = ".oculus/agents/attachments/20261120-063301-0a1b2c3d.png";
+    const SHARED: &str = ".oculus/agents/attachments/20261120-063302-00ff00ff.pdf";
 
     #[tokio::test]
     async fn a_chat_owns_only_what_no_other_chat_names() {
@@ -158,7 +158,7 @@ mod tests {
     async fn removal_rechecks_and_keeps_a_file_still_named() {
         let pool = pool().await;
         let data = crate::test_support::Scratch::new("thread-files");
-        let dir = data.join("agents").join("attachments");
+        let dir = crate::agents::agents_dir(&data).join("attachments");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("20261120-063301-0a1b2c3d.png"), b"p").unwrap();
         std::fs::write(dir.join("20261120-063302-00ff00ff.pdf"), b"d").unwrap();

@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { insertRankedSearchResult, normalizeSearchQuery, scoreQueryMatch } from "@/lib/search/ranking";
 
-/** Where a skill was found: the library's own skills (`agents/.claude/skills`,
- *  `agents/.agents/skills`), or the student's home folders (`~/.claude/skills`,
+/** Where a skill was found: the library's own skills (`.claude/skills` and
+ *  `.agents/skills` in `.oculus/agents/`), or the student's home folders (`~/.claude/skills`,
  *  `~/.agents/skills`). */
 export type SkillSource = "oculus" | "personal";
 

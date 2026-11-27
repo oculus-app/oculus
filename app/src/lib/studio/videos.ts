@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { RenderPreset } from "@/lib/studio/render";
 
-// Studio's videos under `<data>/studio/videos/<slug>/`
+// Studio's videos under `<data>/.oculus/studio/videos/<slug>/`
 // (`app/src-tauri/src/studio/commands/videos/`). A slug is `[a-z0-9-]+`.
 
 /** Mirrors the app command's `VideoView`. */

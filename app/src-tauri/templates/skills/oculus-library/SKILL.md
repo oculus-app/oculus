@@ -27,7 +27,7 @@ Two consequences worth holding on to:
 
 ## Where things are on disk
 
-From the chat's working directory a subject is `../courses/<CODE>/`:
+From the chat's working directory a subject is `../../courses/<CODE>/`:
 
 - `Course/` is what Oculus syncs, and it is read-only: `Files/` (slide decks
   and downloads), `Pages/`, `Announcements/`, `Assignments/`, `Quizzes/`,
@@ -72,7 +72,7 @@ So the shape is always locate, then read:
 
 - a `.pdf` hit → `oculus read <file> -p <page>`
 - a `.md` hit → the file is right there on disk, at that path from the
-  library root (`../` from the chat's folder). Read it, or use native `rg`
+  library root (`../../` from the chat's folder). Read it, or use native `rg`
   on **that path** if you want context lines. `rg` is the better tool once you
   know which file you are in; it just cannot find the file for you.
 - a `.pdf` hit you want context for → its `<stem>.md` beside it is the whole

@@ -58,12 +58,17 @@ fn a_failed_request_write_does_not_leave_a_pending_reply() {
 #[test]
 fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd() {
     let library = crate::test_support::Scratch::new("codex-roots");
+    crate::library::paths::ensure_state_dir(&library).unwrap();
     let db = crate::library::paths::db_path(&library);
     std::fs::write(&db, "").unwrap();
     // The WAL sidecars do not exist yet, so they are left out; studio/ is.
-    std::fs::create_dir_all(library.join("studio")).unwrap();
+    let studio = crate::library::paths::studio_dir(&library);
+    std::fs::create_dir_all(&studio).unwrap();
+    // The vault beside them is never a root, nor is the folder they share.
+    std::fs::write(keyd_core::paths::vault(&library), "sealed").unwrap();
+    let cwd = crate::agents::agents_dir(&library);
     let opts = CodexThreadOpts {
-        cwd: library.join("agents"),
+        cwd: cwd.clone(),
         writable_roots: super::writable_roots(&library),
         model: Some("gpt-5.3-codex".into()),
         reasoning_effort: Some("high".into()),
@@ -72,10 +77,25 @@ fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd()
         mode: PermissionMode::Quiet,
         library: library.to_path_buf(),
     };
-    let want = serde_json::json!([db, library.join("studio")]);
+    let want = serde_json::json!([db, studio]);
+    assert_eq!(
+        want,
+        serde_json::json!([
+            library.join(".oculus/oculus.db"),
+            library.join(".oculus/studio")
+        ])
+    );
     for dir in crate::library::paths::agent_write_dirs(&library) {
         assert!(opts.writable_roots.contains(&dir), "{dir:?}");
     }
+    let state = crate::library::paths::state_dir(&library);
+    assert!(
+        !opts
+            .writable_roots
+            .iter()
+            .any(|root| *root == state || keyd_core::paths::vault(&library).starts_with(root)),
+        "no root reaches the vault"
+    );
 
     let thread = CodexServer::thread_params(&opts);
     assert_eq!(thread["sandbox"], "workspace-write");
@@ -83,10 +103,7 @@ fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd()
         thread["config"]["shell_environment_policy.set"]["OCULUS_AGENT"],
         "1"
     );
-    assert_eq!(
-        thread["cwd"],
-        library.join("agents").to_string_lossy().as_ref()
-    );
+    assert_eq!(thread["cwd"], cwd.to_string_lossy().as_ref());
     assert_eq!(
         thread["config"]["sandbox_workspace_write.writable_roots"],
         want

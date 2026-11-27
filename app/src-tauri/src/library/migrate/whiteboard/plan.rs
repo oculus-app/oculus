@@ -15,16 +15,21 @@ use crate::library::layout;
 use crate::library::migrate::journal::{Kind, Op, Step};
 use crate::library::migrate::plan::{base, join, list, name_key, parent};
 use crate::library::migrate::rules::Rule;
-use crate::library::paths::PAGES_DIR;
+use crate::library::paths::{state_rel, PAGES_DIR};
 
 pub fn build(data_dir: &Path, rows: &Rows) -> Plan {
     let mut plan = Plan::default();
-    records(data_dir, &mut plan, LEGACY_PAGES_DIR, PAGES_DIR);
     records(
         data_dir,
         &mut plan,
-        LEGACY_DRAFTS_DIR,
-        whiteboards::drafts::DIR,
+        &state_rel(LEGACY_PAGES_DIR),
+        &state_rel(PAGES_DIR),
+    );
+    records(
+        data_dir,
+        &mut plan,
+        &state_rel(LEGACY_DRAFTS_DIR),
+        &state_rel(whiteboards::drafts::DIR),
     );
     let mut names = Names::new(data_dir, rows);
     for code in layout::subjects_on_disk(data_dir) {

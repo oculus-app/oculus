@@ -151,7 +151,7 @@ interface DraftState {
  * unmounts a composer) never loses them. In localStorage as well, because a
  * `tauri dev` rebuild relaunches the app. Long pastes held as cards
  * (`PastedText`) are kept the same way, under the same key, and so are the
- * pictures on its shelf (written to `agents/attachments/` when attached) and
+ * pictures on its shelf (written to `.oculus/agents/attachments/` when attached) and
  * the scope a new Chat thread will start in (`ChatScope`), until it is sent.
  * Each new chat on the Chat page has an id (`newChats`), so several can wait
  * as rows above the thread list.

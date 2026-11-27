@@ -52,7 +52,7 @@ import { useVideosStore } from "@/stores/studio/videosStore";
 import { WARP_NAME } from "@/lib/ui/warp";
 
 /**
- * Chat with a CLI agent running from the library's `agents/` folder
+ * Chat with a CLI agent running from the data dir's `.oculus/agents/` folder
  * (`docs/harness.md`): the conversations column (`ThreadList`) beside a thread.
  * `?t=<id>` is that thread's timeline; `?d=<id>` is a new chat not yet sent
  * (bare `/chat` opens an empty one), a row above the list until it is: its

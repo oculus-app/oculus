@@ -596,12 +596,12 @@ fn write_into_library(file: &str, blocked: Option<&str>, unseen: bool) -> Rig {
 
 #[test]
 fn a_write_naming_a_protected_path_never_reaches_the_student() {
-    // A file in a protected folder, a protected file at the library's root,
+    // A file in a protected folder, a protected file in the state folder,
     // and a file whose `blocked_path` is in a protected folder.
     for (file, blocked) in [
         ("courses/notes.md", None),
-        ("settings.json", None),
-        ("agents/notes.md", Some("courses/notes.md")),
+        (".oculus/settings.json", None),
+        (".oculus/agents/notes.md", Some("courses/notes.md")),
     ] {
         let mut rig = write_into_library(file, blocked, true);
         rig.open();

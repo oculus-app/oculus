@@ -1,7 +1,7 @@
 //! Library paths the viewer may read, and opening them through
 //! `pdf_render`'s cache of opened documents.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use hayro::hayro_syntax::page::Page;
@@ -10,21 +10,11 @@ use hayro::hayro_syntax::Pdf;
 use super::wire::{OpenedPdf, PageSize};
 use crate::library::pdf_render::{self, OpenError};
 
-/// What the viewer may read: the library (`layout::in_library`) and the
-/// agents' workspace.
-fn readable(relative: &str) -> bool {
-    crate::library::layout::in_library(relative)
-        || relative.split('/').next() == Some(crate::agents::AGENTS_DIR)
-}
-
-/// `relative` under `root`, if it names something the viewer may read.
+/// `relative` under `root`, if it names something the viewer may read
+/// (`agents::readable`).
 pub(super) fn resolve_in(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
-    if !readable(relative)
-        || !path
-            .components()
-            .all(|part| matches!(part, Component::Normal(_)))
-    {
+    if !crate::agents::readable(path) {
         return Err("outside-library".into());
     }
     Ok(root.join(path))

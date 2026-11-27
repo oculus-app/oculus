@@ -3,7 +3,10 @@
 Chat is a coding agent the student already has — Claude Code, Codex, opencode
 or Antigravity (`agy`) — run as a subprocess from the library's `agents/`
 folder, writing there and in the student's own files, its output folded into
-one timeline. Claude Code, Codex and `agy` carry
+one timeline. That folder, `studio/` and the database are in the data dir's
+state folder, `.oculus/`
+([architecture.md](./architecture.md#the-apps-own-files-are-in-one-state-folder));
+on this page `agents/`, `studio/` and `oculus.db` name them there. Claude Code, Codex and `agy` carry
 the student's subscription; opencode carries whatever `opencode auth` holds and
 is the app's only API path. The shape is bb's (get-bb/bb) without plugins: one
 bridge per provider, one event stream, a timeline that only sees the stream.
@@ -157,7 +160,9 @@ display policy: no thinking flags or summary setting, with
 ## Every thread runs from `agents/`; it writes there and in the student's own files
 
 A thread rooted at the library would write straight into every subject's
-`Course/` under `acceptEdits`. So every thread runs from `agents/`, and each
+`Course/` under `acceptEdits`. So every thread runs from `agents/`
+(`<data>/.oculus/agents`, from where a subject is `../../courses/<code>/`;
+`agents::from_workspace` spells it), and each
 CLI is given, its own way, what else it may write: the database's three files
 and `studio/` (below), and the **own zone** — every subject's files and
 folders beside its `Course/` and `.oculus/` (`layout::Zone::Own`), written
@@ -167,14 +172,18 @@ macOS a folder guard refuses them on the protected paths
 The protected paths are listed in `protected.rs`: each
 subject's `Course/` and `.oculus/` (`subject_dirs`, the layout's
 `reserved_names`), the subjects' folder itself and anything in it outside a
-subject, the `canvas-session/` folder (`library_dirs`), the root files
-by pattern (including the vault and its lock and temp files) and the workspace folders.
+subject, the state folder's `canvas-session/` (`library_dirs`), its files
+by pattern (`state_file_globs`, including the vault and its lock and temp
+files) and the workspace folders (`workspace_dir_rels`). The state folder is
+never protected whole: the database's files, `agents/` and `studio/` are in
+it, so its rules name folders and one-segment file patterns, and a Claude
+`Edit` deny on the folder would cancel `allowWrite` for all three.
 
 | CLI | The own zone | `Course/` and `.oculus/` |
 | --- | --- | --- |
 | Claude | `<data>/courses` in `sandbox.filesystem.allowWrite`; `--add-dir` and `acceptEdits` take its edits unasked | `Edit(//<data>/courses/*/Course)` and `…/Course/**`, the same for `.oculus` (`*` is one segment, so a subject synced mid-thread is covered), plus `Edit(//<data>/courses/<code>/Course)` and `…/.oculus` named for each subject on disk at spawn, which makes the sandbox refuse moving that subject's folder; the CLI merges `Edit` denies into `denyWrite` |
 | Codex | Each subject's top-level own entries on disk at the thread's start (`layout::own_top_level`), one writable root each: `workspace-write`'s roots cannot leave out a folder beneath them, so a subject's folder is never a root. A new file or folder at a subject's top level is a request | Never a writable root |
-| opencode | `"{{LIBRARY}}/courses/*/*": "allow"` after the root-file denies (opencode's `*` crosses `/`, and `{{LIBRARY}}/*.json` would refuse a student's `.json`) | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
+| opencode | `"{{LIBRARY}}/courses/*/*": "allow"` after the denies (opencode's `*` crosses `/`); the state folder's file denies are `{{LIBRARY}}/.oculus/*.json` and the like, which a file in the cwd, matched by its relative path, never meets | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
 | Antigravity | Rust allows requests naming only own files. Native Auto can make the edit itself. | Rust refuses requests naming these folders, and the folder guard (`acp/guard.rs`) has macOS refuse the write itself, whoever approved it |
 
 Codex 0.169's permission profiles (`[permissions.<name>.filesystem]`, with a
@@ -188,7 +197,7 @@ without case where the volume does; opencode's rule match is by spelling, so
 `courses/x/course/…` gets past it.
 
 - **Claude**: its sandbox with the cwd, the own zone and the two holes below
-  as write roots, `--add-dir` for reads (without it `ls ../courses` is
+  as write roots, `--add-dir` for reads (without it `ls ../../courses` is
   refused), and `Edit` denies on protected paths so `--add-dir` doesn't pull
   them into `acceptEdits`. What that leaves undecided comes to the host as a
   permission prompt and is asked of the student by the chat's mode
@@ -276,8 +285,9 @@ shared server inherits it at spawn for its shell children.
 and the other keyed commands connect to keyd's Unix socket from inside the
 agent's sandbox
 ([architecture.md](./architecture.md#oculus-keyd-is-the-only-process-meant-to-read-its-key)).
-The socket is `keyd_core::paths::socket(library)`, `keyd.sock` in the data
-dir: the path `Client::at` dials and keyd's launchd registration binds, and
+The socket is `keyd_core::paths::socket(library)`, `.oculus/keyd.sock` in
+the data dir (`.keyd.sock` at its top when that would not fit a socket
+path): the path `Client::at` dials and keyd's launchd registration binds, and
 the harness takes its library from the same `paths::data_dir()` as the CLI.
 No deny list covers it. What each CLI needs was measured on the CLI itself:
 
@@ -562,14 +572,17 @@ still update the picker.
   of replies alone keeps its own label.
 - **A Read of a picture expands to the picture** (`ReadPicture` in
   `WorkRow.tsx`), click for the lightbox. It loads over the asset protocol, so
-  the scope includes notebook snapshots in `whiteboard-pages/` alongside
-  `courses/`, `agents/` and `studio/videos/`. A Read naming the data dir’s
-  `canvas-pages/` subtree loads the corresponding `whiteboard-pages/` image.
+  the scope includes notebook snapshots in `.oculus/whiteboard-pages/` alongside
+  `courses/`, `.oculus/agents/` and `.oculus/studio/videos/`. A stored Read
+  names a path as it was written, so `readPicture.ts` resolves a state folder
+  spelled at the data dir's top, and `canvas-pages/`, to where the picture is
+  (`stateRel` in `app/src/lib/files/statePaths.ts`).
   A missing image leaves the recorded arguments and tool output visible.
 - **A citation opens the file at the cited spot.** One grammar
   (`app/src/lib/citations/`) reads an inline code span, a link's href or a
-  bare path in prose: `courses/…`, `../courses/…`, `agents/…`, absolute,
-  agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`. It is
+  bare path in prose: `courses/…`, up to two leading `../` onto it
+  (`../../courses/…` from the cwd), the workspace as `.oculus/agents/…` or,
+  as older rows spell it, `agents/…`, absolute, agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`. It is
   shape-only and decodes first (the data dir has a space); a course-relative
   path into a synced folder (`Course/Files/…`) or a bare filename is a *tail*, rendered as code until one cached
   `LIKE '%/<tail>'` finds a unique row. A line of a parsed `.md` maps to its
@@ -2555,7 +2568,13 @@ update it. `testkit/agy_requests.rs` replays the 1.5.9 default-mode and
   up that binding, starts `session/new`, and sends the same budgeted full
   transcript handoff a provider switch sends, with the student's message.
   Earlier runs retain their old binding; this run and later sends use the
-  new session id. A timeline note says Antigravity started a new session.
+  new session id. A timeline note says the provider started a new session.
+  The recovery is the send's, not Antigravity's (`SendError::ResumeFailed`
+  in `app/send.rs`): any provider that reports a saved session it cannot
+  load gets it, once per send. opencode reports one when it has no such
+  session for the folder (`AttachError::Missing` in
+  `providers/opencode/session.rs`: a 404, or an answer that is not that
+  session); any other failure to attach fails the send.
   Stop/delete wins over recovery, setup failures fail the send, and a prompt
   write with uncertain delivery is never retried.
 - **A turn** is one `session/prompt`; its reply ends it (`end_turn`,
@@ -2626,10 +2645,10 @@ profile allows everything and denies `file-write*` on the paths
 the `library_dirs`, each subject's `Course/` and `.oculus/` (any subject,
 so one synced mid-chat is covered), the subjects folder and any entry
 directly in it (a subject cannot be created, deleted or renamed), the root
-files by pattern and the app-owned folders in `agents/`. Never
-`oculus.db*`, keyd's socket, `studio/` or an own-zone file. Seatbelt has no
+state folder's files by pattern and the app-owned folders in `agents/`. Never
+the state folder itself, `oculus.db*`, keyd's socket, `studio/` or an own-zone file. Seatbelt has no
 case flag, so each letter is a class (`[Cc][Oo]…`). A second rule denies
-unlinking `agents/`, the library and its ancestors, which the regexes are
+unlinking `agents/`, the state folder, the library and its ancestors, which the regexes are
 anchored to. agy and everything it starts inherit the profile: its file
 tool, a redirect, `rm`, `mv` and a script it runs all get "Operation not
 permitted" (measured 2026-11-25 on agy 1.5.16, macOS 26.3).
@@ -3438,9 +3457,11 @@ timestamp and the cap is 20 MB. Anything else is refused: "Only pictures,
 PDFs and text files can be attached — use @ for a course file." A note's
 pictures go through `write_image`, which takes pictures only.
 `agents/attachments/` must itself be a folder there once links are resolved,
-or nothing is written; `harness_attachments_exist` reads only inside it,
+or nothing is written; `harness_attachments_exist` reads only inside it
+(a path is `.oculus/agents/attachments/<name>`, or `agents/attachments/<name>`
+as older rows spell it),
 refusing an absolute path, a `..` and a link that leads out. `assetProtocol.scope` in
-`app/src-tauri/tauri.conf.json` must name `agents/` or every picture (and
+`app/src-tauri/tauri.conf.json` must name `.oculus/agents/` or every picture (and
 every page an agent made) draws broken; a dropped file is scoped by Tauri on
 delivery.
 

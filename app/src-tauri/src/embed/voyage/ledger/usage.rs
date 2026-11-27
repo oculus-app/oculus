@@ -80,9 +80,9 @@ impl UsageLedger {
         static SHARED: OnceLock<Arc<UsageLedger>> = OnceLock::new();
         SHARED
             .get_or_init(|| {
-                Arc::new(UsageLedger::at(
-                    crate::library::paths::data_dir().join("voyage-usage.json"),
-                ))
+                Arc::new(UsageLedger::at(crate::library::paths::voyage_usage_path(
+                    &crate::library::paths::data_dir(),
+                )))
             })
             .clone()
     }
