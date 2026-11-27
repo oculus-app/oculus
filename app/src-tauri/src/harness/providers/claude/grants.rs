@@ -17,12 +17,14 @@ use crate::library::layout;
 use super::settings::{sandbox_json, SandboxOpts};
 
 /// The folders opened with `--add-dir`: the subjects' folder and the
-/// student's own folders at the top. Never the data dir itself: that would
+/// student's own folders at the top, those that exist (a library before its
+/// first sync has no `courses/`). Never the data dir itself: that would
 /// make all of it writable to the sandbox, `.oculus/` and every dot-name
 /// with it (the CLI grants an added folder's writes as well as its reads).
 pub(super) fn add_dirs(library: &Path) -> Vec<PathBuf> {
     std::iter::once(layout::courses_dir(library))
-        .chain(top_level(library).into_iter().filter(|p| p.is_dir()))
+        .chain(top_level(library))
+        .filter(|p| p.is_dir())
         .collect()
 }
 

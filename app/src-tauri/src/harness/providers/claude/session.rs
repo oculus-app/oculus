@@ -137,7 +137,10 @@ impl ClaudeSession {
         }
         // The own zone's folders, for the file tools to edit unasked; the
         // rest of the library is read through the settings' `Read` allow.
-        cmd.arg("--add-dir").args(grants::add_dirs(&base.library));
+        let dirs = grants::add_dirs(&base.library);
+        if !dirs.is_empty() {
+            cmd.arg("--add-dir").args(dirs);
+        }
         // The TTS server, so `oculus studio narrate` can reach it; a one-off
         // turn has no tools to use it with.
         let hosts: Vec<String> = if cfg.one_off {
