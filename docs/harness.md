@@ -352,7 +352,10 @@ read instruction also covers sessions without native loading.
 `HARNESS.template.md` holds app context, sandbox rules and output: rendered
 fence placement, maths, citations, attachments, visual selection and the
 ` ```ui ` fence grammar (inline so the agent needs no skill read before writing
-a block). Skills hold domain workflows and syntax: `oculus-ui` owns OpenUI
+a block). Its `{{MOVED}}` line is filled only for a library the state move
+moved (`state::moved_here`: its journal lists moves), with how a path an
+older turn wrote reads now; a new install's brief has none of it. Skills
+hold domain workflows and syntax: `oculus-ui` owns OpenUI
 signatures, `oculus-plan` owns planning and amendments, `oculus-revision` owns
 study content and filing, and `oculus-widgets` owns TSX widgets and validation.
 `TASTE.template.md` owns standing preference promotion. A skill references

@@ -114,6 +114,12 @@ impl Summary {
     }
 }
 
+/// Whether this library's own files were moved here into the state folder,
+/// rather than made there: its journal lists the moves.
+pub fn moved_here(data_dir: &Path) -> bool {
+    journal::load(data_dir).is_ok_and(|j| !j.moves.is_empty())
+}
+
 /// The launch check: once the move is done, the state folder made sure of
 /// and what an older build undid tidied (`stray`), else the whole move,
 /// logged in one line.

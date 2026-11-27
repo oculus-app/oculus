@@ -10,6 +10,12 @@ use crate::library::layout;
 
 const INSTRUCTIONS_TEMPLATE: &str = include_str!("../../../templates/HARNESS.template.md");
 
+/// For a library whose folders the state move moved, so a path an older turn
+/// wrote still reads: only what an agent needs to rewrite one.
+const MOVED_NOTE: &str = "A path earlier in this conversation that starts `agents/`, `studio/` \
+or `../courses/` now starts `.oculus/agents/` (this folder), `.oculus/studio/` (`../studio/` \
+from here) or `../../courses/`.\n\n";
+
 /// The thread's working directory: the agents' workspace, `.oculus/agents`.
 pub fn thread_cwd(data_dir: &Path) -> PathBuf {
     crate::agents::agents_dir(data_dir)
@@ -36,9 +42,11 @@ pub fn instructions(
             .collect::<Vec<_>>()
             .join(", ")
     };
+    let moved = crate::library::migrate::state::moved_here(data_dir);
     let base = INSTRUCTIONS_TEMPLATE
         .replace("{{DATA_DIR}}", &data_dir.display().to_string())
-        .replace("{{COURSES}}", &courses);
+        .replace("{{COURSES}}", &courses)
+        .replace("{{MOVED}}", if moved { MOVED_NOTE } else { "" });
     format!("{base}{}", thread_sections(scope, lecture, studio))
 }
 
@@ -147,6 +155,37 @@ fn lecture_section(lec: &LectureBrief, scope: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Only a library the state move moved hears that its paths changed: a
+    /// new install's journal lists no moves.
+    #[test]
+    fn only_a_moved_library_is_told_its_old_paths() {
+        let root = crate::test_support::Scratch::new("harness-moved-note");
+        let fresh = instructions(&root, None, None, None);
+        assert!(
+            !fresh.contains("now starts"),
+            "nothing to tell a new install"
+        );
+        assert!(!fresh.contains("{{MOVED}}"));
+        assert!(fresh.contains("./outputs/`.\n\n## Message context"));
+
+        let record = root.join(".library-move");
+        std::fs::create_dir_all(&record).unwrap();
+        let journal = |moves: &str| {
+            format!(
+                r#"{{"format":2,"phase":"moved","moves":[{moves}],"steps":[],"rules":[],
+                "notes":[],"renamed_records":[],"lectures":[],"relink":[],"left":[]}}"#
+            )
+        };
+        std::fs::write(record.join("journal.json"), journal("")).unwrap();
+        assert!(!instructions(&root, None, None, None).contains("now starts"));
+
+        let moved = r#"{"from":"agents","to":".oculus/agents","done":true}"#;
+        std::fs::write(record.join("journal.json"), journal(moved)).unwrap();
+        let told = instructions(&root, None, None, None);
+        assert!(told.contains("starts `agents/`, `studio/`"), "{told}");
+        assert!(told.contains("`../../courses/`.\n\n## Message context"));
+    }
 
     /// The scope is appended to the library brief, not substituted.
     #[test]

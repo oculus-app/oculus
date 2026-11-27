@@ -22,12 +22,7 @@ you to keep or save goes straight into their subject's folder
 it appears in their Drive when your turn ends. Student attachments are in
 `./attachments/`; pictures and pages you show in a reply go in `./outputs/`.
 
-This library's app folders moved under `.oculus/`. A path earlier in this
-conversation that starts `agents/`, `studio/` or `../courses/` now starts
-`.oculus/agents/` (this folder), `.oculus/studio/` (`../studio/` from here)
-or `../../courses/`.
-
-## Message context
+{{MOVED}}## Message context
 
 A path the student writes in a message is a **library path** — it starts at
 `courses/`, so it is `../../` from here, and `oculus read` takes it as-is. They
