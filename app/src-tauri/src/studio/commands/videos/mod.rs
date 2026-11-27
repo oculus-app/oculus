@@ -90,32 +90,103 @@ pub async fn studio_video_delete(slug: String) -> Result<(), String> {
     })
 }
 
-/// Moves the render in `renders/` to the Trash, then a Final or Small's
-/// Drive copy as Drive deletes it, while it is still this export; returns
-/// that delete, whose Undo the app's toast offers.
+/// Studio's bin on a render: one delete the app's Undo toast offers.
 #[tauri::command]
 pub async fn studio_render_delete(
     app: tauri::AppHandle,
     slug: String,
     preset: String,
-) -> Result<Option<crate::library::drive::ops::delete::Sent>, String> {
-    let (video, name) = (slug.clone(), preset.clone());
-    blocking::run(move || delete::render_in(&videos_dir(), &video, &name, &move_to_trash)).await?;
-    let preset = crate::studio::render::Preset::parse(&preset)?;
+) -> Result<crate::library::drive::ops::delete::Sent, String> {
+    use crate::library::drive::ops::{commands::announce, delete, events::DriveChange};
     let pool = open_pool().await?;
-    let data_dir = crate::library::paths::data_dir();
-    let bin = std::sync::Arc::new(crate::library::drive::ops::delete::SystemBin);
-    let sent = crate::studio::export::delete_drive_copy(&data_dir, &pool, &slug, preset, bin).await;
-    if let Ok(Some(sent)) = &sent {
-        let change = crate::library::drive::ops::events::DriveChange {
-            removed: sent.removed.clone(),
-            ..Default::default()
-        };
-        crate::library::drive::ops::commands::announce(&app, &pool, change).await;
-        crate::library::drive::ops::delete::commands::finish_unattended(sent);
+    let sent = delete_render_at(
+        &videos_dir(),
+        &crate::library::paths::data_dir(),
+        &pool,
+        &slug,
+        &preset,
+        std::sync::Arc::new(delete::SystemBin),
+    )
+    .await;
+    if let Ok(sent) = &sent {
+        if !sent.removed.is_empty() {
+            let change = DriveChange {
+                removed: sent.removed.clone(),
+                ..Default::default()
+            };
+            announce(&app, &pool, change).await;
+        }
+        delete::commands::finish_unattended(sent);
     }
     pool.close().await;
     sent
+}
+
+/// The render in `renders/` and, for Final or Small, its Drive copy while it
+/// is still the export (`export::drive_copy`), to the Trash as one pending
+/// delete: Undo puts all of it back, and only a final delete forgets the
+/// render's cache record (`forget_render`).
+pub async fn delete_render_at(
+    videos: &std::path::Path,
+    data_dir: &std::path::Path,
+    pool: &sqlx::SqlitePool,
+    slug: &str,
+    preset: &str,
+    bin: std::sync::Arc<dyn crate::library::drive::ops::delete::Bin>,
+) -> Result<crate::library::drive::ops::delete::Sent, String> {
+    use crate::library::drive::ops::delete as trash;
+    let parsed = crate::studio::render::Preset::parse(preset)?;
+    let (dir, video, name, put) = (
+        videos.to_path_buf(),
+        slug.to_string(),
+        preset.to_string(),
+        bin.clone(),
+    );
+    let trashed =
+        blocking::run(move || delete::render_to_trash(&dir, &video, &name, &|path| put.put(path)))
+            .await?;
+    let others: Vec<trash::Other> = trashed
+        .files
+        .into_iter()
+        .map(|(path, at)| trash::Other {
+            path,
+            trashed: at.unwrap_or_default(),
+        })
+        .collect();
+    let rels = match crate::studio::export::drive_copy(
+        data_dir,
+        pool,
+        slug,
+        parsed,
+        trashed.captions.as_deref(),
+    )
+    .await
+    {
+        Ok(rels) => rels,
+        Err(e) => {
+            trash::put_back(&others);
+            return Err(e);
+        }
+    };
+    let (dir, video, name) = (videos.to_path_buf(), slug.to_string(), preset.to_string());
+    let forget: trash::Finally = Box::new(move || {
+        if let Err(e) = delete::forget_render(&dir, &video, &name) {
+            elog!("[oculus] studio: forgetting the {name} render of {video}: {e}");
+        }
+    });
+    let extras = trash::Extras {
+        others,
+        finally: vec![forget],
+    };
+    trash::send_with(data_dir, pool, &rels, bin, extras)
+        .await
+        .map_err(|e| {
+            format!(
+                "Could not move the render to the {}: {}",
+                crate::runtime::trash::BIN,
+                e.message
+            )
+        })
 }
 
 /// Turns the video's burned-in captions on or off (video.json's

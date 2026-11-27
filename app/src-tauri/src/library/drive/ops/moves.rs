@@ -57,6 +57,8 @@ pub async fn move_entries_at(
     rels: &[String],
     target_dir: &str,
 ) -> DriveResult<Moves> {
+    let paths: Vec<PathBuf> = rels.iter().map(|rel| data_dir.join(rel)).collect();
+    super::delete::finish_touching(pool, data_dir, &paths).await?;
     let target = drive_target(data_dir, target_dir)?;
     let mut plans = Vec::new();
     for rel in rels {
@@ -86,6 +88,7 @@ pub async fn rename_entry_at(
     rel: &str,
     new_name: &str,
 ) -> DriveResult<Moves> {
+    super::delete::finish_touching(pool, data_dir, &[data_dir.join(rel)]).await?;
     let entry = own_entry(data_dir, rel)?;
     let parent = parent_rel(rel);
     check_name(new_name, parent)?;

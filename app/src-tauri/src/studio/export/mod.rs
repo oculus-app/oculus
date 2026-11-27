@@ -150,38 +150,34 @@ pub async fn to_drive(
     rows::create(data_dir, pool, &slug, preset, &render, &to).await
 }
 
-/// Studio's bin on a Final or Small render: the Drive copy is deleted too,
-/// as Drive deletes it (to the Trash, with Undo), while it is still this
-/// export (`drive_file`: its row, and the size and time the export wrote),
-/// with the captions the export wrote beside it. `None` when there is none.
-pub async fn delete_drive_copy(
+/// What Studio's bin on a Final or Small render deletes in Drive with it,
+/// as Drive deletes (to the Trash, with Undo): the export's file while it is
+/// still the export (`drive_file`: its row, and the size and time the export
+/// wrote), and the captions beside it while the export wrote them and they
+/// are still the render's (`captions`, its `.vtt` as it was).
+pub async fn drive_copy(
     data_dir: &Path,
     pool: &SqlitePool,
     slug: &str,
     preset: Preset,
-    bin: std::sync::Arc<dyn crate::library::drive::ops::delete::Bin>,
-) -> Result<Option<crate::library::drive::ops::delete::Sent>, String> {
+    captions: Option<&[u8]>,
+) -> Result<Vec<String>, String> {
     if !exports(preset) {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     let Some(file) = drive_file(data_dir, pool, slug, preset).await? else {
-        return Ok(None);
+        return Ok(Vec::new());
     };
     let vtt = disk::captions_of(&file.rel);
+    let ours = file.captions
+        && guard::own_entry(data_dir, &vtt).is_ok_and(|e| !e.dir)
+        && captions
+            .is_some_and(|bytes| std::fs::read(data_dir.join(&vtt)).is_ok_and(|b| b == bytes));
     let mut rels = vec![file.rel];
-    if file.captions && guard::own_entry(data_dir, &vtt).is_ok_and(|e| !e.dir) {
+    if ours {
         rels.push(vtt);
     }
-    crate::library::drive::ops::delete::send_at(data_dir, pool, &rels, bin)
-        .await
-        .map(Some)
-        .map_err(|e| {
-            format!(
-                "Could not move the Drive copy to the {}: {}",
-                crate::runtime::trash::BIN,
-                e.message
-            )
-        })
+    Ok(rels)
 }
 
 /// Make the video `new` under `videos` (`videos::create_in`) with no Drive

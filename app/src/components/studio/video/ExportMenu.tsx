@@ -74,16 +74,16 @@ export function ExportMenu({ detail, onChanged }: { detail: VideoDetail; onChang
     void renderToDrive(dir, slug, preset);
   };
 
-  // No confirm: the file goes to the Trash and can be rendered again, and a
-  // Drive copy still this export goes as Drive deletes it, with the Undo
-  // toast. The page then plays the render left, or offers Render draft.
+  // No confirm: the render, and a Drive copy still this export, go to the
+  // Trash as one delete the Undo toast offers. The page then plays the
+  // render left, or offers Render draft; an Undo announces the Drive copy,
+  // and the menu reads its statuses again when it next opens.
   const [removing, setRemoving] = useState<RenderPreset | null>(null);
   const remove = async (preset: RenderPreset) => {
     setRemoving(preset);
     setError(null);
     try {
-      const sent = await deleteRender(slug, preset);
-      if (sent) usePendingDeleteStore.getState().show(sent);
+      usePendingDeleteStore.getState().show(await deleteRender(slug, preset));
       onChanged();
       void useVideosStore.getState().reload();
       load();
@@ -102,7 +102,7 @@ export function ExportMenu({ detail, onChanged }: { detail: VideoDetail; onChang
           <CaretDown size={11} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-1.5">
+      <PopoverContent align="end" className="w-80 p-1.5" data-undo-delete>
         {(error ?? readError) && (
           <p className="px-2 py-1.5 text-[12px] leading-snug text-destructive">{error ?? readError}</p>
         )}

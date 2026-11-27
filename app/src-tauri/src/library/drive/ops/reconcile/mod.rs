@@ -29,8 +29,10 @@ use crate::parse::InFlight;
 
 /// Every own file of the subject `code` (or of the top level) that `known`
 /// (its row paths) lacks, as the row it should get. Left out, as Drive leaves them
-/// out: another file's parse artifacts and converted PDF, and the markdown a
-/// parse running right now is writing before its record says whose it is.
+/// out: another file's parse artifacts and converted PDF, the markdown a
+/// parse running right now is writing before its record says whose it is,
+/// and whatever a pending delete holds (its file is in the Trash, its
+/// leftovers are its own until the delete is final or undone).
 pub fn unrowed_own_files(
     data_dir: &Path,
     code: &str,
@@ -43,7 +45,7 @@ pub fn unrowed_own_files(
         .filter(|(rel, _)| !known.contains(rel) && layout::own_path_ok(rel))
         .filter(|(rel, _)| {
             let path = data_dir.join(rel);
-            !derived.iter().any(|d| path.starts_with(d))
+            !derived.iter().any(|d| path.starts_with(d)) && !super::delete::held(&path)
         })
         .map(|(rel, meta)| {
             let kind = file_type(name_of(&rel));

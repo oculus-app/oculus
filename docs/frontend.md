@@ -451,37 +451,58 @@ another one sent goes with it) and works in two steps, so Undo is exact.
   `trashItemAtURL:resultingItemURL:` on macOS, which says where it went;
   Studio's renders go the same way). If one cannot go (a volume with no
   Trash), those already sent come back and the delete fails with the
-  Trash's reason: nothing is ever unlinked. Nothing else changes yet: the
-  rows with their pages, vectors, versions and links, and the app's own
-  records of the entry (a file's parsed text, pictures folder, parse record,
-  vectors and converted PDF; a folder's derived records) stay. The delete is
-  pending under a handle Rust issued, returned with the paths and announced
-  as `removed`, so open tabs and queues let go of it.
-- **Pending.** Its names are held (`delete::held`): every Drive name chooser
-  (`names::is_taken`, imports, copies, new notes and drawings, a Studio
-  export, a move or rename) steps aside from them, so nothing the app makes
-  takes its place or its rows. A listing leaves out its leftovers
-  (`delete::hides`), Recent leaves out its rows (`pendingDeleteStore`), and
-  the note and drawing reconcilers keep its rows. Opened from elsewhere
-  (search, a mention), it is a file not on disk, as one deleted in Finder.
+  Trash's reason: nothing is ever unlinked, and a delete pending before it
+  stays pending. Nothing else changes yet: the rows with their pages,
+  vectors, versions and links, and the app's own records of the entry (a
+  file's parsed text, pictures folder, parse record, vectors and converted
+  PDF; a folder's derived records) stay. The delete is pending under a
+  handle Rust issued, returned with the paths and a count and announced as
+  `removed`, so open tabs and queues let go of it.
+- **Pending.** Its names, and its leftovers with what is inside them, are
+  held (`delete::held`): every Drive name chooser (`names::is_taken`,
+  imports, copies, new notes and drawings, a Studio export, a move or
+  rename) steps aside from them, reconcile rows none of them
+  (`unrowed_own_files`), and no parse starts on them (`parse_file` does
+  nothing and `sync::parse_pdf` refuses, so a converted PDF still on disk is
+  never sent to a parser and the row gets no failure). A listing leaves out
+  its leftovers (`delete::hides`), Recent leaves out its rows
+  (`pendingDeleteStore`), and the note and drawing reconcilers keep its
+  rows. Opened from elsewhere (search, a mention), it is a file not on disk,
+  as one deleted in Finder.
+- **What makes it final.** The toast closing (`drive_delete_finish`), a newer
+  delete once that one is in the Trash (one Undo at a time), a rename, move
+  or copy whose source holds the entry or is inside it
+  (`delete::finish_touching`, run first by `move_entries_at`,
+  `rename_entry_at` and `copy_to_own_at`, so nothing pending is left behind
+  at a path that moved), an Undo that finds the entry gone from the Trash,
+  the 60 s backstop for a delete nothing finished (the page went away), and
+  the app's exit. Rust is the authority: each sends `drive-delete-final`
+  with the handle (`delete::FINAL_EVENT`), and the toast stops offering
+  Undo.
 - **The toast** (`DeleteToast`, mounted in `AppLayout`): "Moved to Trash", or
-  "3 items moved to Trash", with **Undo** and the ×, for the toast's 6 s
-  (paused while hovered). Its closing, whichever way, calls
-  `drive_delete_finish`; a newer delete replaces it, Rust having made the
-  older one final first (one Undo at a time).
+  "3 items moved to Trash", with **Undo** and the ×, for the toast's 6 s,
+  paused while hovered or focused but never past 30 s (`MAX_LIFE_MS`, held
+  to half the backstop by a test), so Undo is never on offer for a delete
+  already final. ⌘Z (Ctrl+Z on Windows) is Undo while it shows, where the
+  delete was made (`data-undo-delete`: Drive's browser, the downloads list,
+  Studio's Export menu), in the toast or with nothing focused, never in a
+  field or an editor. A failed Undo says why in the toast; a newer delete
+  replaces it with a toast of its own.
 - **Final** (`delete::finish_at`): the rows go with everything on them, as a
   delete always did, so links cascade (Studio asks where on the next
-  Render; chat offers Save to Drive… again), then the app's leftovers and a
-  drawing's page pictures. What is in the Trash stays there; Finder's Put
-  Back returns it as a new file, without its parse. A pending delete nothing
-  finishes (the page went away) is final after 60 s, and every one is at
-  the app's exit.
+  Render; chat offers Save to Drive… again), then the app's leftovers, a
+  drawing's page pictures and the delete's own work (Studio forgets the
+  render's cache record). What is in the Trash stays there; Finder's Put
+  Back returns it as a new file, without its parse.
 - **Undo** (`delete::undo_at`, by handle) moves each entry back from where
   the Trash put it. Folders on the way that are gone are made again (only
   below a home whose folder is still there). A place something else took
   meanwhile (Finder, an agent) gives Drive's next free name, its records and
   rows following as a rename's do (`moves::carry_out`). An entry no longer in
-  the Trash is made final instead, and Undo reports it.
+  the Trash is made final; any other failure (a busy file, a refused folder,
+  the database) leaves what did not come back pending under the same
+  handle, the toast saying why with Undo still on offer. Undo for a delete
+  already final says so ("That delete is final now: it is in the Trash").
 - **If the app dies** while a delete is pending, the entry is in the Trash
   and its rows remain, as after a delete in Finder: Drive does not list it,
   the note and drawing reconcilers drop its rows when they next run, and

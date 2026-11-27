@@ -111,12 +111,11 @@ export function exportStatus(dir: string): Promise<ExportStatus[]> {
 }
 
 /** Moves `renders/<preset>.mp4` and its `.vtt` to the Trash (the Recycle Bin
- *  on Windows), and a Final or Small's Drive copy, while it is still this
- *  export, as Drive deletes it: the delete the Undo toast offers, or null.
- *  Rejects with a sentence fit to show while a render runs or when there is
- *  no such render. */
-export function deleteRender(slug: string, preset: RenderPreset): Promise<SentDelete | null> {
-  return invoke<SentDelete | null>("studio_render_delete", { slug, preset });
+ *  on Windows), with a Final or Small's Drive copy while it is still this
+ *  export, as one delete the Undo toast offers. Rejects with a sentence fit
+ *  to show while a render runs or when there is no such render. */
+export function deleteRender(slug: string, preset: RenderPreset): Promise<SentDelete> {
+  return invoke<SentDelete>("studio_render_delete", { slug, preset });
 }
 
 /** false when `dir` has no render running. */

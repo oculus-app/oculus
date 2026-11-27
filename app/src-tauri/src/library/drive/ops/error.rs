@@ -44,6 +44,11 @@ impl DriveError {
         Self::new(Kind::NotFound, format!("{} is not there", shown(rel)))
     }
 
+    /// `NotFound` with a whole sentence of its own.
+    pub fn not_found_as(message: impl Into<String>) -> Self {
+        Self::new(Kind::NotFound, message)
+    }
+
     pub fn invalid_name(message: impl Into<String>) -> Self {
         Self::new(Kind::InvalidName, message)
     }

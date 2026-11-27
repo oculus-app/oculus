@@ -320,6 +320,7 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
       <div
         ref={rootRef}
         tabIndex={-1}
+        data-undo-delete
         onKeyDown={onKeyDown}
         {...handlers}
         className="relative flex h-full min-h-0 flex-col outline-none"
