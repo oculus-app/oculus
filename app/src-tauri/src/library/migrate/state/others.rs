@@ -1,34 +1,24 @@
 //! Another running Oculus, found by its executable: the app, installed or a
 //! build from a checkout, or an `oculus` command. The SQLite probe (`alone`)
 //! sees only open connections, and an app idle past its pool's timeout holds
-//! none, so the move also refuses while one of these runs.
+//! none, so the move also refuses while one of these runs, a parent of this
+//! process included: an app or `oculus` that ran `at_launch` before spawning
+//! this one would have moved the library already, so an Oculus parent on an
+//! unmoved library is one that does not know the move (an older app still
+//! running), and it must not have the library moved under it.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// One process, as the platform lists it.
 #[derive(Debug, Clone)]
 pub struct Running {
     pub pid: u32,
-    pub parent: u32,
     pub exe: PathBuf,
 }
 
-/// The first process in `all` that is an Oculus, other than `me` and its
-/// ancestors (the app that ran this command, the shell that started it).
+/// The first process in `all` that is an Oculus, other than `me` itself.
 pub fn another_oculus(all: &[Running], me: u32) -> Option<&Running> {
-    let parents: HashMap<u32, u32> = all.iter().map(|p| (p.pid, p.parent)).collect();
-    let mut mine = vec![me];
-    let mut at = me;
-    while let Some(&up) = parents.get(&at) {
-        if up == 0 || mine.contains(&up) {
-            break;
-        }
-        mine.push(up);
-        at = up;
-    }
-    all.iter()
-        .find(|p| !mine.contains(&p.pid) && is_oculus(&p.exe))
+    all.iter().find(|p| p.pid != me && is_oculus(&p.exe))
 }
 
 /// The app's or the CLI's executable: `oculus` anywhere; the binary of an
@@ -84,7 +74,6 @@ mod platform {
             .filter_map(|pid| {
                 Some(Running {
                     pid: pid as u32,
-                    parent: parent(pid)?,
                     exe: path(pid)?,
                 })
             })
@@ -97,23 +86,6 @@ mod platform {
         let n =
             unsafe { libc::proc_pidpath(pid, buf.as_mut_ptr().cast::<c_void>(), buf.len() as u32) };
         (n > 0).then(|| PathBuf::from(String::from_utf8_lossy(&buf[..n as usize]).into_owned()))
-    }
-
-    fn parent(pid: c_int) -> Option<u32> {
-        // SAFETY: `proc_bsdinfo` is plain data, zero is a valid value.
-        let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
-        let size = std::mem::size_of::<libc::proc_bsdinfo>() as c_int;
-        // SAFETY: `info` is `size` bytes, the flavour's own struct.
-        let n = unsafe {
-            libc::proc_pidinfo(
-                pid,
-                libc::PROC_PIDTBSDINFO,
-                0,
-                (&mut info as *mut libc::proc_bsdinfo).cast::<c_void>(),
-                size,
-            )
-        };
-        (n == size).then_some(info.pbi_ppid)
     }
 }
 
@@ -146,7 +118,6 @@ mod platform {
                 if let Some(exe) = path(entry.th32ProcessID) {
                     out.push(Running {
                         pid: entry.th32ProcessID,
-                        parent: entry.th32ParentProcessID,
                         exe,
                     });
                 }

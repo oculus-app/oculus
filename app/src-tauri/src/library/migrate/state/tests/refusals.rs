@@ -177,10 +177,9 @@ fn a_move_with_no_keyd_to_register_says_who_will() {
     );
 }
 
-fn running(pid: u32, parent: u32, exe: &str) -> crate::library::migrate::state::Running {
+fn running(pid: u32, exe: &str) -> crate::library::migrate::state::Running {
     crate::library::migrate::state::Running {
         pid,
-        parent,
         exe: exe.into(),
     }
 }
@@ -198,7 +197,6 @@ fn another_running_oculus_stops_the_move_before_anything_changes() {
         running: || {
             vec![running(
                 4242,
-                1,
                 "/Applications/Oculus.app/Contents/MacOS/Oculus",
             )]
         },
@@ -212,7 +210,7 @@ fn another_running_oculus_stops_the_move_before_anything_changes() {
 }
 
 #[test]
-fn the_app_and_the_cli_are_oculus_and_this_process_s_own_line_is_not() {
+fn the_app_and_the_cli_are_oculus_and_only_this_process_is_passed_over() {
     use crate::library::migrate::state::others::{another_oculus, is_oculus};
     for exe in [
         "/Applications/Oculus.app/Contents/MacOS/Oculus",
@@ -235,23 +233,32 @@ fn the_app_and_the_cli_are_oculus_and_this_process_s_own_line_is_not() {
         assert!(!is_oculus(std::path::Path::new(exe)), "{exe}");
     }
 
-    // The app that ran this command (an agent's `oculus`), and its shell.
-    let app = "/Applications/Oculus.app/Contents/MacOS/Oculus";
-    let all = [
-        running(1, 0, "/sbin/launchd"),
-        running(10, 1, app),
-        running(20, 10, "/bin/zsh"),
-        running(30, 20, "/Users/me/.local/bin/oculus"),
+    // The preflight's `oculus`: node, bun and cargo above it, none Oculus.
+    let preflight = [
+        running(1, "/sbin/launchd"),
+        running(10, "/opt/homebrew/bin/node"),
+        running(20, "/Users/me/.bun/bin/bun"),
+        running(30, "/src/oculus/app/src-tauri/target/debug/oculus"),
     ];
-    assert!(another_oculus(&all, 30).is_none());
-    let mut more = all.to_vec();
-    more.push(running(40, 1, "/Users/me/.local/bin/oculus"));
-    assert_eq!(another_oculus(&more, 30).unwrap().pid, 40);
-    assert_eq!(another_oculus(&all, 99).unwrap().pid, 10);
+    assert!(another_oculus(&preflight, 30).is_none());
+
+    // An older app still running spawned this `oculus` for an agent: its
+    // parent is an Oculus on this library, so the move must not run.
+    let app = "/Applications/Oculus.app/Contents/MacOS/Oculus";
+    let under_an_app = [
+        running(1, "/sbin/launchd"),
+        running(10, app),
+        running(20, "/bin/zsh"),
+        running(30, "/Users/me/.local/bin/oculus"),
+    ];
+    assert_eq!(another_oculus(&under_an_app, 30).unwrap().pid, 10);
+    let mut another_cli = preflight.to_vec();
+    another_cli.push(running(40, "/Users/me/.local/bin/oculus"));
+    assert_eq!(another_oculus(&another_cli, 30).unwrap().pid, 40);
 }
 
 /// The platform's own list, read only: it finds this test process by its
-/// executable and parent.
+/// executable.
 #[cfg(target_os = "macos")]
 #[test]
 fn the_process_list_finds_this_process() {
@@ -264,5 +271,4 @@ fn the_process_list_finds_this_process() {
         me.exe.canonicalize().unwrap(),
         std::env::current_exe().unwrap().canonicalize().unwrap()
     );
-    assert!(me.parent > 0);
 }

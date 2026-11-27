@@ -83,12 +83,15 @@ without that doc is the student's and stays. Otherwise, in order:
      there;
    - a target that already exists under `.oculus/`: an error naming both
      paths. Nothing is ever merged or overwritten;
-   - another Oculus running (`others.rs`): any process but this one and its
-     ancestors whose executable is the app (an `Oculus.app` bundle's, the
-     installed `Oculus.exe`, or `target/<profile>/app`) or an `oculus`
-     command, from the platform's process list. An app left idle past its
-     pools' ten-minute timeout holds no database connection, so the probe
-     below alone would miss it;
+   - another Oculus running (`others.rs`): any process but this one whose
+     executable is the app (an `Oculus.app` bundle's, the installed
+     `Oculus.exe`, or `target/<profile>/app`) or an `oculus` command, from
+     the platform's process list, this process's own parent included. An app
+     left idle past its pools' ten-minute timeout holds no database
+     connection, so the probe below alone would miss it; and an Oculus that
+     ran the launch check before spawning this one would have moved the
+     library already, so an Oculus parent here is one that does not know the
+     move (an older app still running);
    - another process with the database open. `alone.rs` opens it with
      SQLite's exclusive locking mode, which fails while any other connection
      merely has a WAL database open, idle included (a write lock or a
