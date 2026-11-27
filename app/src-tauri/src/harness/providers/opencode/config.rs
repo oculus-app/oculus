@@ -188,10 +188,16 @@ mod tests {
             "courses/A/Exam prep/deep/summary.md",
             "courses/B/data.json",
             "courses/A/board.whiteboard",
-            "studio/videos/v/video.json",
+            ".oculus/studio/videos/v/video.json",
         ] {
             let path = format!("{lib}/{inner}");
             assert_eq!(edit_decision(&rendered, &path), "allow", "{inner}");
+        }
+        // A file in the cwd is matched by its relative path, which no rule
+        // naming the library reaches: the state folder's `*.json` deny does
+        // not take the workspace's own files with it.
+        for inside in ["notes.md", "outputs/data.json", "attachments/a.png"] {
+            assert_eq!(edit_decision(&rendered, inside), "allow", "{inside}");
         }
         for inner in [
             "courses/A/Course/Files/a.pdf",
@@ -200,9 +206,13 @@ mod tests {
             "courses/A/.oculus/agents/INSTRUCTIONS.md",
             "courses/A",
             "courses/loose.pdf",
-            "canvas-session/x",
-            "oculus.db",
-            "settings.json",
+            ".oculus/canvas-session/x",
+            ".oculus/oculus.db",
+            ".oculus/oculus.db-wal",
+            ".oculus/settings.json",
+            ".oculus/vault.bin",
+            ".oculus/.vault.bin.42.tmp",
+            ".oculus/okta-sign-in.log",
         ] {
             let path = format!("{lib}/{inner}");
             assert_eq!(edit_decision(&rendered, &path), "deny", "{inner}");
@@ -233,10 +243,10 @@ mod tests {
             "courses/**",
             "courses/*/Course/*",
             "courses/*/.oculus/*",
-            "canvas-session/**",
-            "oculus.db*",
-            "vault.bin*",
-            ".vault.bin.*",
+            ".oculus/canvas-session/**",
+            ".oculus/oculus.db*",
+            ".oculus/vault.bin*",
+            ".oculus/.vault.bin.*",
         ] {
             let key = format!("/Users/x/Library/Application Support/oculus/{sib}");
             assert_eq!(edit[&key], "deny", "{sib}");

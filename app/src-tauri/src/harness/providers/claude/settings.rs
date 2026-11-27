@@ -3,13 +3,16 @@
 use std::path::Path;
 
 use crate::harness::protected::{
-    library_dirs, subject_dir_globs, subject_dirs, subjects_dir, ROOT_FILE_GLOBS, WORKSPACE_DIRS,
+    library_dirs, state_file_globs, subject_dir_globs, subject_dirs, subjects_dir,
+    workspace_dir_rels,
 };
 use crate::library::layout;
 
 /// The inline `--settings` document; docs/harness.md explains each part.
-/// `//` prefixes an absolute path in the CLI's rule syntax. Root files are
-/// denied by suffix, because a bare `*` also denied everything under `agents/`.
+/// `//` prefixes an absolute path in the CLI's rule syntax. The state
+/// folder's files are denied by one-segment pattern and its folders by name,
+/// never the folder whole: that would also deny `agents/`, `studio/` and the
+/// database inside it.
 /// The subjects' folder is writable but for each subject's `Course/` and
 /// `.oculus/`: denied by glob (`*` is one segment, so a subject synced
 /// mid-thread is covered), and by name for each subject on disk now, which
@@ -45,8 +48,8 @@ pub(super) fn settings_json(
                 .flat_map(|g| [g.clone(), format!("{g}/**")]),
         )
         .chain(named)
-        .chain(ROOT_FILE_GLOBS.iter().map(|g| g.to_string()))
-        .chain(WORKSPACE_DIRS.iter().map(|d| format!("agents/{d}/**")))
+        .chain(state_file_globs())
+        .chain(workspace_dir_rels().into_iter().map(|d| format!("{d}/**")))
         .map(|p| format!("Edit(//{abs}/{p})"))
         .collect();
     // The database is OS-writable, so the CLI must stay the only door to it.
@@ -60,8 +63,9 @@ pub(super) fn settings_json(
         allow.push(format!("Bash({}:*)", cli.display()));
     }
 
-    // `agents/`, the database's three files (`paths::db_write_paths`),
-    // `studio/` (`paths::agent_write_dirs`) and the subjects' own files.
+    // The cwd (the agents' workspace), the database's three files
+    // (`paths::db_write_paths`), `studio/` (`paths::agent_write_dirs`) and
+    // the subjects' own files.
     let write: Vec<String> = std::iter::once(cwd.to_path_buf())
         .chain(crate::library::paths::db_write_paths(library))
         .chain(crate::library::paths::agent_write_dirs(library))
@@ -104,7 +108,7 @@ mod tests {
         let library = Path::new("/scratch/library");
         let settings: serde_json::Value = serde_json::from_str(&settings_json(
             library,
-            &library.join("agents"),
+            &crate::agents::agents_dir(library),
             None,
             &[],
             false,
@@ -117,7 +121,7 @@ mod tests {
     #[test]
     fn the_settings_document_opens_the_database_studio_and_the_own_zone_and_nothing_else() {
         let library = Path::new("/Users/x/Library/Application Support/com.tchan.oculus");
-        let cwd = library.join("agents");
+        let cwd = crate::agents::agents_dir(library);
         let v: serde_json::Value =
             serde_json::from_str(&settings_json(library, &cwd, None, &[], false, true))
                 .expect("valid settings JSON");
@@ -126,11 +130,11 @@ mod tests {
         assert_eq!(
             write,
             &serde_json::json!([
-                "/Users/x/Library/Application Support/com.tchan.oculus/agents",
-                "/Users/x/Library/Application Support/com.tchan.oculus/oculus.db",
-                "/Users/x/Library/Application Support/com.tchan.oculus/oculus.db-wal",
-                "/Users/x/Library/Application Support/com.tchan.oculus/oculus.db-shm",
-                "/Users/x/Library/Application Support/com.tchan.oculus/studio",
+                "/Users/x/Library/Application Support/com.tchan.oculus/.oculus/agents",
+                "/Users/x/Library/Application Support/com.tchan.oculus/.oculus/oculus.db",
+                "/Users/x/Library/Application Support/com.tchan.oculus/.oculus/oculus.db-wal",
+                "/Users/x/Library/Application Support/com.tchan.oculus/.oculus/oculus.db-shm",
+                "/Users/x/Library/Application Support/com.tchan.oculus/.oculus/studio",
                 "/Users/x/Library/Application Support/com.tchan.oculus/courses",
             ]),
             "the cwd, the database's three files, studio/ and the subjects (less Course/ and \
@@ -145,7 +149,9 @@ mod tests {
         assert_eq!(v["showThinkingSummaries"], true);
         assert_eq!(
             v.pointer("/sandbox/network/allowUnixSockets").unwrap(),
-            &serde_json::json!(["/Users/x/Library/Application Support/com.tchan.oculus/keyd.sock"]),
+            &serde_json::json!([
+                "/Users/x/Library/Application Support/com.tchan.oculus/.oculus/keyd.sock"
+            ]),
             "keyd's socket, and no other"
         );
         assert_eq!(
@@ -170,11 +176,12 @@ mod tests {
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/courses/*/Course/**)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/courses/*/.oculus)",
             "Edit(//Users/x/Library/Application Support/com.tchan.oculus/courses/*/.oculus/**)",
-            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/agents/skills/**)",
-            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/agents/.claude/**)",
-            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/*.cookie)",
-            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/vault.bin*)",
-            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.vault.bin.*)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/agents/skills/**)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/agents/.claude/**)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/*.cookie)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/canvas-session/**)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/vault.bin*)",
+            "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus/.vault.bin.*)",
             "Bash(sqlite3:*)",
         ] {
             assert!(deny.contains(&rule), "missing {rule} in {deny:?}");
@@ -193,6 +200,30 @@ mod tests {
             !deny.iter().any(|r| r.contains("oculus.db")),
             "oculus.db must stay out of deny — it cancels allowWrite: {deny:?}"
         );
+        // So the state folder is never denied whole, and no pattern in it
+        // crosses a segment: either would cover the database, the cwd and
+        // studio/, which sit inside it.
+        let state = "Edit(//Users/x/Library/Application Support/com.tchan.oculus/.oculus";
+        for rule in deny.iter().filter(|r| r.starts_with(state)) {
+            let inside = &rule[state.len()..rule.len() - 1];
+            assert!(
+                inside.starts_with("/canvas-session/")
+                    || inside.starts_with("/agents/")
+                    || (inside.starts_with('/') && !inside[1..].contains(['/'])),
+                "{rule} reaches too far into the state folder"
+            );
+            for written in write.as_array().unwrap() {
+                let written = written.as_str().unwrap();
+                assert!(
+                    !crate::harness::protected::glob_covers(
+                        &rule["Edit(/".len()..rule.len() - 1],
+                        written
+                    ),
+                    "{rule} cancels the grant on {written}"
+                );
+            }
+        }
+        assert!(deny.iter().any(|r| r.starts_with(state)));
 
         let allow: Vec<&str> = v
             .pointer("/permissions/allow")
@@ -233,7 +264,7 @@ mod tests {
         let library = Path::new("/Users/x/Library/Application Support/com.tchan.oculus");
         let v: serde_json::Value = serde_json::from_str(&settings_json(
             library,
-            &library.join("agents"),
+            &crate::agents::agents_dir(library),
             None,
             &[],
             false,
@@ -283,7 +314,7 @@ mod tests {
         }
         let v: serde_json::Value = serde_json::from_str(&settings_json(
             &library,
-            &library.join("agents"),
+            &crate::agents::agents_dir(&library),
             None,
             &[],
             false,
@@ -349,7 +380,7 @@ mod tests {
             let flag = unsandboxed_commands(one_off, mode);
             let v: serde_json::Value = serde_json::from_str(&settings_json(
                 library,
-                &library.join("agents"),
+                &crate::agents::agents_dir(library),
                 None,
                 &[],
                 flag,
@@ -376,7 +407,7 @@ mod tests {
         let library = Path::new("/l");
         let v: serde_json::Value = serde_json::from_str(&settings_json(
             library,
-            &library.join("agents"),
+            &crate::agents::agents_dir(library),
             None,
             &["127.0.0.1:8880".to_owned()],
             false,
@@ -400,7 +431,7 @@ mod tests {
             let library = Path::new(lib);
             let v: serde_json::Value = serde_json::from_str(&settings_json(
                 library,
-                &library.join("agents"),
+                &crate::agents::agents_dir(library),
                 None,
                 &[],
                 false,

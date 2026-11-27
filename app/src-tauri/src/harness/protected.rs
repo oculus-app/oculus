@@ -6,24 +6,38 @@
 //! refuses a request naming them (`requests/policy.rs`). Antigravity's macOS
 //! folder guard denies writes to these paths even when native Auto approves them.
 //!
+//! The app's own state folder (`.oculus/` at the data dir's top) is never
+//! protected whole: it holds what a thread must write (the database, its
+//! `agents/` cwd, `studio/`) beside what it must not, so the rules inside it
+//! name folders and single-segment file patterns.
+//!
 //! The library's own zone — everything in a subject beside `Course/` and
 //! `.oculus/` (`layout::Zone::Own`) — is writable without a request.
 
 use std::path::{Path, PathBuf};
 
 use crate::library::layout;
+use crate::library::paths::state_rel;
 
-/// Data-dir folders an agent reads but never writes, whole: a recordings
-/// folder outside the subjects (none in the Drive tree) and an earlier
-/// version's session folder. `courses/` is not one: its subjects' own files
-/// are writable.
-pub fn library_dirs() -> Vec<&'static str> {
+/// Data-dir folders an agent reads but never writes, whole, as
+/// data-dir-relative paths: a recordings folder outside the subjects (none
+/// in the Drive tree), and keyd's session folder in the state folder
+/// (`STATE_DIRS`). `courses/` is not one: its subjects' own files are
+/// writable.
+pub fn library_dirs() -> Vec<String> {
     layout::library_roots()
         .into_iter()
         .filter(|d| *d != layout::COURSES_DIR)
-        .chain(["canvas-session"])
+        .map(str::to_string)
+        .chain(STATE_DIRS.iter().map(|d| state_rel(d)))
         .collect()
 }
+
+/// Folders of the state folder (`library::paths::state_dir`) no agent
+/// writes: the sign-in's attempt record and flags. The state folder is not
+/// protected whole, because the database, the agents' workspace and Studio
+/// are in it and writable (see `providers/claude/settings.rs`).
+pub const STATE_DIRS: [&str; 1] = ["canvas-session"];
 
 /// The data-dir folder holding the subjects: writable, but for each
 /// subject's `SUBJECT_DIRS` and anything directly inside it that is not in a
@@ -53,11 +67,19 @@ pub fn own_zone(rel: &str) -> bool {
     layout::zone_of(rel) == layout::Zone::Own
 }
 
-/// App-owned folders inside the writable `agents/` folder: generated skills
-/// and the links scanning CLIs find them through (`crate::agents`).
+/// App-owned folders inside the writable agents' workspace: generated
+/// skills and the links scanning CLIs find them through (`crate::agents`).
 pub const WORKSPACE_DIRS: [&str; 3] = ["skills", ".claude", ".agents"];
 
-/// Library-root files, by pattern. Never `oculus.db*`: see
+/// `WORKSPACE_DIRS` as data-dir-relative paths: `.oculus/agents/skills`.
+pub fn workspace_dir_rels() -> Vec<String> {
+    WORKSPACE_DIRS
+        .iter()
+        .map(|d| format!("{}/{d}", crate::agents::agents_rel()))
+        .collect()
+}
+
+/// Files directly in the state folder, by pattern. Never `oculus.db*`: see
 /// `providers/claude/settings.rs`.
 ///
 /// The sessions live in keyd's sealed vault, so the first two cover only the
@@ -65,7 +87,7 @@ pub const WORKSPACE_DIRS: [&str; 3] = ["skills", ".claude", ".agents"];
 /// the vault, its lock, and the temp file each write goes through: encrypted,
 /// but an agent that deleted or truncated them would sign the student out of
 /// everything.
-pub const ROOT_FILE_GLOBS: [&str; 6] = [
+pub const STATE_FILE_GLOBS: [&str; 6] = [
     "*.cookie",
     "*.token",
     "*.json",
@@ -73,6 +95,12 @@ pub const ROOT_FILE_GLOBS: [&str; 6] = [
     "vault.bin*",
     ".vault.bin.*",
 ];
+
+/// `STATE_FILE_GLOBS` as data-dir-relative patterns: `.oculus/*.cookie`.
+/// One segment each, so none reaches the database or a writable folder.
+pub fn state_file_globs() -> Vec<String> {
+    STATE_FILE_GLOBS.iter().map(|g| state_rel(g)).collect()
+}
 
 /// Whether the rule pattern `glob` (`*` within a path segment, `**` across
 /// segments) covers `path`: the check that no deny list reaches keyd's socket.
@@ -104,19 +132,57 @@ mod tests {
         use keyd_core::paths;
         let lib = Path::new("/l");
         let vault = paths::vault(lib);
+        let covered = |path: &str| {
+            state_file_globs()
+                .iter()
+                .any(|g| glob_covers(&format!("/l/{g}"), path))
+        };
         for file in [vault.clone(), paths::vault_lock(&vault)] {
             let path = crate::library::paths::slash_path(&file);
-            assert!(
-                ROOT_FILE_GLOBS
-                    .iter()
-                    .any(|g| glob_covers(&format!("/l/{g}"), &path)),
-                "no root glob covers {path}"
-            );
+            assert!(covered(&path), "no state glob covers {path}");
         }
         // The temp file a vault write goes through (`vault/store.rs`).
-        assert!(ROOT_FILE_GLOBS
-            .iter()
-            .any(|g| glob_covers(&format!("/l/{g}"), "/l/.vault.bin.4242.a1b2c3d4e5f6.tmp")));
+        assert!(covered("/l/.oculus/.vault.bin.4242.a1b2c3d4e5f6.tmp"));
+        for file in [
+            paths::cookie(lib),
+            paths::ed_token(lib),
+            paths::sign_in_log(lib),
+        ] {
+            let path = crate::library::paths::slash_path(&file);
+            assert!(covered(&path), "no state glob covers {path}");
+        }
+    }
+
+    /// The state folder holds what agents write beside what they must not:
+    /// no rule covers the database's files, the workspace, Studio or keyd's
+    /// socket, at either place the socket may be.
+    #[test]
+    fn nothing_writable_in_the_state_folder_is_covered() {
+        let lib = Path::new("/l");
+        let mut writable = crate::library::paths::db_write_paths(lib);
+        writable.push(crate::agents::agents_dir(lib).join("notes.md"));
+        writable.push(crate::library::paths::studio_dir(lib).join("videos/v/video.json"));
+        writable.push(keyd_core::paths::socket(lib));
+        writable.push(lib.join(".keyd.sock"));
+        let rules: Vec<String> = library_dirs()
+            .into_iter()
+            .chain(workspace_dir_rels())
+            .flat_map(|d| [d.clone(), format!("{d}/**")])
+            .chain(state_file_globs())
+            .map(|rule| format!("/l/{rule}"))
+            .collect();
+        for path in writable {
+            let path = crate::library::paths::slash_path(&path);
+            for rule in &rules {
+                assert!(!glob_covers(rule, &path), "{rule} covers {path}");
+            }
+        }
+        assert!(
+            !rules
+                .iter()
+                .any(|r| r == "/l/.oculus" || r == "/l/.oculus/**"),
+            "the state folder is never denied whole"
+        );
     }
 
     #[test]
@@ -124,10 +190,14 @@ mod tests {
         assert!(glob_covers("/l/*.json", "/l/a.json"));
         assert!(!glob_covers("/l/*.json", "/l/sub/a.json"));
         assert!(glob_covers("/l/courses/**", "/l/courses/x/y"));
-        assert!(!glob_covers("/l/*.cookie", "/l/keyd.sock"));
+        assert!(!glob_covers("/l/.oculus/*.cookie", "/l/.oculus/keyd.sock"));
+        assert!(!glob_covers(
+            "/l/.oculus/*.json",
+            "/l/.oculus/agents/a.json"
+        ));
     }
 
-    /// opencode's denies are relative to `agents/` unless they name the library.
+    /// opencode's denies are relative to its cwd unless they name the library.
     #[test]
     fn the_opencode_template_denies_the_same_paths() {
         let raw = include_str!("../../templates/OPENCODE.template.json");
@@ -147,7 +217,7 @@ mod tests {
             .map(|d| format!("{{{{LIBRARY}}}}/{d}/**"))
             .collect();
         want.extend(
-            ROOT_FILE_GLOBS
+            state_file_globs()
                 .iter()
                 .map(|g| format!("{{{{LIBRARY}}}}/{g}")),
         );
@@ -166,16 +236,20 @@ mod tests {
         for d in WORKSPACE_DIRS {
             assert!(
                 denied.iter().any(|k| k.starts_with(&format!("{d}/"))),
-                "the template denies nothing under agents/{d}"
+                "the template denies nothing under the workspace's {d}"
             );
         }
         // opencode has no OS sandbox, so it alone may deny the database.
+        let database = format!("{{{{LIBRARY}}}}/{}*", state_rel("oculus.db"));
+        assert!(denied.contains(&database.as_str()), "{database}");
         for k in denied.iter().filter(|k| k.starts_with("{{LIBRARY}}/")) {
             assert!(
-                want.iter().any(|w| w == k) || *k == "{{LIBRARY}}/oculus.db*",
+                want.iter().any(|w| w == k) || *k == database,
                 "the template denies {k}, which the Rust list does not"
             );
         }
+        let studio = format!("{{{{LIBRARY}}}}/{}/**", state_rel("studio"));
+        assert_eq!(edit[&studio], "allow", "{studio}");
     }
 
     #[test]
@@ -194,9 +268,9 @@ mod tests {
             "courses/X/Course/Files/a.pdf",
             "courses/X/course/home.md",
             "courses/X/.oculus/agents/INSTRUCTIONS.md",
-            "agents/notes.md",
-            "oculus.db",
-            "courses/X/../../oculus.db",
+            ".oculus/agents/notes.md",
+            ".oculus/oculus.db",
+            "courses/X/../../.oculus/oculus.db",
         ] {
             assert!(!own_zone(rel), "{rel}");
         }
@@ -204,9 +278,14 @@ mod tests {
             subject_dir_globs(),
             ["courses/*/Course", "courses/*/.oculus"]
         );
-        assert!(
-            !library_dirs().contains(&layout::COURSES_DIR),
-            "the subjects' folder is not protected whole"
+        assert_eq!(library_dirs(), [".oculus/canvas-session"]);
+        assert_eq!(
+            workspace_dir_rels(),
+            [
+                ".oculus/agents/skills",
+                ".oculus/agents/.claude",
+                ".oculus/agents/.agents"
+            ]
         );
     }
 }

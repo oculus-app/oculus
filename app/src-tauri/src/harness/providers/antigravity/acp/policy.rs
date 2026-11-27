@@ -175,13 +175,13 @@ pub(super) fn allowed_command(line: &str) -> bool {
 /// The database and its sidecars (`oculus.db-wal`, `-shm`, a journal): an
 /// agent writes them only through `oculus`.
 fn database(library: &Path, cwd: &Path, paths: &[String]) -> Option<String> {
-    let library = policy::resolve(library);
+    let state = policy::resolve(&crate::library::paths::state_dir(library));
     paths
         .iter()
         .find(|p| {
             let full = absolute(cwd, p);
             let full = policy::resolve(&full);
-            full.parent() == Some(library.as_path())
+            full.parent() == Some(state.as_path())
                 && full
                     .file_name()
                     .is_some_and(|n| n.to_string_lossy().to_lowercase().starts_with("oculus.db"))

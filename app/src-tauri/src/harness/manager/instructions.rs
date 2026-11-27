@@ -10,7 +10,7 @@ use crate::library::layout;
 
 const INSTRUCTIONS_TEMPLATE: &str = include_str!("../../../templates/HARNESS.template.md");
 
-/// The thread's working directory: the library's `agents/` folder.
+/// The thread's working directory: the agents' workspace, `.oculus/agents`.
 pub fn thread_cwd(data_dir: &Path) -> PathBuf {
     crate::agents::agents_dir(data_dir)
 }
@@ -53,14 +53,14 @@ pub fn thread_sections(
 ) -> String {
     let mut out = String::new();
     if let Some(code) = scope {
-        let folder = layout::course_rel(code);
-        let agents = layout::agents_rel(code);
+        let folder = crate::agents::from_workspace(&layout::course_rel(code));
+        let agents = crate::agents::from_workspace(&layout::agents_rel(code));
         out.push_str(&format!(
             "\n\n## This conversation\n\n\
-             It is scoped to **{code}** — the folder `../{folder}/`. Unless the \
+             It is scoped to **{code}** — the folder `{folder}/`. Unless the \
              student names another subject, answer from that folder, and pass `{code}` \
              as the subject to the CLI. Subject-specific guidance, if present, is at \
-             `../{agents}/INSTRUCTIONS.md`.\n"
+             `{agents}/INSTRUCTIONS.md`.\n"
         ));
     }
     if let Some(lec) = lecture {
@@ -73,13 +73,13 @@ pub fn thread_sections(
 }
 
 /// What the agent is told about the recording the student is watching.
-/// Paths are relative to `agents/`, like the rest of the brief. Chapters are
+/// Paths are relative to the cwd, like the rest of the brief. Chapters are
 /// inlined (short; fetching them costs a tool call); the transcript is only
 /// named. The date, the VTT's shape and the deck-finding commands with their
 /// real flags are spelled out because an agent otherwise spends its turn
 /// rediscovering them.
 fn lecture_section(lec: &LectureBrief, scope: Option<&str>) -> String {
-    let dir = lec.folder.as_deref().map(|folder| format!("../{folder}"));
+    let dir = lec.folder.as_deref().map(crate::agents::from_workspace);
     let mut s = format!(
         "\n## The lecture being watched\n\n\
          The student is watching **{}**, recorded **{}**.{} Lecture titles here come \
@@ -102,9 +102,9 @@ fn lecture_section(lec: &LectureBrief, scope: Option<&str>) -> String {
     }
     if let Some(code) = scope {
         s.push_str(&format!(
-            "- `../{}/` — the course folder: the slide deck for this lecture, \
+            "- `{}/` — the course folder: the slide deck for this lecture, \
              and everything else the subject has.\n",
-            layout::course_rel(code)
+            crate::agents::from_workspace(&layout::course_rel(code))
         ));
         s.push_str(&format!(
             "\nThe deck is not linked to the recording, so finding it is a step: \
@@ -173,10 +173,10 @@ mod tests {
             scoped.starts_with(&general),
             "the scope is appended to the same brief"
         );
-        assert!(scoped.contains("`../courses/COMP30026_2026_SM2/`"));
-        assert!(scoped.contains("../courses/COMP30026_2026_SM2/.oculus/agents/INSTRUCTIONS.md"));
+        assert!(scoped.contains("`../../courses/COMP30026_2026_SM2/`"));
+        assert!(scoped.contains("../../courses/COMP30026_2026_SM2/.oculus/agents/INSTRUCTIONS.md"));
         assert!(
-            !scoped.contains("../courses/COMP30026_2026_SM2/.oculus/agents/memories"),
+            !scoped.contains("../../courses/COMP30026_2026_SM2/.oculus/agents/memories"),
             "the unwritable path is not offered as a place to write"
         );
     }
@@ -211,12 +211,12 @@ mod tests {
         );
         assert!(
             full.contains(
-                "`../courses/COMP30026_2026_SM2/Course/Recordings/2026-09-08-lecture-14/`"
+                "`../../courses/COMP30026_2026_SM2/Course/Recordings/2026-09-08-lecture-14/`"
             ),
             "the folder as the agent would type it"
         );
         assert!(full.contains(
-            "`../courses/COMP30026_2026_SM2/Course/Recordings/2026-09-08-lecture-14/transcript.vtt`"
+            "`../../courses/COMP30026_2026_SM2/Course/Recordings/2026-09-08-lecture-14/transcript.vtt`"
         ));
         assert!(
             full.contains("00:23:02 — Resolution"),

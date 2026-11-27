@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use crate::harness::protected::{self, ROOT_FILE_GLOBS, WORKSPACE_DIRS};
+use crate::harness::protected;
 use crate::runtime::platform;
 
 pub(super) const PROGRAM: &str = "/usr/bin/sandbox-exec";
@@ -51,18 +51,18 @@ fn deny_patterns(library: &str) -> Vec<String> {
         rules.push(format!("^{root}/{}{suffix}", pattern(glob, true)));
     };
     for dir in protected::library_dirs() {
-        add(dir, "(/|$)");
+        add(&dir, "(/|$)");
     }
     for dir in protected::subject_dir_globs() {
         add(&dir, "(/|$)");
     }
     let subjects = protected::subjects_dir(Path::new(""));
     add(subjects.to_str().unwrap(), "(/[^/]+)?$");
-    for glob in ROOT_FILE_GLOBS {
-        add(glob, "$");
+    for glob in protected::state_file_globs() {
+        add(&glob, "$");
     }
-    for dir in WORKSPACE_DIRS {
-        add(&format!("{}/{dir}", crate::agents::AGENTS_DIR), "(/|$)");
+    for dir in protected::workspace_dir_rels() {
+        add(&dir, "(/|$)");
     }
     rules
 }
@@ -83,7 +83,11 @@ fn profile(library: &Path) -> Result<String, String> {
     }
     out.push_str(")\n(deny file-write-unlink");
     let agents = crate::agents::agents_dir(library);
-    for dir in std::iter::once(agents.as_path()).chain(library.ancestors()) {
+    let state = crate::library::paths::state_dir(library);
+    for dir in [agents.as_path(), state.as_path()]
+        .into_iter()
+        .chain(library.ancestors())
+    {
         out.push_str(&format!("\n  (literal {})", quoted(dir.to_str().unwrap())));
     }
     out.push(')');
@@ -115,8 +119,8 @@ mod tests {
         let slash = |p: &Path| crate::library::paths::slash_path(p);
         let rules = regex::RegexSet::new(deny_patterns(&slash(&library))).unwrap();
         for rel in [
-            "canvas-session",
-            "canvas-session/old",
+            ".oculus/canvas-session",
+            ".oculus/canvas-session/old",
             "courses",
             "courses/new",
             "courses/X/Course",
@@ -124,15 +128,16 @@ mod tests {
             "courses/Future/course",
             "COURSES/Future/CouRse/a.pdf",
             "courses/X/.OCULUS/derived/a",
-            "settings.JSON",
-            "session.cookie",
-            "auth.token",
-            "app.log",
-            "vault.bin.lock",
-            ".vault.bin.42.tmp",
-            "agents/skills/a/SKILL.md",
-            "agents/.claude/x",
-            "agents/.agents",
+            ".oculus/settings.JSON",
+            ".oculus/session.cookie",
+            ".oculus/auth.token",
+            ".oculus/app.log",
+            ".oculus/vault.bin.lock",
+            ".oculus/.vault.bin.42.tmp",
+            ".Oculus/Vault.bin",
+            ".oculus/agents/skills/a/SKILL.md",
+            ".oculus/agents/.claude/x",
+            ".oculus/agents/.agents",
         ] {
             assert!(rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -140,11 +145,13 @@ mod tests {
             "courses/X/notes.json",
             "courses/Y/notes/Course/file",
             "courses/Y/Coursework/a",
-            "oculus.db",
-            "oculus.db-wal",
-            "oculus.db-shm",
-            "studio/video.json",
-            "agents/scratch.json",
+            ".oculus",
+            ".oculus/oculus.db",
+            ".oculus/oculus.db-wal",
+            ".oculus/oculus.db-shm",
+            ".oculus/studio/video.json",
+            ".oculus/agents/scratch.json",
+            ".keyd.sock",
         ] {
             assert!(!rules.is_match(&slash(&library.join(rel))), "{rel}");
         }

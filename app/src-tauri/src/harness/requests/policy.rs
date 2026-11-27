@@ -9,8 +9,9 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use crate::harness::protected::{library_dirs, own_zone, ROOT_FILE_GLOBS, WORKSPACE_DIRS};
-use crate::library::layout::COURSES_DIR;
+use crate::harness::protected::{own_zone, STATE_DIRS, STATE_FILE_GLOBS, WORKSPACE_DIRS};
+use crate::library::layout::{self, COURSES_DIR};
+use crate::library::paths::STATE_DIR;
 
 /// The first of `paths` that no agent may write in the library at
 /// `library`. Relative paths are read against `cwd`, the agent's folder.
@@ -71,19 +72,35 @@ fn covers(library: &Path, path: &Path) -> bool {
     match parts.as_slice() {
         // The library itself: a grant on it reaches every protected folder.
         [] => true,
-        [first, ..] if library_dirs().contains(first) => true,
         // A subject's own files are writable; `Course/`, `.oculus/`, the
         // subjects' folder itself and a subject's folder are not.
         [first, ..] if *first == COURSES_DIR => !own_zone(&rel),
-        [agents, dir, ..] if *agents == "agents" && WORKSPACE_DIRS.contains(dir) => true,
-        // An `agents/` grant reaches the workspace folders inside it.
-        [agents] if *agents == "agents" => true,
-        [file] => ROOT_FILE_GLOBS.iter().any(|glob| glob_matches(glob, file)),
-        _ => false,
+        [state, inside @ ..] if *state == STATE_DIR => state_covers(inside),
+        // A recordings folder outside the subjects (none in the Drive tree).
+        [first, ..] => layout::library_roots().contains(first),
     }
 }
 
-/// `*` within one name, as `ROOT_FILE_GLOBS` uses it.
+/// Inside the state folder: the folder itself (a grant on it reaches the
+/// vault), keyd's session folder, the workspace itself and its app-owned
+/// folders, and the files `STATE_FILE_GLOBS` names. The database, Studio and
+/// the rest of the workspace are the student's to decide.
+fn state_covers(inside: &[&str]) -> bool {
+    match inside {
+        [] => true,
+        [dir, ..] if STATE_DIRS.contains(dir) => true,
+        // A grant on the workspace reaches the app-owned folders inside it.
+        [agents] => {
+            *agents == crate::agents::AGENTS_DIR
+                || STATE_FILE_GLOBS
+                    .iter()
+                    .any(|glob| glob_matches(glob, agents))
+        }
+        [agents, dir, ..] => *agents == crate::agents::AGENTS_DIR && WORKSPACE_DIRS.contains(dir),
+    }
+}
+
+/// `*` within one name, as `STATE_FILE_GLOBS` uses it.
 fn glob_matches(glob: &str, name: &str) -> bool {
     let pieces: Vec<&str> = glob.split('*').collect();
     let (first, last) = (pieces[0], pieces[pieces.len() - 1]);
@@ -140,7 +157,7 @@ mod tests {
 
     fn check(path: &str) -> bool {
         let library = Path::new("/lib/oculus");
-        let cwd = library.join("agents");
+        let cwd = crate::agents::agents_dir(library);
         protected(library, &cwd, &[path.to_string()]).is_some()
     }
 
@@ -155,24 +172,25 @@ mod tests {
             "/lib/oculus/courses/maths/Course/Recordings/x/transcript.vtt",
             "/lib/oculus/courses/maths/.oculus/agents/INSTRUCTIONS.md",
             "/lib/oculus/courses/maths/.oculus",
-            "/lib/oculus/canvas-session/x",
-            "/lib/oculus/vault.bin",
-            "/lib/oculus/.vault.bin.tmp",
-            "/lib/oculus/settings.json",
+            "/lib/oculus/.oculus/canvas-session/x",
+            "/lib/oculus/.oculus/vault.bin",
+            "/lib/oculus/.oculus/.vault.bin.tmp",
+            "/lib/oculus/.oculus/settings.json",
             "/lib/oculus",
-            "/lib/oculus/agents",
-            "/lib/oculus/agents/skills/a/SKILL.md",
-            "/lib/oculus/agents/.claude/settings.json",
-            "../courses/maths/Course/home.md",
+            "/lib/oculus/.oculus",
+            "/lib/oculus/.oculus/agents",
+            "/lib/oculus/.oculus/agents/skills/a/SKILL.md",
+            "/lib/oculus/.oculus/agents/.claude/settings.json",
+            "../../courses/maths/Course/home.md",
             "skills/x",
-            "/lib/oculus/agents/../courses/y/Course/z",
+            "/lib/oculus/.oculus/agents/../../courses/y/Course/z",
             "/lib",
             "/",
             "/lib/oculus/Courses/x/COURSE/home.md",
             "/lib/oculus/courses/x/.OCULUS/derived/a.pages.json",
             "/LIB/Oculus/COURSES",
-            "/lib/oculus/Settings.JSON",
-            "/lib/oculus/agents/Skills/x",
+            "/lib/oculus/.oculus/Settings.JSON",
+            "/lib/oculus/.Oculus/Agents/Skills/x",
         ] {
             assert!(check(path), "{path} is protected");
         }
@@ -182,13 +200,16 @@ mod tests {
             "/lib/oculus/courses/other/summary.md",
             "/lib/oculus/Courses/maths/Notes/a.md",
             "/lib/oculus/courses/maths/settings.json",
-            "../courses/maths/notes.md",
-            "/lib/oculus/agents/../courses/maths/a.md",
-            "/lib/oculus/agents/notes.md",
-            "/lib/oculus/agents/attachments/a.png",
-            "/lib/oculus/studio/video/video.json",
+            "../../courses/maths/notes.md",
+            "/lib/oculus/.oculus/agents/../../courses/maths/a.md",
+            "/lib/oculus/.oculus/agents/notes.md",
+            "/lib/oculus/.oculus/agents/attachments/a.png",
+            "/lib/oculus/.oculus/studio/video/video.json",
             "/elsewhere/courses/x",
-            "/lib/oculus/oculus.db",
+            "/lib/oculus/.oculus/oculus.db",
+            // The top level holds nothing of the app's: a file there is the student's.
+            "/lib/oculus/settings.json",
+            "/lib/oculus/vault.bin",
             "scratch/out.txt",
         ] {
             assert!(!check(path), "{path} is not protected");
@@ -198,9 +219,9 @@ mod tests {
     #[test]
     fn the_own_zone_is_read_against_the_chats_folder() {
         let library = Path::new("/lib/oculus");
-        let cwd = library.join("agents");
+        let cwd = crate::agents::agents_dir(library);
         for path in [
-            "../courses/maths/notes.md",
+            "../../courses/maths/notes.md",
             "/lib/oculus/courses/maths/Exam prep/a.md",
             "/LIB/oculus/Courses/maths/a.md",
         ] {
@@ -208,9 +229,9 @@ mod tests {
         }
         for path in [
             "notes.md",
-            "../courses/maths/Course/home.md",
-            "../courses/maths/.oculus/x",
-            "../courses/maths",
+            "../../courses/maths/Course/home.md",
+            "../../courses/maths/.oculus/x",
+            "../../courses/maths",
             "/elsewhere/courses/maths/a.md",
         ] {
             assert!(!in_own_zone(library, &cwd, path), "{path}");

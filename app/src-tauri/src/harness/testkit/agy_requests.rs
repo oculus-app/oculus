@@ -377,11 +377,11 @@ fn a_write_naming_a_protected_path_or_the_database_never_reaches_the_student() {
         "courses/maths/Course/Recordings/x/native.txt",
         "courses/maths/.oculus/agents/native.txt",
         "courses/native.txt",
-        "settings.json",
-        "vault.bin",
-        "agents/skills/x/SKILL.md",
-        "oculus.db",
-        "oculus.db-wal",
+        ".oculus/settings.json",
+        ".oculus/vault.bin",
+        ".oculus/agents/skills/x/SKILL.md",
+        ".oculus/oculus.db",
+        ".oculus/oculus.db-wal",
     ] {
         let mut rig = write_into_library(file);
         rig.open();
@@ -389,7 +389,7 @@ fn a_write_naming_a_protected_path_or_the_database_never_reaches_the_student() {
         assert!(requests(&rig).is_empty(), "{file}: nobody was asked");
         assert_eq!(opened(&rig), 0, "{file}");
         assert_eq!(run_status(&rig), "completed", "{file}");
-        let protected = !file.starts_with("oculus.db");
+        let protected = !file.starts_with(".oculus/oculus.db");
         let review = &rows(&rig, "tool")[0].2["review"];
         if protected {
             assert_eq!(review["source"], "rule");
