@@ -573,11 +573,12 @@ fn stop_with_a_request_waiting_answers_it_cancelled_and_the_turn_ends_stopped() 
     let mut rig = at_request(scenario, 1);
     let request = requests(&rig)[0].0;
     stop_turn(&mut rig);
-    // Before the turn's end an answer is taken, but the stop already
-    // answered the request: nothing is written, and it can be answered again.
-    respond(&mut rig, "late-before-end", request, "accept").unwrap();
+    // Before the turn's end the stop has already answered the request: an
+    // approval is refused, and nothing is written.
+    let early = respond(&mut rig, "late-before-end", request, "accept").unwrap_err();
+    assert_eq!(early, crate::harness::core::decide::respond::STOPPING);
     let row = requests(&rig).remove(0);
-    assert_eq!((row.2.as_str(), row.4.as_str()), ("pending", "failed"));
+    assert_eq!((row.2.as_str(), row.4.as_str()), ("pending", "none"));
     let mut rig = finished(rig);
     let row = requests(&rig).remove(0);
     assert_eq!(row.2, "cancelled");
