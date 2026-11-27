@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { ChatSaveRow } from "@/lib/db";
 import { fullCitation } from "@/lib/citations";
-import { resolveSaveStates, type SaveLookups } from "@/stores/chat/chatSaveStore";
+import { resolveSaveStates, showSave, useChatSaves, type SaveLookups } from "@/stores/chat/chatSaveStore";
 
 const SVG = ".oculus/agents/outputs/dfa-even-zeros.svg";
 const PY = ".oculus/agents/outputs/dfa_check.py";
@@ -68,5 +68,24 @@ describe("an old chat's spelling", () => {
     ]) {
       expect(fullCitation(raw)?.path).toBe(SVG);
     }
+  });
+});
+
+describe("refresh", () => {
+  test("asks again only about the paths a mounted row shows, and forgets the rest", () => {
+    const old = { stamp: stamp(10, 1000), saved: null };
+    useChatSaves.setState({ states: { [SVG]: old, [PY]: old, [REUSED]: old } });
+    const hideSvg = showSave(SVG);
+    const hideAgain = showSave(SVG);
+    const hidePy = showSave(PY);
+    hidePy();
+    useChatSaves.getState().refresh();
+    expect(Object.keys(useChatSaves.getState().states)).toEqual([SVG]);
+    hideSvg();
+    useChatSaves.getState().refresh();
+    expect(Object.keys(useChatSaves.getState().states)).toEqual([SVG]);
+    hideAgain();
+    useChatSaves.getState().refresh();
+    expect(useChatSaves.getState().states).toEqual({});
   });
 });

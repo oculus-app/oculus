@@ -67,11 +67,25 @@ interface ChatSaveStore {
   states: Record<string, SaveState>;
   /** Ask about `path` with every other path asked in the same tick. */
   want: (path: string) => void;
-  /** Ask again about every path asked so far (a turn ended, Drive changed). */
+  /** Ask again about every path a mounted row shows (a turn ended, Drive
+   *  changed), and forget the rest, so the states stay as many as the rows. */
   refresh: () => void;
   /** The picker (on the chat's subject folder, else the top level), then
    *  the copy, its row and the save remembered. */
   save: (path: string, subjectId: number | null) => Promise<void>;
+}
+
+/** How many mounted rows show each path (`useChatSave`). */
+const shown = new Map<string, number>();
+
+/** Count `path` as shown until the returned function is called. */
+export function showSave(path: string): () => void {
+  shown.set(path, (shown.get(path) ?? 0) + 1);
+  return () => {
+    const left = (shown.get(path) ?? 1) - 1;
+    if (left > 0) shown.set(path, left);
+    else shown.delete(path);
+  };
 }
 
 /** Paths waiting for the next lookup, gathered across a tick so a timeline
@@ -122,7 +136,8 @@ export const useChatSaves = create<ChatSaveStore>((set, get) => ({
     ask(path);
   },
   refresh: () => {
-    for (const path of Object.keys(get().states)) ask(path);
+    set((s) => ({ states: Object.fromEntries(Object.entries(s.states).filter(([path, state]) => shown.has(path) || state?.saving)) }));
+    for (const path of shown.keys()) ask(path);
   },
   save: async (path, subjectId) => {
     const before = get().states[path];
@@ -159,7 +174,10 @@ export const useChatSaves = create<ChatSaveStore>((set, get) => ({
 export function useChatSave(path: string | null): SaveState | undefined {
   const state = useChatSaves((s) => (path ? s.states[path] : null));
   useEffect(() => {
-    if (path) useChatSaves.getState().want(path);
+    if (!path) return;
+    const hide = showSave(path);
+    useChatSaves.getState().want(path);
+    return hide;
   }, [path]);
   return path ? state : null;
 }

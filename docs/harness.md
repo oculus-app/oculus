@@ -3603,7 +3603,9 @@ that stamp, since agents reuse names in `outputs/`. Every view asks through
 `useChatSaves`, which gathers the paths that mount in one tick into one
 `drive_savable` call and one query (the timeline mounts its newest rows and
 pages older ones in, so a thread asks in a few batches, never per row), and
-asks again about every path it knows when a turn ends or Drive changes. The
+when a turn ends or Drive changes asks again about the paths a mounted row
+shows (`showSave`), forgetting the rest, so it holds no more states than
+there are rows on screen. The
 query joins `files`: a copy deleted from Drive drops out and the source
 offers Save to Drive… again; a copy moved in Drive keeps its id and is still
 found.
