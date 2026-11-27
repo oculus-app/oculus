@@ -166,7 +166,18 @@ function SaveForm({
           hint={<Trail crumbs={crumbs} label="Destination" className="h-[18px] text-[12px]" />}
           disabled={busy}
           control={
-            <Button variant="outline" size="xs" disabled={busy} onClick={() => void change()} className="h-7 shrink-0 px-3">
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={busy}
+              // WebKit doesn't focus a clicked button; the picker hands focus
+              // back to whatever had it when it opened.
+              onClick={(e) => {
+                e.currentTarget.focus();
+                void change();
+              }}
+              className="h-7 shrink-0 px-3"
+            >
               Change…
             </Button>
           }
