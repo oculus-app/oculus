@@ -183,7 +183,7 @@ export function harnessDeleteThread(threadId: number): Promise<void> {
   return invoke("harness_delete_thread", { commandId: commandId(), threadId });
 }
 
-/** The files only this chat attached (`agents/attachments/<name>`), for the
+/** The files only this chat attached (`.oculus/agents/attachments/<name>`), for the
  *  delete dialog; never what the agent made. */
 export function harnessThreadAttachments(threadId: number): Promise<string[]> {
   return invoke<string[]>("harness_thread_attachments", { threadId });

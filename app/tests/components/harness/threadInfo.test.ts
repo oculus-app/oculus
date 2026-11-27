@@ -5,6 +5,7 @@ import { File } from "@phosphor-icons/react";
 import { InfoGroup, InfoRow } from "@/components/harness/threadInfo/InfoRow";
 import { MIN_COLUMN, RAIL, RESERVE, threadInfoFloats } from "@/components/harness/threadInfo/layout";
 import { registerWorkKind, workKinds, type WorkKind } from "@/components/harness/threadInfo/work";
+import { displayCode, humanizeSlug } from "@/lib/format/format";
 
 describe("threadInfoFloats: the card floats only beside a column of at least MIN_COLUMN", () => {
   // The narrowest pane that fits: the rail's gutter, the narrowest column
@@ -91,5 +92,41 @@ describe("InfoGroup leading rows", () => {
       }),
     );
     expect(empty).toBe("");
+  });
+});
+
+describe("EntryRow names the agents' own files", () => {
+  // The row's opener reaches modules that listen on `window` and `document`
+  // at load; they get inert stand-ins for the import, then the globals go back.
+  const load = async () => {
+    const globals = globalThis as { window?: unknown; document?: unknown };
+    const before = { window: globals.window, document: globals.document };
+    const inert = { addEventListener: () => {}, removeEventListener: () => {} };
+    globals.window ??= inert;
+    globals.document ??= { ...inert, documentElement: { style: {} } };
+    try {
+      return await import("@/components/harness/threadInfo/EntryRow");
+    } finally {
+      Object.assign(globals, before);
+    }
+  };
+  const row = async (path: string) => {
+    const { EntryRow } = await load();
+    const entry = { key: path, target: { kind: "library" as const, path }, path, pages: [], times: [], made: "new" as const, last: 0 };
+    return renderToStaticMarkup(createElement(EntryRow, { entry, lectureTitle: () => undefined }));
+  };
+
+  test("a memory by its name or its bucket's subject, with no New", async () => {
+    const memory = await row(".oculus/agents/memories/COMP30024/exam-tips.md");
+    expect(memory).toContain(humanizeSlug("exam-tips"));
+    expect(memory).not.toContain("New");
+    expect(await row(".oculus/agents/memories/COMP30024/")).toContain(`Memories · ${displayCode("COMP30024")}`);
+    expect(await row(".oculus/agents/memories/")).toContain(">Memories<");
+  });
+
+  test("an output by its file name, marked New", async () => {
+    const output = await row(".oculus/agents/outputs/plot.png");
+    expect(output).toContain(">plot.png<");
+    expect(output).toContain(">New<");
   });
 });

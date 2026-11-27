@@ -10,6 +10,7 @@ import {
 } from "@/lib/harness/attachments";
 import { useDataDir } from "@/hooks/backend/useDataDir";
 import { libraryImageSrc } from "@/lib/files/libraryLinks";
+import { stateRel } from "@/lib/files/statePaths";
 import { taskBodyEdit } from "@/lib/planning/projects";
 
 /** Markdown and attachment handling shared by project About and task descriptions. */
@@ -21,11 +22,12 @@ export function DetailBody({ text, subjectId, kind, onSave, className = "-mx-2 m
   className?: string;
 }) {
   const dataDir = useDataDir();
-  /** An attachment in either spelling, else a path from the data dir. */
+  /** An attachment in any spelling, else a path from the data dir, where the
+   *  file is (`stateRel`). */
   const imageSrc = useCallback(
     (src: string) => {
       const picture = attachmentPath(src);
-      return picture ? attachmentSrc(dataDir, picture) : libraryImageSrc(src, "", dataDir);
+      return picture ? attachmentSrc(dataDir, picture) : libraryImageSrc(stateRel(src), "", dataDir);
     },
     [dataDir],
   );

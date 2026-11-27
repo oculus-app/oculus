@@ -131,10 +131,10 @@ let locateSeq = 0;
 
 /**
  * Opens a citation. A course file opens in the side panel at the cited spot
- * (`citationLocate`); a path with no row, an `agents/` file, or a binary goes
+ * (`citationLocate`); a path with no row, an `.oculus/agents/` file, or a binary goes
  * to the system viewer; a path in a lecture's recording folder opens the lecture. `newTab` is the
  * ⌘-click, answered here rather than through `data-tab-href` because the
- * route is a database lookup away. Pictures under `agents/` are the caller's
+ * route is a database lookup away. Pictures under `.oculus/agents/` are the caller's
  * to show (the lightbox in `components/markdown/Citation.tsx`). A path
  * written before the library move opens where the move put it.
  */

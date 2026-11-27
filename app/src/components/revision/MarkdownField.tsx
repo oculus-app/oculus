@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NoteField } from "@/components/documents/NoteField";
 import { useDataDir } from "@/hooks/backend/useDataDir";
 import { libraryImageSrc } from "@/lib/files/libraryLinks";
+import { stateRel } from "@/lib/files/statePaths";
 import {
   attachmentPath,
   attachmentSrc,
@@ -56,7 +57,7 @@ export function MarkdownField({
           const path = attachmentPath(src);
           return path
             ? attachmentSrc(dataDir, path)
-            : libraryImageSrc(src, "", dataDir);
+            : libraryImageSrc(stateRel(src), "", dataDir);
         }}
         writePicture={writePicture}
         pickerTitle="Add picture"

@@ -4,13 +4,14 @@ import { ImageLightbox } from "@/components/ui/lightbox/Lightbox";
 import { attachmentSrc } from "@/lib/harness/attachments";
 import { parseCitation, type Citation, type CitationShape } from "@/lib/citations";
 import { openCitation } from "@/lib/files/openFile";
+import { inAgentsDir } from "@/lib/files/statePaths";
 import { useCitation } from "@/hooks/agents/useCitation";
 import { useDataDir } from "@/hooks/backend/useDataDir";
 
 const PICTURE = /\.(?:png|jpe?g|gif|webp|svg|avif)$/i;
 
 /**
- * How a citation opens: `openCitation`, except a picture under `agents/`,
+ * How a citation opens: `openCitation`, except a picture under `.oculus/agents/`,
  * which has no row to open in the side panel and shows in a lightbox here.
  * The lightbox sits in a span that stops clicks, since React bubbles a
  * portal's events to an enclosing `InlineMd` button.
@@ -20,7 +21,7 @@ function useOpener(cite: Citation | null): [(newTab: boolean) => void, ReactNode
   const [shown, setShown] = useState<string | null>(null);
   const open = (newTab: boolean) => {
     if (!cite) return;
-    if (cite.path.startsWith("agents/") && PICTURE.test(cite.path) && !newTab)
+    if (inAgentsDir(cite.path) && PICTURE.test(cite.path) && !newTab)
       setShown(attachmentSrc(dataDir, cite.path));
     else openCitation(cite, newTab);
   };

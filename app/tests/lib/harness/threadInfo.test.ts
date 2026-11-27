@@ -97,9 +97,21 @@ describe("Read", () => {
     expect(read.map((e) => e.key)).toEqual([
       "courses/A/Course/Pages/",
       "courses/A/Course/Files/slides.pdf",
-      "agents/attachments/notes.pdf",
+      ".oculus/agents/attachments/notes.pdf",
     ]);
     expect(formatPages(read[1].pages)).toBe("p. 4");
+  });
+
+  test("an attachment and a course file are one row each in every spelling a chat holds", () => {
+    const { read } = info([
+      row("user", "`agents/attachments/notes.pdf` then `.oculus/agents/attachments/notes.pdf`"),
+      tool("read", { file_path: "../courses/A/Course/Pages/one.md" }),
+      tool("read", { file_path: "../../courses/A/Course/Pages/one.md" }),
+      tool("read", { file_path: `${DATA}/agents/attachments/notes.pdf` }),
+      tool("read", { file_path: `${DATA}/.oculus/agents/attachments/notes.pdf` }),
+      tool("bash", { command: "cat ../../courses/A/Course/Pages/one.md" }),
+    ]);
+    expect(read.map((e) => e.key)).toEqual(["courses/A/Course/Pages/one.md", ".oculus/agents/attachments/notes.pdf"]);
   });
 
   test("a shell reader's library paths count; the agent's own skills and memories do not", () => {
@@ -107,6 +119,8 @@ describe("Read", () => {
       tool("bash", { command: "sed -n 1,80p ../courses/A/Course/Pages/brief.md | head -5" }),
       tool("read", { file_path: `${DATA}/agents/.claude/skills/oculus-library/SKILL.md` }),
       tool("read", { file_path: `${DATA}/agents/memories/MEMORY.md` }),
+      tool("read", { file_path: `${DATA}/.oculus/agents/.claude/skills/oculus-library/SKILL.md` }),
+      tool("read", { file_path: `${DATA}/.oculus/agents/memories/MEMORY.md` }),
       tool("bash", { command: "cat AGENTS.md" }),
     ]);
     expect(read.map((e) => e.key)).toEqual(["courses/A/Course/Pages/brief.md"]);
@@ -148,11 +162,12 @@ describe("Made", () => {
     const { made } = info([
       tool("write", { file_path: `${DATA}/agents/outputs/summary.md` }),
       tool("edit", { file_path: "./outputs/summary.md" }),
-      tool("edit", { paths: [`${DATA}/agents/outputs/plot.py`] }),
+      tool("edit", { file_path: `${DATA}/.oculus/agents/outputs/summary.md` }),
+      tool("edit", { paths: [`${DATA}/.oculus/agents/outputs/plot.py`] }),
     ]);
     expect(made.map((e) => [e.key, e.made])).toEqual([
-      ["agents/outputs/plot.py", "edited"],
-      ["agents/outputs/summary.md", "new"],
+      [".oculus/agents/outputs/plot.py", "edited"],
+      [".oculus/agents/outputs/summary.md", "new"],
     ]);
   });
 
@@ -162,7 +177,7 @@ describe("Made", () => {
       tool("edit", { file_path: "./outputs/summary.md" }),
     ]);
     expect(read).toEqual([]);
-    expect(made.map((e) => e.key)).toEqual(["agents/outputs/summary.md"]);
+    expect(made.map((e) => e.key)).toEqual([".oculus/agents/outputs/summary.md"]);
   });
 
   test("a shell line's outputs/ files are made, unless it only reads them", () => {
@@ -172,8 +187,36 @@ describe("Made", () => {
       tool("bash", { command: "cat outputs/old.md" }),
       tool("bash", { command: "ls outputs/" }),
     ]);
-    expect(made.map((e) => e.key)).toEqual(["agents/outputs/table.csv", "agents/outputs/curve.png"]);
-    expect(read.map((e) => e.key)).toEqual(["agents/outputs/old.md"]);
+    expect(made.map((e) => e.key)).toEqual([".oculus/agents/outputs/table.csv", ".oculus/agents/outputs/curve.png"]);
+    expect(read.map((e) => e.key)).toEqual([".oculus/agents/outputs/old.md"]);
+  });
+
+  test("an output is made in every spelling of the agents' folder, in either layout", () => {
+    // The shell scan stops at a space, so the absolute spellings need a data dir without one.
+    const linux = "/home/x/.local/share/com.tchan.oculus";
+    const spellings = [
+      "outputs/a.png",
+      "./outputs/b.png",
+      "agents/outputs/c.png",
+      "../agents/outputs/d.png",
+      `${linux}/agents/outputs/e.png`,
+      ".oculus/agents/outputs/f.png",
+      "../.oculus/agents/outputs/g.png",
+      "../../.oculus/agents/outputs/h.png",
+      `${linux}/.oculus/agents/outputs/i.png`,
+    ];
+    const { made } = info(spellings.map((out) => tool("bash", { command: `python plot.py --out ${out}` })));
+    expect(made.map((e) => e.key).sort()).toEqual("abcdefghi".split("").map((n) => `.oculus/agents/outputs/${n}.png`));
+  });
+
+  test("an outputs/ folder that is not the agents' is not made", () => {
+    const { made } = info([
+      tool("bash", { command: "cp x.png /tmp/project/outputs/a.png" }),
+      tool("bash", { command: "cp x.png ../../../agents/outputs/b.png" }),
+      tool("bash", { command: "cp x.png .oculus/studio/outputs/c.png" }),
+      tool("bash", { command: "cp x.png outputs/../../d.png" }),
+    ]);
+    expect(made).toEqual([]);
   });
 
   test("oculus commands that write: a memory opens its file, a render its video", () => {
@@ -187,13 +230,21 @@ describe("Made", () => {
       row("tool", "", {
         kind: "oculus_cli", input: { command: `oculus studio render "${DATA}/studio/videos/minimax" --final` }, ok: true,
       }),
+      row("tool", "", {
+        kind: "oculus_cli", input: { command: `oculus studio narrate "${DATA}/.oculus/studio/videos/minimax"` }, ok: true,
+      }),
       row("tool", "", { kind: "oculus_cli", input: { command: "oculus task add --title hi" }, ok: false }),
       row("tool", "", { kind: "oculus_cli", input: { command: "oculus search alpha" }, ok: true }),
     ]);
     expect(made.map((e) => [e.key, e.target, e.label])).toEqual([
+      ["/studio/videos/minimax#narrate", { kind: "route", href: "/studio/videos/minimax" }, "Narrated the video"],
       ["/studio/videos/minimax#render", { kind: "route", href: "/studio/videos/minimax" }, "Rendered the video"],
-      ["agents/memories/", { kind: "library", path: "agents/memories/" }, undefined],
-      ["agents/memories/COMP30024/exam-tips.md", { kind: "library", path: "agents/memories/COMP30024/exam-tips.md" }, undefined],
+      [".oculus/agents/memories/", { kind: "library", path: ".oculus/agents/memories/" }, undefined],
+      [
+        ".oculus/agents/memories/COMP30024/exam-tips.md",
+        { kind: "library", path: ".oculus/agents/memories/COMP30024/exam-tips.md" },
+        undefined,
+      ],
     ]);
   });
 
@@ -201,14 +252,20 @@ describe("Made", () => {
     const { made } = info([
       tool("write", { file_path: `${DATA}/studio/videos/minimax/script.md` }),
       tool("write", { file_path: `${DATA}/studio/components/PrunedLeaf.tsx` }),
+      tool("write", { file_path: `${DATA}/.oculus/studio/videos/alpha-beta/script.md` }),
+      tool("write", { file_path: `${DATA}/.oculus/studio/themes/warm.json` }),
       tool("edit", { file_path: `${DATA}/agents/AGENTS.md` }),
+      tool("edit", { file_path: `${DATA}/.oculus/agents/AGENTS.md` }),
       tool("write", { file_path: "/tmp/scratch.txt" }),
     ]);
     expect(made.map((e) => e.target)).toEqual([
+      { kind: "route", href: "/studio/themes/warm" },
+      { kind: "route", href: "/studio/videos/alpha-beta" },
       { kind: "route", href: "/studio/components/PrunedLeaf" },
       { kind: "route", href: "/studio/videos/minimax" },
     ]);
     expect(studioHref("/tmp/studio/videos/x")).toBeNull();
+    expect(studioHref("/tmp/.oculus/studio/videos/x")).toBeNull();
   });
 
   test("an apply_patch envelope makes every file it adds or updates", () => {
@@ -216,11 +273,11 @@ describe("Made", () => {
       "*** Begin Patch",
       `*** Add File: ${DATA}/agents/outputs/a.md`,
       "+hi",
-      `*** Update File: ${DATA}/agents/outputs/b.md`,
+      `*** Update File: ${DATA}/.oculus/agents/outputs/b.md`,
       `*** Delete File: ${DATA}/agents/outputs/c.md`,
       "*** End Patch",
     ].join("\n");
     const { made } = info([tool("edit", { patchText })]);
-    expect(made.map((e) => e.key).sort()).toEqual(["agents/outputs/a.md", "agents/outputs/b.md"]);
+    expect(made.map((e) => e.key).sort()).toEqual([".oculus/agents/outputs/a.md", ".oculus/agents/outputs/b.md"]);
   });
 });

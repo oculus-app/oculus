@@ -120,7 +120,7 @@ export async function renameDocument(file: DbFile, title: string): Promise<strin
 
 /**
  * Write a pasted picture beside the note, returning `.assets/<stamp>.png`
- * relative to it. Beside the note, not in `agents/attachments/`, so the
+ * relative to it. Beside the note, not in `.oculus/agents/attachments/`, so the
  * relative link resolves for anything handed the folder. Written on arrival,
  * since a link cannot point at a file not yet written.
  */

@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getDb, getSubjects } from "@/lib/db";
 import { fmtBytes, displayCode } from "@/lib/format/format";
+import { storageOwner, storageType } from "@/lib/files/storageGroups";
 
 interface StorageFile {
   path: string;
@@ -56,16 +57,6 @@ const TYPE_COLOR: Record<string, string> = {
   Database: "bg-chart-5",
   Other: OTHER_COLOR,
 };
-
-function typeOf(path: string): string {
-  const name = (path.split("/").pop() ?? path).toLowerCase();
-  if (name.endsWith(".pdf")) return "PDFs";
-  if (/\.(mp4|m4v|mov|webm)$/.test(name)) return "Videos";
-  if (/\.(png|jpe?g|gif|webp|svg|bmp)$/.test(name)) return "Images";
-  if (name.endsWith(".md")) return "Markdown";
-  if (name.startsWith("oculus.db")) return "Database";
-  return "Other";
-}
 
 /** Mirror of Rust's `paths::safe_dir` (subject code → `courses/<dir>`). */
 function safeDir(s: string): string {
@@ -138,19 +129,7 @@ export function StorageSection() {
     const sums = new Map<string, number>();
 
     for (const f of report.files) {
-      let key: string;
-      if (groupBy === "type") {
-        key = typeOf(f.path);
-      } else {
-        const [top, second] = f.path.split("/");
-        if (top === "courses" && second) {
-          key = subjectByDir.get(second) ?? displayCode(second);
-        } else if (top === "lectures" && second) {
-          key = subjectByLecture.get(second) ?? "Lectures";
-        } else {
-          key = "App data";
-        }
-      }
+      const key = groupBy === "type" ? storageType(f.path) : storageOwner(f.path, subjectByDir, subjectByLecture);
       sums.set(key, (sums.get(key) ?? 0) + f.bytes);
     }
 
@@ -331,14 +310,8 @@ export function StorageSection() {
           </p>
           <div>
             {largest.map((f) => {
-              const parts = f.path.split("/");
-              const name = parts[parts.length - 1];
-              const where =
-                parts[0] === "courses" && parts[1]
-                  ? (subjectByDir.get(parts[1]) ?? displayCode(parts[1]))
-                  : parts[0] === "lectures" && parts[1]
-                    ? (subjectByLecture.get(parts[1]) ?? "Lectures")
-                    : "App data";
+              const name = f.path.split("/").pop();
+              const where = storageOwner(f.path, subjectByDir, subjectByLecture);
               return (
                 <div key={f.path} className="flex items-center gap-2.5 py-1.5">
                   <span

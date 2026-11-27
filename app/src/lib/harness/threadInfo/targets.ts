@@ -1,6 +1,7 @@
 import { fullCitation, parsedSourceOf } from "@/lib/citations/parse";
 import { videoHref } from "@/lib/studio/routes";
-import { recordingOf } from "@/lib/files/libraryLayout";
+import { COURSES_DIR, recordingOf } from "@/lib/files/libraryLayout";
+import { ATTACHMENTS_DIR, MEMORIES_DIR, OUTPUTS_DIR, STUDIO_PATTERN } from "@/lib/files/statePaths";
 
 /** What a Thread info row opens: a library path the way a file chip opens
  *  it (`openCitation`), or an app route beside the chat. */
@@ -10,15 +11,18 @@ export type InfoTarget =
 
 /** Where an agent's own instructions, skills and memories are read from;
  *  reading them is how every turn starts, not what the thread read. */
-const READ_ROOTS = /^(?:courses\/|agents\/(?:attachments|outputs)\/)/;
+const READ_ROOTS = [COURSES_DIR, ATTACHMENTS_DIR, OUTPUTS_DIR];
 
 /** What an agent can make: its outputs, its memories, and (from a thread
  *  rooted at the library) course files. */
-const MADE_ROOTS = /^(?:courses\/|agents\/(?:outputs|memories)\/)/;
+const MADE_ROOTS = [COURSES_DIR, OUTPUTS_DIR, MEMORIES_DIR];
 
-/** Studio's folders in the data directory (`docs/studio.md`): a file in a
- *  video's folder opens that video, a library component or theme its page. */
-const STUDIO = /\/com\.tchan\.oculus[^/]*\/studio\/(videos|components|themes)\/([^/]+)/;
+const under = (path: string, roots: string[]) => roots.some((root) => path.startsWith(`${root}/`));
+
+/** Studio's folders in the data directory (`docs/studio.md`), spelled either
+ *  way (`lib/files/statePaths.ts`): a file in a video's folder opens that
+ *  video, a library component or theme its page. */
+const STUDIO = new RegExp(`\\/com\\.tchan\\.oculus[^/]*\\/${STUDIO_PATTERN}\\/(videos|components|themes)\\/([^/]+)`);
 
 /** The one key a file is known by: a parsed `.md` is the PDF or Office file
  *  it came from, and anything under a lecture's folder is the lecture. */
@@ -27,11 +31,11 @@ export function libraryKey(path: string): string {
 }
 
 export function isReadPath(path: string): boolean {
-  return READ_ROOTS.test(path);
+  return under(path, READ_ROOTS);
 }
 
 export function isMadePath(path: string): boolean {
-  return MADE_ROOTS.test(path);
+  return under(path, MADE_ROOTS);
 }
 
 /** A Studio file's page, or null outside Studio's folders. */
