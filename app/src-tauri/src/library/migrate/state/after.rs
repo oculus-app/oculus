@@ -36,7 +36,7 @@ pub async fn record_cited(data_dir: &Path) -> Result<usize, String> {
         })
         .collect();
     let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-    let written = record_moves(&mut *conn, &renames).await?;
+    let written = record_moves(&mut conn, &renames).await?;
     drop(conn);
     pool.close().await;
     Ok(written)

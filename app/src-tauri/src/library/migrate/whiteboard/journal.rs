@@ -135,6 +135,17 @@ fn follow_state_move(step: &mut Step) {
     }
 }
 
+/// Write the plan whole, and start the done log over.
+pub fn save(data_dir: &Path, plan: &Plan) -> Result<(), String> {
+    std::fs::create_dir_all(dir(data_dir)).map_err(|e| e.to_string())?;
+    crate::runtime::atomic_write::json(&journal_path(data_dir), plan)?;
+    match std::fs::remove_file(done_log_path(data_dir)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("clear the done log: {e}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,16 +199,5 @@ mod tests {
                 rename("courses/X/a.canvas", "courses/X/a.whiteboard"),
             ]
         );
-    }
-}
-
-/// Write the plan whole, and start the done log over.
-pub fn save(data_dir: &Path, plan: &Plan) -> Result<(), String> {
-    std::fs::create_dir_all(dir(data_dir)).map_err(|e| e.to_string())?;
-    crate::runtime::atomic_write::json(&journal_path(data_dir), plan)?;
-    match std::fs::remove_file(done_log_path(data_dir)) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(format!("clear the done log: {e}")),
     }
 }

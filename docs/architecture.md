@@ -112,7 +112,7 @@ with the app's icon.
   the server loop and the client never name an OS
   ([development.md](./development.md#keyds-os-code-lives-in-one-adapter)).
 - **Started by the OS, not the app.** On macOS the LaunchAgent
-  `com.tchan.oculus.keyd` owns `keyd.sock` (mode 0600) and starts keyd on the
+  `com.tchan.oculus.keyd` owns `.oculus/keyd.sock` (mode 0600) and starts keyd on the
   first connect. Its `AssociatedBundleIdentifiers` names `com.tchan.oculus`,
   so Login Items and the background-activity notice list it under Oculus
   (`app/keyd/core/src/platform/macos/registrar.rs`). One thread accepts and decides to exit
@@ -132,7 +132,10 @@ with the app's icon.
 - **`vault.bin`** holds the secrets as one ChaCha20-Poly1305-sealed JSON map
   (`app/keyd/core/src/vault.rs`): a fresh nonce per write, replaced by rename,
   read-modify-write under an exclusive lock. A file that fails to decrypt is never
-  overwritten.
+  overwritten. A missing file is an empty vault, so while a vault from before
+  the state folder is still at the data dir's top and none is in `.oculus/`,
+  every op that needs the vault is refused (`State::vault` in
+  `app/keyd/core/src/ops.rs`) rather than start a second one beside it.
 - **The wire format** is one JSON line, then `body_len` raw bytes if the
   header names them; replies have the same shape. One module writes and reads
   it for keyd and every client (`app/keyd/core/src/framing.rs`). Ops: `ping` (version, source
@@ -303,7 +306,7 @@ fetches but the media element fails with error code 4 (macOS 26). So
 `app/src-tauri/src/lectures/media.rs` serves lecture video on an ephemeral localhost
 port with a per-launch token and Range support, scoped to the library's
 folders (`library_roots` in `app/src-tauri/src/library/layout/roots.rs`) and
-`studio/videos/` (rendered videos), and serving PNG, JPEG and
+the state folder's `studio/videos/` (rendered videos), and serving PNG, JPEG and
 WebP as images. The frontend gets URLs from `mediaSrc()` in `app/src/lib/lectures/media/src.ts`.
 
 The same server answers `GET|HEAD /widget-kit/<path>` with no token: the
@@ -320,9 +323,11 @@ Tauri embeds with the frontend. Paths are plain segments only
 `library::paths::data_dir()` computes the directory Tauri would
 (`~/Library/Application Support/com.tchan.oculus`) with no `AppHandle`, and is
 the only way Rust reaches it — so the CLI and the app cannot disagree. Windows
-uses the shared profile folder described in [windows.md](./windows.md). Inside:
+uses the shared profile folder described in [windows.md](./windows.md).
 
-- `oculus.db` — SQLite, everything structured.
+Its top level is the library, plus two folders of the app's own whose names
+start with a dot:
+
 - `courses/<code>/…` — one folder per subject: `Course/` (what the sync
   writes, lecture recordings included), the student's own files beside it,
   and the hidden `.oculus/` (the subject's agent folder and derived
@@ -335,12 +340,42 @@ uses the shared profile folder described in [windows.md](./windows.md). Inside:
   regenerable `frames/`, `outline.md` and `thumb.jpg` from the chapter jobs.
   Which source is the slides is measured, not assumed — see
   [chapters.md](./chapters.md).
-- `downloads/.incoming/` — browser download staging ([viewers.md](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive)).
+- `.oculus/` — the state folder: everything of the app's own
+  ([below](#the-apps-own-files-are-in-one-state-folder)).
+- `.library-move/` — the launch moves' journals, lock and markers
+  ([library-move.md](./library-move.md)). It stays at the top because every
+  build reads it there before anything else, which is what stops a build
+  from before the state folder opening this library.
+
+Nothing else at the top is the app's. A folder or file there that the app
+did not make is left alone by every move and by the path helpers.
+
+### The app's own files are in one state folder
+
+`library::paths::state_dir` (`keyd_core::paths::STATE_DIR`, `.oculus`) is the
+one definition, shared with `oculus-keyd`; every helper in
+`app/src-tauri/src/library/paths/` and `app/keyd/core/src/paths.rs` builds
+from it, and `state_rel` spells a state path the way rows and rules do
+(`.oculus/agents`). The folder is created at the start of every launch
+(`library::at_launch`), a new install included, and is hidden from Explorer
+on Windows. Inside:
+
+- `oculus.db` — SQLite, everything structured. `DB_URL`
+  (`library/paths/db.rs`) is the string `tauri-plugin-sql` keys its
+  migrations by, and `app/src/lib/db/connection.ts` loads the same one
+  (`app/tests/repo/dbUrl.test.ts`).
 - `agents/` — the docs, skills and memory layer a coding agent reads and
   writes ([cli.md](./cli.md#oculus-docs-writes-the-agents-folder)); the
   working directory of every chat thread, which writes there and in the
   subjects' own files, with raw provider output in
-  `agents/threads/<id>.ndjson` ([harness.md](./harness.md)).
+  `agents/threads/<id>.ndjson` ([harness.md](./harness.md)). From there a
+  subject is `../../courses/<code>/` (`agents::from_workspace`).
+- `studio/` — Studio's videos, series and libraries ([studio.md](./studio.md)).
+- `whiteboard-pages/<file id>/` — a notebook's page pictures, and
+  `recovery/whiteboards/` — unsaved drawings' drafts
+  ([drawing-whiteboard.md](./drawing-whiteboard.md)).
+- `downloads/.incoming/` — browser download staging ([viewers.md](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive)),
+  and `tmp/` — scratch for downloads muxed before they land.
 - `models/` — downloaded local models, never bundled: `whisper/` for local
   transcription ([viewers.md](./viewers.md#local-whisper-whispercpp-with-a-downloaded-model)), `align/` for Studio's
   narration aligner ([studio.md](./studio.md#narration-timing-is-forced-alignment-on-the-cpu))
@@ -353,18 +388,29 @@ uses the shared profile folder described in [windows.md](./windows.md). Inside:
 - `institution.json` — which university: its Canvas address, how it signs
   in, and what launches learned ([auth.md](./auth.md#one-institution-profile-says-which-university)).
 - `ed-courses.json` — the Ed course each Canvas course's LTI launch named
-  ([sync.md](./sync.md#ed-content-is-a-custom-xml-dialect)).
+  ([sync.md](./sync.md#ed-content-is-a-custom-xml-dialect)), and
+  `file-manifest.json` — what each synced Canvas file was when it was last
+  downloaded.
 - `canvas-session/`: the authenticated flag, the signed-out marker and the
   sign-in attempt record, with `okta-sign-in.log` beside it
   ([auth.md](./auth.md)). The sessions themselves are in the vault.
 - `vault.bin` and its `vault.bin.lock`, `keyd.sock` (launchd's), and `bin/`
   with a dev-installed `Oculus Helper.app` and keyd's `oculus-keyd.stamp`
-  ([above](#oculus-keyd-is-the-only-process-meant-to-read-its-key)).
-- `.library-move/` — the library move's journal, lock and `done` marker
-  ([library-move.md](./library-move.md)).
+  ([above](#oculus-keyd-is-the-only-process-meant-to-read-its-key)). A data
+  dir too deep for `.oculus/keyd.sock` to fit a unix socket path (104 bytes)
+  has its socket at the top as `.keyd.sock` instead; `keyd_core::paths::socket`
+  decides, for keyd, the registrar and the client alike.
 - `start-over` — present only between Start over and the next launch, which
-  empties the directory but for the two usage files, `models/` and keyd's
-  own ([auth.md](./auth.md#one-institution-profile-says-which-university)).
+  empties the data directory but for the two usage files, `models/`, keyd's
+  own and `.library-move/`
+  ([auth.md](./auth.md#one-institution-profile-says-which-university)).
+
+The asset protocol's scope (`tauri.conf.json`) names `courses/**` and, in the
+state folder, `agents/**`, `whiteboard-pages/**` and `studio/videos/**`. The
+frontend builds an asset URL from a data-dir-relative path, so it resolves
+the spellings stored chats hold to where a file is
+(`app/src/lib/files/statePaths.ts`,
+[frontend.md](./frontend.md)).
 
 ## One module owns every path shape in the library
 
