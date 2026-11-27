@@ -30,6 +30,7 @@ export function Lightbox({
   children,
   scrollerClassName,
   selectableSelector,
+  actions,
 }: {
   size: LightboxSize;
   open: boolean;
@@ -42,6 +43,8 @@ export function Lightbox({
   scrollerClassName?: string;
   /** A press on a match selects text instead of starting a pan. */
   selectableSelector?: string;
+  /** Leads the toolbar: what can be done with what is shown. */
+  actions?: React.ReactNode;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,6 +64,7 @@ export function Lightbox({
           onClose={() => onOpenChange(false)}
           scrollerClassName={scrollerClassName}
           selectableSelector={selectableSelector}
+          actions={actions}
         >
           {children}
         </Viewer>
@@ -76,11 +80,13 @@ export function ImageLightbox({
   alt,
   open,
   onOpenChange,
+  actions,
 }: {
   src: string;
   alt?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  actions?: React.ReactNode;
 }) {
   const [size, setSize] = useState<LightboxSize | null>(null);
 
@@ -103,7 +109,7 @@ export function ImageLightbox({
   if (!open || !size) return null;
 
   return (
-    <Lightbox size={size} open={open} onOpenChange={onOpenChange} title={alt || "Picture"}>
+    <Lightbox size={size} open={open} onOpenChange={onOpenChange} title={alt || "Picture"} actions={actions}>
       <img src={src} alt={alt ?? ""} draggable={false} className="h-full w-full" />
     </Lightbox>
   );

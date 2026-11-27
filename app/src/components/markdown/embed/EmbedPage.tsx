@@ -4,6 +4,7 @@ import { useDataDir } from "@/hooks/backend/useDataDir";
 import { readCourseFile } from "@/lib/files/courseFiles";
 import { isDark, subscribeDark } from "@/lib/ui/themes";
 import { IconAction } from "@/components/markdown/embed/IconAction";
+import { SaveToDriveAction } from "@/components/harness/save/SaveToDriveAction";
 import { PageViewer } from "@/components/markdown/embed/PageViewer";
 import {
   initialPageHeight,
@@ -73,6 +74,7 @@ export function EmbedPage({ path, alt }: { path: string; alt?: string }) {
         <span className="min-w-0 flex-1 truncate" title={path}>
           {title}
         </span>
+        <SaveToDriveAction path={path} look="icon" />
         <IconAction label="Expand" onClick={() => setOpen(true)} disabled={!doc}>
           <ArrowsOutSimple size={13} />
         </IconAction>

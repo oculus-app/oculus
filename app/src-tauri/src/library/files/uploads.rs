@@ -88,7 +88,7 @@ pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<Imp
         if std::fs::metadata(src).is_ok_and(|m| m.is_dir()) {
             import_folder(data_dir, target, src, &source, 0, &mut out);
         } else {
-            out.push(import_one(data_dir, target, src, source, None));
+            out.push(import_one(data_dir, target, src, source));
         }
     }
     out
@@ -98,8 +98,24 @@ pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<Imp
 /// student renamed) rather than its own; a clash still steps aside as
 /// `upload_free_name` decides.
 pub fn import_file_as(data_dir: &Path, target: &Target, src: &Path, name: &str) -> ImportOutcome {
+    let read = std::fs::read(src).map_err(|e| format!("could not read it — {e}"));
+    match read {
+        Ok(bytes) => import_bytes_as(data_dir, target, name, bytes),
+        Err(e) => outcome(name.to_string(), Err(e)),
+    }
+}
+
+/// `import_into` for bytes already read, stored under `name`: a chat output
+/// the student saves (`harness::app::save_to_drive`), read through the
+/// handle its check opened so no second read can see another file.
+pub fn import_bytes_as(
+    data_dir: &Path,
+    target: &Target,
+    name: &str,
+    bytes: Vec<u8>,
+) -> ImportOutcome {
     let _guard = import_lock();
-    import_one(data_dir, target, src, name.to_string(), Some(name))
+    outcome(name.to_string(), store_bytes(data_dir, target, name, bytes))
 }
 
 /// Imports share name allocation: one lock keeps simultaneous batches from
@@ -111,14 +127,15 @@ fn import_lock() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn import_one(
-    data_dir: &Path,
-    target: &Target,
-    src: &Path,
+fn import_one(data_dir: &Path, target: &Target, src: &Path, source: String) -> ImportOutcome {
+    outcome(source, store_upload(data_dir, target, src))
+}
+
+fn outcome(
     source: String,
-    name: Option<&str>,
+    stored: Result<(ImportedFile, Option<String>), String>,
 ) -> ImportOutcome {
-    match store_upload(data_dir, target, src, name) {
+    match stored {
         Ok((file, error)) => ImportOutcome {
             source,
             file: Some(file),
@@ -172,7 +189,7 @@ fn import_folder(
                 import_folder(data_dir, &folder, &path, &child_source, depth + 1, out);
             }
         } else {
-            out.push(import_one(data_dir, &folder, &path, child_source, None));
+            out.push(import_one(data_dir, &folder, &path, child_source));
         }
     }
 }
@@ -191,12 +208,21 @@ fn store_upload(
     data_dir: &Path,
     target: &Target,
     src: &Path,
-    name: Option<&str>,
 ) -> Result<(ImportedFile, Option<String>), String> {
-    let picked = name
-        .or_else(|| src.file_name().and_then(|s| s.to_str()))
+    let picked = src
+        .file_name()
+        .and_then(|s| s.to_str())
         .ok_or_else(|| "that file has no name".to_string())?;
     let bytes = std::fs::read(src).map_err(|e| format!("could not read it — {e}"))?;
+    store_bytes(data_dir, target, picked, bytes)
+}
+
+fn store_bytes(
+    data_dir: &Path,
+    target: &Target,
+    picked: &str,
+    bytes: Vec<u8>,
+) -> Result<(ImportedFile, Option<String>), String> {
     let picked = legacy_drawing_name(picked, &bytes);
 
     let name = upload_free_name(data_dir, target, &upload_name(target, &picked), &bytes);

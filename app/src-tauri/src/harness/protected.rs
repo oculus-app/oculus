@@ -21,6 +21,9 @@ use std::path::{Path, PathBuf};
 use crate::library::layout;
 use crate::library::paths::state_rel;
 
+mod savable;
+pub use savable::{savable, SourceStamp};
+
 /// Data-dir folders an agent reads but never writes, whole, as
 /// data-dir-relative paths: a recordings folder outside the subjects (none
 /// in the Drive tree), the launch moves' records (`migrate::RECORD_DIR`),
@@ -74,6 +77,24 @@ pub fn own_zone(rel: &str) -> bool {
 /// App-owned folders inside the writable agents' workspace: generated
 /// skills and the links scanning CLIs find them through (`crate::agents`).
 pub const WORKSPACE_DIRS: [&str; 3] = ["skills", ".claude", ".agents"];
+
+/// The workspace's folders that are the agent's own rather than its work:
+/// its memories and every chat's raw log. Like `WORKSPACE_DIRS`, never
+/// `savable`.
+pub const AGENT_DIRS: [&str; 2] = [crate::agents::MEMORIES_DIR, crate::agents::THREADS_DIR];
+
+/// Files at the workspace's top that are the app's or the agent's own: the
+/// generated docs, the stubs the agent's taste and notes live in, opencode's
+/// config, and the instruction files a CLI reads from its cwd.
+pub const WORKSPACE_FILES: [&str; 7] = [
+    crate::agents::AGENTS_DOC_NAME,
+    crate::agents::CLI_DOC_NAME,
+    crate::agents::OCULUS_DOC_NAME,
+    crate::agents::TASTE_DOC_NAME,
+    crate::agents::OPENCODE_CONFIG_NAME,
+    "CLAUDE.md",
+    "GEMINI.md",
+];
 
 /// `WORKSPACE_DIRS` as data-dir-relative paths: `.oculus/agents/skills`.
 pub fn workspace_dir_rels() -> Vec<String> {

@@ -17,6 +17,7 @@ pub mod requests;
 pub mod revision;
 pub(in crate::harness) mod rewind;
 mod run_scope;
+pub mod save_to_drive;
 pub(in crate::harness) mod send;
 pub mod setup;
 pub mod skills;

@@ -15,8 +15,9 @@ export interface ReferenceDetails {
 }
 
 /** A portal keeps previews out of prose layout and the composer's editable DOM.
- *  `media` (an attached picture's thumbnail) draws above the title. */
-export function ReferencePreview({ children, icon, title, kind, detail, load, media }: {
+ *  `media` (an attached picture's thumbnail) draws above the title, `action`
+ *  (Save to Drive…) under the details, once it renders a button. */
+export function ReferencePreview({ children, icon, title, kind, detail, load, media, action }: {
   children: ReactElement;
   icon: ReactNode;
   title: string;
@@ -24,6 +25,7 @@ export function ReferencePreview({ children, icon, title, kind, detail, load, me
   detail: string;
   load?: () => Promise<ReferenceDetails | null>;
   media?: ReactNode;
+  action?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -43,6 +45,7 @@ export function ReferencePreview({ children, icon, title, kind, detail, load, me
         >
           {media && <span className="mb-3 block">{media}</span>}
           <PreviewBody icon={icon} title={title} kind={kind} detail={detail} load={load} />
+          {action && <span className="-mb-1 -ml-2 mt-2 hidden has-[button]:flex">{action}</span>}
         </HoverCard.Content>
       </HoverCard.Portal>
     </HoverCard.Root>

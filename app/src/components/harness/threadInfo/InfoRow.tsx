@@ -12,30 +12,38 @@ export function InfoRow({
   trailing,
   title,
   onOpen,
+  action,
 }: {
   icon: ReactNode;
   label: ReactNode;
   trailing?: ReactNode;
   title?: string;
   onOpen?: (newTab: boolean) => void;
+  /** A control over the row's right end (Save to Drive…), a sibling of its
+   *  button; the trailing facts give way to it while the row is hovered. */
+  action?: ReactNode;
 }) {
   const body = (
     <>
       <span className="flex size-[15px] shrink-0 items-center justify-center">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {trailing != null && trailing !== "" && (
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{trailing}</span>
+        <span
+          className={cn(
+            "shrink-0 text-xs text-muted-foreground tabular-nums",
+            action != null && "group-hover/info:invisible group-focus-within/info:invisible",
+          )}
+        >
+          {trailing}
+        </span>
       )}
     </>
   );
-  if (!onOpen) {
-    return (
-      <div data-info-row className={ROW} title={title}>
-        {body}
-      </div>
-    );
-  }
-  return (
+  const row = !onOpen ? (
+    <div data-info-row className={ROW} title={title}>
+      {body}
+    </div>
+  ) : (
     <button
       type="button"
       data-info-row
@@ -46,10 +54,22 @@ export function InfoRow({
         e.preventDefault();
         onOpen(true);
       }}
-      className={cn(ROW, "cursor-pointer transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none")}
+      className={cn(
+        ROW,
+        "cursor-pointer transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+        // The action sits over the row: hovering it keeps the row lit.
+        action != null && "group-hover/info:bg-accent",
+      )}
     >
       {body}
     </button>
+  );
+  if (action == null) return row;
+  return (
+    <div className="group/info relative">
+      {row}
+      <span className="absolute inset-y-0 right-1.5 flex items-center">{action}</span>
+    </div>
   );
 }
 

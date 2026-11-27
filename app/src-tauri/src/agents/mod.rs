@@ -34,7 +34,11 @@ pub const AGENTS_DOC_NAME: &str = "AGENTS.md";
 pub const CLI_DOC_NAME: &str = "OCULUS-CLI.md";
 const SKILLS_DIR: &str = "skills";
 const SKILL_DOC_NAME: &str = "SKILL.md";
-const TASTE_DOC_NAME: &str = "TASTE.md";
+pub const TASTE_DOC_NAME: &str = "TASTE.md";
+/// The stub the student's own notes to every agent live in.
+pub const OCULUS_DOC_NAME: &str = "OCULUS.md";
+/// Every chat's raw provider lines (`harness::manager::raw_log`).
+pub const THREADS_DIR: &str = "threads";
 /// The index beside the memories, in both buckets.
 const MEMORY_INDEX_NAME: &str = "MEMORY.md";
 pub const MEMORIES_DIR: &str = "memories";

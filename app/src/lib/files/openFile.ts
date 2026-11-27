@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { openBeside, openLink } from "@/lib/shell/tabRouters";
-import { isLessonAsset, isPdfBacked, isSheetFile, isVideoFile, parsedMdRelPath, parsedMdSource } from "@/lib/files/fileTypes";
+import { isLessonAsset, isPdfBacked, isPictureFile, isSheetFile, isVideoFile, parsedMdRelPath, parsedMdSource } from "@/lib/files/fileTypes";
 import { getFileByRelativePath, getLectureByFolder, markFileAccessed, type DbFile } from "@/lib/db";
 import { isWebUrl } from "@/lib/browser";
 import { libraryLinkTarget } from "@/lib/files/libraryLinks";
@@ -64,10 +64,10 @@ export function routeParseDetails(state: unknown): number | undefined {
 }
 
 /** A binary the app has no viewer for: it opens in the system viewer. PDFs,
- *  Office documents (via their converted PDF), spreadsheets (as their text)
- *  and videos render in-app. */
+ *  Office documents (via their converted PDF), spreadsheets (as their text),
+ *  videos and pictures render in-app. */
 function systemOnly(file: DbFile): boolean {
-  return !isPdfBacked(file.filename) && !isSheetFile(file.filename) && !isVideoFile(file.filename);
+  return !isPdfBacked(file.filename) && !isSheetFile(file.filename) && !isVideoFile(file.filename) && !isPictureFile(file.filename);
 }
 
 /** How any list row opens a file: anything renderable as its page in the

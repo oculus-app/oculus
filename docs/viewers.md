@@ -60,7 +60,9 @@ classes work even when there are no dollar delimiters.
   through this pipeline and KaTeX and lists the formulas that fail and the TeX
   left as prose; each rule above came from a run of it. An inline `<code>` holding only a citation (`app/src/lib/citations/`)
   renders as `FileChip`. `![alt](path)` naming a library picture or HTML
-  page renders it in place (`OutputEmbed.tsx`). In replies, `outputs/x.svg`
+  page renders it in place (`OutputEmbed.tsx`); in a chat, a picture from the
+  agent's workspace keeps a 28px line under it for its alt and Save to Drive…,
+  and a page has the action in its header. In replies, `outputs/x.svg`
   and `./outputs/x.svg` both name a file under the agent’s `outputs/` folder.
   A query such as `?v=2` stays on the image URL, outside the encoded disk
   path. PDF page and lecture time fragments locate the cited passage; any other `#` or `?` is part of the file name.
@@ -278,7 +280,17 @@ classes work even when there are no dollar delimiters.
     and arrowheads by id.
 - **`Lightbox.tsx` pans with its container's scroll and zooms with a
   `transform`**; every input moves a target the painted scale eases toward, so
-  bursts compose.
+  bursts compose. Its toolbar may lead with one action for what it shows
+  (`actions`, `LightboxToolbar`'s `lead`, drawn with its divider only once it
+  renders a button): a chat picture's Save to Drive…
+  ([harness.md](./harness.md#saving-a-chat-output-to-drive)).
+- **A picture opens on its file page as an `<img>`**: a synced image, and a
+  picture of the student's own (`isPictureFile`: PNG, JPEG, GIF, WebP, AVIF,
+  SVG), so a chat picture saved to Drive opens beside the page like a PDF
+  rather than in the system viewer (`openFileSmart`). An SVG is active
+  content: it is only ever an `<img>`, never inlined. An HTML page of the
+  student's still opens in the system browser, as a reply's page does from
+  its Open externally; in the app it runs only in a reply's sandboxed frame.
 - **`PDFViewer` is ours, over Rust's `pdf_*` commands**
   (`app/src/components/files/pdf/`, invoke wrappers and caches in
   `app/src/lib/pdf/pdfView.ts`). It opens a file by its library-relative path;
