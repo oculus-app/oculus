@@ -14,34 +14,40 @@ function outcome(filename: string, error: string | null = null): ImportOutcome {
   };
 }
 
+const TOP = { id: -100, code: "My Drive" };
+
 function saved(id: number, o: ImportOutcome): Download {
-  return download(id, { state: "saved", saved_to: { kind: "oculus", subject_code: SUBJECT.code, outcome: o } });
+  return download(id, { state: "saved", saved_to: { kind: "drive", outcome: o } });
 }
 
-/** A recorder over an in-memory files table, logging what it writes. */
+/** A recorder over an in-memory files table, logging what it writes and
+ *  which row each download was told. */
 function harness(existing: string[] = []) {
-  const rows = new Set(existing);
+  const rows = new Map(existing.map((path, i) => [path, 1000 + i]));
   const written: string[] = [];
+  const homes: string[] = [];
+  const told: Record<number, number> = {};
   let failNext = false;
   const record = createSavedRecorder({
-    subjectOf: async (code) => (code === SUBJECT.code ? SUBJECT : null),
-    hasRow: async (path) => rows.has(path),
-    record: async (subject, outcomes) => {
-      expect(subject).toEqual(SUBJECT);
+    homeOf: async (path) => (path.startsWith(`courses/${SUBJECT.code}/`) ? SUBJECT : path.startsWith("courses/") ? null : TOP),
+    rowAt: async (path) => rows.get(path) ?? null,
+    record: async (home, outcomes) => {
       if (failNext) {
         failNext = false;
         throw new Error("database is locked");
       }
       for (const o of outcomes) {
-        rows.add(o.file!.relative_path);
+        rows.set(o.file!.relative_path, rows.size + 1);
         written.push(o.file!.filename);
+        homes.push(home.code);
       }
     },
+    onRow: (download, file) => { told[download] = file; },
   });
-  return { record, written, failOnce: () => { failNext = true; } };
+  return { record, written, homes, told, failOnce: () => { failNext = true; } };
 }
 
-describe("recording downloads saved in Oculus", () => {
+describe("recording downloads saved to Drive", () => {
   test("each saved download is recorded once, however often the list repeats", async () => {
     const { record, written } = harness();
     const list = [saved(1, outcome("a.pdf"))];
@@ -51,9 +57,24 @@ describe("recording downloads saved in Oculus", () => {
   });
 
   test("a list replayed after a reload records nothing already in the database", async () => {
-    const { record, written } = harness([`courses/${SUBJECT.code}/a.pdf`]);
+    const { record, written, told } = harness([`courses/${SUBJECT.code}/a.pdf`]);
     await record([saved(1, outcome("a.pdf")), saved(2, outcome("b.pdf"))]);
     expect(written).toEqual(["b.pdf"]);
+    expect(told).toEqual({ 1: 1000, 2: 2 });
+  });
+
+  test("the row hangs off the subject its path is in, or the top level", async () => {
+    const { record, homes } = harness();
+    const top: ImportOutcome = { source: "kit.pdf", file: { filename: "kit.pdf", relative_path: "Receipts/kit.pdf", file_type: "pdf", size_bytes: 1 }, error: null };
+    await record([saved(1, outcome("a.pdf")), saved(2, top)]);
+    expect(homes.sort()).toEqual([SUBJECT.code, "My Drive"].sort());
+  });
+
+  test("a path no known subject holds is not recorded, and is tried again", async () => {
+    const { record, written } = harness();
+    const stray: ImportOutcome = { source: "x.pdf", file: { filename: "x.pdf", relative_path: "courses/GONE/x.pdf", file_type: "pdf", size_bytes: 1 }, error: null };
+    await record([saved(1, stray)]);
+    expect(written).toEqual([]);
   });
 
   test("a file whose conversion failed is still recorded; the parse is left to recordUploads", async () => {
@@ -62,7 +83,7 @@ describe("recording downloads saved in Oculus", () => {
     expect(written).toEqual(["notes.docx"]);
   });
 
-  test("rows that are not saved in Oculus are left alone", async () => {
+  test("rows that are not saved to Drive are left alone", async () => {
     const { record, written } = harness();
     await record([
       download(1),

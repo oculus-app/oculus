@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * One answer in the Save dialog: a radio with its title and hint, filled
- * brand while chosen, as `NotebookDialog`'s choices are. `control` sits
- * beside the radio rather than inside it, since a button cannot hold one.
+ * One answer in the Save dialog: a radio with its title and a line under it
+ * (a hint, or where it saves as a trail), filled brand while chosen, as
+ * `NotebookDialog`'s choices are. `control` sits beside the radio rather
+ * than inside it, since a button cannot hold one.
  */
 export function DestinationOption({
   checked,
@@ -17,7 +18,7 @@ export function DestinationOption({
   checked: boolean;
   onSelect: () => void;
   title: string;
-  hint: string;
+  hint: ReactNode;
   control?: ReactNode;
   disabled?: boolean;
 }) {
@@ -45,9 +46,9 @@ export function DestinationOption({
         >
           {checked ? <span className="size-1.5 rounded-full bg-brand" /> : null}
         </span>
-        <span className="min-w-0">
-          <span className="block text-[13px] text-foreground">{title}</span>
-          <span className="block text-[11px] text-muted-foreground">{hint}</span>
+        <span className="flex min-w-0 flex-1 flex-col gap-px">
+          <span className="text-[13px] text-foreground">{title}</span>
+          {typeof hint === "string" ? <span className="text-[11px] text-muted-foreground">{hint}</span> : hint}
         </span>
       </button>
       {control}

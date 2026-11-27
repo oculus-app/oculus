@@ -5,16 +5,16 @@ import { download } from "./fixtures";
 
 const upload = {
   source: "a.pdf",
-  file: { filename: "a.pdf", relative_path: "courses/X/a.pdf", file_type: "pdf", size_bytes: 10 },
+  file: { filename: "a.pdf", relative_path: "courses/X/Labs/a.pdf", file_type: "pdf", size_bytes: 10 },
   error: null,
 };
 
 describe("stateWords", () => {
   test("receiving with no choice, and with one", () => {
     expect(stateWords(download(1))).toEqual({ text: "Receiving", place: null, detail: null, tone: "brand" });
-    expect(stateWords(download(1, { choice: { kind: "oculus", subject_code: "X_2026" } }))).toEqual({
+    expect(stateWords(download(1, { choice: { kind: "drive", target_dir: "Receipts", name: "kit.pdf" } }))).toEqual({
       text: "Will save to",
-      place: { kind: "subject", code: "X_2026" },
+      place: { kind: "drive", rel: "Receipts" },
       detail: null,
       tone: "brand",
     });
@@ -35,28 +35,33 @@ describe("stateWords", () => {
   });
 
   test("delivering names where it is going", () => {
-    const d = download(1, { state: "delivering", choice: { kind: "oculus", subject_code: "X_2026" } });
-    expect(stateWords(d)).toMatchObject({ text: "Saving to", place: { kind: "subject", code: "X_2026" } });
+    const d = download(1, { state: "delivering", choice: { kind: "drive", target_dir: "" } });
+    expect(stateWords(d)).toMatchObject({ text: "Saving to", place: { kind: "drive", rel: "" } });
   });
 
-  test("saved names the subject or the folder; a failed conversion is a detail, not a failure", () => {
-    const inOculus = download(1, {
+  test("saved names the Drive folder it landed in or the folder; a failed conversion is a detail, not a failure", () => {
+    const inDrive = download(1, {
       state: "saved",
-      saved_to: { kind: "oculus", subject_code: "X_2026", outcome: upload },
+      saved_to: { kind: "drive", outcome: upload },
     });
-    expect(stateWords(inOculus)).toEqual({
+    expect(stateWords(inDrive)).toEqual({
       text: "Saved to",
-      place: { kind: "subject", code: "X_2026" },
+      place: { kind: "drive", rel: "courses/X/Labs" },
       detail: null,
       tone: "success",
     });
     const unconverted = download(1, {
       state: "saved",
-      saved_to: { kind: "oculus", subject_code: "X_2026", outcome: { ...upload, error: "added, but not converted" } },
+      saved_to: { kind: "drive", outcome: { ...upload, error: "added, but not converted" } },
     });
     expect(stateWords(unconverted)).toMatchObject({ tone: "success", detail: "added, but not converted" });
     const onDisk = download(1, { state: "saved", saved_to: { kind: "path", path: "C:\\Users\\s\\Downloads\\a.pdf" } });
     expect(stateWords(onDisk).place).toEqual({ kind: "folder", name: "Downloads" });
+    const topLevel = download(1, {
+      state: "saved",
+      saved_to: { kind: "drive", outcome: { ...upload, file: { ...upload.file, relative_path: "a.pdf" } } },
+    });
+    expect(stateWords(topLevel).place).toEqual({ kind: "drive", rel: "" });
   });
 
   test("discarded and failed", () => {

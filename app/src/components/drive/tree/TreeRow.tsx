@@ -23,7 +23,6 @@ export function TreeRow({
   expanded,
   onToggle,
   active,
-  disabled = false,
   href,
   onActivate,
   drop,
@@ -38,7 +37,6 @@ export function TreeRow({
   expanded?: boolean;
   onToggle?: () => void;
   active: boolean;
-  disabled?: boolean;
   href?: string;
   onActivate: () => void;
   drop?: { rel: string; writable: boolean };
@@ -51,15 +49,13 @@ export function TreeRow({
       role="treeitem"
       aria-expanded={expanded}
       aria-selected={active}
-      aria-disabled={disabled || undefined}
-      tabIndex={disabled ? -1 : 0}
+      tabIndex={0}
       title={title ?? label}
       data-tab-href={href}
       data-drop-rel={drop?.rel}
       data-drop-writable={drop ? String(drop.writable) : undefined}
-      onClick={() => !disabled && onActivate()}
+      onClick={onActivate}
       onKeyDown={(e) => {
-        if (disabled) return;
         if (e.key === "Enter") onActivate();
         else if (e.key === "ArrowRight" && expanded === false) onToggle?.();
         else if (e.key === "ArrowLeft" && expanded) onToggle?.();
@@ -69,7 +65,6 @@ export function TreeRow({
         SIDE_NAV_ROW,
         "cursor-pointer gap-1.5 outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
         over === "ok" ? "bg-brand/10 text-foreground" : over === "refused" ? "opacity-50" : active ? SIDE_NAV_ROW_ACTIVE : SIDE_NAV_ROW_IDLE,
-        disabled && "cursor-default opacity-50 hover:bg-transparent",
       )}
     >
       {expanded == null ? (

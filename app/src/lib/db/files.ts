@@ -134,6 +134,13 @@ export async function getFileByRelativePath(
   return rows[0] ?? null;
 }
 
+/** One file by its row id, which a Drive move or rename keeps. */
+export async function getFileById(id: number): Promise<DbFile | null> {
+  const db = await getDb();
+  const rows = await db.select<DbFile[]>(`SELECT * FROM files WHERE id = $1 LIMIT 1`, [id]);
+  return rows[0] ?? null;
+}
+
 /** A subject's file by its Canvas file id: a `<canvas-video>` card's
  *  downloaded video. */
 export async function getFileByCanvasId(

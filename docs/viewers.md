@@ -1098,20 +1098,30 @@ hook must name its destination synchronously and WebKit starts writing at
 once, so the Save dialog asks while bytes arrive. Delivery waits for both the
 last byte and a choice, whichever comes second (`Downloads`):
 
-- **In Oculus** imports into a subject through `import_into` in
+- **In Drive** imports into any folder of Drive's a file can land in
+  (`drive_target`: the top level, a subject's root, or a folder of the
+  student's in either) through `import_file_as` / `import_into` in
   `app/src-tauri/src/library/files/uploads.rs`, the same path as picked
-  uploads: into `Dest`'s optional `target_dir` (a folder of the student's in
-  that subject, checked by `own_target`), else the subject's root. The Save
-  dialog picks it under the subject select: the subject's folder tree
-  (`DriveTree` with `onPick`), where synced folders can't be picked, on the
-  subject's root until the student picks another; its hint names where the
-  file lands. `useBrowserDownloads` calls `recordUploads` in
-  `app/src/lib/files/uploads.ts` through `createSavedRecorder` in
-  `app/src/lib/browser/downloads/recordSaved.ts`: it claims each
-  download once, skips an existing `files` row (including after a frontend
-  reload), and starts the parse for pipeline files whose import has no
-  conversion error. An Office conversion failure still leaves the upload
-  saved, with its warning.
+  uploads, so a taken name with other bytes steps aside to ` (2)` and the
+  same bytes keep their name and parse. `Dest` is
+  `{ kind: "drive", target_dir, name? }`, `name` only when the student
+  edited the file's; the row then shows the name it landed under. The
+  dialog opens with a folder already chosen, drawn as a `Trail` from My
+  Drive: the subject of the tab's Canvas course page, else the last folder
+  any Drive picker confirmed (`drive_picker_last_destination`), else the top
+  level (`app/src/lib/browser/downloads/destination.ts`), stepped up to the
+  nearest folder that takes files when it is gone or synced. Save lands it
+  there; **Change…** opens the Drive picker over the dialog with the name to
+  edit, and the picker's Save is the save (a cancel leaves the dialog as it
+  was). `useBrowserDownloads` writes the row through `recordUploads` in
+  `app/src/lib/files/uploads.ts` via `createSavedRecorder` in
+  `app/src/lib/browser/downloads/recordSaved.ts`, under the subject or the
+  top level the saved path is in (`homeOf`): it claims each download once,
+  skips an existing `files` row (including after a frontend reload), and
+  starts the parse for pipeline files whose import has no conversion error.
+  The row's id goes to `useBrowserDownloadsStore`'s `files`, so the list
+  acts on the file after a move or rename in Drive. An Office conversion
+  failure still leaves the upload saved, with its warning.
 - **On this Mac/PC** opens the native save panel, initially in Downloads with
   the safe name suggested.
   `app/src-tauri/src/shell/browser/downloads/deliver.rs` moves the file,
@@ -1121,8 +1131,8 @@ last byte and a choice, whichever comes second (`Downloads`):
   discarded and deletes only at `Finished`; it cannot cancel the transfer.
 
 Every save needs an explicit choice: `useBrowserPrefsStore` remembers only
-the preselected destination and subject. A Canvas course URL in the credited
-tab preselects that course's subject ahead of the remembered one
+which answer, In Drive or On this Mac, to preselect. A Canvas course URL in
+the credited tab names its subject
 (`app/src/lib/browser/downloads/subjectGuess.ts`), checking the institution's
 Canvas host when known. `app/src-tauri/src/shell/browser/downloads/sweep.rs`
 clears staging at startup except folders whose PID belongs to another live
@@ -1195,7 +1205,15 @@ rule (also when its tab has closed).
 `DownloadsButton` appears after the first download this session and stays
 after clearing the list. Its one dot is brand-coloured while a choice waits,
 otherwise destructive-coloured for an unseen failed or refused download;
-opening the list acknowledges problems. A waiting row opens the dialog.
+opening the list acknowledges problems. A waiting row opens the dialog. A
+saved row says where it went as a `Trail`, from its subject when it is in
+one, and every settled row has one ⋮ menu (`DownloadMenu`). Saved to Drive:
+Open, Show in Drive (a new tab on its folder), Show in Finder, Clear from
+list and Delete, which asks, deletes through Drive's `delete_entries` and
+clears the row; each finds the file by its row id
+(`app/src/pages/tools/browser/downloads/savedFile.ts`), and a file gone
+since just leaves the list. Saved on the Mac: Open, Show in Finder, Clear
+from list. Failed, refused or discarded: Clear from list.
 
 `useBrowserDownloads`, mounted once in `AppLayout`, mirrors the whole list
 from `browser-downloads` into `useBrowserDownloadsStore`. States are `receiving`,
