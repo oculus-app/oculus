@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isPendingDelete } from "@/stores/drive/pendingDeleteStore";
 import { listen } from "@tauri-apps/api/event";
 import { deleteFileRow, getFileByRelativePath, getFilesForSubject, getSubjects, renameFileRow, touchFileRow, upsertFile, type DbFile } from "@/lib/db";
 import type { ImportedFile } from "@/lib/files/uploads";
@@ -134,7 +135,11 @@ export async function reconcileDrawings(kind: DrawingKind, subject: { id: number
   const plan = planDrawingRows(kind, onDisk, rows);
   for (const file of plan.add) await rowFor(subject.id, file, kind);
   for (const { row, size } of plan.touch) await touchFileRow(row.id, size, false);
-  for (const row of plan.remove) { await deleteFileRow(row.id); forgetPageSnapshots(row.id); }
+  // A drawing in the Trash with its Undo still open keeps its row.
+  for (const row of plan.remove.filter((r) => !isPendingDelete(r.relative_path))) {
+    await deleteFileRow(row.id);
+    forgetPageSnapshots(row.id);
+  }
   if (plan.add.length || plan.touch.length || plan.remove.length) announce(subject.id);
 }
 

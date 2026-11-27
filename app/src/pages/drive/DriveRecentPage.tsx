@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Folder } from "@phosphor-icons/react";
 
 import { fileKindTone } from "@/components/drive/content/ItemIcon";
@@ -20,6 +20,7 @@ import { courseRelOf, TOP_LEVEL } from "@/lib/files/libraryLayout";
 import { FILE_ACCESSED_EVENT, filePagePath, fileTitle, openFileSmart } from "@/lib/files/openFile";
 import { displayCode, fmtSize, sqliteUtcToMs } from "@/lib/format/format";
 import { cn } from "@/lib/utils";
+import { usePendingDeleteStore, withinRemoved } from "@/stores/drive/pendingDeleteStore";
 
 const COLS = "grid grid-cols-[minmax(0,1fr)_minmax(0,220px)_120px_72px] items-center gap-3 px-5";
 const NARROW_COLS = "grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3 px-5";
@@ -39,13 +40,19 @@ export default function DriveRecentPage() {
   const ref = useRef<HTMLDivElement>(null);
   const width = useElementWidth(ref);
   const narrow = width > 0 && width < NARROW;
-  const [files, setFiles] = useState<RecentDriveFile[] | null>(null);
+  const [loaded, setLoaded] = useState<RecentDriveFile[] | null>(null);
+  // A file in the Trash with its Undo still open is left out.
+  const removed = usePendingDeleteStore((s) => s.current?.removed);
+  const files = useMemo(
+    () => loaded?.filter((f) => !withinRemoved(f.relative_path, removed ?? [])) ?? null,
+    [loaded, removed],
+  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     getRecentDriveFiles()
       .then((rows) => {
-        setFiles(rows);
+        setLoaded(rows);
         setError(null);
       })
       .catch((e) => setError(String(e)));

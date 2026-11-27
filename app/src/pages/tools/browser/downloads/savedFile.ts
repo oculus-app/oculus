@@ -9,6 +9,7 @@ import { parentRel } from "@/lib/drive/paths";
 import { driveFolderHref } from "@/lib/drive/routes";
 import { openFileSmart } from "@/lib/files/openFile";
 import { loadDataDir } from "@/hooks/backend/useDataDir";
+import { usePendingDeleteStore } from "@/stores/drive/pendingDeleteStore";
 import { useTabStore } from "@/stores/shell/tabStore";
 
 /**
@@ -49,15 +50,15 @@ export async function revealSaved(d: Download, row: number | undefined): Promise
   await revealItemInDir(`${await loadDataDir()}/${file.relative_path}`);
 }
 
-/** Deletes the download's file through Drive (`delete_entries`: its row,
- *  parse and pictures go too), found by its row id alone (`mayDelete`). One
- *  gone, or no longer the file the row holds (`stillRowFile`), deletes
- *  nothing: the list entry is all that clears. */
+/** Sends the download's file to the Trash as Drive deletes it
+ *  (`delete_entries`, with the Undo toast), found by its row id alone
+ *  (`mayDelete`). One gone, or no longer the file the row holds
+ *  (`stillRowFile`), deletes nothing: the list entry is all that clears. */
 export async function deleteSaved(row: number): Promise<void> {
   const file = await getFileById(row);
   if (!file) return;
   const listing = await listFolder(parentRel(file.relative_path)).catch(() => null);
   if (!listing || !stillRowFile(file, listing.files)) return;
-  await deleteEntries([file.relative_path]);
+  usePendingDeleteStore.getState().show(await deleteEntries([file.relative_path]));
   announceDriveChange(homeOf(file.relative_path, await getSubjects())?.id);
 }

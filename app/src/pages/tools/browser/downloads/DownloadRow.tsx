@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { downloads } from "@/lib/browser/downloads/commands";
 import { mayDelete } from "@/lib/browser/downloads/deletable";
 import { getFileById } from "@/lib/db";
@@ -47,8 +46,6 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
   const row = useBrowserDownloadsStore((s) => s.files[download.id]);
   const unrecorded = useBrowserDownloadsStore((s) => s.unrecorded[download.id]);
   const [error, setError] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   if (isWaiting(download)) {
     return (
@@ -75,9 +72,13 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
       showInDrive: () => act(() => showInDrive(download, row)),
       reveal: { label: REVEAL, run: () => act(() => revealSaved(download, row)) },
       clear: () => act(clear),
-      // A file moved or renamed since is found by its row; one gone just leaves the list.
+      // A file moved or renamed since is found by its row and goes to the
+      // Trash, with the Undo toast; one gone just leaves the list.
       delete: row != null && mayDelete(download, row)
-        ? () => act(async () => ((await getFileById(row)) ? setAsking(true) : clear()))
+        ? () => act(async () => {
+          if (await getFileById(row)) await deleteSaved(row);
+          await clear();
+        })
         : undefined,
     }
     : saved?.kind === "path" ? {
@@ -93,26 +94,6 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
         {error ?? unrecorded ? <span role="alert" className="text-[11px] text-destructive">{error ?? unrecorded}</span> : null}
       </Details>
       {isSettled(download) ? <DownloadMenu name={download.name} actions={actions} /> : null}
-      <ConfirmDialog
-        open={asking}
-        onCancel={() => setAsking(false)}
-        title={`Delete “${download.name}”?`}
-        description="There is no trash to get it back from."
-        confirmLabel="Delete"
-        busyLabel="Deleting…"
-        busy={deleting}
-        onConfirm={() => {
-          setDeleting(true);
-          setError(null);
-          (row != null ? deleteSaved(row) : Promise.resolve())
-            .then(clear)
-            .catch((e) => setError(problem(e)))
-            .finally(() => {
-              setDeleting(false);
-              setAsking(false);
-            });
-        }}
-      />
     </div>
   );
 }

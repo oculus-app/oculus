@@ -59,8 +59,6 @@ export function DownloadMenu({ name, actions }: { name: string; actions: Downloa
           sideOffset={4}
           collisionPadding={12}
           className="popup-motion z-50 min-w-44 rounded-xl border border-border-subtle bg-popover p-1 text-popover-foreground shadow-lg outline-none"
-          // Delete asks in a dialog that takes focus; the trigger must not take it back.
-          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           {actions.open && <Item icon={<ArrowSquareUpRight size={14} />} onSelect={actions.open}>Open</Item>}
           {actions.showInDrive && <Item icon={<Folder size={14} />} onSelect={actions.showInDrive}>Show in Drive</Item>}
