@@ -25,6 +25,7 @@ pub(in crate::harness) fn bridge(wire: Wire, sink: Sink) -> Bridge {
         one_off: false,
         callbacks: Mutex::new(HashSet::new()),
         steering: Arc::default(),
+        grants: None,
     });
     let translator = Rc::new(RefCell::new(Translator {
         interrupting: session.interrupting.clone(),

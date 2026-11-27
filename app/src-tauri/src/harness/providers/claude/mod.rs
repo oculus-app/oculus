@@ -6,13 +6,16 @@
 //! process stays up between turns; a thread whose process has gone resumes
 //! with `--resume <session id>`.
 //!
-//! Containment is settled up front in `settings::settings_json`. What it
-//! leaves undecided in a chat comes to the host as a permission prompt and
-//! is asked of the student (`approvals.rs`); a one-off turn's prompts are
+//! Containment is settled at launch in `settings::settings_json`, and a
+//! top-level entry made later is added to it while the thread runs
+//! (`grants.rs`). What it leaves undecided in a chat comes to the host as a
+//! permission prompt, answered by Rust's policy or asked of the student
+//! (`approvals.rs`); a one-off turn's prompts are
 //! denied by the CLI (`--permission-prompts none`), since nobody is there
 //! to answer and an unanswered prompt hangs the turn. See docs/harness.md.
 
 mod approvals;
+mod grants;
 mod models;
 mod questions;
 mod session;

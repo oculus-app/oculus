@@ -1,12 +1,25 @@
 //! The inline `--settings` document that contains a Claude thread.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::harness::protected::{
     library_dirs, state_file_globs, subject_dir_globs, subject_dirs, subjects_dir,
     workspace_dir_rels,
 };
 use crate::library::layout;
+
+/// What the sandbox is built from, kept by a live thread to grant a new
+/// top-level entry (`grants.rs`). `hosts` (`host:port`) are the network
+/// destinations a sandboxed command may reach: the TTS server's, or none.
+/// `unsandboxed` lets a command ask to run outside the sandbox
+/// (`session::unsandboxed_commands`).
+#[derive(Clone)]
+pub(super) struct SandboxOpts {
+    pub library: PathBuf,
+    pub cwd: PathBuf,
+    pub hosts: Vec<String>,
+    pub unsandboxed: bool,
+}
 
 /// The inline `--settings` document; docs/harness.md explains each part.
 /// `//` prefixes an absolute path in the CLI's rule syntax. The state
@@ -16,10 +29,8 @@ use crate::library::layout;
 /// The subjects' folder is writable but for each subject's `Course/` and
 /// `.oculus/`: denied by glob (`*` is one segment, so a subject synced
 /// mid-thread is covered), and by name for each subject on disk now, which
-/// makes the sandbox refuse moving that subject's folder too.
-/// `hosts` (`host:port`) are the network destinations a sandboxed command
-/// may reach: the TTS server's, or none. `unsandboxed` lets a command ask to
-/// run outside the sandbox (`session::unsandboxed_commands`).
+/// makes the sandbox refuse moving that subject's folder too. The library is
+/// read through a `Read` allow, not `--add-dir`, which would open its writes.
 pub(super) fn settings_json(
     library: &Path,
     cwd: &Path,
@@ -62,17 +73,37 @@ pub(super) fn settings_json(
     if let Some(cli) = oculus {
         allow.push(format!("Bash({}:*)", cli.display()));
     }
+    allow.push(format!("Read(//{abs}/**)"));
 
-    // The cwd (the agents' workspace), the database's three files
-    // (`paths::db_write_paths`), `studio/` (`paths::agent_write_dirs`), the
-    // subjects' own files, and the student's own entries at the top as they
-    // stand now: the data dir itself holds `.oculus/`, so it is never one,
-    // and a new entry at the top is the file tools' to make.
-    let write: Vec<String> = std::iter::once(cwd.to_path_buf())
+    let opts = SandboxOpts {
+        library: library.to_path_buf(),
+        cwd: cwd.to_path_buf(),
+        hosts: hosts.to_vec(),
+        unsandboxed,
+    };
+    let mut settings = serde_json::json!({
+        "permissions": { "allow": allow, "deny": deny },
+        "sandbox": sandbox_json(&opts, &super::grants::top_level(library)),
+        "autoMemoryEnabled": false,
+    });
+    if thinking_summaries {
+        settings["showThinkingSummaries"] = true.into();
+    }
+    settings.to_string()
+}
+
+/// The `sandbox` settings, with `top` (the student's own entries at the
+/// data dir's top) writable. The cwd (the agents' workspace), the
+/// database's three files (`paths::db_write_paths`), `studio/`
+/// (`paths::agent_write_dirs`) and the subjects' folder are writable too;
+/// the data dir itself never is, since it holds `.oculus/`.
+pub(super) fn sandbox_json(opts: &SandboxOpts, top: &[PathBuf]) -> serde_json::Value {
+    let library = opts.library.as_path();
+    let write: Vec<String> = std::iter::once(opts.cwd.clone())
         .chain(crate::library::paths::db_write_paths(library))
         .chain(crate::library::paths::agent_write_dirs(library))
         .chain([subjects_dir(library)])
-        .chain(layout::own_entries(library, layout::TOP_LEVEL_CODE))
+        .chain(top.iter().cloned())
         .map(|p| p.display().to_string())
         .collect();
     // `oculus` reaches its keys only through keyd's socket; without this the
@@ -81,25 +112,17 @@ pub(super) fn settings_json(
         .display()
         .to_string();
     let mut network = serde_json::json!({ "allowLocalBinding": true, "allowUnixSockets": [keyd] });
-    if !hosts.is_empty() {
-        network["allowedDomains"] = serde_json::json!(hosts);
+    if !opts.hosts.is_empty() {
+        network["allowedDomains"] = serde_json::json!(opts.hosts);
     }
-    let mut settings = serde_json::json!({
-        "permissions": { "allow": allow, "deny": deny },
-        "sandbox": {
-            "enabled": true,
-            "failIfUnavailable": false,
-            "autoAllowBashIfSandboxed": true,
-            "allowUnsandboxedCommands": unsandboxed,
-            "network": network,
-            "filesystem": { "allowWrite": write },
-        },
-        "autoMemoryEnabled": false,
-    });
-    if thinking_summaries {
-        settings["showThinkingSummaries"] = true.into();
-    }
-    settings.to_string()
+    serde_json::json!({
+        "enabled": true,
+        "failIfUnavailable": false,
+        "autoAllowBashIfSandboxed": true,
+        "allowUnsandboxedCommands": opts.unsandboxed,
+        "network": network,
+        "filesystem": { "allowWrite": write },
+    })
 }
 
 #[cfg(all(test, unix))]
@@ -242,8 +265,11 @@ mod tests {
             .collect();
         assert_eq!(
             allow,
-            ["Bash(oculus:*)"],
-            "the board's door, and nothing else, is allowed by name"
+            [
+                "Bash(oculus:*)",
+                "Read(//Users/x/Library/Application Support/com.tchan.oculus/**)"
+            ],
+            "the board's door by name, and reads of the library"
         );
 
         let v2: serde_json::Value = serde_json::from_str(&settings_json(
@@ -262,7 +288,14 @@ mod tests {
             .iter()
             .filter_map(|r| r.as_str())
             .collect();
-        assert_eq!(allow2, ["Bash(oculus:*)", "Bash(/opt/oculus/bin/oculus:*)"]);
+        assert_eq!(
+            allow2,
+            [
+                "Bash(oculus:*)",
+                "Bash(/opt/oculus/bin/oculus:*)",
+                "Read(//Users/x/Library/Application Support/com.tchan.oculus/**)"
+            ]
+        );
     }
 
     /// Every `agent_write_dirs` folder is writable, and no `Edit` deny (which
