@@ -6,17 +6,19 @@ where the university uses them. The folder is named for the subject's Canvas
 course code: at the University of Melbourne `COMP30026_2026_SM2` is COMP30026,
 semester 2, 2026; elsewhere it is whatever code Canvas gives, such as
 `CS_101_Fall_2026` for "CS 101 Fall 2026". `Course/syllabus.md` and
-`Course/home.md` name it in full. If you are reading this from the library's
-own `agents/` folder instead — where the in-app chat runs you — the course
-folders are at `../courses/<CODE>/`, and everything below is about them.
+`Course/home.md` name it in full. You are reading this from the library's
+`.oculus/agents/` folder — the workspace, where the in-app chat runs you — so
+the course folders are at `../../courses/<CODE>/`, and everything below is
+about them. From a terminal, start in this folder too: nothing loads these
+instructions from inside a course folder.
 
-Oculus fills this folder's `Course/` by syncing Canvas, Ed (Discussion and
+Oculus fills a course folder's `Course/` by syncing Canvas, Ed (Discussion and
 Lessons) and Echo360 from the desktop app. Everything beside `Course/` is the
 student's own: files and folders they made or brought in, at any depth, each
 file's kind given by its extension.
 
 ```
-./
+../../courses/<CODE>/
   Course/          synced by Oculus — read it, never write it
     home.md  syllabus.md
     Announcements/ Canvas announcements, one .md each
@@ -50,7 +52,6 @@ file's kind given by its extension.
   .oculus/         app state, hidden: agents/INSTRUCTIONS.md (this
                    subject's guidance), agents/memories/ linked to the
                    library's store (see Memory), and machine records
-  AGENTS.md        this file
 ```
 
 A parsed PDF's text is on disk as `<stem>.md` beside it, wherever the PDF
@@ -59,7 +60,7 @@ the whole document, so `rg` over the folder finds it and your file tools read
 it. Page numbers are not in that file: they live in the Oculus database,
 which `oculus grep` (`:p12` addresses) and `oculus read --pages` use. A PDF
 with no `.md` beside it has not been parsed yet. Ripgrep skips hidden folders
-by default; nothing you need to read is in `.oculus/`.
+by default; nothing you need to read is in a course folder's `.oculus/`.
 
 A spreadsheet (`.xlsx`, `.xlsm`, `.xls`, `.ods`, `.csv`) is text, not a PDF:
 `marks.xlsx.md` holds one `##` section per sheet as a table of the values
@@ -73,15 +74,15 @@ rank it.
 ## Rules
 
 - `Course/` is read-only: Oculus regenerates it on every sync, and no
-  agent may write there. `.oculus/` is the app's.
+  agent may write there. A course folder's `.oculus/` is the app's.
 - The student's own files are theirs. Write there only what they ask you to
   make — a worked solution, a table, a script — beside `Course/` in the
   subject it belongs to, and never change or delete a file of theirs they did
   not ask you to. In the Oculus chat a note goes through its confirmation
-  rules instead. Scratch work goes in the library's `agents/` folder. Studio
-  work uses its workspace through the skill below.
+  rules instead. Scratch work goes in the library's `.oculus/agents/` folder.
+  Studio work uses its workspace through the skill below.
 - Videos (an explainer, an animation, a narrated summary) are made with the
-  `oculus-studio` skill and live in `../studio/videos/` from `agents/`.
+  `oculus-studio` skill and live in `../studio/videos/` from `.oculus/agents/`.
 - Keep memories as markdown in the library's memory store, not `.claude/` and
   not `.codex/`, so every agent that works here shares one. See Memory below.
 - Never touch `oculus.db` directly. The CLI is the door in both directions:
@@ -92,11 +93,11 @@ rank it.
 ## Memory
 
 Nothing carries from one conversation to the next except what is in the
-library's `agents/` folder. A memory is written for the next conversation:
-keep what would change how it answers, and nothing else.
+library's `.oculus/agents/` folder. A memory is written for the next
+conversation: keep what would change how it answers, and nothing else.
 
 **Read relevant memories.** At the top of a conversation, in one pass:
-the library's `agents/TASTE.md` — how they want things written — and
+the library's `.oculus/agents/TASTE.md` — how they want things written — and
 `oculus memory list`, adding
 `-s <CODE>` on a thread scoped to a subject or `--all` to see every bucket.
 Then `oculus memory read <name>` for the pages that bear on what was asked; a
@@ -247,7 +248,7 @@ Use `oculus-library` for retrieval, `oculus-lectures` for recordings,
 `oculus-revision` for practice material, and `oculus-studio` for videos.
 In-app output and confirmation rules come from the Oculus chat instructions.
 
-Pass this folder's own subject code to `-s`: the CLI has no notion of the
+Pass the subject's code to `-s`: the CLI has no notion of the
 working directory, so without it you get the whole library back. `search`
 embeds the query through the embedding provider configured in the app, so it
 needs that key to be set; when it can't run it fails loudly and points at
@@ -256,11 +257,11 @@ needs that key to be set; when it can't run it fails loudly and points at
 ## Further reading
 
 Open these when you need them, not before every task. Paths are relative to
-this course folder.
+this folder, `.oculus/agents/`.
 
-- `.oculus/agents/INSTRUCTIONS.md` — instructions for this subject alone.
-  Read it first if it exists.
-- `../../agents/OCULUS-CLI.md` — every command and flag, generated from the
+- `../../courses/<CODE>/.oculus/agents/INSTRUCTIONS.md` — instructions for
+  that subject alone. Read it first if it exists.
+- `./OCULUS-CLI.md` — every command and flag, generated from the
   binary itself. Trust it over anything else, including this file.
-- `../../agents/OCULUS.md` — what Oculus is and how it works.
-- `../../agents/TASTE.md` — my standing preferences, across all subjects.
+- `./OCULUS.md` — what Oculus is and how it works.
+- `./TASTE.md` — my standing preferences, across all subjects.
