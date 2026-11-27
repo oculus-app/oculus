@@ -518,3 +518,77 @@ async fn a_re_render_leaves_captions_it_did_not_write() {
     assert_eq!(lib.read(&vtt), "WEBVTT\n\ntranscribed");
     assert!(again.change.removed.is_empty());
 }
+
+/// A stand-in Trash in the scratch library: nothing is trashed for real.
+struct ScratchBin(PathBuf);
+
+impl crate::library::drive::ops::delete::Bin for ScratchBin {
+    fn put(&self, path: &Path) -> Result<Option<PathBuf>, String> {
+        std::fs::create_dir_all(&self.0).map_err(|e| e.to_string())?;
+        let to = self.0.join(path.file_name().unwrap());
+        std::fs::rename(path, &to).map_err(|e| e.to_string())?;
+        Ok(Some(to))
+    }
+}
+
+fn scratch_bin(lib: &Lib) -> std::sync::Arc<ScratchBin> {
+    std::sync::Arc::new(ScratchBin(lib.dir.join(".fake-trash")))
+}
+
+#[tokio::test]
+async fn studios_bin_deletes_the_export_and_its_captions_as_drive_does() {
+    use crate::library::drive::ops::delete::{finish_at, undo_at};
+    let lib = Lib::new("export-studio-bin").await;
+    let (dir, report) = lib.video(Some(CODE), "v1", true);
+    let first = lib.export(&dir, &report, None).await;
+    let vtt = format!("{}.vtt", first.file.rel);
+
+    let sent = delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Final, scratch_bin(&lib))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(sent.removed, vec![first.file.rel.clone(), vtt.clone()]);
+    assert!(!lib.exists(&first.file.rel) && !lib.exists(&vtt));
+    assert_eq!(
+        drive_file(&lib.dir, &lib.pool, SLUG, Preset::Final)
+            .await
+            .unwrap(),
+        None,
+        "while pending, the next render asks where"
+    );
+    // Undo, and the link counts again.
+    undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+    assert_eq!(
+        drive_file(&lib.dir, &lib.pool, SLUG, Preset::Final)
+            .await
+            .unwrap(),
+        Some(first.file.clone())
+    );
+    // Final, and the link goes with the row.
+    let sent = delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Final, scratch_bin(&lib))
+        .await
+        .unwrap()
+        .unwrap();
+    finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
+    assert_eq!(links(&lib.pool).await, 0);
+    assert!(
+        delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Small, scratch_bin(&lib))
+            .await
+            .unwrap()
+            .is_none(),
+        "no Small in Drive"
+    );
+}
+
+#[tokio::test]
+async fn studios_bin_leaves_a_drive_file_that_is_no_longer_the_export() {
+    let lib = Lib::new("export-studio-bin-changed").await;
+    let (dir, report) = lib.video(Some(CODE), "v1", false);
+    let first = lib.export(&dir, &report, None).await;
+    std::fs::write(lib.dir.join(&first.file.rel), "edited by the student").unwrap();
+    let sent = delete_drive_copy(&lib.dir, &lib.pool, SLUG, Preset::Final, scratch_bin(&lib))
+        .await
+        .unwrap();
+    assert!(sent.is_none());
+    assert_eq!(lib.read(&first.file.rel), "edited by the student");
+}

@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 /**
  * Drive's folder commands (`create_folder`, `rename_entry`, `move_entries`,
- * `delete_entries`, `delete_preview`, `copy_to_own`). Rust refuses anything
+ * `delete_entries` with its `drive_delete_finish` and `drive_delete_undo`,
+ * `copy_to_own`). Rust refuses anything
  * outside the student's own files; every refusal arrives as a JSON-serialised
  * {@link DriveError}, which {@link driveErrorText} words for the screen.
  * Paths are data-dir-relative (`courses/<code>/…`).
@@ -61,11 +62,25 @@ export const renameEntry = (rel: string, newName: string) =>
 export const moveEntries = (rels: string[], targetDir: string) =>
   invoke<string[]>("move_entries", { rels, targetDir });
 
-/** Deletes files and folders, with their rows and parse artifacts. */
-export const deleteEntries = (rels: string[]) => invoke<void>("delete_entries", { rels });
+/** A delete sent to the system Trash (`Sent` in Rust). */
+export interface SentDelete {
+  /** What Undo and the toast's closing name; null when the delete was final
+   *  at once (Windows says nothing of where the Recycle Bin put it). */
+  handle: number | null;
+  /** The entries' paths. */
+  removed: string[];
+}
 
-/** Every file a delete of `rels` would remove, for the confirmation. */
-export const deletePreview = (rels: string[]) => invoke<string[]>("delete_preview", { rels });
+/** Moves files and folders to the system Trash. Their rows, parses and
+ *  links stay until the delete is final (`finishDelete`), so `undoDelete`
+ *  until then brings everything back. */
+export const deleteEntries = (rels: string[]) => invoke<SentDelete>("delete_entries", { rels });
+
+/** Makes a pending delete final: its rows and the app's records of it go. */
+export const finishDelete = (handle: number) => invoke<void>("drive_delete_finish", { handle });
+
+/** Moves a pending delete back out of the Trash; where each entry is now. */
+export const undoDelete = (handle: number) => invoke<string[]>("drive_delete_undo", { handle });
 
 /** Copies synced files or folders into the student's `targetDir`; returns the
  *  copies' paths in the same order. Each copy has its own row. */

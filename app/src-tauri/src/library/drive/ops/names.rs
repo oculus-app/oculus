@@ -84,14 +84,20 @@ fn truncate(name: &str) -> String {
 }
 
 /// `name`, else `stem (2).ext`, `stem (3).ext`… (a folder: `name (2)`) — the
-/// first that nothing in `dir` holds, or that `ours` says already is this
-/// entry. Existence is the disk's, so a case-only clash counts on a
-/// case-insensitive volume.
+/// first that nothing in `dir` holds and no pending delete holds
+/// (`taken_by_disk`), or that `ours` says already is this entry. Existence
+/// is the disk's, so a case-only clash counts on a case-insensitive volume.
 pub fn free_name(dir: &Path, name: &str, folder: bool, ours: impl Fn(&Path) -> bool) -> String {
     free_name_where(name, folder, |candidate| {
         let path = dir.join(candidate);
-        std::fs::symlink_metadata(&path).is_err() || ours(&path)
+        !is_taken(&path) || ours(&path)
     })
+}
+
+/// True when something is at `path`, or a pending delete holds the name until
+/// its Undo is over (`delete::held`). Every Drive name chooser asks this.
+pub fn is_taken(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok() || super::delete::held(path)
 }
 
 /// The same steps, taking the first candidate `free` accepts: for a name

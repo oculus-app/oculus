@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { SentDelete } from "@/lib/drive/commands";
 
 // Rendering a Studio video folder to one export preset's file with ffmpeg
 // (`app/src-tauri/src/studio/commands/render.rs`), a Final or Small one then
@@ -110,10 +111,12 @@ export function exportStatus(dir: string): Promise<ExportStatus[]> {
 }
 
 /** Moves `renders/<preset>.mp4` and its `.vtt` to the Trash (the Recycle Bin
- *  on Windows). Rejects with a sentence fit to show while a render runs or
- *  when there is no such render. */
-export function deleteRender(slug: string, preset: RenderPreset): Promise<void> {
-  return invoke("studio_render_delete", { slug, preset });
+ *  on Windows), and a Final or Small's Drive copy, while it is still this
+ *  export, as Drive deletes it: the delete the Undo toast offers, or null.
+ *  Rejects with a sentence fit to show while a render runs or when there is
+ *  no such render. */
+export function deleteRender(slug: string, preset: RenderPreset): Promise<SentDelete | null> {
+  return invoke<SentDelete | null>("studio_render_delete", { slug, preset });
 }
 
 /** false when `dir` has no render running. */

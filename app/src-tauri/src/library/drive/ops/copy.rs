@@ -114,7 +114,7 @@ fn on_disk(data_dir: &Path, target: &Target, entries: &[Entry]) -> DriveResult<C
 fn copy_name(data_dir: &Path, target: &Target, name: &str, folder: bool) -> String {
     free_name_where(name, folder, |candidate| {
         let rel = target.child_rel(candidate);
-        let taken = |path: &Path| std::fs::symlink_metadata(path).is_ok();
+        let taken = super::names::is_taken;
         !taken(&data_dir.join(&rel))
             && (folder
                 || crate::library::paths::artifact_at(data_dir, &rel, ArtifactSlot::Converted)

@@ -5,7 +5,7 @@
 use super::*;
 use crate::library::drive::ops::copy::copy_to_own_at;
 use crate::library::drive::ops::create::create_folder_at;
-use crate::library::drive::ops::delete::delete_entries_at;
+use crate::library::drive::ops::delete::{finish_at, send_at};
 use crate::library::drive::ops::error::Kind;
 use crate::library::drive::ops::guard::{drive_target, own_entry, own_target};
 use crate::library::drive::ops::moves::{move_entries_at, rename_entry_at};
@@ -138,10 +138,15 @@ async fn the_folder_of_subjects_and_app_state_cannot_be_renamed_moved_or_deleted
             "{rel}"
         );
         assert_eq!(
-            delete_entries_at(&lib.dir, &lib.pool, &rels(&[rel]))
-                .await
-                .unwrap_err()
-                .kind,
+            send_at(
+                &lib.dir,
+                &lib.pool,
+                &rels(&[rel]),
+                super::delete::FakeBin::new(&lib)
+            )
+            .await
+            .unwrap_err()
+            .kind,
             Kind::ReadOnly,
             "{rel}"
         );
@@ -450,19 +455,21 @@ async fn reconcile_gives_top_level_files_rows_and_leaves_the_rest() {
 }
 
 #[tokio::test]
-async fn deleting_a_top_level_file_takes_its_rows_and_records() {
+async fn a_final_delete_of_a_top_level_file_takes_its_rows_and_records() {
     let lib = Lib::new("drive-top-delete").await;
     let id = lib.parsed_pdf("Videos/slides.pdf").await;
     let other = lib.parsed_pdf("Receipts/a.pdf").await;
     lib.put(".oculus/oculus.db", b"db");
 
-    delete_entries_at(
+    let sent = send_at(
         &lib.dir,
         &lib.pool,
         &rels(&["Videos/slides.pdf", "Receipts"]),
+        super::delete::FakeBin::new(&lib),
     )
     .await
     .unwrap();
+    finish_at(&lib.pool, sent.handle.unwrap()).await.unwrap();
     assert!(lib.row_of(id).await.is_none() && lib.row_of(other).await.is_none());
     assert!(lib.pages_of(id).await.is_empty());
     for kind in DerivedKind::ALL {

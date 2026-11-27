@@ -407,9 +407,14 @@ any render of the folder runs, and is off while a narration does), and
   has Show in Finder (Show in Explorer on Windows, `revealItemInDir`) and a
   bin, Move to Trash (Move to Recycle Bin), which asks nothing, since the
   file can be rendered again: `studio_render_delete` moves the mp4 and its
-  `.vtt` in `renders/`, then the detail, the list and the statuses are read
-  again. Both act on Studio's copy in `renders/`; the Drive file is the
-  student's, moved or deleted in Drive. The
+  `.vtt` in `renders/` to the Trash and, on a Final or Small row, deletes
+  the Drive copy as Drive deletes it, to the Trash with the toast's Undo
+  ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)),
+  while it is still this export (`export::delete_drive_copy`: its row, and
+  the size and time `studio_exports` says the export wrote), with the
+  captions the export wrote beside it; a Drive file the student changed
+  since stays. Then the detail, the list and the statuses are read again.
+  Show in Finder acts on Studio's copy in `renders/`. The
   player falls back to the render left (`useVideoPlayback` shows the newest
   playable one when the shown one is gone); with none left, the row's
   button becomes Render draft and the popover goes with Export, and a

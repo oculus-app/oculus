@@ -22,10 +22,11 @@ use super::rows::{self, MovedRow, RowMove};
 use crate::library::layout::{self, derived_at, DerivedKind, Home};
 use crate::library::paths::{doc_pdf_rel, ArtifactSlot};
 
-/// One entry and where it goes.
-struct Plan {
-    entry: Entry,
-    to: String,
+/// One entry and where it goes. The entry's `path` is where it is on disk
+/// now, which for Undo is the Trash while its `rel` is where it was.
+pub(super) struct Plan {
+    pub entry: Entry,
+    pub to: String,
 }
 
 /// What the last step does for one moved file.
@@ -101,7 +102,6 @@ async fn run(
     plans: Vec<Plan>,
     target: Home<'_>,
 ) -> DriveResult<Moves> {
-    check_free(&plans)?;
     let crossing = plans
         .iter()
         .any(|p| layout::home_of(&p.entry.rel) != Some(target));
@@ -114,6 +114,18 @@ async fn run(
     } else {
         None
     };
+    carry_out(data_dir, pool, plans, subject).await
+}
+
+/// Move every plan, its rows onto `subject` when given: the one path Drive's
+/// moves, renames and Undo take.
+pub(super) async fn carry_out(
+    data_dir: &Path,
+    pool: &SqlitePool,
+    plans: Vec<Plan>,
+    subject: Option<i64>,
+) -> DriveResult<Moves> {
+    check_free(&plans)?;
     let moves: Moves = plans
         .iter()
         .map(|p| (p.entry.rel.clone(), p.to.clone()))
@@ -184,8 +196,10 @@ fn same_name_key(path: &str) -> String {
     path.nfc().collect::<String>().to_uppercase().to_lowercase()
 }
 
+/// Something else is at `at`, or a pending delete holds the name.
 fn taken(at: &Path, by: &Path) -> bool {
-    std::fs::symlink_metadata(at).is_ok() && !crate::library::files::documents::same_entry(by, at)
+    (std::fs::symlink_metadata(at).is_ok() && !crate::library::files::documents::same_entry(by, at))
+        || super::delete::held(at)
 }
 
 /// Move every planned entry; returns the rows' moves and the last step's

@@ -90,9 +90,32 @@ pub async fn studio_video_delete(slug: String) -> Result<(), String> {
     })
 }
 
+/// Moves the render in `renders/` to the Trash, then a Final or Small's
+/// Drive copy as Drive deletes it, while it is still this export; returns
+/// that delete, whose Undo the app's toast offers.
 #[tauri::command]
-pub async fn studio_render_delete(slug: String, preset: String) -> Result<(), String> {
-    blocking::run(move || delete::render_in(&videos_dir(), &slug, &preset, &move_to_trash)).await
+pub async fn studio_render_delete(
+    app: tauri::AppHandle,
+    slug: String,
+    preset: String,
+) -> Result<Option<crate::library::drive::ops::delete::Sent>, String> {
+    let (video, name) = (slug.clone(), preset.clone());
+    blocking::run(move || delete::render_in(&videos_dir(), &video, &name, &move_to_trash)).await?;
+    let preset = crate::studio::render::Preset::parse(&preset)?;
+    let pool = open_pool().await?;
+    let data_dir = crate::library::paths::data_dir();
+    let bin = std::sync::Arc::new(crate::library::drive::ops::delete::SystemBin);
+    let sent = crate::studio::export::delete_drive_copy(&data_dir, &pool, &slug, preset, bin).await;
+    if let Ok(Some(sent)) = &sent {
+        let change = crate::library::drive::ops::events::DriveChange {
+            removed: sent.removed.clone(),
+            ..Default::default()
+        };
+        crate::library::drive::ops::commands::announce(&app, &pool, change).await;
+        crate::library::drive::ops::delete::commands::finish_unattended(sent);
+    }
+    pool.close().await;
+    sent
 }
 
 /// Turns the video's burned-in captions on or off (video.json's

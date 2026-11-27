@@ -1,4 +1,5 @@
-//! The folder commands the browser calls (`app/src/lib/drive/commands.ts`).
+//! The folder commands the browser calls (`app/src/lib/drive/commands.ts`);
+//! deletes are `delete::commands`.
 //! Each refuses with a JSON-serialised `DriveError`, and announces what it
 //! did on `drive-changed`.
 
@@ -7,17 +8,17 @@ use tauri::AppHandle;
 
 use super::copy::copy_to_own_at;
 use super::create::create_folder_at;
-use super::delete::{delete_entries_at, delete_preview_at};
 use super::error::{DriveError, DriveResult};
 use super::events::{emit, DriveChange, Moved};
 use super::moves::{blocking, move_entries_at, rename_entry_at, Moves};
 use super::rows::home_ids;
 
-async fn pool() -> DriveResult<SqlitePool> {
+pub(super) async fn pool() -> DriveResult<SqlitePool> {
     crate::db::store::open_pool().await.map_err(DriveError::io)
 }
 
-async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
+/// Emit `change` on `drive-changed` with the homes its paths are in.
+pub async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
     let paths: Vec<String> = change
         .moved
         .iter()
@@ -40,7 +41,7 @@ fn moved(moves: &Moves) -> Vec<Moved> {
         .collect()
 }
 
-fn data_dir() -> std::path::PathBuf {
+pub(super) fn data_dir() -> std::path::PathBuf {
     crate::library::paths::data_dir()
 }
 
@@ -90,26 +91,6 @@ pub async fn move_entries(
     }
     pool.close().await;
     Ok(result?.into_iter().map(|(_, to)| to).collect())
-}
-
-#[tauri::command]
-pub async fn delete_entries(app: AppHandle, rels: Vec<String>) -> Result<(), String> {
-    let pool = pool().await?;
-    let result = delete_entries_at(&data_dir(), &pool, &rels).await;
-    if result.is_ok() {
-        let change = DriveChange {
-            removed: rels,
-            ..DriveChange::default()
-        };
-        announce(&app, &pool, change).await;
-    }
-    pool.close().await;
-    Ok(result?)
-}
-
-#[tauri::command]
-pub async fn delete_preview(rels: Vec<String>) -> Result<Vec<String>, String> {
-    Ok(blocking(move || delete_preview_at(&data_dir(), &rels)).await?)
 }
 
 #[tauri::command]

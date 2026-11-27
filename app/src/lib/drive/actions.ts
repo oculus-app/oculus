@@ -5,6 +5,7 @@ import { isPipelineFile } from "@/lib/files/fileTypes";
 import { copyToOwn, createFolder, deleteEntries, driveErrorText, moveEntries, renameEntry } from "./commands";
 import { announceDriveChange, listFolder } from "./listing";
 import { homeOf } from "./home";
+import { usePendingDeleteStore } from "@/stores/drive/pendingDeleteStore";
 import { baseName, freeName } from "./paths";
 
 /**
@@ -95,8 +96,12 @@ export function renameTo(rel: string, name: string, subjects: readonly Subject[]
   return attempt(rel, subjects, () => renameEntry(rel, name.trim()));
 }
 
+/** To the system Trash, with the Undo toast; true once it went. */
 export async function deleteAll(rels: string[], subjects: readonly Subject[]): Promise<boolean> {
-  return (await attempt(rels[0] ?? "", subjects, async () => { await deleteEntries(rels); return true; })) ?? false;
+  return (await attempt(rels[0] ?? "", subjects, async () => {
+    usePendingDeleteStore.getState().show(await deleteEntries(rels));
+    return true;
+  })) ?? false;
 }
 
 /** A new folder in `dir`, named clear of `taken`; its path, or null. */

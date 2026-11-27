@@ -3933,6 +3933,8 @@ dependencies = [
  "keyring",
  "libc",
  "lopdf",
+ "objc2",
+ "objc2-foundation",
  "oculus-keyd-core",
  "oculus-studio-core",
  "ort",

@@ -16,6 +16,7 @@ import { isWindows } from "@/lib/platform";
 import { menuState, PRESET_LABEL, presetHint, suggestedName } from "@/lib/studio/exports";
 import { deleteRender, type DriveFile, type ExportStatus, type RenderPreset } from "@/lib/studio/render";
 import { renderToDrive } from "@/lib/studio/renderToDrive";
+import { usePendingDeleteStore } from "@/stores/drive/pendingDeleteStore";
 import { trashName } from "@/lib/studio/videoActions";
 import { setCaptions, type VideoDetail } from "@/lib/studio/videos";
 import { useTabStore } from "@/stores/shell/tabStore";
@@ -73,14 +74,16 @@ export function ExportMenu({ detail, onChanged }: { detail: VideoDetail; onChang
     void renderToDrive(dir, slug, preset);
   };
 
-  // No confirm: the file goes to the Trash and can be rendered again. The
-  // page then plays the render left, or offers Render draft when none is.
+  // No confirm: the file goes to the Trash and can be rendered again, and a
+  // Drive copy still this export goes as Drive deletes it, with the Undo
+  // toast. The page then plays the render left, or offers Render draft.
   const [removing, setRemoving] = useState<RenderPreset | null>(null);
   const remove = async (preset: RenderPreset) => {
     setRemoving(preset);
     setError(null);
     try {
-      await deleteRender(slug, preset);
+      const sent = await deleteRender(slug, preset);
+      if (sent) usePendingDeleteStore.getState().show(sent);
       onChanged();
       void useVideosStore.getState().reload();
       load();

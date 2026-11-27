@@ -187,8 +187,9 @@ pub fn run() {
             library::drive::ops::commands::create_folder,
             library::drive::ops::commands::rename_entry,
             library::drive::ops::commands::move_entries,
-            library::drive::ops::commands::delete_entries,
-            library::drive::ops::commands::delete_preview,
+            library::drive::ops::delete::commands::delete_entries,
+            library::drive::ops::delete::commands::drive_delete_finish,
+            library::drive::ops::delete::commands::drive_delete_undo,
             library::drive::ops::commands::copy_to_own,
             library::drive::ops::reconcile::reconcile_own_files,
             sync::scrape::parse_prioritise,
@@ -450,6 +451,8 @@ pub fn run() {
                 companion::commands::shutdown(app_handle);
                 transcribe::cleanup::commands::shutdown();
                 library::files::whiteboards::authority::global().close_all();
+                // A delete whose Undo toast was still up is final.
+                library::drive::ops::delete::commands::finish_all_at_exit();
             }
         });
 }

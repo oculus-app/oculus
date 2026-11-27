@@ -47,7 +47,7 @@ pub fn place(from: &Path, to: &Path, temp: &str) -> std::io::Result<u64> {
 /// `name`, else `stem (2).mp4`…: the first one in `dir` free for the video
 /// and for its captions beside it.
 pub fn free_name(dir: &Path, name: &str) -> String {
-    let taken = |n: &str| std::fs::symlink_metadata(dir.join(n)).is_ok();
+    let taken = |n: &str| names::is_taken(&dir.join(n));
     names::free_name_where(name, false, |c| !taken(c) && !taken(&captions_of(c)))
 }
 

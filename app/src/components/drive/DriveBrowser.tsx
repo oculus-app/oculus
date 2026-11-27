@@ -29,7 +29,6 @@ import { pickDriveFolder } from "@/stores/shell/drivePickerStore";
 import { DriveViewProvider, type DriveView } from "./DriveContext";
 import { DriveGrid } from "./content/DriveGrid";
 import { DriveList } from "./content/DriveList";
-import { DeleteDialog } from "./dialogs/DeleteDialog";
 import { DetailsPanel } from "./details/DetailsPanel";
 import { driveCrumbs } from "./header/crumbs";
 import { DriveHeader } from "./header/DriveHeader";
@@ -125,7 +124,6 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
 
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<DriveItem[] | null>(null);
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -199,12 +197,17 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
     targetsOf: (item) => (selection.keys.has(item.key) ? selectedItems() : [item]),
     copyToMine: (items) => void pickFolderFor("copy", items),
     moveTo: (items) => void pickFolderFor("move", items),
-    remove: (items) => items.length && items.every(itemEditable) && setDeleting(items),
+    remove: (items) => items.length && items.every(itemEditable) && void remove(items),
     reveal: (item) => void revealItem(item),
     writable,
     flat,
     root,
   };
+
+  // Straight to the Trash: the toast's Undo is the way back, so no dialog.
+  async function remove(items: DriveItem[]) {
+    if (await deleteAll(items.map((i) => i.key), subjects)) setSelection(EMPTY_SELECTION);
+  }
 
   // The picker opens on the folder on screen (from a synced one, on the
   // nearest folder of the student's above it) and reaches all of Drive.
@@ -261,7 +264,7 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
       view.open(picked[0]);
     } else if ((e.key === "Delete" || (e.key === "Backspace" && mod)) && picked.length && picked.every(itemEditable)) {
       e.preventDefault();
-      setDeleting(picked);
+      void remove(picked);
     }
   };
 
@@ -362,15 +365,6 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
         />
       </div>
 
-      <DeleteDialog
-        items={deleting}
-        onCancel={() => setDeleting(null)}
-        onConfirm={async (items) => {
-          const done = await deleteAll(items.map((i) => i.key), subjects);
-          setDeleting(null);
-          if (done) setSelection(EMPTY_SELECTION);
-        }}
-      />
       {home && (
         <NotebookDialog
           open={notebookOpen}

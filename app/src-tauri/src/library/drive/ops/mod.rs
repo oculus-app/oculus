@@ -17,7 +17,7 @@ pub mod commands;
 mod companions;
 mod copy;
 mod create;
-mod delete;
+pub mod delete;
 pub(crate) mod error;
 pub(crate) mod events;
 pub mod guard;

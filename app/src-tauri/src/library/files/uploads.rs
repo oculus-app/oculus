@@ -291,7 +291,7 @@ fn upload_free_name(data_dir: &Path, target: &Target, name: &str, bytes: &[u8]) 
         if std::fs::read(&path).is_ok_and(|b| b == bytes) {
             return true;
         }
-        let taken = |path: &Path| std::fs::symlink_metadata(path).is_ok();
+        let taken = crate::library::drive::ops::names::is_taken;
         let rel = target.child_rel(candidate);
         !taken(&path)
             && crate::library::paths::artifact_at(
@@ -328,6 +328,9 @@ pub(super) fn step_aside(dir: &Path, name: &str, ours: impl Fn(&[u8]) -> bool) -
         } else {
             format!("{stem}-{n}{ext}")
         };
+        if crate::library::drive::ops::delete::held(&dir.join(&candidate)) {
+            continue;
+        }
         match std::fs::read(dir.join(&candidate)) {
             Err(_) => return candidate,
             Ok(existing) if ours(&existing) => return candidate,
