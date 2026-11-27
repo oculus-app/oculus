@@ -14,9 +14,11 @@
 //! The library's own zone (`layout::Zone::Own`) is writable without a
 //! request: everything in a subject beside `Course/` and `.oculus/`, and the
 //! student's own folders and files at the data dir's top, including one made
-//! after the thread started. `courses/` itself, a file loose in it, every
-//! other dot-name at the top and the old state folders' names
-//! (`layout::OLD_STATE_NAMES`) are not.
+//! after the thread started. Every other dot-name at the top and the old
+//! state folders' names (`layout::OLD_STATE_NAMES`) are not. Nor are
+//! `courses/` itself and a file loose in it to the request policy, Codex and
+//! Antigravity's guard; Claude's grant on `courses/` lets its tools write
+//! there unasked (docs/harness.md, beside the containment table).
 
 use std::path::{Path, PathBuf};
 

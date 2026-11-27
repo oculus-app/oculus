@@ -545,7 +545,10 @@ themes are opt-in and keep the same structure.
 - **Toasts are allowed for short notices that need nothing back**: top
   centre, dismissed by themselves after a few seconds (paused while hovered),
   with a × ringed by the countdown. A failure or anything that asks for a decision stays inline where
-  it happened. **No bottom progress bars** — background jobs surface in the
+  it happened. The one exception, the owner's choice: a failed **Save to
+  Drive…** in chat leaves the offer as it was, with the reason only in its
+  tooltip, on a control some rows show only on hover, since saving is only
+  ever an option ([harness.md](./harness.md#saving-a-chat-output-to-drive)). **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
