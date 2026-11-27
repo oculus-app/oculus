@@ -65,7 +65,7 @@ async fn a_gone_folder_is_made_again_and_a_taken_place_steps_aside() {
     std::fs::remove_dir_all(lib.path(&own(CODE, ".oculus/derived/Exam"))).unwrap();
     assert_eq!(
         undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap(),
-        [pdf.clone()]
+        std::slice::from_ref(&pdf)
     );
     assert_eq!(lib.read(&pdf), "%PDF-1.4");
     assert_eq!(lib.row_of(id).await.unwrap().1, pdf);
@@ -78,7 +78,7 @@ async fn a_gone_folder_is_made_again_and_a_taken_place_steps_aside() {
     let back = own(CODE, "talk (2).pdf");
     assert_eq!(
         undo_at(&lib.pool, sent.handle.unwrap()).await.unwrap(),
-        [back.clone()]
+        std::slice::from_ref(&back)
     );
     assert_eq!(lib.read(&own(CODE, "talk.pdf")), "%PDF another");
     assert_eq!(lib.read(&back), "%PDF-1.4");
