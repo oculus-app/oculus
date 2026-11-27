@@ -233,6 +233,7 @@ pub fn env(broker: &FakeBroker) -> Env<'_> {
     Env {
         allowed: true,
         broker,
+        running: Vec::new,
         hooks: Hooks::default(),
     }
 }

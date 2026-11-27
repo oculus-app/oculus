@@ -61,7 +61,9 @@ makes sure the state folder exists. Otherwise, in order:
 
 1. **Plan** the renames from the names that are at the top. None there (a
    new install) writes the state folder, the guard and `state`, and returns.
-2. **Refuse, having changed nothing**, before the lock is even taken:
+2. **Refuse, having moved or created nothing**, before the lock is even
+   taken (the probe below folds the database's write-ahead log into it,
+   which changes no data):
    - any binary but the installed app that was not told to move
      (`OCULUS_STATE_MOVE=1`, `allowed`). The installed app is a binary whose
      real path, links resolved, sits in an app bundle's `Contents/MacOS` (on
@@ -75,11 +77,17 @@ makes sure the state folder exists. Otherwise, in order:
      there;
    - a target that already exists under `.oculus/`: an error naming both
      paths. Nothing is ever merged or overwritten;
+   - another Oculus running (`others.rs`): any process but this one and its
+     ancestors whose executable is the app (an `Oculus.app` bundle's, the
+     installed `Oculus.exe`, or `target/<profile>/app`) or an `oculus`
+     command, from the platform's process list. An app left idle past its
+     pools' ten-minute timeout holds no database connection, so the probe
+     below alone would miss it;
    - another process with the database open. `alone.rs` opens it with
      SQLite's exclusive locking mode, which fails while any other connection
      merely has a WAL database open, idle included (a write lock or a
      checkpoint would succeed against an idle app), then folds the
-     write-ahead log in so one file moves.
+     write-ahead log in (`wal_checkpoint(TRUNCATE)`) so one file moves.
 3. **Write the guard** (`journal.rs`). The Drive move's own journal steps
    aside to `journal.drive.json` and its finished state to a marker of its
    own (`.library-move/drive`); this move's journal takes

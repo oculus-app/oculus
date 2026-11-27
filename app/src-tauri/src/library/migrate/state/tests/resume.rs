@@ -18,6 +18,7 @@ fn hooked<'a>(broker: &'a FakeBroker, hooks: Hooks) -> Env<'a> {
     Env {
         allowed: true,
         broker,
+        running: Vec::new,
         hooks,
     }
 }

@@ -25,6 +25,7 @@ fn the_guard_is_written_before_the_first_rename_and_stays_for_good() {
     let stopped = Env {
         allowed: true,
         broker: &broker,
+        running: Vec::new,
         hooks: Hooks {
             stop_after: Some(0),
             fail_at: None,

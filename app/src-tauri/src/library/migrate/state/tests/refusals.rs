@@ -110,6 +110,7 @@ fn an_untold_build_refuses_having_changed_nothing() {
     let untold = Env {
         allowed: false,
         broker: &broker,
+        running: Vec::new,
         hooks: Hooks::default(),
     };
     let error = run(&dir, &untold).unwrap_err();
@@ -132,6 +133,7 @@ fn a_new_install_needs_no_telling() {
     let untold = Env {
         allowed: false,
         broker: &broker,
+        running: Vec::new,
         hooks: Hooks::default(),
     };
     assert_eq!(run(&dir, &untold).unwrap(), Outcome::NothingToMove);
@@ -173,4 +175,94 @@ fn a_move_with_no_keyd_to_register_says_who_will() {
         unregistered(&exe, true).is_some(),
         "a debug app leaves it to the preflight"
     );
+}
+
+fn running(pid: u32, parent: u32, exe: &str) -> crate::library::migrate::state::Running {
+    crate::library::migrate::state::Running {
+        pid,
+        parent,
+        exe: exe.into(),
+    }
+}
+
+/// An app idle past its pool's timeout holds no connection: the SQLite
+/// probe would pass, so the process itself stops the move.
+#[test]
+fn another_running_oculus_stops_the_move_before_anything_changes() {
+    let dir = library("state-move-running");
+    let before = snapshot(&dir);
+    let broker = FakeBroker::default();
+    let with_app = Env {
+        allowed: true,
+        broker: &broker,
+        running: || {
+            vec![running(
+                4242,
+                1,
+                "/Applications/Oculus.app/Contents/MacOS/Oculus",
+            )]
+        },
+        hooks: Hooks::default(),
+    };
+    let error = run(&dir, &with_app).unwrap_err();
+    assert!(error.starts_with(NOT_ALONE), "{error}");
+    assert!(error.contains("Oculus.app"), "{error}");
+    assert_eq!(snapshot(&dir), before, "nothing moved, no guard written");
+    assert!(broker.calls().is_empty());
+}
+
+#[test]
+fn the_app_and_the_cli_are_oculus_and_this_process_s_own_line_is_not() {
+    use crate::library::migrate::state::others::{another_oculus, is_oculus};
+    for exe in [
+        "/Applications/Oculus.app/Contents/MacOS/Oculus",
+        "/Applications/Oculus.app/Contents/MacOS/oculus",
+        "/Users/me/.local/bin/oculus",
+        "/src/oculus/app/src-tauri/target/debug/app",
+        "/src/oculus/app/src-tauri/target/release/app",
+        "C:/Program Files/WindowsApps/Oculus_1.0/Oculus.exe",
+        "C:/src/oculus/app/src-tauri/target/debug/oculus.exe",
+    ] {
+        assert!(is_oculus(std::path::Path::new(exe)), "{exe}");
+    }
+    for exe in [
+        "/Applications/Oculus.app/Contents/Helpers/Oculus Helper.app/Contents/MacOS/Oculus Helper",
+        "/Applications/Safari.app/Contents/MacOS/Safari",
+        "/usr/local/bin/app",
+        "/src/other/target/debug/oculus-keyd",
+        "/opt/homebrew/bin/opencode",
+    ] {
+        assert!(!is_oculus(std::path::Path::new(exe)), "{exe}");
+    }
+
+    // The app that ran this command (an agent's `oculus`), and its shell.
+    let app = "/Applications/Oculus.app/Contents/MacOS/Oculus";
+    let all = [
+        running(1, 0, "/sbin/launchd"),
+        running(10, 1, app),
+        running(20, 10, "/bin/zsh"),
+        running(30, 20, "/Users/me/.local/bin/oculus"),
+    ];
+    assert!(another_oculus(&all, 30).is_none());
+    let mut more = all.to_vec();
+    more.push(running(40, 1, "/Users/me/.local/bin/oculus"));
+    assert_eq!(another_oculus(&more, 30).unwrap().pid, 40);
+    assert_eq!(another_oculus(&all, 99).unwrap().pid, 10);
+}
+
+/// The platform's own list, read only: it finds this test process by its
+/// executable and parent.
+#[cfg(target_os = "macos")]
+#[test]
+fn the_process_list_finds_this_process() {
+    let all = crate::library::migrate::state::others::list();
+    let me = all
+        .iter()
+        .find(|p| p.pid == std::process::id())
+        .expect("this process is listed");
+    assert_eq!(
+        me.exe.canonicalize().unwrap(),
+        std::env::current_exe().unwrap().canonicalize().unwrap()
+    );
+    assert!(me.parent > 0);
 }

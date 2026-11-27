@@ -18,6 +18,7 @@ mod apply;
 mod broker;
 mod journal;
 mod names;
+pub(super) mod others;
 
 #[cfg(test)]
 mod tests;
@@ -28,6 +29,7 @@ pub use alone::NOT_ALONE;
 pub use apply::{Hooks, STOPPED};
 pub use broker::{Broker, Registered};
 pub use journal::{is_done, DONE, MOVING};
+pub use others::Running;
 
 use super::journal::Phase;
 use crate::library::paths::{ensure_state_dir, state_rel};
@@ -40,10 +42,12 @@ use journal::{Journal, Move};
 pub const ALLOW_ENV: &str = "OCULUS_STATE_MOVE";
 
 /// What a run needs from outside: whether it may move at all, the broker,
-/// and the test hooks.
+/// the running processes, and the test hooks.
 pub struct Env<'a> {
     pub allowed: bool,
     pub broker: &'a dyn Broker,
+    /// Every process this user can see (`others::list`); tests pass a list.
+    pub running: fn() -> Vec<Running>,
     pub hooks: Hooks,
 }
 
@@ -121,6 +125,7 @@ pub fn at_startup(data_dir: &Path) -> Result<(), String> {
     let env = Env {
         allowed: allowed(&this_exe(), var.as_deref()),
         broker: &Registered,
+        running: others::list,
         hooks: Hooks::from_env(),
     };
     if let Outcome::Moved(summary) = run(data_dir, &env)? {
@@ -180,15 +185,18 @@ fn part_moved(data_dir: &Path, error: String) -> String {
     )
 }
 
-/// Why an unmoved library cannot move now, found without writing anything:
-/// a debug build not told to, a target that is taken, or another process
-/// with the database open.
+/// Why an unmoved library cannot move now, found without moving or creating
+/// anything: a binary not told to, a target that is taken, another Oculus
+/// running, or another process with the database open.
 async fn refused(data_dir: &Path, env: &Env<'_>, journal: &Journal) -> Result<(), String> {
     if !env.allowed {
         return Err(refusal(data_dir));
     }
     if let Some(clash) = apply::taken(data_dir, journal) {
         return Err(clash);
+    }
+    if let Some(other) = others::another_oculus(&(env.running)(), std::process::id()) {
+        return Err(format!("{NOT_ALONE} ({} is running)", other.exe.display()));
     }
     let database = data_dir.join(names::DATABASE);
     if database.is_file() {
