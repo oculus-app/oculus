@@ -202,3 +202,34 @@ fn a_file_swapped_for_a_link_after_the_answer_reads_nothing() {
     symlink(ws.join("TASTE.md"), ws.join("outputs/dfa.svg")).unwrap();
     assert!(resolved.read().is_err());
 }
+
+#[test]
+fn a_folder_swapped_for_a_link_after_the_answer_reads_nothing() {
+    let root = library("savable-folder-swap");
+    let ws = root.join(WS);
+    write(&ws.join("memories/week.png"), "memory");
+    let resolved = savable(&root, &format!("{WS}/outputs/plots/week.png")).unwrap();
+    std::fs::rename(ws.join("outputs/plots"), ws.join("outputs/plots-real")).unwrap();
+    symlink(ws.join("memories"), ws.join("outputs/plots")).unwrap();
+    assert!(resolved.read().is_err());
+
+    // Through the state folder above the workspace too.
+    let resolved = savable(&root, &format!("{WS}/outputs/dfa.svg")).unwrap();
+    std::fs::rename(ws.join("outputs"), ws.join("outputs-real")).unwrap();
+    std::fs::create_dir(ws.join("outputs")).unwrap();
+    symlink(root.join(".oculus/oculus.db"), ws.join("outputs/dfa.svg")).unwrap();
+    assert!(resolved.read().is_err());
+}
+
+#[test]
+fn a_file_larger_than_the_cap_is_refused_before_it_is_read() {
+    let root = library("savable-large");
+    let path = root.join(WS).join("outputs/huge.bin");
+    let file = std::fs::File::create(&path).unwrap();
+    // Sparse: nothing is written, and a read of it would fill memory.
+    file.set_len(super::MAX_SAVE_BYTES + 1).unwrap();
+    let resolved = savable(&root, &format!("{WS}/outputs/huge.bin")).unwrap();
+    let error = resolved.read().unwrap_err();
+    assert!(error.contains("larger than 512 MB"), "{error}");
+    assert_eq!(resolved.read().unwrap_err(), error);
+}

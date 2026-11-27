@@ -3560,17 +3560,21 @@ files of `WORKSPACE_FILES` at its top (the generated docs, `TASTE.md`,
 `OCULUS.md`, opencode's config, `CLAUDE.md`, `GEMINI.md`), all matched
 without case. A path in a reply is model output, so `savable` takes only a
 `.oculus/agents/…` path of plain segments (no `..`, `.` or empty step),
-walks it from the data dir refusing any symlink, wants a regular file with
-one hard link, then canonicalises it and checks the result again inside the
-canonical workspace. `drive_save_copy` asks `savable` itself, never trusting
-an earlier answer or the frontend, and reads the bytes through a handle
-opened with `O_NOFOLLOW` that must still be the same inode
-(`Savable::read`), so a file swapped for a link after the check reads
-nothing; the bytes go in through `import_bytes_as`, under the import lock.
-The tests in `protected/savable/tests.rs` hold a memory, `TASTE.md`,
+opens it from the data dir one step at a time, each with `openat` and
+`O_NOFOLLOW` (`open_unlinked`), so no link at any step is followed, wants a
+regular file with one hard link, then canonicalises it and checks the result
+again inside the canonical workspace. `drive_save_copy` asks `savable`
+itself, never trusting an earlier answer or the frontend, and reads the
+bytes through a handle reached the same way that must be the inode `savable`
+saw, never a fresh lookup of the path (`Savable::read`), so a file or a
+folder above it swapped for a link after the check reads nothing. A file over
+512 MB (`MAX_SAVE_BYTES`) is refused before it is read, since the copy is
+made in memory; the bytes go in through `import_bytes_as`, under the import
+lock. The tests in `protected/savable/tests.rs` hold a memory, `TASTE.md`,
 `AGENTS.md`, a skill, a thread log and a CLI config folder refused directly,
-in another case, through `..` and through a symlink in `outputs/`, and the
-database, the vault and anything outside the workspace refused.
+in another case, through `..`, through a symlink in `outputs/` and through a
+folder swapped for a link after the check, and the database, the vault and
+anything outside the workspace refused.
 
 **The agent's own files show no control at all**, no disabled button and no
 hint: `drive_savable` answers null for them and the control renders nothing.
