@@ -467,8 +467,10 @@ folder with its new place; [library-move.md](./library-move.md)).
   any folder), `courses` (and a subject's folder) is `Synced`, anything else
   is `Own`. Nothing is hidden by a list of names, so the app keeps its own
   files under dot-names; the layout's hidden folder is the state folder's
-  name (`paths::STATE_DIR`), which a test holds its spellings to. `courses` is the one name a student's folder may not take
-  there (`reserved_top_name`).
+  name (`paths::STATE_DIR`), which a test holds its spellings to. A new entry
+  there may not take `courses` or one of `OLD_STATE_NAMES`, the old app
+  folder names cited paths are read through (`reserved_top_name`); one
+  already there is `Own` like any other.
 - **A path's home is a subject or the top level** (`home_of`, `Home`):
   `courses/<folder>/…` is the subject's, any other own path the top level's,
   whose own folder is `""`. `in_library` is what the PDF viewer, the media

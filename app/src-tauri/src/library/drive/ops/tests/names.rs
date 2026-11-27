@@ -20,13 +20,14 @@ fn a_reserved_name_is_refused_only_at_a_subject_s_root() {
 }
 
 #[test]
-fn the_top_level_keeps_the_folder_of_subjects_name_and_nothing_else() {
-    for name in ["courses", "Courses"] {
+fn the_top_level_keeps_the_folder_of_subjects_and_the_old_app_folder_names() {
+    for name in ["courses", "Courses", "agents", "Lectures", "canvas-pages"] {
         assert!(check_name(name, "").is_err(), "{name}");
     }
-    for name in ["Course", "Videos", "agents", "lectures"] {
+    for name in ["Course", "Videos", "agents 2", "models"] {
         assert!(check_name(name, "").is_ok(), "{name}");
     }
+    assert!(check_name("agents", "Videos").is_ok());
     assert!(check_name("courses", "Videos").is_ok());
     assert!(check_name("courses", "courses/X").is_ok());
     assert!(

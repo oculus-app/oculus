@@ -48,10 +48,25 @@ pub fn reserved_name(name: &str) -> bool {
     reserved_names().into_iter().any(|r| same_name(name, r))
 }
 
-/// True for the one name the layout keeps at the data dir's top level,
-/// ignoring case: the folder of subjects. Dot-names are refused as names.
+/// The top-level names older chats and rows give the app's own folders
+/// (`agents/` and the rest, now under `.oculus/`, and the recordings'
+/// `lectures/`). The frontend reads a cited path under one as the app's
+/// (`stateRel`, `namesOldStateFolder` in `lib/files/statePaths.ts`), so no
+/// new entry at the top level may take one; one already there stays the
+/// student's. `app/tests/repo/oldStateNames.test.ts` keeps the lists in step.
+pub const OLD_STATE_NAMES: [&str; 5] = [
+    "agents",
+    "studio",
+    "whiteboard-pages",
+    "canvas-pages",
+    "lectures",
+];
+
+/// True for a name the layout keeps at the data dir's top level, ignoring
+/// case: the folder of subjects and `OLD_STATE_NAMES`. Dot-names are refused
+/// as names.
 pub fn reserved_top_name(name: &str) -> bool {
-    same_name(name, COURSES_DIR)
+    same_name(name, COURSES_DIR) || OLD_STATE_NAMES.iter().any(|old| same_name(name, old))
 }
 
 /// `/`-separated segments, or `None` for any spelling that could leave the

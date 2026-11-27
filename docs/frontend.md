@@ -194,7 +194,11 @@ Drive's rail section at `/drive/*` and the Files tab at
   drop and shows no lock or read-only line, and inside it are the subject
   folders alone, the current ones first and the rest under Past subjects.
   Top-level folders and files are never named or drawn as subjects
-  (`folderItem`, `isFixedFolder` in `lib/drive/items.ts`).
+  (`folderItem`, `isFixedFolder` in `lib/drive/items.ts`). A new, renamed,
+  moved or copied entry at the top level never takes one of the old app folder
+  names a cited path is read through (`OLD_STATE_NAMES` in
+  `lib/files/statePaths.ts`: `agents`, `studio`, `whiteboard-pages`,
+  `canvas-pages`, `lectures`); one already there stays the student's.
 - **A folder's home is its subject or the top level** (`homeOf` in
   `lib/drive/home.ts`). A top-level file's row hangs off the reserved
   `subjects` row `TOP_LEVEL` (`lib/files/libraryLayout.ts`,

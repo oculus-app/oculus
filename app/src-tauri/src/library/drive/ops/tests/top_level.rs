@@ -299,6 +299,48 @@ async fn a_name_a_home_keeps_is_refused_where_it_lands() {
 }
 
 #[tokio::test]
+async fn an_old_app_folder_name_is_refused_to_new_entries_at_the_top_level() {
+    let lib = Lib::new("drive-top-old-names").await;
+    // The owner's leftover stays theirs: listed, opened, renamed away.
+    lib.mkdir("lectures/week 1");
+    assert!(drive_target(&lib.dir, "lectures").is_ok());
+    lib.mkdir("Notes/agents");
+    lib.mkdir("Plans");
+    for name in crate::library::layout::OLD_STATE_NAMES {
+        let upper = name.to_uppercase();
+        assert_eq!(
+            create_folder_at(&lib.dir, &upper).unwrap_err().kind,
+            Kind::InvalidName,
+            "{name}"
+        );
+        assert_eq!(
+            rename_entry_at(&lib.dir, &lib.pool, "Plans", name)
+                .await
+                .unwrap_err()
+                .kind,
+            Kind::InvalidName,
+            "{name}"
+        );
+    }
+    assert_eq!(
+        move_entries_at(&lib.dir, &lib.pool, &rels(&["Notes/agents"]), "")
+            .await
+            .unwrap_err()
+            .kind,
+        Kind::InvalidName
+    );
+    let copied = copy_to_own_at(&lib.dir, &lib.pool, &rels(&["Notes/agents"]), "")
+        .await
+        .unwrap();
+    assert_eq!(copied, ["agents copy"]);
+    // Below the top level the names are anyone's.
+    assert!(create_folder_at(&lib.dir, "Notes/studio").is_ok());
+    rename_entry_at(&lib.dir, &lib.pool, "lectures", "Old lectures")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn files_import_and_copy_to_the_top_level_with_rows_on_the_reserved_row() {
     let lib = Lib::new("drive-top-import").await;
     let src = crate::test_support::Scratch::new("drive-top-import-src");

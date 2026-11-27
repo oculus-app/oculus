@@ -49,12 +49,18 @@ export function stateRel(rel: string): string {
  *  it and `path_moves` sends it into the subjects. */
 const OLD_RECORDINGS = "lectures";
 
+/** Every top-level folder name older rows spell for the app's own folders.
+ *  Drive refuses each to a new entry at the top level (`OLD_STATE_NAMES` in
+ *  `app/src-tauri/src/library/layout/zone.rs`, kept in step by
+ *  `app/tests/repo/oldStateNames.test.ts`). */
+export const OLD_STATE_NAMES: readonly string[] = [...TOP_LEVEL.keys(), OLD_RECORDINGS];
+
 /** True for a path whose first segment is a folder older rows spell at the
  *  top (`agents/…`, `lectures/…`): never read as a student's own. */
 export function namesOldStateFolder(rel: string): boolean {
   const cut = rel.indexOf("/");
   const first = cut < 0 ? rel : rel.slice(0, cut);
-  return TOP_LEVEL.has(first) || first === OLD_RECORDINGS;
+  return OLD_STATE_NAMES.includes(first);
 }
 
 /** Regex source for a state folder in either spelling, data-dir-relative. */

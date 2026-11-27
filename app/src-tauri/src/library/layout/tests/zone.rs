@@ -107,7 +107,8 @@ fn unicode_names_are_ordinary_names() {
 }
 
 /// The top level's rule is one line: a dot-name is the app's, `courses` is
-/// the folder of subjects, anything else is the student's. No list of names.
+/// the folder of subjects, anything else is the student's. No list of names
+/// hides anything; the old app folder names are only refused to new entries.
 #[test]
 fn nothing_at_the_top_level_is_hidden_by_its_name() {
     for name in [
@@ -115,10 +116,21 @@ fn nothing_at_the_top_level_is_hidden_by_its_name() {
     ] {
         assert_eq!(zone_of(name), Zone::Own, "{name}");
         assert_eq!(zone_of(&format!("{name}/x")), Zone::Own, "{name}");
+    }
+    for name in ["models", "bin", "Oculus", "tmp", "agents2", "my studio"] {
         assert!(!reserved_top_name(name), "{name}");
     }
     for name in ["courses", "Courses", "COURSES"] {
         assert_eq!(zone_of(name), Zone::Synced, "{name}");
+        assert!(reserved_top_name(name), "{name}");
+    }
+    for name in [
+        "agents",
+        "Studio",
+        "whiteboard-pages",
+        "canvas-pages",
+        "LECTURES",
+    ] {
         assert!(reserved_top_name(name), "{name}");
     }
 }
