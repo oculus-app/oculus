@@ -549,6 +549,10 @@ themes are opt-in and keep the same structure.
   Trash" with **Undo**, in place of an "are you sure" dialog, since the
   delete only becomes final when the toast closes
   ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)).
+  The one failure not said inline, the owner's choice: a failed **Save to
+  Drive…** in chat leaves the offer as it was, with the reason only in its
+  tooltip, on a control some rows show only on hover, since saving is only
+  ever an option ([harness.md](./harness.md#saving-a-chat-output-to-drive)).
   **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use

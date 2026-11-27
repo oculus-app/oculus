@@ -5,7 +5,7 @@
 //! - A write naming a protected path (`protected.rs`, by way of
 //!   `requests/policy.rs`) or the database is refused, unseen.
 //! - A write whose every path is under the chat's write root (`agents/`,
-//!   `studio/`) or in a subject's own files (`policy::in_own_zone`) is
+//!   `studio/`) or in the student's own files (`policy::agent_writes`) is
 //!   allowed, unseen, and so is a plain `oculus …` or `ls …`.
 //! - Anything else is put to the student (a request), or refused where
 //!   nobody can be asked.
@@ -197,16 +197,6 @@ fn absolute(cwd: &Path, path: &str) -> PathBuf {
     }
 }
 
-/// Whether `path` is inside one of `roots`, compared with case: a folder
-/// spelt differently is asked about, not let through.
-fn within(roots: &[PathBuf], cwd: &Path, path: &str) -> bool {
-    let path = policy::resolve(&absolute(cwd, path));
-    roots.iter().any(|root| {
-        let root = policy::resolve(root);
-        path != root && path.starts_with(&root)
-    })
-}
-
 pub(super) fn writes(call: &Value) -> bool {
     matches!(call["kind"].as_str(), Some("edit" | "delete" | "move"))
         || call["name"]
@@ -246,12 +236,7 @@ pub(super) fn judge(params: &Value, library: &Path, cwd: &Path) -> Verdict {
         if let Some(p) = database(library, cwd, &paths) {
             return Verdict::Deny(format!("it writes the database ({p})"));
         }
-        let mut roots = vec![cwd.to_path_buf()];
-        roots.extend(crate::library::paths::agent_write_dirs(library));
-        if paths
-            .iter()
-            .all(|p| within(&roots, cwd, p) || policy::in_own_zone(library, cwd, p))
-        {
+        if paths.iter().all(|p| policy::agent_writes(library, cwd, p)) {
             return Verdict::Allow;
         }
         let payload = json!({

@@ -659,6 +659,37 @@ fn an_own_file_at_the_library_top_is_allowed_unseen_and_a_reserved_name_is_not()
     }
 }
 
+/// A Studio scene file is the agent's to write by design: a prompt for one
+/// (a file tool outside the folders the CLI was given) is allowed unseen, and
+/// a file loose in the state folder beside it is still asked.
+#[test]
+fn a_studio_file_is_allowed_unseen_and_the_rest_of_the_state_folder_is_not() {
+    let mut rig = write_into_library(
+        ".oculus/studio/videos/demo/scene.tsx",
+        None,
+        Answer::Allowed,
+    );
+    rig.open();
+    rig.until("asked");
+    rig.resume();
+    rig.close();
+    rig.drain();
+    assert!(requests(&rig).is_empty(), "a Studio file is never saved");
+    assert_eq!(opened(&rig), 0, "a Studio file is never shown");
+    rig.finish();
+
+    let mut rig = write_into_library(".oculus/notes.md", None, Answer::Asked);
+    rig.open();
+    rig.until("asked");
+    let row = requests(&rig).remove(0);
+    assert_eq!(row.2.as_str(), "pending");
+    respond(&mut rig, "answer", row.0, "decline").unwrap();
+    rig.resume();
+    rig.close();
+    rig.drain();
+    rig.finish();
+}
+
 /// A write outside the library is the student's to decide.
 #[test]
 fn a_file_outside_the_library_is_asked() {
