@@ -1096,7 +1096,7 @@ without a dark theme retain their own colours.
 ### Downloads wait for a destination while their bytes arrive
 
 Every accepted browser download goes to
-`downloads/.incoming/<pid>-<id>/<name>` in the data directory, never the user's
+`.oculus/downloads/.incoming/<pid>-<id>/<name>` in the data directory, never the user's
 Downloads folder (`app/src-tauri/src/shell/browser/downloads/stage.rs`). The
 hook must name its destination synchronously and WebKit starts writing at
 once, so the Save dialog asks while bytes arrive. Delivery waits for both the

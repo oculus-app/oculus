@@ -3,7 +3,7 @@
 //!
 //! WebKit's download hook is synchronous and starts writing at once, so a
 //! prompt cannot block it. Each download goes to
-//! `downloads/.incoming/<pid>-<id>/<name>` in the data directory, never to
+//! `downloads/.incoming/<pid>-<id>/<name>` in the state folder, never to
 //! `~/Downloads`, and the frontend asks where it should go meanwhile.
 //!
 //! - `stage.rs` is the hook; `correlate.rs` matches a `Finished` to its
