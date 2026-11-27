@@ -169,7 +169,7 @@ export function installFromMainCheckout(helper) {
   const cli = process.env.OCULUS_BIN ?? cliPath("debug");
   if (!existsSync(cli)) buildCli("debug");
   // Every command first moves a library's own files into `.oculus/`, which a
-  // debug build does only when told to (docs/library-move.md).
+  // build from a checkout does only when told to (docs/library-move.md).
   execFileSync(cli, ["keyd", "install", "--if-changed", "--from", helper], {
     stdio: "inherit",
     env: { ...process.env, OCULUS_STATE_MOVE: "1" },

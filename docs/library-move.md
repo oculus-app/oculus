@@ -62,11 +62,17 @@ makes sure the state folder exists. Otherwise, in order:
 1. **Plan** the renames from the names that are at the top. None there (a
    new install) writes the state folder, the guard and `state`, and returns.
 2. **Refuse, having changed nothing**, before the lock is even taken:
-   - a debug build that was not told to move (`OCULUS_STATE_MOVE=1`). Every
-     checkout shares the one data folder, and a branch build must never move
-     it; the dev preflight sets the variable in the main checkout only
-     ([development.md](./development.md#a-debug-build-moves-a-library-only-when-told-to)).
-     A release always moves;
+   - any binary but the installed app that was not told to move
+     (`OCULUS_STATE_MOVE=1`, `allowed`). The installed app is a binary whose
+     real path, links resolved, sits in an app bundle's `Contents/MacOS` (on
+     Windows, an MSIX package under `WindowsApps`); every build from a
+     checkout, debug or release, and the `cli:install` link to one, needs the
+     variable. Every checkout shares the one data folder, and a branch build
+     must never move it; the dev preflight sets the variable in the main
+     checkout only
+     ([development.md](./development.md#only-the-installed-app-moves-a-library-on-its-own)).
+     `oculus docs --stdout` and `--help` run before the move and read nothing
+     there;
    - a target that already exists under `.oculus/`: an error naming both
      paths. Nothing is ever merged or overwritten;
    - another process with the database open. `alone.rs` opens it with
@@ -99,9 +105,11 @@ makes sure the state folder exists. Otherwise, in order:
    for each folder stored chats name (`agents`, `studio`,
    `whiteboard-pages`), the subjects' links (below), and the agent docs,
    skills and opencode's config written again where the workspace is now.
-7. **Register the broker** at the new paths where the build ships one (a
-   release's bundled helper; a debug build leaves it to the preflight's
-   `keyd install`, which runs after this move), then remove the old install
+7. **Register the broker** at the new paths where the build ships one (the
+   installed app's bundled helper). A binary that ships none (a build from a
+   checkout) logs one line saying the installed app's next launch registers
+   it, or in development the main checkout's preflight `keyd install`, which
+   runs after this move. Then remove the old install
    folder `bin/` and socket at the top, by name: `bin/` is not moved because
    the old registration names the program inside it.
 8. Mark `done` as `state`.
@@ -310,4 +318,4 @@ stops the Drive move after N renames when `OCULUS_LIBRARY_MOVE_STOP_AFTER=N`
 is set, for checking a resume on a copy of a library. Run any of it against a
 copy only, with `HOME` pointed at it (`dirs::data_dir` reads `$HOME`): the
 moves change the live library in place
-([development.md](./development.md#a-debug-build-moves-a-library-only-when-told-to)).
+([development.md](./development.md#only-the-installed-app-moves-a-library-on-its-own)).

@@ -47,10 +47,15 @@ fn main() {
         }
         std::process::exit(1);
     }
-    // Before any command opens a file in the data dir, with no command
-    // exempt: the app's own files move into the state folder, Start over
-    // finishes, and an old library moves into the Drive tree
-    // (docs/library-move.md).
+    // Like `--help`, `docs --stdout` only renders this binary's help: it
+    // reads and writes nothing in the data dir, so it runs on any library.
+    if writes_nothing(cli.command.as_ref()) {
+        print!("{}", commands::docs::render_cli_docs());
+        return;
+    }
+    // Before any other command opens a file in the data dir: the app's own
+    // files move into the state folder, Start over finishes, and an old
+    // library moves into the Drive tree (docs/library-move.md).
     if let Err(e) = app_lib::library::at_launch(&paths::data_dir()) {
         fail(cli.json, &format!("the library move failed: {e}"));
     }
@@ -195,6 +200,11 @@ fn read_secret(prompt: &str) -> Result<String, String> {
 }
 
 /// Rust ignores SIGPIPE, which turns `oculus list | head` into a panic.
+/// `docs --stdout`: the one command that runs before the launch move.
+fn writes_nothing(command: Option<&Command>) -> bool {
+    matches!(command, Some(Command::Docs(args)) if args.stdout)
+}
+
 fn restore_sigpipe() {
     #[cfg(unix)]
     unsafe {
@@ -239,5 +249,22 @@ impl Ctx {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod launch_tests {
+    use super::*;
+
+    fn exempt(args: &[&str]) -> bool {
+        writes_nothing(Cli::try_parse_from(args).unwrap().command.as_ref())
+    }
+
+    #[test]
+    fn only_docs_to_stdout_runs_before_the_launch_move() {
+        assert!(exempt(&["oculus", "docs", "--stdout"]));
+        assert!(!exempt(&["oculus", "docs"]), "writes the library's docs");
+        assert!(!exempt(&["oculus", "status"]));
+        assert!(!exempt(&["oculus"]));
     }
 }

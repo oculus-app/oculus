@@ -4,9 +4,9 @@
 //! docs/library-move.md describes it.
 //!
 //! 1. **Plan** the renames from a fixed list of names (`names`).
-//! 2. **Refuse, having changed nothing**, when a debug build was not told to
-//!    move (`allowed`), a target is taken, or another process has the
-//!    database open (`alone`).
+//! 2. **Refuse**, having moved or created nothing, when a binary that is not
+//!    the installed app was not told to move (`allowed`), a target is taken,
+//!    or another process has the database open (`alone`).
 //! 3. **Guard** (`journal`): from here a build from before this move
 //!    refuses to start, and this one resumes.
 //! 4. **Stop the broker**, **rename** (`apply`), **rewrite** (`after`),
@@ -22,7 +22,7 @@ mod names;
 #[cfg(test)]
 mod tests;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub use alone::NOT_ALONE;
 pub use apply::{Hooks, STOPPED};
@@ -33,9 +33,10 @@ use super::journal::Phase;
 use crate::library::paths::{ensure_state_dir, state_rel};
 use journal::{Journal, Move};
 
-/// A debug build moves a library only when this is `1`: every checkout
-/// shares the one live data folder, and a branch build must never move it.
-/// The dev preflight sets it in the main checkout (docs/development.md).
+/// Any binary but the installed app moves a library only when this is `1`:
+/// every checkout shares the one live data folder, and a build from a
+/// checkout, debug or release, must never move it. The dev preflight sets it
+/// in the main checkout (docs/development.md).
 pub const ALLOW_ENV: &str = "OCULUS_STATE_MOVE";
 
 /// What a run needs from outside: whether it may move at all, the broker,
@@ -46,10 +47,29 @@ pub struct Env<'a> {
     pub hooks: Hooks,
 }
 
-/// Whether this build may move a library: a release always, a debug build
-/// when `ALLOW_ENV` says so.
-pub fn allowed(debug_build: bool, var: Option<&str>) -> bool {
-    !debug_build || var == Some("1")
+/// Whether the binary at `exe` may move a library: the installed app always,
+/// any other binary when `ALLOW_ENV` says so.
+pub fn allowed(exe: &Path, var: Option<&str>) -> bool {
+    installed(exe) || var == Some("1")
+}
+
+/// Whether `exe`, its real path with links resolved, is an installed app's:
+/// in a macOS app bundle's `Contents/MacOS`, or in an MSIX package under
+/// `WindowsApps`. A build tree's binary, debug or release, and a link to one
+/// (the `cli:install` symlink on PATH) are not.
+pub fn installed(exe: &Path) -> bool {
+    let real = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
+    if cfg!(windows) {
+        real.components()
+            .any(|c| c.as_os_str().eq_ignore_ascii_case("WindowsApps"))
+    } else {
+        keyd_core::paths::bundled_program(&real).is_some()
+    }
+}
+
+/// This process's executable, for `allowed`.
+fn this_exe() -> PathBuf {
+    std::env::current_exe().unwrap_or_default()
 }
 
 /// What a run did.
@@ -99,7 +119,7 @@ pub fn at_startup(data_dir: &Path) -> Result<(), String> {
     }
     let var = std::env::var(ALLOW_ENV).ok();
     let env = Env {
-        allowed: allowed(cfg!(debug_assertions), var.as_deref()),
+        allowed: allowed(&this_exe(), var.as_deref()),
         broker: &Registered,
         hooks: Hooks::from_env(),
     };
@@ -141,10 +161,11 @@ fn plan(data_dir: &Path) -> Vec<Move> {
 fn refusal(data_dir: &Path) -> String {
     format!(
         "This library's own files (the database, the sign-in vault, the agents' folder) are \
-         still at the top of {}, and this build keeps them in {}. A development build moves \
-         them only when {ALLOW_ENV}=1 is set, because every checkout shares this folder: \
-         quit Oculus everywhere, back the folder up, and start the main checkout's \
-         `bun run tauri dev`, which sets it. Nothing was changed",
+         still at the top of {}, and this build keeps them in {}. Only the installed Oculus \
+         app moves them on its own; any other build, a development build or a CLI built from \
+         a checkout, moves them only when {ALLOW_ENV}=1 is set, because every checkout shares \
+         this folder: quit Oculus everywhere, back the folder up, and open the installed app \
+         or start the main checkout's `bun run tauri dev`, which sets it. Nothing was changed",
         data_dir.display(),
         crate::library::paths::state_dir(data_dir).display()
     )

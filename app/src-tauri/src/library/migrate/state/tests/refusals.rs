@@ -62,13 +62,46 @@ fn a_target_that_already_exists_is_an_error_naming_both_paths_and_never_a_merge(
 }
 
 #[test]
-fn a_debug_build_moves_only_when_told_to() {
-    assert!(allowed(false, None), "a release always moves");
-    assert!(allowed(true, Some("1")));
-    assert!(!allowed(true, None));
-    assert!(!allowed(true, Some("0")));
-    assert!(!allowed(true, Some("")));
+fn only_the_installed_app_moves_untold() {
+    let bundled = std::path::Path::new("/Applications/Oculus.app/Contents/MacOS/oculus");
+    let debug = std::path::Path::new("/src/oculus/app/src-tauri/target/debug/oculus");
+    let release = std::path::Path::new("/src/oculus/app/src-tauri/target/release/oculus");
+    let debug_app = std::path::Path::new("/src/oculus/app/src-tauri/target/debug/app");
+    if cfg!(not(windows)) {
+        assert!(allowed(bundled, None), "the installed app moves on its own");
+        assert!(allowed(bundled, Some("1")));
+    }
+    for unbundled in [debug, release, debug_app] {
+        assert!(!allowed(unbundled, None), "{}", unbundled.display());
+        assert!(!allowed(unbundled, Some("0")), "{}", unbundled.display());
+        assert!(!allowed(unbundled, Some("")), "{}", unbundled.display());
+        assert!(allowed(unbundled, Some("1")), "{}", unbundled.display());
+    }
+}
 
+/// `cli:install` links `~/.local/bin/oculus` to the release build: the link
+/// is the build, not the app. A link to the app's own binary is the app.
+#[cfg(unix)]
+#[test]
+fn a_link_is_judged_by_the_binary_it_names() {
+    let dir = Scratch::new("state-move-gate-links");
+    let write = |rel: &str| {
+        let path = dir.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "bin").unwrap();
+        path
+    };
+    let release = write("app/src-tauri/target/release/oculus");
+    let app = write("Applications/Oculus.app/Contents/MacOS/oculus");
+    std::fs::create_dir_all(dir.join("bin")).unwrap();
+    std::os::unix::fs::symlink(&release, dir.join("bin/oculus")).unwrap();
+    std::os::unix::fs::symlink(&app, dir.join("bin/oculus-app")).unwrap();
+    assert!(!allowed(&dir.join("bin/oculus"), None));
+    assert!(allowed(&dir.join("bin/oculus-app"), None));
+}
+
+#[test]
+fn an_untold_build_refuses_having_changed_nothing() {
     let dir = library("state-move-gate");
     // No lock file yet: taking it would be a change.
     assert!(!exists(&dir, ".library-move/lock"));
@@ -118,4 +151,26 @@ fn a_library_a_newer_version_arranged_is_refused() {
         "{error}"
     );
     assert!(!exists(&dir, ".oculus"));
+}
+
+/// A binary that moved a library but ships no keyd says so, and who will
+/// register it; the installed app's ships one and registers it itself.
+#[cfg(unix)]
+#[test]
+fn a_move_with_no_keyd_to_register_says_who_will() {
+    use crate::library::migrate::state::broker::unregistered;
+    let dir = Scratch::new("state-move-keyd-note");
+    let release = dir.join("target/release/oculus");
+    let line = unregistered(&release, false).expect("a build tree's binary ships none");
+    assert!(line.contains("installed Oculus app registers it"), "{line}");
+
+    let exe = dir.join("Oculus.app/Contents/MacOS/oculus");
+    let helper = keyd_core::paths::bundled_program(&exe).unwrap();
+    std::fs::create_dir_all(helper.parent().unwrap()).unwrap();
+    std::fs::write(&helper, "keyd").unwrap();
+    assert_eq!(unregistered(&exe, false), None);
+    assert!(
+        unregistered(&exe, true).is_some(),
+        "a debug app leaves it to the preflight"
+    );
 }

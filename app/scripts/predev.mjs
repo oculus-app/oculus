@@ -113,10 +113,10 @@ log(`${version} built in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 // has to be this build too.
 stageCli(cli);
 
-// A debug build moves a library's own files into `.oculus/` only when told
-// to (docs/library-move.md), and only the main checkout tells it: the CLI
-// calls below then make the move, before the app starts. A worktree's leave
-// an unmoved library as it is.
+// Only the installed app moves a library's own files into `.oculus/` on its
+// own; any build from a checkout needs telling (docs/library-move.md), and
+// only the main checkout tells it: the CLI calls below then make the move,
+// before the app starts. A worktree's leave an unmoved library as it is.
 if (isMainCheckout()) process.env.OCULUS_STATE_MOVE = "1";
 
 // Installed only from the main checkout and only when its source changed.

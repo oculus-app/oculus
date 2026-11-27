@@ -664,15 +664,33 @@ and it goes with that fallback.
   build step in `keyd-build.mjs`, and a CI row. If anything outside
   `platform/` has to change, the seam is wrong: fix it in core first.
 
-## A debug build moves a library only when told to
+## Only the installed app moves a library on its own
 
 Every checkout, the main one and each worktree, runs against the one data
 directory. The launch move that puts the app's own files into `.oculus/`
 ([library-move.md](./library-move.md#the-apps-own-files-move-into-the-state-folder))
-changes that folder for good, so a debug build (app or CLI) that finds a
-library not yet moved does it only when `OCULUS_STATE_MOVE=1` is set. Without
-it the build changes nothing and refuses to start, saying why. A release
-build always moves; a new install has nothing to move and needs no variable.
+changes that folder for good, so it runs untold only in the installed app: a
+binary whose real path sits in an app bundle (an MSIX package on Windows).
+Every other binary, the app or the CLI, debug or release, `target/release/oculus`
+and the `~/.local/bin/oculus` link to it, moves a library not yet moved only
+when `OCULUS_STATE_MOVE=1` is set. Without it the binary changes nothing and
+refuses to start, saying why. A new install has nothing to move and needs no
+variable.
+
+What the scripts run, on a library not yet moved:
+
+- `bun run tauri dev` (`predev.mjs`): `oculus --version` (clap answers before
+  the move), then in the main checkout only, with the variable set, `oculus
+  keyd install --if-changed` (which moves it), `oculus docs --stdout` and
+  `oculus docs`. In a worktree, `oculus docs` refuses, the preflight carries
+  on, and the app then refuses in a dialog.
+- `bun run docs:cli` and `bun run tauri build` (its `beforeBuildCommand`
+  runs `stage-cli`, which runs nothing, and `docs:cli --staged`): only
+  `oculus docs --stdout`, which reads and writes nothing in the data folder.
+- `bun run cli:install`: `oculus docs` from the release build, which
+  refuses, having changed nothing.
+- `bun run cli:dev`, `stage-keyd`: build only (`stage-keyd` asks the keyd
+  it built for its `source-hash`).
 
 `app/scripts/predev.mjs` sets the variable when the checkout is the main one
 (`isMainCheckout` in `app/scripts/keyd-build.mjs`: `git rev-parse --git-dir`
