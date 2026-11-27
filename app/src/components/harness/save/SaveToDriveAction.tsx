@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { CircleNotch, FolderSimple, FolderSimplePlus, WarningCircle } from "@phosphor-icons/react";
+import { CircleNotch, FolderSimple, FolderSimplePlus } from "@phosphor-icons/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSubjects } from "@/hooks/data/useSubjects";
 import { driveErrorText } from "@/lib/drive/commands";
@@ -27,6 +27,17 @@ const LOOK: Record<SaveLook, { box: string; icon: number }> = {
   icon: { box: "size-6 justify-center", icon: 14 },
 };
 
+/** The control's words for a state. A failed save reads as the offer again,
+ *  in its normal look: saving is only ever an option, never a state the reply
+ *  nags about, so the last failure's reason is the tooltip and nothing else.
+ *  `tip` is null where there is none, and for a saved copy, whose tooltip
+ *  names its folder (`SavedWhere`). */
+export function saveWords(state: NonNullable<SaveState>, look: SaveLook): { label: string; tip: string | null } {
+  const label = state.saved ? "Open in Drive" : state.saving ? "Saving…" : "Save to Drive…";
+  if (state.saved) return { label, tip: null };
+  return { label, tip: state.failed ? driveErrorText(state.failed) : look === "icon" ? label : null };
+}
+
 /** The control for one workspace file (`.oculus/agents/…`). Nothing at all
  *  outside a chat, for a file the student may not keep (the agent's own,
  *  which Rust's `savable` refuses), and while that is still being asked. */
@@ -46,10 +57,11 @@ export function SaveToDriveAction({
   const scope = useChatSaveScope();
   const state = useChatSave(scope ? path : null);
   if (!scope || !state) return null;
-  return <Control path={path} look={look} reveal={reveal} className={className} state={state} subjectId={scope.subjectId} />;
+  return <SaveControl path={path} look={look} reveal={reveal} className={className} state={state} subjectId={scope.subjectId} />;
 }
 
-function Control({
+/** The control for a file whose state is known. */
+export function SaveControl({
   path,
   look,
   reveal,
@@ -64,10 +76,10 @@ function Control({
   state: NonNullable<SaveState>;
   subjectId: number | null;
 }) {
-  const { saved, saving, failed } = state;
+  const { saved, saving } = state;
   const size = LOOK[look];
-  const label = saved ? "Open in Drive" : saving ? "Saving…" : failed ? "Not saved" : "Save to Drive…";
-  const Icon = saved ? FolderSimple : saving ? CircleNotch : failed ? WarningCircle : FolderSimplePlus;
+  const { label, tip: words } = saveWords(state, look);
+  const Icon = saved ? FolderSimple : saving ? CircleNotch : FolderSimplePlus;
   const hidden = !saved && !saving && !!reveal;
   const onClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -84,7 +96,7 @@ function Control({
         "inline-flex shrink-0 cursor-pointer items-center rounded-full font-medium whitespace-nowrap select-none",
         "transition-[color,background-color,opacity] will-change-[opacity] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         size.box,
-        failed && !saved ? "text-destructive" : look === "toolbar" ? "text-foreground" : "text-muted-foreground",
+        look === "toolbar" ? "text-foreground" : "text-muted-foreground",
         hidden && cn("opacity-0", reveal),
         className,
       )}
@@ -93,7 +105,7 @@ function Control({
       {look !== "icon" && label}
     </button>
   );
-  const tip = saved ? <SavedWhere rel={saved.relativePath} /> : failed ? driveErrorText(failed) : look === "icon" ? label : null;
+  const tip = saved ? <SavedWhere rel={saved.relativePath} /> : words;
   if (!tip) return button;
   return (
     <Tooltip>

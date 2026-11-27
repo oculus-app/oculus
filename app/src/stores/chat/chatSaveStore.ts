@@ -20,7 +20,8 @@ export interface SavedTo {
  * What a chat shows for a workspace file (`.oculus/agents/…`): `null` when
  * the student may not keep it (the agent's own files, or gone), so nothing
  * is drawn; otherwise its stamp and, once saved and still the same file, its
- * Drive copy. `failed` holds why the last save did not land.
+ * Drive copy. `failed` holds why the last save did not land: only the
+ * control's tooltip shows it, and the control still offers the save.
  */
 export type SaveState = null | {
   stamp: SourceStamp;

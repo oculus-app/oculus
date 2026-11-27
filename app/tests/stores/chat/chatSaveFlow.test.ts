@@ -79,3 +79,21 @@ test("a subject's chat starts in its folder, and a copy in a folder of the stude
   expect(request.start).toBe("courses/COMP30026_2026_SM2");
   expect(rows).toEqual([{ subject: SUBJECT.id, path: landed }]);
 });
+
+test("a copy that does not land leaves only the offer and why, and a second try can save", async () => {
+  landed = "even.svg";
+  spies[2].mockImplementationOnce(async () => null);
+  const failing = useChatSaves.getState().save(SVG, null);
+  await answer({ targetDir: "", name: "even.svg" });
+  await failing;
+  expect(useChatSaves.getState().states[SVG]).toEqual({
+    stamp: STAMP,
+    saved: null,
+    saving: false,
+    failed: "The copy has no row.",
+  });
+  const again = useChatSaves.getState().save(SVG, null);
+  await answer({ targetDir: "", name: "even.svg" });
+  await again;
+  expect(useChatSaves.getState().states[SVG]).toEqual({ stamp: STAMP, saved: { fileId: 42, relativePath: "even.svg" } });
+});

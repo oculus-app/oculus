@@ -3580,8 +3580,10 @@ chat with none, with the file's name to edit; the copy lands there with a
 row, and the control then reads **Open in Drive**, which opens the copy as
 Drive does (`openFileSmart`; a picture beside the chat,
 [viewers.md](./viewers.md)). The control changing is the confirmation: no
-toast. A refused or failed copy turns it into a red "Not saved" with the
-reason as its tooltip.
+toast. Saving is only ever an option, so a refused or failed copy leaves
+the control as it was, **Save to Drive…** in its normal look, to try again;
+the last failure's reason is its tooltip (`saveWords`), and nothing turns
+red.
 
 **What may be saved is one Rust predicate, `protected::savable`**, beside the
 lists of the workspace's own files: anything in the workspace but a dot-name
