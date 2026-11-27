@@ -172,7 +172,7 @@ before leaving a playing lecture.
 - **The Drive picker is a shell dialog.** `DrivePickerHost` is mounted once
   in `AppLayout`, beside the other dialogs raised from several places, and
   answers `pickDriveFolder` from any pane, side panel or dialog: Drive's
-  Move to… and Copy to my files… today
+  Move to… and Copy to my files…, and the browser's Save dialog's Change…
   ([frontend.md](./frontend.md#drive-is-one-folder-browser-over-the-disk)).
   It opens above a dialog that asked for it, and closing it leaves that one
   open.

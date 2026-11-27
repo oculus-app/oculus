@@ -5,12 +5,10 @@ import { useFolderListing } from "@/hooks/drive/useFolderListing";
 import type { FolderEntry } from "@/lib/drive/listing";
 import { TreeRow } from "./TreeRow";
 
-/** What every row of one tree shares. In a picker, `onPick` replaces
- *  navigation and only folders the student may add to can be picked. */
+/** What every row of one tree shares. */
 export interface TreeEnv {
   current: string | null;
-  folderHref?: (rel: string) => string;
-  onPick?: (rel: string) => void;
+  folderHref: (rel: string) => string;
   open: ReadonlySet<string>;
   toggle: (rel: string) => void;
   hover: DropHover | null;
@@ -41,13 +39,12 @@ export function TreeFolder({ entry, depth, env, icon, label, title, parentWritab
         icon={glyph}
         label={label ?? entry.name}
         title={title}
-        count={env.onPick ? undefined : entry.childCount}
+        count={entry.childCount}
         expanded={entry.childCount > 0 ? expanded : undefined}
         onToggle={() => env.toggle(rel)}
         active={env.current === rel}
-        disabled={env.onPick ? !entry.writable : false}
-        href={env.onPick ? undefined : env.folderHref?.(rel)}
-        onActivate={() => (env.onPick ? env.onPick(rel) : env.navigate(rel))}
+        href={env.folderHref(rel)}
+        onActivate={() => env.navigate(rel)}
         drop={{ rel, writable: entry.writable }}
         hover={env.hover}
       />

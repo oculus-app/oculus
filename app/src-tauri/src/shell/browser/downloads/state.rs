@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 use super::correlate::{settle, Ended, Owed, Pending, PATHLESS_FAILURES_ARE_OURS};
 use super::{Dest, Download, SavedTo, Snapshot, State};
+use crate::library::drive::ops::names::check_name;
 
 /// What a failed download's row says. Nothing fetches it again: its URL is
 /// not kept, and a form post, a `blob:` or a signed link cannot be repeated.
@@ -30,9 +31,9 @@ pub(super) enum Effect {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Target {
-    Oculus {
-        subject_code: String,
-        target_dir: Option<String>,
+    Drive {
+        target_dir: String,
+        name: Option<String>,
     },
     /// `may_replace` only when the save panel confirmed this very path.
     Path { path: PathBuf, may_replace: bool },
@@ -294,9 +295,10 @@ impl Downloads {
     /// refused takes no choice.
     pub(super) fn choose(&mut self, id: u32, dest: Dest) -> Result<Vec<Effect>, String> {
         match &dest {
-            Dest::Oculus { subject_code, .. } if subject_code.trim().is_empty() => {
-                return Err("pick a subject first".into());
-            }
+            Dest::Drive {
+                target_dir,
+                name: Some(name),
+            } => check_name(name, target_dir).map_err(|e| e.message)?,
             Dest::Path { path } if !Path::new(path).is_absolute() => {
                 return Err(format!("{path} is not a full path"));
             }
@@ -332,12 +334,12 @@ impl Downloads {
                 e.row.choice = None;
                 return Effect::Remove(e.staged.clone());
             }
-            Dest::Oculus {
-                ref subject_code,
+            Dest::Drive {
                 ref target_dir,
-            } => Target::Oculus {
-                subject_code: subject_code.clone(),
+                ref name,
+            } => Target::Drive {
                 target_dir: target_dir.clone(),
+                name: name.clone(),
             },
             Dest::Path { ref path } => {
                 let path = PathBuf::from(path);
@@ -365,6 +367,9 @@ impl Downloads {
         match result {
             Ok(saved) => {
                 e.row.state = State::Saved;
+                if let Some(name) = saved.file_name() {
+                    e.row.name = name;
+                }
                 e.row.saved_to = Some(saved);
             }
             Err(error) => {
@@ -406,7 +411,7 @@ impl Downloads {
         let e = self.entry(id).ok_or("no such download")?;
         match &e.row.saved_to {
             Some(SavedTo::Path { path }) => Ok(PathBuf::from(path)),
-            Some(SavedTo::Oculus { outcome, .. }) => outcome
+            Some(SavedTo::Drive { outcome }) => outcome
                 .file
                 .as_ref()
                 .map(|f| data_dir.join(&f.relative_path))

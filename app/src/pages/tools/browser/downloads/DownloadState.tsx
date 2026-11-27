@@ -1,7 +1,10 @@
-import { CircleNotch } from "@phosphor-icons/react";
-import { SubjectLabel } from "@/components/markdown/openui/proposals/SubjectLabel";
-import { stateWords, type Tone } from "@/lib/browser/downloads/describe";
+import { CircleNotch, FolderOpen } from "@phosphor-icons/react";
+import { driveTrailCrumbs } from "@/components/drive/trail/crumbs";
+import { Trail } from "@/components/ui/Trail";
+import { useSubjects } from "@/hooks/data/useSubjects";
+import { stateWords, type Place, type Tone } from "@/lib/browser/downloads/describe";
 import type { Download } from "@/lib/browser/downloads/types";
+import { driveTrail } from "@/lib/drive/trail";
 import { cn } from "@/lib/utils";
 
 const TONE: Record<Tone, string> = {
@@ -11,24 +14,28 @@ const TONE: Record<Tone, string> = {
   error: "text-destructive",
 };
 
-/** A download's state in words, with its subject drawn as the app draws one
- *  (icon and short code) or its folder named. */
+/** Where it goes or went, as a trail: in Drive from its subject when it is
+ *  in one (the row has little room), else from My Drive; on the Mac its
+ *  folder's name. */
+function PlaceTrail({ place }: { place: Place }) {
+  const { subjects } = useSubjects();
+  const crumbs = place.kind === "drive"
+    ? driveTrailCrumbs(driveTrail(place.rel, subjects, "subject"), { size: 11, weight: "fill" })
+    : [{ label: place.name, icon: <FolderOpen size={11} /> }];
+  return <Trail crumbs={crumbs} className="flex-1 text-[11px] [&_[data-current]]:font-normal" />;
+}
+
+/** A download's state in words, with where it goes or went. */
 export function DownloadState({ download }: { download: Download }) {
   const words = stateWords(download);
   return (
     <div className="min-w-0 text-[11px] leading-snug">
-      <div className={cn("flex min-w-0 items-center gap-1", TONE[words.tone])}>
+      <div className="flex min-w-0 items-center gap-1.5">
         {download.state === "delivering" ? (
-          <CircleNotch size={11} className="shrink-0 animate-spin" aria-hidden />
+          <CircleNotch size={11} className={cn("shrink-0 animate-spin", TONE[words.tone])} aria-hidden />
         ) : null}
-        <span className="shrink-0">{words.text}</span>
-        {words.place?.kind === "subject" ? (
-          <SubjectLabel code={words.place.code} className="h-4.5" />
-        ) : words.place?.kind === "folder" ? (
-          <span className="min-w-0 truncate text-foreground" title={words.place.name}>
-            {words.place.name}
-          </span>
-        ) : null}
+        <span className={cn("shrink-0", TONE[words.tone])}>{words.text}</span>
+        {words.place ? <PlaceTrail place={words.place} /> : null}
       </div>
       {words.detail ? (
         <p className={cn("break-words", words.tone === "error" ? "text-destructive" : "text-muted-foreground")}>

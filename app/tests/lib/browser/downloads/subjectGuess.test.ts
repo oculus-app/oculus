@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { courseIdOf, guessSubject, preselectSubject } from "@/lib/browser/downloads/subjectGuess";
+import { courseIdOf, guessSubject } from "@/lib/browser/downloads/subjectGuess";
 
 const subjects = [
   { id: 101, code: "COMP10001_2026_SM2" },
@@ -39,17 +39,5 @@ describe("guessSubject", () => {
   test("a course that is not one of the student's subjects, or no URL, names nothing", () => {
     expect(guessSubject(`${canvas}/courses/999/`, subjects, canvas)).toBeNull();
     expect(guessSubject(undefined, subjects, canvas)).toBeNull();
-  });
-});
-
-describe("preselectSubject", () => {
-  test("the guess wins over the last subject", () => {
-    expect(preselectSubject("MAST20004_2026_SM2", "COMP10001_2026_SM2", subjects)).toBe("MAST20004_2026_SM2");
-  });
-
-  test("with no guess, the last subject if it still exists", () => {
-    expect(preselectSubject(null, "COMP10001_2026_SM2", subjects)).toBe("COMP10001_2026_SM2");
-    expect(preselectSubject(null, "GONE_2025_SM1", subjects)).toBeNull();
-    expect(preselectSubject(null, null, subjects)).toBeNull();
   });
 });

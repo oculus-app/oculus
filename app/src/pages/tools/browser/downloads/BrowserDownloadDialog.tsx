@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { CircleNotch, Warning } from "@phosphor-icons/react";
+import { driveTrailCrumbs } from "@/components/drive/trail/crumbs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DriveTree } from "@/components/drive";
 import {
   Dialog,
   DialogContent,
@@ -11,23 +11,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Trail } from "@/components/ui/Trail";
 import { useSubjects } from "@/hooks/data/useSubjects";
 import { browser } from "@/lib/browser";
 import { downloads } from "@/lib/browser/downloads/commands";
 import { sizeWords } from "@/lib/browser/downloads/describe";
-import { guessSubject, preselectSubject } from "@/lib/browser/downloads/subjectGuess";
-import type { Download, LastDestination } from "@/lib/browser/downloads/types";
-import { isPipelineFile } from "@/lib/files/fileTypes";
-import { subjectRel } from "@/lib/files/libraryLayout";
-import { baseName } from "@/lib/drive/paths";
-import { displayCode } from "@/lib/format/format";
+import type { Dest, Download, LastDestination } from "@/lib/browser/downloads/types";
+import { rememberDestination as rememberFolder } from "@/lib/drive/picker";
+import { driveTrail } from "@/lib/drive/trail";
 import { isWindows } from "@/lib/platform";
 import { useAskedDownload, useBrowserDownloadsStore } from "@/stores/shell/browserDownloadsStore";
 import { useBrowserPrefsStore } from "@/stores/shell/browserPrefsStore";
-import { useBrowserStore } from "@/stores/shell/browserStore";
-import { useInstitution } from "@/stores/sync/institutionStore";
+import { pickDriveFolder } from "@/stores/shell/drivePickerStore";
 import { DestinationOption } from "./DestinationOption";
-import { DownloadSubjectSelect } from "./DownloadSubjectSelect";
+import { useDefaultDestination } from "./useDefaultDestination";
 import { problem, THIS_COMPUTER } from "./words";
 
 /**
@@ -37,7 +34,8 @@ import { problem, THIS_COMPUTER } from "./words";
  * the keyboard from the page on macOS, and on Windows Rust hands it over
  * (`browser.focusApp`). Dismissing it never discards: the download waits in
  * the toolbar's list. Mounted once, in AppLayout, so it also opens over a
- * page that is not the browser's.
+ * page that is not the browser's. Change… opens the Drive picker over it;
+ * the picker is the newer Radix layer, so this one stays open beneath.
  */
 export function BrowserDownloadDialog() {
   const download = useAskedDownload();
@@ -78,30 +76,18 @@ function SaveForm({
   onDone: () => void;
 }) {
   const { subjects } = useSubjects();
-  const institution = useInstitution();
-  // A download-only tab closes as the dialog opens: the address it was
-  // opened at is kept, since it still names the subject.
-  const liveUrl = useBrowserStore((s) => s.tabs.find((t) => t.id === download.tab)?.url);
-  const [tabUrl, setTabUrl] = useState(liveUrl);
-  if (liveUrl && liveUrl !== tabUrl) setTabUrl(liveUrl);
-  const lastDestination = useBrowserPrefsStore((s) => s.lastDestination);
-  const lastSubject = useBrowserPrefsStore((s) => s.lastSubject);
+  const lastAnswer = useBrowserPrefsStore((s) => s.lastDestination);
   const remember = useBrowserPrefsStore((s) => s.rememberDestination);
+  const preset = useDefaultDestination(download.tab);
 
-  // Preselections stay derived until the student picks, since the subjects
-  // and the profile load after the dialog opens.
-  const [pickedDest, setPickedDest] = useState<LastDestination | null>(null);
-  const [pickedSubject, setPickedSubject] = useState<string | null>(null);
-  // A folder in the chosen subject, data-dir-relative; the subject's own
-  // root until the student picks another.
-  const [pickedFolder, setPickedFolder] = useState<string | null>(null);
+  // The preset stays derived until the student picks, since the subjects,
+  // the profile and the last folder load after the dialog opens.
+  const [answer, setAnswer] = useState<LastDestination | null>(null);
+  const [picked, setPicked] = useState<{ dir: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const dest = pickedDest ?? lastDestination;
-  const subject =
-    pickedSubject ??
-    preselectSubject(guessSubject(tabUrl, subjects, institution?.canvas ?? null), lastSubject, subjects);
-  const root = subject ? subjectRel(subject) : null;
-  const folder = root && pickedFolder?.startsWith(`${root}/`) ? pickedFolder : root;
+  const dest = answer ?? lastAnswer;
+  const folder = picked?.dir ?? preset;
+  const name = picked?.name ?? download.name;
 
   const run = async (action: () => Promise<boolean>) => {
     setBusy(true);
@@ -115,25 +101,39 @@ function SaveForm({
     }
   };
 
-  const save = () =>
+  const toDrive = (dir: string, as: string) =>
     run(async () => {
-      if (dest === "oculus") {
-        if (!subject) return false;
-        await downloads.choose(download.id, {
-          kind: "oculus",
-          subject_code: subject,
-          ...(folder && folder !== root ? { target_dir: folder } : {}),
-        });
-        void remember("oculus", subject).catch(() => {});
-        return true;
-      }
-      // A cancelled panel leaves the dialog as it was.
+      const choice: Dest = { kind: "drive", target_dir: dir, ...(as !== download.name ? { name: as } : {}) };
+      await downloads.choose(download.id, choice);
+      void remember("drive").catch(() => {});
+      void rememberFolder(dir).catch(() => {});
+      return true;
+    });
+
+  const save = () => {
+    if (dest === "drive") {
+      if (folder != null) void toDrive(folder, name);
+      return;
+    }
+    // A cancelled panel leaves the dialog as it was.
+    void run(async () => {
       const path = await downloads.savePanel(download.id);
       if (!path) return false;
       await downloads.choose(download.id, { kind: "path", path });
       void remember("mac").catch(() => {});
       return true;
     });
+  };
+
+  // The picker's Save is the save; a cancel leaves this dialog as it was.
+  const change = async () => {
+    const pick = await pickDriveFolder({ title: "Save to Drive", action: "Save", start: folder, name });
+    if (!pick) return;
+    const as = pick.name ?? name;
+    setAnswer("drive");
+    setPicked({ dir: pick.targetDir, name: as });
+    void toDrive(pick.targetDir, as);
+  };
 
   const discard = () =>
     run(async () => {
@@ -142,16 +142,13 @@ function SaveForm({
     });
 
   const shown = error ?? (download.error ? `Not saved: ${download.error}` : null);
-  const place = folder && folder !== root ? baseName(folder) : subject ? displayCode(subject) : "the subject";
-  const kept = isPipelineFile(download.name)
-    ? `Lands in ${place}, read and made searchable`
-    : `Lands in ${place}, kept but not searchable`;
+  const crumbs = folder == null ? [] : driveTrailCrumbs(driveTrail(folder, subjects), { size: 12, weight: "fill" });
 
   return (
     <DialogContent className="sm:max-w-md" showCloseButton={false}>
       <DialogHeader className="gap-1">
         <div className="flex items-baseline justify-between gap-3">
-          <DialogTitle className="min-w-0 break-words">Save “{download.name}”</DialogTitle>
+          <DialogTitle className="min-w-0 break-words">Save “{name}”</DialogTitle>
           <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
             {sizeWords(download)}
           </span>
@@ -163,49 +160,36 @@ function SaveForm({
 
       <div role="radiogroup" aria-label="Where to save it" className="grid gap-2">
         <DestinationOption
-          checked={dest === "oculus"}
-          onSelect={() => setPickedDest("oculus")}
-          title="In Oculus"
-          hint={kept}
+          checked={dest === "drive"}
+          onSelect={() => setAnswer("drive")}
+          title="In Drive"
+          hint={<Trail crumbs={crumbs} label="Destination" className="h-[18px] text-[12px]" />}
           disabled={busy}
           control={
-            <DownloadSubjectSelect
-              subjects={subjects}
-              value={subject}
+            <Button
+              variant="outline"
+              size="xs"
               disabled={busy}
-              onChange={(code) => {
-                setPickedSubject(code);
-                setPickedFolder(null);
-                setPickedDest("oculus");
+              // WebKit doesn't focus a clicked button; the picker hands focus
+              // back to whatever had it when it opened.
+              onClick={(e) => {
+                e.currentTarget.focus();
+                void change();
               }}
-              className="max-w-40 shrink-0"
-            />
+              className="h-7 shrink-0 px-3"
+            >
+              Change…
+            </Button>
           }
         />
         <DestinationOption
           checked={dest === "mac"}
-          onSelect={() => setPickedDest("mac")}
+          onSelect={() => setAnswer("mac")}
           title={`On this ${THIS_COMPUTER}…`}
           hint="Choose the folder in the save panel"
           disabled={busy}
         />
       </div>
-
-      {dest === "oculus" && root ? (
-        // The subject's folders; a synced folder can't be picked.
-        <div className="max-h-48 overflow-y-auto rounded-lg border border-border-subtle p-1" aria-label="Folder">
-          <DriveTree
-            key={root}
-            root={root}
-            current={folder}
-            onPick={(rel) => {
-              setPickedFolder(rel);
-              setPickedDest("oculus");
-            }}
-            storageKey="oculus-download-folder-open"
-          />
-        </div>
-      ) : null}
 
       {shown ? (
         <Alert variant="warning" className="w-auto px-2.5 py-2">
@@ -218,7 +202,7 @@ function SaveForm({
         <Button variant="outline" disabled={busy} onClick={() => void discard()}>
           Discard
         </Button>
-        <Button disabled={busy || (dest === "oculus" && !subject)} onClick={() => void save()}>
+        <Button disabled={busy || (dest === "drive" && folder == null)} onClick={save}>
           {busy ? <CircleNotch className="animate-spin" aria-hidden /> : null}
           {dest === "mac" ? "Save…" : "Save"}
         </Button>

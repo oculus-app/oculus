@@ -36,7 +36,7 @@ export function SubjectRow({ entry, depth, env, subjects }: {
 /**
  * The folder of subjects as one row, with the rail's book: open, the current
  * subjects, then the rest folded under Past subjects. It is a place to go
- * through, so it takes no drop and, in a picker, cannot be picked.
+ * through, so it takes no drop.
  */
 export function SubjectsBranch({ entry, env, subjects }: {
   entry: FolderEntry;
@@ -51,12 +51,12 @@ export function SubjectsBranch({ entry, env, subjects }: {
         depth={0}
         icon={<BookOpen size={14} className="text-muted-foreground" />}
         label={SUBJECTS_LABEL}
-        count={env.onPick ? undefined : entry.childCount}
+        count={entry.childCount}
         expanded={entry.childCount > 0 ? expanded : undefined}
         onToggle={() => env.toggle(rel)}
         active={env.current === rel}
-        href={env.onPick ? undefined : env.folderHref?.(rel)}
-        onActivate={() => (env.onPick ? env.toggle(rel) : env.navigate(rel))}
+        href={env.folderHref(rel)}
+        onActivate={() => env.navigate(rel)}
         drop={{ rel, writable: false }}
         hover={env.hover}
       />

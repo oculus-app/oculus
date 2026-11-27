@@ -181,9 +181,7 @@ route's path is the only state. `DriveTree({ current, folderHref })` is the
 nav column's tree beside it: Subjects, then the student's own top-level
 folders, each opening in place to its folders, read when first opened;
 Subjects opens to the current subjects and the rest folded under Past
-subjects (`SubjectsBranch`). Which rows are open is a `useStoredSet`. With
-`onPick` and a `root` the same tree picks a folder in one subject, for the
-browser's Save dialog. Both are routed:
+subjects (`SubjectsBranch`). Which rows are open is a `useStoredSet`. Both are routed:
 Drive's rail section at `/drive/*` and the Files tab at
 `/subjects/<id>/files/*`, whose splats are the folder
 ([shell.md](./shell.md#each-pane-has-its-own-router-and-the-path-is-its-only-state)).

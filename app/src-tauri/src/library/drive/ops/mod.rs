@@ -23,7 +23,7 @@ pub(crate) mod events;
 pub mod guard;
 mod journal;
 mod moves;
-pub(crate) mod names;
+pub mod names;
 mod pictures;
 pub mod reconcile;
 mod relink;

@@ -6,6 +6,7 @@ import { nextDeadline, type View } from "@/lib/browser/downloads/prompt";
 import { createSavedRecorder } from "@/lib/browser/downloads/recordSaved";
 import type { DownloadsSnapshot } from "@/lib/browser/downloads/types";
 import { getFileByRelativePath, getSubjects } from "@/lib/db";
+import { homeOf } from "@/lib/drive/home";
 import { recordUploads } from "@/lib/files/uploads";
 import { useBrowserDownloadsStore } from "@/stores/shell/browserDownloadsStore";
 import { useBrowserStore } from "@/stores/shell/browserStore";
@@ -39,7 +40,7 @@ function sameView(a: View, b: View): boolean {
 
 /**
  * Mirrors Rust's download list into `browserDownloadsStore`, tells it which
- * browser tabs are in front, and records each download saved in Oculus as an
+ * browser tabs are in front, and records each download saved to Drive as an
  * upload, once (`recordSaved.ts`). Mounted once, in AppLayout.
  */
 export function useBrowserDownloads() {
@@ -50,9 +51,10 @@ export function useBrowserDownloads() {
     const store = useBrowserDownloadsStore;
 
     const record = createSavedRecorder({
-      subjectOf: async (code) => (await getSubjects()).find((s) => s.code === code) ?? null,
-      hasRow: async (path) => (await getFileByRelativePath(path)) != null,
+      homeOf: async (path) => homeOf(path, await getSubjects()) ?? null,
+      rowAt: async (path) => (await getFileByRelativePath(path))?.id ?? null,
       record: recordUploads,
+      onRow: (download, file) => store.getState().setFile(download, file),
     });
 
     // An undecided arrival is decided on a tick once its wait runs out.

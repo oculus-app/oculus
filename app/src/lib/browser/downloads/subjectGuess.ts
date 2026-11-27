@@ -40,14 +40,3 @@ export function guessSubject(
   if (id == null) return null;
   return subjects.find((s) => s.id === id)?.code ?? null;
 }
-
-/** The dialog's preselected subject: the guess, else the last one chosen if
- *  it still exists. */
-export function preselectSubject(
-  guess: string | null,
-  last: string | null,
-  subjects: readonly { code: string }[],
-): string | null {
-  if (guess) return guess;
-  return last && subjects.some((s) => s.code === last) ? last : null;
-}
