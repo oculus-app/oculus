@@ -570,17 +570,32 @@ fn dont_ask_saved_mid_turn_declines_the_next_prompt_unseen() {
     rig.finish();
 }
 
+/// How Oculus answers the prompt `write_into_library` feeds.
+#[derive(Clone, Copy, PartialEq)]
+enum Answer {
+    /// It is shown, and the student declines it.
+    Asked,
+    /// Declined without asking anyone.
+    Unseen,
+    /// Allowed without asking anyone: a write in the own zone.
+    Allowed,
+}
+
 /// The write-decline recording with its prompt's file and `blocked_path`
 /// set (relative to the library), and the folder the CLI suggests granting
-/// set to the library itself, held once the prompt is fed. `unseen`: Oculus
-/// declines it without asking.
-fn write_into_library(file: &str, blocked: Option<&str>, unseen: bool) -> Rig {
+/// set to the library itself, held once the prompt is fed.
+fn write_into_library(file: &str, blocked: Option<&str>, answer: Answer) -> Rig {
     let mut scenario = Scenario::recorded("claude-approval-write-decline");
     let after = scenario.frames.iter().position(prompt).unwrap() + 1;
     scenario.gates.push(("asked".into(), after));
-    if unseen {
-        let deny = &mut scenario.fixture.expected_outbound[1].frame["response"]["response"];
-        deny["message"] = json!(UNSEEN);
+    let reply = &mut scenario.fixture.expected_outbound[1].frame["response"]["response"];
+    match answer {
+        Answer::Asked => {}
+        Answer::Unseen => reply["message"] = json!(UNSEEN),
+        Answer::Allowed => {
+            let input = json!({ "file_path": format!("$SCRATCH/{file}"), "content": "hello" });
+            *reply = json!({ "behavior": "allow", "updatedInput": input });
+        }
     }
     let mut rig = Rig::start(scenario);
     let library = rig.library();
@@ -603,7 +618,7 @@ fn a_write_naming_a_protected_path_never_reaches_the_student() {
         (".oculus/settings.json", None),
         (".oculus/agents/notes.md", Some("courses/notes.md")),
     ] {
-        let mut rig = write_into_library(file, blocked, true);
+        let mut rig = write_into_library(file, blocked, Answer::Unseen);
         rig.open();
         rig.until("asked");
         rig.resume();
@@ -615,18 +630,43 @@ fn a_write_naming_a_protected_path_never_reaches_the_student() {
     }
 }
 
+/// The student's own files at the library's top, in a folder made after the
+/// thread started or loose beside `courses/`, are allowed unseen, though
+/// Claude suggests granting the whole library (never sent back); a
+/// dot-name or an old state folder's name there is declined unseen.
 #[test]
-fn an_unprotected_file_at_the_library_root_is_asked_though_claude_suggests_granting_the_library() {
-    let mut rig = write_into_library("notes.md", None, false);
+fn an_own_file_at_the_library_top_is_allowed_unseen_and_a_reserved_name_is_not() {
+    for file in ["notes.md", "Receipts/march.md"] {
+        let mut rig = write_into_library(file, None, Answer::Allowed);
+        rig.open();
+        rig.until("asked");
+        rig.resume();
+        rig.close();
+        rig.drain();
+        assert!(requests(&rig).is_empty(), "{file} is never saved");
+        assert_eq!(opened(&rig), 0, "{file} is never shown");
+        rig.finish();
+    }
+    for file in [".hidden/notes.md", "agents/notes.md"] {
+        let mut rig = write_into_library(file, None, Answer::Unseen);
+        rig.open();
+        rig.until("asked");
+        rig.resume();
+        rig.close();
+        rig.drain();
+        assert!(requests(&rig).is_empty(), "{file}");
+        rig.finish();
+    }
+}
+
+/// A write outside the library is the student's to decide.
+#[test]
+fn a_file_outside_the_library_is_asked() {
+    let mut rig = write_into_library("../elsewhere/notes.md", None, Answer::Asked);
     rig.open();
     rig.until("asked");
     let row = requests(&rig).remove(0);
     assert_eq!((row.1.as_str(), row.2.as_str()), ("file_change", "pending"));
-    let shown = payload(&rig, row.0);
-    assert!(shown["changes"][0]["path"]
-        .as_str()
-        .unwrap()
-        .ends_with("/notes.md"));
     respond(&mut rig, "answer", row.0, "decline").unwrap();
     rig.resume();
     rig.close();

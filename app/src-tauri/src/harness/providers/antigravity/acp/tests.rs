@@ -153,6 +153,56 @@ fn writes_to_the_students_own_folders_at_the_top_are_allowed_unseen() {
     }
 }
 
+/// Judged when agy asks, on the real path: a folder made at the top after
+/// the session started is the student's; a dot-name, an old state folder's
+/// name, a folded name and a symlink out or into the app's state are not.
+#[cfg(unix)]
+#[test]
+fn a_top_level_folder_made_mid_chat_is_allowed_and_no_link_or_reserved_name_is() {
+    let scratch = crate::test_support::Scratch::new("agy-top-level");
+    let library = scratch.join("library");
+    let outside = scratch.join("outside");
+    for dir in [".oculus/agents", "courses/S/Course"] {
+        std::fs::create_dir_all(library.join(dir)).unwrap();
+    }
+    std::fs::create_dir_all(&outside).unwrap();
+    let cwd = crate::agents::agents_dir(&library);
+    let judged = |rel: &str| {
+        judge(
+            &write(&library.join(rel).display().to_string()),
+            &library,
+            &cwd,
+        )
+    };
+    std::fs::create_dir_all(library.join("Receipts")).unwrap();
+    std::os::unix::fs::symlink(&outside, library.join("away")).unwrap();
+    std::os::unix::fs::symlink(".oculus", library.join("state")).unwrap();
+    std::os::unix::fs::symlink(outside.join("new.txt"), library.join("dangling")).unwrap();
+    for rel in ["Receipts/march.pdf", "New folder/notes.md"] {
+        assert_eq!(judged(rel), Verdict::Allow, "{rel}");
+    }
+    for rel in [
+        ".hidden/x.md",
+        "agents/x.md",
+        "Lectures/a.mp4",
+        "\u{FF0E}oculus/x",
+        "state/vault.bin",
+        "courses/loose.pdf",
+        "courses/S/Course/a.pdf",
+    ] {
+        assert!(
+            matches!(judged(rel), Verdict::Protected(_) | Verdict::Deny(_)),
+            "{rel:?} is refused"
+        );
+    }
+    for rel in ["away/key", "dangling"] {
+        assert!(
+            matches!(judged(rel), Verdict::Ask(_)),
+            "{rel} is asked about"
+        );
+    }
+}
+
 #[test]
 fn writes_to_any_subjects_own_files_are_allowed_unseen() {
     for path in [

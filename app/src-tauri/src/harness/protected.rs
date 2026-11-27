@@ -71,6 +71,17 @@ pub fn subject_dir_globs() -> Vec<String> {
         .collect()
 }
 
+/// Rule patterns for what no agent makes at the data dir's top, beside the
+/// folders above: any dot-name but the top-level notes' pictures folder
+/// (`.*`, which also covers the state folder, so a renderer re-allows what
+/// is writable in it), and each old state folder's name. The request policy
+/// refuses these by `own_zone`; a CLI with a rule list renders them.
+pub fn top_level_denies() -> Vec<String> {
+    std::iter::once(".*".to_string())
+        .chain(layout::OLD_STATE_NAMES.iter().map(|n| n.to_string()))
+        .collect()
+}
+
 /// Whether a data-dir-relative path is in the own zone, which an agent
 /// writes without asking: `layout::agent_own`, so never a name that folds to
 /// a dot-name or a reserved one, nor an old state folder's name at the top.
@@ -256,6 +267,13 @@ mod tests {
         }
         // Anything in `courses/` outside a subject's own zone.
         want.push(format!("{{{{LIBRARY}}}}/{}/**", layout::COURSES_DIR));
+        // opencode's `*` crosses `/`, so `name/*` is the folder's subtree.
+        for name in top_level_denies() {
+            want.push(format!("{{{{LIBRARY}}}}/{name}"));
+            if name != ".*" {
+                want.push(format!("{{{{LIBRARY}}}}/{name}/*"));
+            }
+        }
         for w in &want {
             assert!(
                 denied.contains(&w.as_str()),
@@ -279,6 +297,63 @@ mod tests {
         }
         let studio = format!("{{{{LIBRARY}}}}/{}/**", state_rel("studio"));
         assert_eq!(edit[&studio], "allow", "{studio}");
+    }
+
+    /// The template read as opencode reads it, by spelling: `*` crosses
+    /// `/`, and the last rule that matches decides. A folder made at the top
+    /// mid-chat is writable; dot-names, old state names and `courses/`'s own
+    /// top are not.
+    #[test]
+    fn the_opencode_template_writes_the_top_level_but_no_reserved_name() {
+        let raw = include_str!("../../templates/OPENCODE.template.json");
+        let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let rules: Vec<(regex::Regex, String)> = v
+            .pointer("/permission/edit")
+            .and_then(|e| e.as_object())
+            .unwrap()
+            .iter()
+            .map(|(pattern, verdict)| {
+                let pattern = pattern.replace("{{LIBRARY}}", "/l");
+                let re = format!("^{}$", regex::escape(&pattern).replace(r"\*", ".*"));
+                (
+                    regex::Regex::new(&re).unwrap(),
+                    verdict.as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        let verdict = |path: &str| {
+            rules
+                .iter()
+                .rev()
+                .find(|(re, _)| re.is_match(path))
+                .map(|(_, v)| v.clone())
+                .unwrap()
+        };
+        for path in [
+            "/l/Receipts/march.pdf",
+            "/l/New folder/notes.md",
+            "/l/timetable.png",
+            "/l/.assets/p.png",
+            "/l/Receipts/agents/a.md",
+            "/l/courses/X/notes.md",
+            "/l/.oculus/studio/videos/a/video.json",
+        ] {
+            assert_eq!(verdict(path), "allow", "{path}");
+        }
+        for path in [
+            "/l/.hidden/x.md",
+            "/l/.DS_Store",
+            "/l/.oculus/notes.md",
+            "/l/.oculus/vault.bin",
+            "/l/.library-move/done",
+            "/l/agents",
+            "/l/agents/notes.md",
+            "/l/lectures/a.mp4",
+            "/l/courses/loose.pdf",
+            "/l/courses/X/Course/a.pdf",
+        ] {
+            assert_eq!(verdict(path), "deny", "{path}");
+        }
     }
 
     #[test]

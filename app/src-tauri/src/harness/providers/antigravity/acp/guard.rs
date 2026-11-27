@@ -64,8 +64,33 @@ fn deny_patterns(library: &str) -> Vec<String> {
     for dir in protected::workspace_dir_rels() {
         add(&dir, "(/|$)");
     }
+    for name in protected::top_level_denies().iter().filter(|n| *n != ".*") {
+        add(name, "(/|$)");
+    }
     rules
 }
+
+/// Every dot-name at the top, and the ones a write may still reach: the
+/// state folder (whose own rules are above), the top-level notes' pictures
+/// folder and keyd's fallback socket. Seatbelt has no lookahead, so the
+/// profile pairs them with `require-not`.
+fn dot_names(library: &str) -> (String, Vec<String>) {
+    let root = pattern(library.trim_end_matches('/'), false);
+    let kept = [
+        crate::library::paths::STATE_DIR,
+        crate::library::layout::note_assets_dir(),
+    ]
+    .map(|name| format!("^{root}/{}(/|$)", pattern(name, false)));
+    let socket = format!("^{root}/{}$", pattern(KEYD_FALLBACK_SOCKET, false));
+    (
+        format!("^{root}/\\."),
+        kept.into_iter().chain([socket]).collect(),
+    )
+}
+
+/// keyd's socket at the top of the data dir, when `.oculus/keyd.sock`
+/// would not fit a socket path (`keyd_core::paths::socket`).
+const KEYD_FALLBACK_SOCKET: &str = ".keyd.sock";
 
 fn quoted(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
@@ -81,7 +106,15 @@ fn profile(library: &Path) -> Result<String, String> {
     for re in deny_patterns(root) {
         out.push_str(&format!("\n  (regex {})", quoted(&re)));
     }
-    out.push_str(")\n(deny file-write-unlink");
+    let (dots, kept) = dot_names(root);
+    out.push_str(&format!(
+        ")\n(deny file-write*\n  (require-all (regex {})",
+        quoted(&dots)
+    ));
+    for re in kept {
+        out.push_str(&format!("\n    (require-not (regex {}))", quoted(&re)));
+    }
+    out.push_str("))\n(deny file-write-unlink");
     let agents = crate::agents::agents_dir(library);
     let state = crate::library::paths::state_dir(library);
     for dir in [agents.as_path(), state.as_path()]
@@ -117,7 +150,19 @@ mod tests {
         let library = scratch.join("library.[1]");
         std::fs::create_dir_all(library.join("courses/X/Course")).unwrap();
         let slash = |p: &Path| crate::library::paths::slash_path(p);
-        let rules = regex::RegexSet::new(deny_patterns(&slash(&library))).unwrap();
+        let set = regex::RegexSet::new(deny_patterns(&slash(&library))).unwrap();
+        let (dots, kept) = dot_names(&slash(&library));
+        let (dots, kept) = (
+            regex::Regex::new(&dots).unwrap(),
+            regex::RegexSet::new(kept).unwrap(),
+        );
+        struct Rules(regex::RegexSet, regex::Regex, regex::RegexSet);
+        impl Rules {
+            fn is_match(&self, path: &str) -> bool {
+                self.0.is_match(path) || (self.1.is_match(path) && !self.2.is_match(path))
+            }
+        }
+        let rules = Rules(set, dots, kept);
         for rel in [
             ".oculus/canvas-session",
             ".oculus/canvas-session/old",
@@ -143,6 +188,16 @@ mod tests {
             ".library-move/done",
             ".Library-Move/journal.json",
             "courses/loose.pdf",
+            ".hidden",
+            ".hidden/x.md",
+            ".DS_Store",
+            ".oculus2/x",
+            "agents",
+            "Agents/notes.md",
+            "STUDIO/v.json",
+            "lectures/a.mp4",
+            "whiteboard-pages/p",
+            "canvas-pages",
         ] {
             assert!(rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -161,6 +216,10 @@ mod tests {
             "timetable.png",
             "notes.json",
             ".assets/p.png",
+            ".Oculus/agents/notes.md",
+            "New folder/notes.md",
+            "Receipts/agents/a.md",
+            "Receipts/.hidden",
         ] {
             assert!(!rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -219,5 +278,25 @@ mod tests {
         let record = library.join(".library-move/done");
         let denied = touch(&record);
         assert!(!denied.status.success() && !record.exists(), "{denied:?}");
+        // A folder made at the top under the guard is writable at once; a
+        // dot-name or an old state folder's name is not.
+        let mkdir = |path: &Path| {
+            platform::command(PROGRAM)
+                .args(["-p", &profile, "/bin/mkdir"])
+                .arg(path)
+                .output()
+                .unwrap()
+        };
+        let made = library.join("New folder");
+        assert!(mkdir(&made).status.success() && made.is_dir());
+        let inside = made.join("notes.md");
+        assert!(touch(&inside).status.success() && inside.is_file());
+        for name in [".hidden", "agents", "Lectures"] {
+            let path = library.join(name);
+            assert!(!mkdir(&path).status.success() && !path.exists(), "{name}");
+        }
+        std::fs::create_dir_all(library.join(".oculus/studio")).unwrap();
+        let studio = library.join(".oculus/studio/video.json");
+        assert!(touch(&studio).status.success() && studio.is_file());
     }
 }
