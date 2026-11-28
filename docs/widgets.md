@@ -240,10 +240,10 @@ The runtime draws a committed widget synchronously (`flushSync`) before its
 first report, so a remounted frame never reports its empty root's 0 and
 collapses between its remembered height and its real one.
 
-Expand opens a dialog with a second frame at the inline frame's width (so it
-lays out the same) and its full reported height, scaled with a CSS transform
-to fit the window. A transform, not CSS `zoom`, keeps pointer input inside the
-frame exact.
+Expand opens a dialog with a second frame laid out at 960 CSS px (or the
+window's width) and its full reported height, never scaled: the card keeps
+its size and top edge while the content changes height, and the dialog
+scrolls when the widget is taller than the window.
 
 ## State is saved per fence and seeds the next document
 

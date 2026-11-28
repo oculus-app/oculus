@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { X } from "@phosphor-icons/react";
 import { Dialog, DialogCanvas, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { IconAction } from "@/components/markdown/embed/IconAction";
@@ -6,20 +6,22 @@ import { useWidgetFrame } from "./useWidgetFrame";
 import { AskChoice, AskRunning } from "./ask/AskLine";
 import type { AskControls } from "./ask/useWidgetAsk";
 
+/** The expanded frame's width in CSS px, or the window's less its margins. */
+const EXPANDED_WIDTH = 960;
+
 /**
- * The widget filling the window: a second frame at the inline frame's width
- * (so it lays out the same), scaled with a transform to fit the window —
- * never scrolled, never re-laid out wider. A transform, not CSS `zoom`, so
- * pointer input inside the frame stays exact. Its state goes through
- * `onState` like the inline frame's; `onClose` gets the last of it. A 3D
- * scene in it draws for as long as it is open. Its requests share the
+ * The widget in a dialog: a second frame laid out at `EXPANDED_WIDTH` (or
+ * the window's width) and exactly its reported height, never scaled — the
+ * card holds its size and its top edge while the content changes height,
+ * and the dialog scrolls when it is taller than the window. Its state goes
+ * through `onState` like the inline frame's; `onClose` gets the last of it.
+ * A 3D scene in it draws for as long as it is open. Its requests share the
  * inline widget's `ask`, whose Allow and Stop move into the bar below, since
  * the dialog covers the card.
  */
 export function WidgetExpand({
   doc,
   title,
-  width,
   height,
   onState,
   ask,
@@ -27,44 +29,26 @@ export function WidgetExpand({
 }: {
   doc: string;
   title: string;
-  /** The inline frame's width in CSS px. */
-  width: number;
-  /** Its height until this frame reports. */
+  /** The inline frame's height, until this frame reports its own. */
   height: number;
   onState: (state: Record<string, unknown>) => void;
   ask: AskControls;
   onClose: () => void;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
-  const area = useRef<HTMLDivElement>(null);
-  const [room, setRoom] = useState<{ w: number; h: number } | null>(null);
   // Always live while open: the inline frame is paused meanwhile.
   const report = useWidgetFrame(frame, doc, onState, height, true, ask.handle);
   const asks = ask.holding || ask.capped || ask.asking;
-
-  useEffect(() => {
-    const el = area.current;
-    if (!el) return;
-    const measure = () => setRoom({ w: el.clientWidth, h: el.clientHeight });
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    measure();
-    return () => observer.disconnect();
-  }, []);
-
-  const h = Math.max(1, report.height ?? height);
-  const w = Math.max(1, width);
-  const scale = room ? Math.min(room.w / w, room.h / h) : 0;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogCanvas>
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <DialogDescription className="sr-only">The widget, scaled to the window. Escape to close.</DialogDescription>
-        <div ref={area} className="m-9 mb-20 flex min-h-0 flex-1">
+        <DialogDescription className="sr-only">The widget, wider. Escape to close.</DialogDescription>
+        <div className="min-h-0 flex-1 overflow-y-auto px-9 pt-9 pb-20">
           <div
-            className="m-auto flex-none overflow-hidden rounded-xl border border-border bg-card"
-            style={{ width: w * scale, height: h * scale, visibility: scale ? undefined : "hidden" }}
+            className="mx-auto overflow-hidden rounded-xl border border-border bg-card"
+            style={{ maxWidth: EXPANDED_WIDTH }}
           >
             <iframe
               ref={frame}
@@ -72,8 +56,8 @@ export function WidgetExpand({
               sandbox="allow-scripts"
               srcDoc={doc}
               title={title}
-              style={{ width: w, height: h, transform: `scale(${scale || 1})`, transformOrigin: "0 0" }}
-              className="block border-0"
+              style={{ height: report.height ?? height }}
+              className="block w-full border-0"
             />
           </div>
         </div>

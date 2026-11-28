@@ -80,7 +80,7 @@ export function LiveWidget({
   const send = useAssistantSend();
   const frame = useRef<HTMLIFrameElement>(null);
   const [showSource, setShowSource] = useState(false);
-  const [expanded, setExpanded] = useState<{ doc: string; width: number } | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const latest = useRef<Record<string, unknown> | null>(null);
   // Read once: a saved row comes back changed after every save it caused.
   const [seed] = useState(savedState);
@@ -181,7 +181,7 @@ export function LiveWidget({
 
   const expand = () => {
     const next = finalJs ? docFor(finalJs) : null;
-    if (next) setExpanded({ doc: next, width: frame.current?.clientWidth ?? 0 });
+    if (next) setExpanded(next);
   };
   const closeExpanded = () => {
     setExpanded(null);
@@ -235,9 +235,8 @@ export function LiveWidget({
       </Fold>
       {expanded && (
         <WidgetExpand
-          doc={expanded.doc}
+          doc={expanded}
           title={title}
-          width={expanded.width}
           height={report.height ?? 0}
           onState={save}
           ask={ask}
