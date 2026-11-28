@@ -15,7 +15,7 @@ Object.defineProperty(globalThis, "document", {
 Object.defineProperty(globalThis, "window", {
   configurable: true, value: { addEventListener() {}, setTimeout, clearTimeout },
 });
-const { dropTabRouter, openLink, openUrlInFocusedPane, routerFor } = await import("@/lib/shell/tabRouters");
+const { dropTabRouter, expandSide, openLink, openUrlInFocusedPane, pageKey, routerFor } = await import("@/lib/shell/tabRouters");
 const { sideFront, useTabStore } = await import("@/stores/shell/tabStore");
 const originalState = useTabStore.getState();
 afterAll(() => {
@@ -128,5 +128,98 @@ describe("opening a browser in the side panel", () => {
     expect(state.tabs).toHaveLength(3);
     expect(state.tabs.find((t) => t.id === state.activeId)?.path).toBe(browsePath(pageId));
     expect(sideFront(state.tabs[0])?.path).toBe("/new");
+  });
+});
+
+describe("expanding a side item", () => {
+  const mainId = 2000;
+  const itemId = 2001;
+  const file = (n: number) => `/subjects/1/file?path=${n}.pdf`;
+  const built: DataRouter[] = [];
+
+  /** A router that went `from` → `to`, as a mounted pane's would have. */
+  async function mount(id: number, from: string, to: string): Promise<DataRouter> {
+    const made = routerFor(id, () => createMemoryRouter(
+      [{ path: "*", Component: () => null }], { initialEntries: [from] },
+    ));
+    built.push(made);
+    await made.navigate(to);
+    return made;
+  }
+  /** A tab in front on `mainPath`, with `sidePaths` beside it, the first in
+   *  front and mounted, as the main pane is. */
+  async function open(mainPath: string, sidePaths: string[]) {
+    const items = sidePaths.map((path, i) => ({
+      ...pane(itemId + i, i === 0 ? "/side-start" : path), viewed: sidePaths.length - i,
+    }));
+    useTabStore.setState({
+      tabs: [{ ...pane(mainId, "/start"), focus: "side", side: {
+        items, front: itemId, ratio: 0.6,
+      } }],
+      activeId: mainId, closed: [],
+    });
+    return {
+      main: await mount(mainId, "/start", mainPath),
+      item: await mount(itemId, "/side-start", sidePaths[0]),
+    };
+  }
+  const tab = () => useTabStore.getState().tabs.find((t) => t.id === mainId)!;
+  const at = (r: DataRouter) => r.state.location.pathname + r.state.location.search;
+  afterEach(() => {
+    dropTabRouter(itemId);
+    for (const made of built.splice(0)) made.dispose();
+  });
+
+  test("the item and the main page trade places and the panel hides", async () => {
+    const { main, item } = await open("/chat/7", [file(1), file(2)]);
+    expect([pageKey(mainId), pageKey(itemId)]).toEqual([mainId, itemId]);
+    expandSide(mainId, false);
+    expect(tab()).toMatchObject({ path: file(1), canBack: true, focus: "main" });
+    expect(tab().side).toMatchObject({ hidden: true, ratio: 0.6, front: itemId });
+    expect(tab().side?.items.map((i) => i.path)).toEqual(["/chat/7", file(2)]);
+    // Neither page navigated: each kept its router, and so its mount.
+    expect([at(main), at(item)]).toEqual(["/chat/7", file(1)]);
+    expect([pageKey(mainId), pageKey(itemId)]).toEqual([itemId, mainId]);
+    expect(routerFor(mainId, () => main)).toBe(item);
+  });
+
+  test("each page reports as the pane it moved to, with its own history", async () => {
+    const { main, item } = await open("/chat/7", [file(1)]);
+    expandSide(mainId, false);
+    await item.navigate(-1);
+    expect(tab()).toMatchObject({ path: "/side-start", canBack: false, canForward: true });
+    await main.navigate("/chat/8");
+    expect(sideFront(tab())).toMatchObject({ path: "/chat/8", canBack: true });
+  });
+
+  test("expanding the page that was swapped out puts both back", async () => {
+    const { main } = await open("/chat/7", [file(1)]);
+    expandSide(mainId, false);
+    useTabStore.getState().toggleSide(mainId);
+    expandSide(mainId, false);
+    expect(tab().path).toBe("/chat/7");
+    expect(tab().side?.items.map((i) => i.path)).toEqual([file(1)]);
+    expect([pageKey(mainId), pageKey(itemId)]).toEqual([mainId, itemId]);
+    expect(routerFor(mainId, () => main)).toBe(main);
+  });
+
+  test("a new-tab page is not kept: the panel closes", async () => {
+    const { item } = await open("/new", [file(1)]);
+    expandSide(mainId, false);
+    expect(tab().path).toBe(file(1));
+    expect(tab().side).toBeNull();
+    expect(routerFor(mainId, () => item)).toBe(item);
+    expect(pageKey(itemId)).toBe(itemId);
+  });
+
+  test("⌘-click opens a tab of its own and leaves the page and the panel", async () => {
+    const { main } = await open("/chat/7", [file(1), file(2)]);
+    expandSide(mainId, true);
+    const { tabs, activeId } = useTabStore.getState();
+    expect(tabs.find((t) => t.id === activeId)?.path).toBe(file(1));
+    expect(at(main)).toBe("/chat/7");
+    expect(tab().path).toBe("/chat/7");
+    expect(tab().side?.hidden).toBeUndefined();
+    expect(tab().side?.items.map((i) => i.path)).toEqual([file(2)]);
   });
 });

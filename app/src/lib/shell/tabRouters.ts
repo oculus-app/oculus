@@ -24,19 +24,51 @@ import {
 
 interface Entry {
   router: DataRouter;
+  /** The pane it reports as: its key in `routers`, which `swapPanes` changes. */
+  pane: number;
   unsubscribe: () => void;
 }
 
 /** Keyed by **pane** id: a tab with a side panel has a router per item. */
 const routers = new Map<number, Entry>();
 
+/** Panes showing a page that was mounted in another pane, by that pane's id. */
+const pageKeys = new Map<number, number>();
+
 /** The pane's router, built by `create` the first time it is asked for. */
 export function routerFor(id: number, create: () => DataRouter): DataRouter {
   const known = routers.get(id);
   if (known) return known.router;
-  const router = create();
-  routers.set(id, { router, unsubscribe: track(id, router) });
-  return router;
+  const entry: Entry = { router: create(), pane: id, unsubscribe: () => {} };
+  entry.unsubscribe = track(entry);
+  routers.set(id, entry);
+  return entry.router;
+}
+
+/**
+ * The identity of the page a pane shows, for a React key: a pane's own id
+ * until `swapPanes` moves the page to another pane, which it follows. Ids are
+ * never reused, so no two panes share one.
+ */
+export function pageKey(id: number): number {
+  return pageKeys.get(id) ?? id;
+}
+
+/**
+ * Two panes trade pages: each takes the other's router, with its history, and
+ * its `pageKey`, so `TabPane` keeps both pages mounted as they change places.
+ * The store's half is `swapSide`.
+ */
+export function swapPanes(a: number, b: number): void {
+  const [ea, eb] = [routers.get(a), routers.get(b)];
+  const [ka, kb] = [pageKey(a), pageKey(b)];
+  const place = (id: number, entry: Entry | undefined, key: number) => {
+    if (entry) routers.set(id, Object.assign(entry, { pane: id }));
+    else routers.delete(id);
+    pageKeys.set(id, key);
+  };
+  place(a, eb, kb);
+  place(b, ea, ka);
 }
 
 /**
@@ -44,7 +76,8 @@ export function routerFor(id: number, create: () => DataRouter): DataRouter {
  * pane's history (location keys + cursor), since a memory router has no
  * `window.history` index; that yields `canBack`/`canForward`.
  */
-function track(id: number, router: DataRouter): () => void {
+function track(entry: Entry): () => void {
+  const { router } = entry;
   let stack = [router.state.location.key];
   let at = 0;
   let seen = stack[0];
@@ -63,12 +96,12 @@ function track(id: number, router: DataRouter): () => void {
       stack[at] = key;
     }
     const path = state.location.pathname + state.location.search;
-    useTabStore.getState().setPath(id, path, {
+    useTabStore.getState().setPath(entry.pane, path, {
       canBack: at > 0,
       canForward: at < stack.length - 1,
     });
     // Keyed by pane id so a page this pane only passed through is dropped.
-    recordRecentTab(id, path);
+    recordRecentTab(entry.pane, path);
   });
 }
 
@@ -80,6 +113,7 @@ export function hasTabRouter(id: number): boolean {
 export function dropTabRouter(id: number): void {
   routers.get(id)?.unsubscribe();
   routers.delete(id);
+  pageKeys.delete(id);
   cancelRecentTab(id);
 }
 
@@ -107,56 +141,33 @@ export function openBeside(path: string, state?: unknown): void {
 }
 
 /**
- * The side panel's expand: its front item becomes the tab's main page and
- * leaves the stack, keeping its location state (a file's `locate`), its
- * lecture's playback and a browser page — the item is removed with
- * `handover`, so the page stays open. A lecture it owned is claimed for the
- * new pane (`claimPlayback`), so whatever comes to the side panel's front
- * next cannot adopt the elements first; until the new player shows that
- * lecture they play on, parked. `newTab` (⌘-click) opens it as a tab of its
- * own, as does a main pane on a browser page, which holds only that page.
+ * The side panel's expand: its front item and the tab's main page trade
+ * places and the panel hides (`swapPanes`, `swapSide`), so the item has the
+ * whole tab and the page it replaced waits in the stack's front. Neither page
+ * remounts. The item's lecture goes on playing in the main pane
+ * (`claimPlayback`); the main page's stops, as a hidden one does. `newTab`
+ * (⌘-click) opens the item as a tab of its own and leaves the rest as it is,
+ * as does a main pane on a browser page, which holds only that page.
  */
 export function expandSide(tabId: number, newTab: boolean): void {
-  const { tabs, addTab, setPath, removeSide, focusPane } = useTabStore.getState();
+  const { tabs, addTab, removeSide, swapSide } = useTabStore.getState();
   const tab = tabs.find((t) => t.id === tabId);
   const item = tab && sideFront(tab);
   if (!tab || !item) return;
-  // Read before the item's router goes, and once any prompt is answered.
-  const where = () => {
-    const at = routers.get(item.id)?.router.state.location;
-    return at
-      ? { path: at.pathname + at.search, state: at.state }
-      : { path: item.path, state: item.entryState };
-  };
-  const handOver = (paneId: number, path: string) => {
-    const lectureId = lecturePageId(path);
-    if (lectureId && ownsPlayback(item.id)) claimPlayback(paneId, paneId, lectureId);
-  };
+  const lectureId = ownsPlayback(item.id) ? lecturePageId(item.path) : null;
   if (newTab || browseId(tab.path) != null) {
-    const { path, state } = where();
-    handOver(addTab(path, state), path);
+    // Its location state (a file's `locate`) goes too; the router may hold
+    // a later one than the item opened on.
+    const at = routers.get(item.id)?.router.state.location;
+    const paneId = addTab(item.path, at ? at.state : item.entryState);
+    if (lectureId) claimPlayback(paneId, paneId, lectureId);
     removeSide(tabId, item.id, { handover: true });
     return;
   }
-  const go = () => {
-    const { path, state } = where();
-    navigateInTab(tabId, path, { state });
-    // The route may load lazily; until it commits, the store says where the
-    // main pane is going, or a `browser-state` reconcile would adopt the page.
-    if (browseId(path) != null) setPath(tabId, path, { canBack: true, canForward: false });
-    handOver(tabId, path);
-    removeSide(tabId, item.id, { handover: true });
-    focusPane(tabId, "main");
-  };
-  // The main page's own lecture is left as `navigateActive` leaves it.
-  if (ownsPlayback(tabId)) {
-    confirmLeavingLecture(() => {
-      stopLecturePlayback();
-      go();
-    });
-    return;
-  }
-  go();
+  if (ownsPlayback(tabId)) stopLecturePlayback();
+  if (lectureId) claimPlayback(tabId, tabId, lectureId);
+  swapPanes(tabId, item.id);
+  swapSide(tabId, item.id);
 }
 
 /**

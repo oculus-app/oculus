@@ -13,6 +13,7 @@ import {
   sideFromPaths,
   stepItem,
   storeSide,
+  swapItem,
   type SidePanel,
 } from "@/lib/shell/sideStack";
 
@@ -120,6 +121,51 @@ describe("bringing forward and removing", () => {
     const { side } = pushed([file(1)]);
     expect(removeItem(side, 100)).toBeNull();
     expect(removeItem(side, 5)).toBe(side);
+  });
+});
+
+describe("expand's swap", () => {
+  const main = (path: string) => ({ ...pane(1, path), canBack: true, entryState: { spot: 1 } });
+
+  test("the main page takes the item's place in front, hidden at the same width", () => {
+    const { side } = pushed([file(1), file(2)]);
+    const swap = swapItem({ ...side, ratio: 0.65 }, 101, main("/chat/7"));
+    expect(paths(swap.side)).toEqual(["/chat/7", file(1)]);
+    expect(swap.side?.front).toBe(101);
+    expect(swap.side?.hidden).toBe(true);
+    expect(swap.side?.ratio).toBe(0.65);
+    expect(frontOf(swap.side!)).toMatchObject({ canBack: true, entryState: { spot: 1 } });
+    expect(swap.dropped).toEqual([]);
+  });
+
+  test("a lone item swaps for the main page instead of closing the panel", () => {
+    const { side } = pushed([file(1)]);
+    expect(paths(swapItem(side, 100, main("/chat/7")).side)).toEqual(["/chat/7"]);
+  });
+
+  test("a page that names nothing is not kept: the rest hides, or nothing is left", () => {
+    const { side } = pushed([file(1), "/new", file(2)]);
+    const swap = swapItem(side, 102, main("/new"));
+    expect(paths(swap.side)).toEqual([file(1)]);
+    expect(swap.side?.hidden).toBe(true);
+    expect(swap.dropped.map((i) => [i.id, i.path])).toEqual([[102, "/new"], [101, "/new"]]);
+    const lone = pushed([file(1)]);
+    expect(swapItem(lone.side, 100, main("/")).side).toBeNull();
+  });
+
+  test("a second page on the thing the item shows is not kept", () => {
+    const { side } = pushed([file(1), file(2)]);
+    const swap = swapItem(side, 101, main(file(2)));
+    expect(paths(swap.side)).toEqual([file(1)]);
+    expect(swap.dropped.map((i) => i.id)).toEqual([101]);
+  });
+
+  test("an item on the thing the main page shows gives way to it", () => {
+    const { side } = pushed([file(1), file(2), file(3)]);
+    const swap = swapItem(side, 102, main(file(1)));
+    expect(paths(swap.side)).toEqual([file(1), file(2)]);
+    expect(swap.side?.front).toBe(102);
+    expect(swap.dropped.map((i) => i.id)).toEqual([100]);
   });
 });
 

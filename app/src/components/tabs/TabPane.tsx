@@ -16,11 +16,17 @@ import {
   createHeaderClaim,
   SideSlotProvider,
   type HeaderClaim,
+  type SideSlot,
 } from "@/components/tabs/PaneHeader";
 import { ResizeHandle } from "@/components/ui/layout/ResizeHandle";
 import { PageFind } from "@/components/ui/search/PageFind";
-import { routerFor } from "@/lib/shell/tabRouters";
-import { clampRatio, SIDE_RATIO, type SideItem } from "@/lib/shell/sideStack";
+import { pageKey, routerFor } from "@/lib/shell/tabRouters";
+import {
+  clampRatio,
+  SIDE_RATIO,
+  type SideItem,
+  type SidePanel,
+} from "@/lib/shell/sideStack";
 import { cancelRecentTab, recordRecentTab } from "@/stores/shell/recentTabsStore";
 import {
   sideFront,
@@ -35,6 +41,10 @@ import { cn } from "@/lib/utils";
  * One tab's page, and its side panel's front item beside it when open. Each
  * pane owns a memory router; the main pane stays mounted, so switching tabs
  * keeps scroll, drafts and component state.
+ *
+ * Both pages are columns keyed by `pageKey` and placed with CSS `order`, in
+ * a DOM order that never changes: expand swaps them without a remount, and
+ * without moving a node, which would reset its scroll.
  */
 
 const TabPane = memo(function TabPane({
@@ -47,7 +57,6 @@ const TabPane = memo(function TabPane({
   const tabId = tab.id;
   const front = sideFront(tab);
   const sideVisible = !!tab.side && !tab.side.hidden;
-  const focusPane = useTabStore((s) => s.focusPane);
   const setSideRatio = useTabStore((s) => s.setSideRatio);
   // The ratio on screen mid-drag; the store hears it once, on release.
   const [dragRatio, setDragRatio] = useState<number | null>(null);
@@ -106,6 +115,14 @@ const TabPane = memo(function TabPane({
   }, [tabId, setSideRatio]);
 
   const ratio = dragRatio ?? tab.side?.ratio ?? SIDE_RATIO;
+  // Only the front item is mounted; the rest are a path and a router
+  // (`lib/shell/tabRouters.ts`).
+  const columns: { pane: PaneState | SideItem; side: PaneSide; key: number }[] = [
+    { pane: tab, side: "main" as const },
+    ...(front ? [{ pane: front, side: "side" as const }] : []),
+  ]
+    .map((c) => ({ ...c, key: pageKey(c.pane.id) }))
+    .sort((a, b) => a.key - b.key);
 
   return (
     /* Hidden with `visibility`, never `display: none`: display-none zeroes
@@ -118,72 +135,114 @@ const TabPane = memo(function TabPane({
       style={{ visibility: active ? "visible" : "hidden" }}
       inert={!active}
     >
-      <Pane
-        pane={tab}
-        tabId={tabId}
-        side="main"
-        tabActive={active}
-        onFocus={focusPane}
-        style={sideVisible ? { flex: `0 0 ${ratio * 100}%` } : undefined}
-      />
-      {tab.side && front && (
-        <>
-          {/* The divider carries the focus marker (indigo edge on the focused
-              side): inside a pane, a native browser page's hole would cut it out. */}
-          {sideVisible && (
-            <ResizeHandle
-              onMouseDown={onHandleDown}
-              dragging={dragging}
-              label="Resize side panel"
-              className="bg-border"
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "pointer-events-none absolute inset-y-0 w-px bg-brand",
-                  tab.focus === "main" ? "left-0" : "right-0",
-                )}
-              />
-            </ResizeHandle>
-          )}
-          {/* Only the front item is mounted; the rest are a path and a
-              router (`lib/shell/tabRouters.ts`). Focus is taken on the column, so
-              a click on the header focuses the side panel too. */}
-          <div
-            onPointerDownCapture={() => focusPane(tabId, "side")}
-            onFocusCapture={() => focusPane(tabId, "side")}
-            className="flex min-w-0 flex-1 flex-col"
-            // Keep the front page mounted at its split width while collapsed,
-            // preserving drafts and scroll without taking space from main.
-            style={sideVisible ? undefined : {
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              right: 0,
-              width: `${(1 - ratio) * 100}%`,
-              visibility: "hidden",
-            }}
-            inert={!active || !sideVisible}
-          >
-            <SidePanelHeader tabId={tabId} side={tab.side} claim={claim} />
-            <SideSlotProvider value={slot}>
-              <Pane
-                key={front.id}
-                pane={front}
-                tabId={tabId}
-                side="side"
-                tabActive={active && sideVisible}
-                claim={claim}
-              />
-            </SideSlotProvider>
-          </div>
-        </>
+      {columns.map(({ pane, side, key }) => (
+        <Column
+          key={key}
+          pane={pane}
+          tabId={tabId}
+          side={side}
+          tabActive={active}
+          sideVisible={sideVisible}
+          ratio={ratio}
+          panel={side === "side" ? tab.side : null}
+          slot={side === "side" ? slot : null}
+          claim={claim}
+        />
+      ))}
+      {/* The divider carries the focus marker (indigo edge on the focused
+          side): inside a pane, a native browser page's hole would cut it out. */}
+      {sideVisible && (
+        <ResizeHandle
+          onMouseDown={onHandleDown}
+          dragging={dragging}
+          label="Resize side panel"
+          className="order-1 bg-border"
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-y-0 w-px bg-brand",
+              tab.focus === "main" ? "left-0" : "right-0",
+            )}
+          />
+        </ResizeHandle>
       )}
     </div>
   );
 });
 
 export default TabPane;
+
+/**
+ * A pane in its place: the main page on the left, or the side panel's front
+ * item with the panel's header on the right. One element tree for both, so a
+ * page that changes sides keeps its state. Focus is taken on the column, so a
+ * click on the side panel's header focuses the panel too.
+ */
+function Column({
+  pane,
+  tabId,
+  side,
+  tabActive,
+  sideVisible,
+  ratio,
+  panel,
+  slot,
+  claim,
+}: {
+  pane: PaneState | SideItem;
+  tabId: number;
+  side: PaneSide;
+  tabActive: boolean;
+  sideVisible: boolean;
+  /** The main pane's share of the tab's width. */
+  ratio: number;
+  /** The side panel, for the column holding its front item. */
+  panel: SidePanel | null;
+  slot: SideSlot | null;
+  claim: HeaderClaim;
+}) {
+  const focusPane = useTabStore((s) => s.focusPane);
+  const main = side === "main";
+  const shown = main || sideVisible;
+  const style: React.CSSProperties | undefined = main
+    ? sideVisible
+      ? { flex: `0 0 ${ratio * 100}%` }
+      : undefined
+    : sideVisible
+      ? undefined
+      : // Keep the front page mounted at its split width while collapsed,
+        // preserving drafts and scroll without taking space from main.
+        {
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          right: 0,
+          width: `${(1 - ratio) * 100}%`,
+          visibility: "hidden",
+        };
+  return (
+    <div
+      // Capture phase, so focus moves before the clicked control reacts.
+      onPointerDownCapture={() => focusPane(tabId, side)}
+      onFocusCapture={() => focusPane(tabId, side)}
+      className={cn("flex min-w-0 flex-1 flex-col", !main && "order-2")}
+      style={style}
+      inert={!tabActive || !shown}
+    >
+      {panel && <SidePanelHeader tabId={tabId} side={panel} claim={claim} />}
+      <SideSlotProvider value={slot}>
+        <Pane
+          pane={pane}
+          tabId={tabId}
+          side={side}
+          tabActive={tabActive && shown}
+          claim={main ? undefined : claim}
+        />
+      </SideSlotProvider>
+    </div>
+  );
+}
 
 /** A pane's first router entry: its path, plus any state the pane was
  *  opened with (`SideItem.entryState`, `AppTab.entryState`). */
@@ -202,18 +261,12 @@ function Pane({
   tabId,
   side,
   tabActive,
-  onFocus,
-  style,
   claim,
 }: {
   pane: PaneState | SideItem;
   tabId: number;
   side: PaneSide;
   tabActive: boolean;
-  /** Set focus on press or focus within; the side panel's column does it
-   *  for its pane instead. */
-  onFocus?: (tabId: number, side: PaneSide) => void;
-  style?: React.CSSProperties;
   /** The side panel's header slot, which the find bar floats below. */
   claim?: HeaderClaim;
 }) {
@@ -245,15 +298,11 @@ function Pane({
   return (
     <div
       ref={rootRef}
-      // Capture phase, so focus moves before the clicked control reacts.
-      onPointerDownCapture={onFocus && (() => onFocus(tabId, side))}
-      onFocusCapture={onFocus && (() => onFocus(tabId, side))}
       // The page's text selects; the side panel header and shell don't.
       data-select-scope
       // Lets a DOM event find its pane, as the usage pinger does for media.
       data-pane-id={id}
       className="relative min-h-0 min-w-0 flex-1"
-      style={style}
     >
       <TabContext.Provider value={context}>
         <RouterProvider router={router} />

@@ -171,6 +171,43 @@ export function hidePanel(side: SidePanel): { side: SidePanel | null; dropped: S
   return { side: next ? { ...next, hidden: true } : null, dropped };
 }
 
+/**
+ * Expand's swap: the main pane's page (`main`) takes `id`'s place in the
+ * stack, in front, and the panel hides (`hidePanel`). A page that names
+ * nothing (`recentKey`: `/new`, Home) or the thing `id` already shows is not
+ * kept, and an item showing the thing `main` does gives way to it. `dropped`
+ * is every item that went, the unkept page among them under `id`.
+ */
+export function swapItem(
+  side: SidePanel,
+  id: number,
+  main: Omit<SideItem, "id" | "viewed">,
+): { side: SidePanel | null; dropped: SideItem[] } {
+  const was = side.items.find((i) => i.id === id);
+  if (!was) return { side, dropped: [] };
+  const moved: SideItem = {
+    id,
+    path: main.path,
+    canBack: main.canBack,
+    canForward: main.canForward,
+    entryState: main.entryState,
+    viewed: nextStamp(side.items),
+  };
+  const key = recentKey(moved.path);
+  const gone =
+    key == null || key === recentKey(was.path)
+      ? [moved]
+      : side.items.filter((i) => i.id !== id && recentKey(i.path) === key);
+  let next: SidePanel | null = {
+    ...side,
+    items: side.items.map((i) => (i.id === id ? moved : i)),
+    front: id,
+  };
+  for (const item of gone) next = next && removeItem(next, item.id);
+  const hidden = next ? hidePanel(next) : { side: null, dropped: [] };
+  return { side: hidden.side, dropped: [...gone, ...hidden.dropped] };
+}
+
 /** A side panel built from paths in list order, the first in front. Stamps
  *  follow the list, so the cap drops from its end. */
 function fromPanes(

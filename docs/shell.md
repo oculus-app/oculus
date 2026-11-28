@@ -407,11 +407,21 @@ items with the same front item and width.
   while both fit; otherwise every parent moves into the shared `Breadcrumb` popover
   (`app/src/components/ui/Breadcrumb.tsx`). Selecting a parent navigates
   without changing the trail's layout. Breadcrumbs measure their available header
-  width directly rather than using the sideways `PaneTrail` scroller. Expand
-  (`expandSide`) makes the front item the main page, or a new tab on ⌘-click,
-  and removes it with `handover`: a lecture it owned is claimed for the main
-  pane (or the new tab), so whatever comes to the panel's front next waits and
-  the expanded lecture plays on, and a browser page stays open.
+  width directly rather than using the sideways `PaneTrail` scroller.
+- **Expand swaps the front item with the main page and hides the panel**
+  (`expandSide`): the item gets the whole tab, and the page it replaced takes
+  its place in the stack's front, so the strip toggle shows it beside and
+  expanding it there swaps back. Neither page remounts, so scroll, drafts and
+  a rendered PDF survive: the two panes trade routers, each with its history
+  (`swapPanes`), and the store trades their paths (`swapSide`, `swapItem`).
+  `TabPane` draws both as columns keyed by `pageKey`, which follows a page to
+  its new pane, and places them with CSS `order` in a DOM order that never
+  changes, since moving a node would reset its scroll. A main page that names
+  nothing (`recentKey`: `/new`, Home) or the thing the item already shows is
+  not kept, and an item on the thing the main page shows gives way to it. The
+  item's lecture plays on in the main pane; the main page's stops as a hidden
+  one does. ⌘-click opens the item as a new tab instead and leaves the page
+  and the panel alone, as does expand beside a browser page.
 - **The strip toggle hides saved pages and discards `/new` placeholders**.
   An empty stack closes the panel. Its badge counts retained hidden pages;
   toggling again restores the front item, or the most recently viewed saved

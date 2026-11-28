@@ -55,7 +55,7 @@ export function createHeaderClaim(): HeaderClaim {
   };
 }
 
-interface SideSlot {
+export interface SideSlot {
   tabId: number;
   side: SidePanel;
   claim: HeaderClaim;

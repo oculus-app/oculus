@@ -10,6 +10,7 @@ import {
   removeItem,
   retargetItem,
   sideFromPaths,
+  swapItem,
 } from "@/lib/shell/sideStack";
 import { leaveFront, releaseItem } from "./tabs/lifecycle";
 import { panesOf, pane, withTab } from "./tabs/panes";
@@ -93,6 +94,10 @@ interface TabState {
    *  page continues in another pane, so a lecture keeps playing and a browser
    *  page stays open. */
   removeSide: (tabId: number, itemId: number, opts?: { handover?: boolean }) => void;
+  /** Expand's store half, after `swapPanes`: the item's page becomes the
+   *  tab's and the page it replaces takes the item's place, hidden
+   *  (`swapItem`). */
+  swapSide: (tabId: number, itemId: number) => void;
   setSideRatio: (tabId: number, ratio: number) => void;
   focusPane: (tabId: number, side: PaneSide) => void;
   /** Library paths moved or went (`drive-changed`, `lib/shell/followLibrary.ts`):
@@ -224,6 +229,18 @@ export const useTabStore = create<TabState>((set, get) => ({
     set((s) =>
       withTab(s, tabId, (t) => ({ ...t, side, focus: side ? t.focus : "main" })),
     );
+  },
+
+  swapSide: (tabId, itemId) => {
+    const tab = get().tabs.find((t) => t.id === tabId);
+    const item = tab?.side?.items.find((i) => i.id === itemId);
+    if (!tab?.side || !item) return;
+    const { side, dropped } = swapItem(tab.side, itemId, tab);
+    for (const gone of dropped) releaseItem(gone);
+    const { path, canBack, canForward, entryState } = item;
+    set((s) => withTab(s, tabId, (t) => ({
+      ...t, path, canBack, canForward, entryState, side, focus: "main",
+    })));
   },
 
   setSideRatio: (tabId, ratio) => {
