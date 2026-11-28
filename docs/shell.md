@@ -212,11 +212,13 @@ indexing, a brand dot on Subjects while any subject has never-opened files
 
 Chat, Subjects, Drive, Tasks, Studio and Settings use `SideNavShell` with
 `useSideNavPanel`. Below 768 CSS pixels of the shell's own width, navigation
-starts closed and opens over the page with a dismissing backdrop. Split panes
-and page zoom follow the same rule. Links, New thread, route changes, Escape,
-the close button and clicking the backdrop dismiss it; leaving the tab also
-resets it. Hidden navigation and covered content are inert. Opening focuses
-the close button; dismissal restores the previous focus when still visible.
+starts closed and opens over the page with a dismissing backdrop that dims
+and blurs the page. Split panes and page zoom follow the same rule. Links, New
+thread, route changes, Escape and clicking the backdrop dismiss it; leaving
+the tab also resets it. The drawer has no close button of its own, since it
+would cover whatever the nav puts in its top-right corner. Hidden navigation
+and covered content are inert. Opening focuses the drawer itself; dismissal
+restores the previous focus when still visible.
 
 The drawer's open state is local and temporary. Wide panes retain their saved
 width and fold through `useResizablePanel`; narrowing or using the drawer
