@@ -43,7 +43,8 @@ export function SidePanelHeader({
   const front = tabInfo(frontOf(side).path, 14);
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border-subtle px-2">
+    // As tall as the main pane's `PageHeader`, so the two hairlines line up.
+    <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border-subtle px-2">
       <Switcher tabId={tabId} side={side} tabInfo={tabInfo} />
       <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
 

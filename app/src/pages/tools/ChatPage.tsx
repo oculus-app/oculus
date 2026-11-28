@@ -251,8 +251,10 @@ export default function ChatPage() {
     },
     [store, navigate],
   );
-  const [choosing, setChoosing] = useState(false);
-  const onChoose = useCallback(() => setChoosing(true), []);
+  // What the subject dialog picks for: this new chat's scope, or (plain New)
+  // a chat made only on a pick, so the thread on screen stays put meanwhile.
+  const [choosing, setChoosing] = useState<null | "scope" | "new">(null);
+  const onChoose = useCallback(() => setChoosing("scope"), []);
   // An entry point's `?c=1` (Studio's New video) opens the picker once; the
   // route effect drops it like `?s=`. It waits for the subjects, since the
   // picker highlights the seeded choice only as it mounts.
@@ -264,16 +266,16 @@ export default function ChatPage() {
   useEffect(() => {
     if (!askPending || !subjectsLoaded) return;
     setAskPending(false);
-    setChoosing(true);
+    setChoosing("scope");
   }, [askPending, subjectsLoaded]);
   // Every New makes a new chat, a row of its own above the list; leaving one
   // empty drops it (`openNewChat`). A Subject group's `+` names its scope;
-  // plain New asks for one.
+  // plain New asks for one first and makes the chat on the pick.
   const onNew = useCallback(
     (subject?: ChatScope) => {
+      if (subject === undefined) return setChoosing("new");
       const draft = useDraftStore.getState().openNewChat();
       navigate(chatHref(null, null, { draft, subject }));
-      if (subject === undefined) setChoosing(true);
     },
     [navigate],
   );
@@ -290,13 +292,18 @@ export default function ChatPage() {
     },
     [navigate],
   );
-  const openChooser = useCallback(() => setChoosing(true), []);
+  const openChooser = useCallback(() => setChoosing("scope"), []);
   const onChosen = useCallback(
     (next: ChatScope) => {
-      useDraftStore.getState().setScope(newKey, next);
-      setChoosing(false);
+      if (choosing === "new") {
+        const draft = useDraftStore.getState().openNewChat();
+        navigate(chatHref(null, null, { draft, subject: next }));
+      } else {
+        useDraftStore.getState().setScope(newKey, next);
+      }
+      setChoosing(null);
     },
-    [newKey],
+    [choosing, newKey, navigate],
   );
   const composerRef = useRef<HTMLDivElement>(null);
   // The Overview's ask bar, sent from this pane, morphs into this composer.
@@ -471,10 +478,10 @@ export default function ChatPage() {
 
         <DropOverlay show={dropping} label="Drop to attach a picture" />
         <NewThreadDialog
-          open={choosing}
-          onOpenChange={setChoosing}
+          open={choosing != null}
+          onOpenChange={(open) => !open && setChoosing(null)}
           subjects={subjects}
-          value={scope}
+          value={choosing === "new" ? null : scope}
           onPick={onChosen}
           focusAfterPick={focusComposer}
         />

@@ -81,7 +81,9 @@ export function SubjectNav({
                   <button
                     type="button"
                     aria-label="Change subject icon"
-                    className="absolute top-1/2 left-1 -translate-y-1/2 rounded-md p-1 transition-colors hover:bg-sidebar-item-hover"
+                    // Centred by layout, not a translate: a transform at a
+                    // fractional zoom re-snapped half a pixel as the column folded.
+                    className="absolute inset-y-0 left-1 flex items-center rounded-md px-1 transition-colors hover:bg-sidebar-item-hover"
                   >
                     <SubjectIcon code={subject.code} size={16} />
                   </button>

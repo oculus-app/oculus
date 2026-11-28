@@ -49,7 +49,6 @@ export function ListHeader({
         />
         <button
           type="button"
-          data-side-nav-close
           aria-label="New chat"
           title="New chat"
           onClick={onNew}
