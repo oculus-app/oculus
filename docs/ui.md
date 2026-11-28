@@ -468,7 +468,10 @@ themes are opt-in and keep the same structure.
   glides: the trail scrolls, jumps to a focused crumb and returns to its end
   at rest. The text size is the caller's `className`; `quiet` leaves the last
   crumb in the line's colour and weight, and `data-current` marks it. The
-  header's `Breadcrumb` is the other shape: it folds parents into a popover.
+  header's `Breadcrumb` is the other shape: it folds parents into a popover,
+  and sizes its crumbs as `PaneTrail` does (11px parents, the page itself
+  13px semibold), so a trail reads the same in the side panel as in the main
+  pane.
 - **Tables are full-bleed in `GridTable`**, header outside the scroller (or the
   bar runs down it). Alternate views are sibling `ViewTabs`/`PillTabs`, not a
   dropdown, over a fixed-height toolbar so switching never jolts the rows.

@@ -11,7 +11,10 @@ export interface BreadcrumbItem {
   icon?: ReactElement;
 }
 
-/** The current page keeps the available width; parents fold into the popover. */
+/**
+ * The current page keeps the available width; parents fold into the popover.
+ * Sized as `PaneTrail`: small parents, the page itself at the title's size.
+ */
 export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
   const nav = useRef<HTMLElement>(null);
   const measurement = useRef<HTMLDivElement>(null);
@@ -32,10 +35,10 @@ export function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
   }, [items]);
 
   return (
-    <nav ref={nav} aria-label="Breadcrumb" className="relative flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-[13px] text-muted-foreground">
+    <nav ref={nav} aria-label="Breadcrumb" className="relative flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden text-[11px] text-muted-foreground">
       <BreadcrumbItems items={items} visible={compact ? 1 : 2} />
       {/* Measure the full trail independently of which parents are folded. */}
-      <div ref={measurement} aria-hidden inert className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center gap-1.5 whitespace-nowrap">
+      <div ref={measurement} aria-hidden inert className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center gap-2.5 whitespace-nowrap">
         <BreadcrumbItems items={items} />
       </div>
     </nav>
@@ -75,7 +78,7 @@ function Crumb({ item, current = false, onNavigate }: {
       {content}
     </button>
   ) : <span title={item.label} aria-current={current ? "page" : undefined}
-      className={`${style} ${current ? "font-medium text-foreground" : ""}`}>{content}</span>;
+      className={`${style} ${current ? "text-[13px] font-semibold text-foreground" : ""}`}>{content}</span>;
 }
 
 export function BreadcrumbOverflow({ items }: { items: BreadcrumbItem[] }) {
