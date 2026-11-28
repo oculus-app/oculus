@@ -18,7 +18,7 @@ const INSPECTOR_PANEL = {
 
 /**
  * A page's inspector column: its width and fold, remembered per page under
- * `storageKey`. The page holds it so the header's toggle and the column
+ * `storageKey`. The page holds it so the toolbar's toggle and the column
  * beside the stage share one state.
  */
 export function useInspectorPanel(storageKey: string) {
@@ -31,7 +31,7 @@ export type InspectorPanel = ReturnType<typeof useInspectorPanel>;
  *  inspector is folded away. */
 export const stageMaxWidth = (panel: InspectorPanel) => (panel.collapsed ? "max-w-[1080px]" : "max-w-[920px]");
 
-/** Folds or unfolds the inspector, from the page's header row. */
+/** Folds or unfolds the inspector, from the page's toolbar row. */
 export function InspectorToggle({ panel }: { panel: InspectorPanel }) {
   const label = panel.collapsed ? "Show inspector" : "Hide inspector";
   return (

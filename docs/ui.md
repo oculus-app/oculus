@@ -17,7 +17,7 @@ Read this before any UI work.
 | Composites built on them | `app/src/components/ui/layout/`, `app/src/components/ui/table/`, `app/src/components/ui/search/`, `app/src/components/ui/lightbox/` |
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
-| Page headers, titles and breadcrumb parent popovers | `app/src/components/tabs/PaneHeader.tsx` (`PageHeader`, `PaneTrail`, `PaneBreadcrumb`, `PaneIconActions`), `app/src/components/ui/Breadcrumb.tsx` |
+| Page headers, titles and breadcrumb parent popovers; the slim toolbar row under a header and the floating corner button | `app/src/components/tabs/PaneHeader.tsx` (`PageHeader`, `PaneTrail`, `PaneBreadcrumb`, `PaneToolbar`, `PaneCornerAction`), `app/src/components/ui/Breadcrumb.tsx` |
 | A path on one line that glides when it doesn't fit | `app/src/components/ui/Trail.tsx`, `app/src/hooks/ui/useTrailGlide.ts`, `app/src/lib/ui/trailGlide.ts` |
 | Page navigation and its responsive shell | `app/src/components/ui/layout/SideNav.tsx`, `app/src/components/ui/layout/SideNavShell.tsx`, `app/src/hooks/ui/useSideNavPanel.ts` |
 | Settings pane layout and stacking rows | `app/src/styles/settings.css`, `app/src/layouts/SettingsLayout.tsx`, `app/src/components/settings/SettingsNav.tsx` |
@@ -535,13 +535,27 @@ themes are opt-in and keep the same structure.
   the meta line their parent already shows. The body eases in a
   `Fold`, which carries `will-change-[opacity,transform]`; the fold
   line and each child join and leave with `row-presence`.
+- **A page's header row is navigation only**: the nav toggle, a way back
+  where there is one, the trail (`PaneTrail`, `PaneBreadcrumb`) and the
+  title's muted `meta` (a count such as "4 projects", in `tabular-nums`).
+  Every control lives below it, at the right end of the page's row under the
+  header (a tabs row, a search and filter row, the PDF's toolbar); a page with
+  no such row gets `PaneToolbar` (`app/src/components/tabs/PaneHeader.tsx`),
+  36px with a hairline under it, its own content on the left and the
+  controls at its right end. A lone icon button with no row to join (Chat's
+  Thread info, a synced page's Open original, a task's menu) floats over the
+  top right corner of the page's body in `PaneCornerAction`, glass like the
+  PDF's zoom pill, and only the pill takes clicks. So the side panel's header
+  is the same switcher, trail, expand and × on every page, and a page's rows
+  look the same in either pane.
 - **Subject tabs share `SubjectPage` for width and gutters** under
   `SubjectLayout`'s header row (the toggle, the subject crumb, the tab's
   name) and beside the subject's nav column, `SubjectLoading` for skeleton
   rows and `SubjectEmpty` for the empty view. Per-tab content and actions
   stay with the page. Files is the one tab that draws its own header row:
-  Drive's browser, whose 48px header holds the toggle, the trail from Files,
-  the folder search and New.
+  Drive's browser, whose 48px header holds the toggle and the trail from
+  Files; its folder search and New are at the right end of the toolbar
+  under it, after the filters.
 - **View preferences use `useStoredState`**, with readers that own defaults and validation; `useStoredSet` keeps collapsed group keys. Storage failures leave the live view usable.
 - **Toasts are allowed for short notices that need nothing back**: top
   centre, dismissed by themselves after a few seconds (paused while hovered),

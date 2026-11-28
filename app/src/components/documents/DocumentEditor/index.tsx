@@ -25,8 +25,9 @@ import { useNoteTitle } from "./useNoteTitle";
 import { useNoteView } from "./useNoteView";
 
 /**
- * A markdown note, edited in place in CodeMirror (`../editor/`); controls live
- * in the host's header. The file's text is the document — nothing is
+ * A markdown note, edited in place in CodeMirror (`../editor/`); its save
+ * word, versions and mode are the host's row under its header
+ * (`DocumentControls`). The file's text is the document — nothing is
  * re-serialised. Live mode renders markdown around the caret, Raw is the same
  * editor without that.
  *
@@ -58,10 +59,10 @@ export function DocumentEditor({
   /** Inline AI suggestions (`../editor/chrome/aiSuggest.ts`) on or off. */
   suggestions: boolean;
   onSuggestStatus: (status: SuggestStatus) => void;
-  /** The version history panel, opened from the host's header. */
+  /** The version history panel, opened from the host's toolbar. */
   history?: boolean;
   onHistory?: (open: boolean) => void;
-  /** Filled while mounted, for the header's Save version. */
+  /** Filled while mounted, for the toolbar's Save version. */
   actions?: RefObject<DocumentActions | null>;
 }) {
   const tabActive = useTabActive();

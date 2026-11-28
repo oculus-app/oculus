@@ -4,6 +4,7 @@ import { Plus } from "@phosphor-icons/react";
 
 import { LibrarySelect } from "@/components/studio/components/LibrarySelect";
 import { StudioHeader } from "@/components/studio/StudioHeader";
+import { PaneToolbar } from "@/components/tabs/PaneHeader";
 import { InspectorToggle, useInspectorPanel } from "@/components/studio/panel/InspectorColumn";
 import { DuplicateDialog } from "@/components/studio/themes/DuplicateDialog";
 import { ThemeColumn } from "@/components/studio/themes/ThemeColumn";
@@ -74,19 +75,20 @@ export default function ThemesPage() {
 
   return (
     <>
-      <StudioHeader
-        title="Themes"
-        actions={
+      <StudioHeader title="Themes" />
+      <PaneToolbar
+        end={
           <>
             <Button type="button" variant="outline" size="xs" onClick={() => setCreating(true)}>
               <Plus size={12} weight="bold" />
               New theme
             </Button>
-            <LibrarySelect subjects={subjects} value={code} onChange={setCode} />
             <InspectorToggle panel={panel} />
           </>
         }
-      />
+      >
+        <LibrarySelect subjects={subjects} value={code} onChange={setCode} />
+      </PaneToolbar>
       <div className="flex min-h-0 flex-1">
         <ThemeColumn state={themes} defaults={defaults.defaults} subject={code} open={name ?? null} draft={draft} />
         {selected ? (

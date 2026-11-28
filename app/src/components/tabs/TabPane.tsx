@@ -60,7 +60,7 @@ const TabPane = memo(function TabPane({
   const [dragRatio, setDragRatio] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const stackRef = useRef<HTMLDivElement>(null);
-  // The side panel header's places for the front page's trail and buttons.
+  // The side panel header's place for the front page's trail.
   const [header] = useState(createHeaderSlots);
   const sidePanel = tab.side;
   const slot = useMemo(

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ensureDocPdf } from "@/lib/pdf/docPdf";
 import { PdfConverting, PdfNotice } from "./PdfNotice";
+import { PdfEndToolbar } from "./toolbarEnd";
 
 type Gate = { state: "checking" | "converting" | "ready" } | { state: "failed"; error: string };
 
@@ -28,11 +29,14 @@ export function DocPdfGate({ path, children }: { path: string; children: ReactNo
 
   if (gate.state === "ready") return <>{children}</>;
   return (
-    <div className="relative flex-1 h-full">
-      {gate.state === "converting" && <PdfConverting />}
-      {gate.state === "failed" && (
-        <PdfNotice error={gate.error} path={path} office converting onAction={() => setAttempt((n) => n + 1)} />
-      )}
+    <div className="flex h-full flex-1 flex-col">
+      <PdfEndToolbar />
+      <div className="relative min-h-0 flex-1">
+        {gate.state === "converting" && <PdfConverting />}
+        {gate.state === "failed" && (
+          <PdfNotice error={gate.error} path={path} office converting onAction={() => setAttempt((n) => n + 1)} />
+        )}
+      </div>
     </div>
   );
 }

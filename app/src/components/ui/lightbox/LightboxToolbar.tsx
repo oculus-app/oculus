@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Limit } from "@/components/ui/lightbox/constants";
 
-/** Floating controls, same grammar as `PDFViewer`'s zoom cluster. The
+/** Floating controls, same grammar as the PDF viewer's `PdfZoom`. The
  *  percentage is a ref so a zoom frame renders no React. */
 export function LightboxToolbar({
   readout,

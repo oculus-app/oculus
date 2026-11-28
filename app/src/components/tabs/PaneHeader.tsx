@@ -4,6 +4,7 @@ import {
   useContext,
   useLayoutEffect,
   useSyncExternalStore,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -14,28 +15,25 @@ import { frontOf, type SidePanel } from "@/lib/shell/sideStack";
 import { cn } from "@/lib/utils";
 
 /**
- * A page's top row, and the part of it the side panel's header shows. In the
- * main pane the row is the page's own: nav toggle, trail, buttons. In the
- * side panel `SidePanelHeader` is the one title row, the same on every page:
- * `TabPane` gives the pane the header's two places (`HeaderSlots`), the
- * page's trail (`PaneTrail`, `PaneBreadcrumb`) portals into the first as
- * crumbs, and its lone icon buttons (`PaneIconActions`) into the second,
- * before expand and ×. What is left of the row, the page's wide controls,
- * stays under the header as its own row, and is gone when there are none.
- * The trail lands in a layout effect, so the header shows the item's title
- * until the page mounts (a lazy route's `LoadingFill`) and the trail before
- * the page first paints.
+ * A page's chrome. The top row (`PageHeader`, `PaneHeaderRow`) is navigation
+ * only: the nav toggle, a way back, the trail and its muted meta. A page's
+ * controls sit in the row under it, at its end; a page with no such row gets
+ * `PaneToolbar`, and a lone icon button with no row to join floats over the
+ * page's top right corner (`PaneCornerAction`). In the side panel
+ * `SidePanelHeader` is the one title row, the same on every page: `TabPane`
+ * gives the pane the header's place for a trail (`HeaderSlots`), the page's
+ * trail (`PaneTrail`, `PaneBreadcrumb`) portals into it as crumbs, and the
+ * page's own top row, empty there, takes no space. The trail lands in a
+ * layout effect, so the header shows the item's title until the page mounts
+ * (a lazy route's `LoadingFill`) and the trail before the page first paints.
  */
 
-/** The side panel header's two places a page fills. */
+/** The side panel header's place a page fills. */
 export interface HeaderSlots {
   subscribe: (listener: () => void) => () => void;
   /** After the switcher: the page's nav toggle and trail. */
   trail: () => HTMLElement | null;
-  /** Before expand: the page's icon buttons. */
-  actions: () => HTMLElement | null;
   setTrail: (el: HTMLElement | null) => void;
-  setActions: (el: HTMLElement | null) => void;
   /** Whether a page's trail stands in for the item's title. */
   filled: () => boolean;
   fill: () => () => void;
@@ -43,7 +41,6 @@ export interface HeaderSlots {
 
 export function createHeaderSlots(): HeaderSlots {
   let trail: HTMLElement | null = null;
-  let actions: HTMLElement | null = null;
   let fills = 0;
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((l) => l());
@@ -53,13 +50,8 @@ export function createHeaderSlots(): HeaderSlots {
       return () => listeners.delete(listener);
     },
     trail: () => trail,
-    actions: () => actions,
     setTrail: (el) => {
       trail = el;
-      emit();
-    },
-    setActions: (el) => {
-      actions = el;
       emit();
     },
     filled: () => fills > 0,
@@ -90,19 +82,53 @@ export function useInSidePanel(): boolean {
 }
 
 /**
- * A page's top row. In the side panel its trail and icon buttons are in the
- * panel's header, so the row holds only the page's wide controls, at its
- * end, and takes no space when it has none. A narrow page's nav drawer
- * opens below it (`SideNavShell`).
+ * A page's top row: its trail and nothing else. In the side panel the trail
+ * is in the panel's header, so the row is empty there and takes no space.
+ * A narrow page's nav drawer opens below it (`SideNavShell`).
  */
 export function PaneHeaderRow({ className, children }: { className: string; children: ReactNode }) {
   const inSide = useInSidePanel();
-  return <div data-pane-header className={cn(className, inSide && "justify-end empty:hidden")}>{children}</div>;
+  return <div data-pane-header className={cn(className, inSide && "empty:hidden")}>{children}</div>;
 }
 
 /** The common 48px top bar for Chat, Studio and planning pages. */
 export function PageHeader({ children, className }: { children: ReactNode; className?: string }) {
   return <PaneHeaderRow className={cn("flex h-12 shrink-0 items-center gap-2.5 border-b border-border-subtle px-6", className)}>{children}</PaneHeaderRow>;
+}
+
+/**
+ * The slim row under a page's header that holds its controls: `children` on
+ * the left, `end` at the right end. 36px, the PDF toolbar's height, in the
+ * main pane and the side panel alike.
+ */
+export function PaneToolbar({ children, end, className }: {
+  children?: ReactNode;
+  end?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex h-9 shrink-0 items-center gap-3 border-b border-border-subtle px-5", className)}>
+      {children != null && <div className="flex min-w-0 items-center gap-2">{children}</div>}
+      <div className="ml-auto flex shrink-0 items-center gap-2">{end}</div>
+    </div>
+  );
+}
+
+/**
+ * A page's lone icon button where no row under the header has room for it,
+ * floating over the top right corner of the nearest positioned box: glass
+ * over what is under it (a see-through ground that blurs, as the PDF's zoom)
+ * until hovered or focused. Only the pill takes clicks. `style` moves it, as
+ * Chat does to clear its scrollbar.
+ */
+export function PaneCornerAction({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return (
+    <div className="pointer-events-none absolute right-3 top-3 z-10 flex" style={style}>
+      <div className="pointer-events-auto flex items-center rounded-full bg-card/30 p-0.5 backdrop-blur-md transition-colors hover:bg-card/70 has-[:focus-visible]:bg-card/70">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 interface TrailProps {
@@ -158,18 +184,6 @@ export function PaneBreadcrumb({ lead, meta, items }: TrailProps & { items: Brea
       {meta ? <TrailMeta>{meta}</TrailMeta> : null}
     </>
   );
-}
-
-/** A page's lone icon buttons (a menu, an info toggle): in the side panel
- *  they sit in the header before expand, never in a row of their own. */
-export function PaneIconActions({ children }: { children: ReactNode }) {
-  const slot = useContext(SideSlotContext);
-  return slot ? <HeaderActions header={slot.header}>{children}</HeaderActions> : <>{children}</>;
-}
-
-function HeaderActions({ header, children }: { header: HeaderSlots; children: ReactNode }) {
-  const el = useSyncExternalStore(header.subscribe, header.actions);
-  return el ? createPortal(children, el) : null;
 }
 
 /** `PaneTrail` in the side panel: the title joins the crumbs under the icon

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "@phosphor-icons/react";
 
@@ -6,21 +5,20 @@ import { PageHeader, PaneTrail, useInSidePanel } from "@/components/tabs/PaneHea
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useStudioPanel } from "@/layouts/StudioLayout";
 
-/** A Studio page's 48px header row: the nav column's toggle (none in the
- *  side panel, which has no nav column), an optional way back, the title
- *  with a muted note beside it, and the page's actions at the end. */
+/** A Studio page's 48px header row, navigation only: the nav column's toggle
+ *  (none in the side panel, which has no nav column), an optional way back,
+ *  and the title with a muted note beside it. A page's controls go in the
+ *  row under it (`PaneToolbar`). */
 export function StudioHeader({
   title,
   meta,
   back,
-  actions,
 }: {
   title: string;
   /** Muted beside the title: a series part's "Part 2/5". */
   meta?: string | null;
   /** Where the arrow before the title goes. */
   back?: string;
-  actions?: ReactNode;
 }) {
   const panel = useStudioPanel();
   const navigate = useNavigate();
@@ -47,7 +45,6 @@ export function StudioHeader({
         title={title}
         meta={meta}
       />
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </PageHeader>
   );
 }

@@ -13,13 +13,13 @@ import { Timeline } from "@/components/harness/timeline/Timeline";
 import { ThreadInfoButton } from "@/components/harness/threadInfo/ThreadInfoButton";
 import "@/components/harness/video/workKind";
 import { ThreadInfoCard, type ThreadInfoProps } from "@/components/harness/threadInfo/ThreadInfoCard";
-import { GAP, PAD, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
+import { CARD_TOP, GAP, PAD, RAIL, RESERVE } from "@/components/harness/threadInfo/layout";
 import { useThreadInfo } from "@/components/harness/threadInfo/useThreadInfo";
 import { useThreadActions } from "@/components/harness/threads/useThreadActions";
 import { useComposerSelection } from "@/components/harness/threads/useComposerSelection";
 import { useRouteThread } from "@/components/harness/threads/useRouteThread";
 import { useTabId } from "@/components/tabs/TabContext";
-import { PageHeader, PaneIconActions } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneCornerAction } from "@/components/tabs/PaneHeader";
 import { DropOverlay } from "@/components/ui/layout/DropOverlay";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
@@ -329,7 +329,7 @@ export default function ChatPage() {
     [store],
   );
   const onRestored = useCallback(() => setRestore(null), []);
-  // Thread info: floating in the chat area beside the column, or the header
+  // Thread info: floating in the chat area beside the column, or the corner
   // button's popover when the area has no room (`threadInfo/layout.ts`).
   const info = useThreadInfo(scroll.outer);
   const infoCard: ThreadInfoProps | null = thread && {
@@ -414,7 +414,6 @@ export default function ChatPage() {
             parentId={fresh ? null : thread?.parent_id ?? null}
             title={fresh ? "New thread" : thread ? thread.title?.trim() || "Untitled" : ""}
           />
-          {infoCard && <PaneIconActions><ThreadInfoButton info={info} {...infoCard} /></PaneIconActions>}
         </PageHeader>
 
         <div ref={info.areaRef} className="relative min-h-0 flex-1">
@@ -425,7 +424,8 @@ export default function ChatPage() {
           <div
             ref={scroll.outer}
             style={scrollPad}
-            className={cn("h-full overflow-x-hidden overflow-y-scroll pt-6", fresh ? "pb-6" : "pb-10", easeShift)}
+            // An open thread starts under Thread info's button in the corner.
+            className={cn("h-full overflow-x-hidden overflow-y-scroll", fresh ? "pt-6 pb-6" : "pt-12 pb-10", easeShift)}
           >
             {fresh ? (
               <div key="recent" className="mx-auto w-full max-w-[760px]">
@@ -464,10 +464,15 @@ export default function ChatPage() {
                 "absolute z-20 will-change-[opacity,scale]",
                 info.settled && "popup-motion [--popup-origin:top_right]",
               )}
-              style={{ top: GAP, right: GAP + info.scrollbar }}
+              style={{ top: CARD_TOP, right: GAP + info.scrollbar }}
             >
               <ThreadInfoCard {...infoCard} onHeight={info.onCardHeight} />
             </div>
+          )}
+          {infoCard && (
+            <PaneCornerAction style={{ top: GAP, right: GAP + info.scrollbar }}>
+              <ThreadInfoButton info={info} {...infoCard} />
+            </PaneCornerAction>
           )}
         </div>
         <div ref={composerRef} style={composerPad} className={cn("shrink-0 pb-4", easeShift)}>

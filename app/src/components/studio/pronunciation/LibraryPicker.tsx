@@ -13,23 +13,23 @@ const fromValue = (v: string): LibraryFilter => (v === ALL ? "all" : v === GLOBA
 
 /**
  * A choice of lexicon: Global or a subject's by course code, with All first
- * when `all` (the page's filter). The header's is the small pill; the add
+ * when `all` (the page's filter). The filter is the small pill; the add
  * form's matches its fields.
  */
-export function LibraryPicker({ codes, value, onChange, all = false, label, size = "header" }: {
+export function LibraryPicker({ codes, value, onChange, all = false, label, size = "pill" }: {
   codes: readonly string[];
   value: LibraryFilter;
   onChange: (next: LibraryFilter) => void;
   all?: boolean;
   label: string;
-  size?: "header" | "field";
+  size?: "pill" | "field";
 }) {
   return (
     <Select value={toValue(value)} onValueChange={(v) => onChange(fromValue(v))}>
       <SelectTrigger
         size="sm"
         aria-label={label}
-        className={size === "header" ? "h-7 gap-1.5 text-xs" : "w-full justify-between rounded-lg text-[13px]"}
+        className={size === "pill" ? "h-7 gap-1.5 text-xs" : "w-full justify-between rounded-lg text-[13px]"}
       >
         <SelectValue>
           {value === "all" ? (

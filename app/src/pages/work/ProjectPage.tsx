@@ -17,7 +17,7 @@ import {
 import { projectParents } from "@/components/projects/nav/projectBreadcrumbs";
 import { boardProgress, taskTree } from "@/components/projects/tasks/taskTree";
 import { useProjectActions } from "@/components/projects/lists/useProjectActions";
-import { PageHeader, PaneBreadcrumb, PaneIconActions } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneBreadcrumb } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useTasksPanel } from "@/layouts/TasksLayout";
 import { useProjectsStore } from "@/stores/planning/projectsStore";
@@ -120,6 +120,24 @@ export default function ProjectPage() {
     );
   }
 
+  const menu = (
+    <ProjectMenu
+      project={project}
+      className="shrink-0"
+      onRename={(name) => actions.onRename(project, name)}
+      onArchive={() => {
+        // Archived or deleted, the board has nothing left to show.
+        actions.onArchive(project);
+        navigate("/projects");
+      }}
+      onUnarchive={() => actions.onUnarchive(project)}
+      onDelete={() => {
+        actions.onDelete(project);
+        navigate("/projects");
+      }}
+    />
+  );
+
   const titleRow = (
     <PageHeader>
       <PaneBreadcrumb
@@ -127,30 +145,17 @@ export default function ProjectPage() {
         items={[...projectParents(project), { label: project.name, icon: <ProjectIcon project={project} size={14} /> }]}
         meta={tab === "tasks" && `${progress.done}/${progress.total} done`}
       />
-      <PaneIconActions><ProjectMenu
-        project={project}
-        className="shrink-0"
-        onRename={(name) => actions.onRename(project, name)}
-        onArchive={() => {
-          // Archived or deleted, the board has nothing left to show.
-          actions.onArchive(project);
-          navigate("/projects");
-        }}
-        onUnarchive={() => actions.onUnarchive(project)}
-        onDelete={() => {
-          actions.onDelete(project);
-          navigate("/projects");
-        }}
-      /></PaneIconActions>
     </PageHeader>
   );
 
   return (
     <div className="flex h-full flex-col">
       {titleRow}
-      {/* Tabs alone on the rule the active tab underlines. */}
+      {/* Tabs on the rule the active tab underlines, the project's menu at
+          the row's end. */}
       <div className="shrink-0 flex items-end border-b border-border-subtle px-6 pt-2">
         <ViewTabs tabs={TABS} value={tab} onChange={setTab} />
+        <div className="ml-auto flex self-center">{menu}</div>
       </div>
 
       {/* Own row, not beside the name, where they read as more crumbs. The

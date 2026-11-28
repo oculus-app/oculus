@@ -15,7 +15,7 @@ const CHOICES: { kind: DrawingKind; icon: Icon; title: string; body: string }[] 
 ];
 
 /**
- * A PDF's header button: a copy of its pages to draw on, as a notebook or a whiteboard, opened beside it.
+ * A PDF's toolbar button: a copy of its pages to draw on, as a notebook or a whiteboard, opened beside it.
  * The PDF itself is never changed.
  */
 export function DrawOnCopy({ file }: { file: DbFile }) {

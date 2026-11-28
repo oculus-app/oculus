@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, DotsThree, TrashSimple } from "@phosphor-icons/react";
 import { projectHref } from "@/components/projects/nav/projectHref";
-import { PageHeader, PaneBreadcrumb, PaneIconActions, useInSidePanel } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneBreadcrumb, useInSidePanel } from "@/components/tabs/PaneHeader";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useTasksPanel } from "@/layouts/TasksLayout";
@@ -10,18 +10,18 @@ import type { DbProject, DbProjectTask } from "@/lib/planning/projects";
 import { taskBreadcrumbs } from "@/components/projects/nav/taskBreadcrumbs";
 import { taskHref } from "@/components/projects/nav/taskHref";
 
-/** The task path includes its parent immediately before a subtask. */
+/** The task path includes its parent immediately before a subtask. The
+ *  task's menu is not here: with no row under the header, the page floats it
+ *  over its top right corner (`TaskMenu`). */
 export function TaskHeader({
   task,
   project,
   parent,
-  onDelete,
 }: {
   task: DbProjectTask;
   /** `null` on an unfiled task. */
   project: DbProject | null;
   parent: DbProjectTask | null;
-  onDelete: () => void;
 }) {
   const inSide = useInSidePanel();
   const panel = useTasksPanel();
@@ -49,13 +49,12 @@ export function TaskHeader({
         }
         items={items}
       />
-      <PaneIconActions><TaskMenu onDelete={onDelete} /></PaneIconActions>
     </PageHeader>
   );
 }
 
 /** The `…` menu. Delete only asks: the page's dialog confirms. */
-function TaskMenu({ onDelete }: { onDelete: () => void }) {
+export function TaskMenu({ onDelete }: { onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>

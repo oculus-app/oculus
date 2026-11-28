@@ -104,15 +104,14 @@ export default function TasksPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <SectionHeader title={title}>
-        {/* The nav column holds New task; folded away, it moves here. */}
-        {panel?.collapsed && <NewTaskButton projects={projects} onCreate={create} />}
-        <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
-          {shown.length} {shown.length === 1 ? "task" : "tasks"}
-        </span>
-      </SectionHeader>
+      <SectionHeader title={title} meta={`${shown.length} ${shown.length === 1 ? "task" : "tasks"}`} />
 
-      <TaskToolbar value={query} onChange={setQuery}>
+      <TaskToolbar
+        value={query}
+        onChange={setQuery}
+        // The nav column holds New task; folded away, it moves here.
+        end={panel?.collapsed && <NewTaskButton projects={projects} onCreate={create} />}
+      >
         <TaskFilters filter={filter} tags={tags} onChange={setFilter} />
         <ProjectFilter filter={filter} projects={projects} counts={counts} onChange={setFilter} />
         <SubjectFilter filter={filter} counts={counts} onChange={setFilter} />

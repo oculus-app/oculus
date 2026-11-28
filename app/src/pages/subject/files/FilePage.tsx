@@ -33,7 +33,7 @@ import {
 } from "@/lib/files/openFile";
 import { useLocateHighlight } from "@/hooks/find/useLocateHighlight";
 import { LoadingFill } from "@/components/ui/layout/PageParts";
-import { PaneHeaderRow, PaneIconActions } from "@/components/tabs/PaneHeader";
+import { PaneCornerAction, PaneHeaderRow } from "@/components/tabs/PaneHeader";
 import { useDocumentPrefsStore } from "@/stores/documents/documentPrefsStore";
 import type { DbFile } from "@/lib/db";
 
@@ -114,7 +114,7 @@ export default function SubjectFilePage() {
   const loadDocumentPrefs = useDocumentPrefsStore((s) => s.load);
   const [suggestStatus, setSuggestStatus] = useState<SuggestStatus>(SUGGEST_IDLE);
   const [history, setHistory] = useState(false);
-  /** The mounted editor's, for the header's Save version. */
+  /** The mounted editor's, for the toolbar's Save version. */
   const documentActions = useRef<DocumentActions | null>(null);
   const saveVersion = (label?: string) =>
     documentActions.current
@@ -154,43 +154,49 @@ export default function SubjectFilePage() {
     return <Navigate to={gone} replace />;
   }
 
+  // A synced page is our markdown of a Canvas page or an Ed thread; this
+  // opens the original, embeds and styling included, in a browser tab. The
+  // lesson view has its own, for the shown slide.
+  const original = !isDocument && !isLessonView && isWebUrl(file.source_url)
+    ? <OpenOriginal href={file.source_url!} />
+    : null;
+  // The end of a PDF's toolbar row. A PDF without markdown says why rather
+  // than lacking the toggle; it can be copied into a notebook or a
+  // whiteboard to draw on.
+  const pdfEnd = pdf.isPdf ? (
+    <>
+      {pdf.mdChecked &&
+        (pdf.mdExists ? (
+          <PdfMdToggle value={pdf.viewMode} onChange={pdf.setViewMode} />
+        ) : (
+          <MarkdownUnavailable file={file} openSeq={parseDetails} />
+        ))}
+      {/\.pdf$/i.test(file.filename) && <DrawOnCopy file={file} />}
+      {original}
+    </>
+  ) : null;
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <PaneHeaderRow className="h-11 shrink-0 flex items-center gap-2.5 px-5 border-b border-border-subtle">
         {topLevel
           ? <DriveFileTrail folder={fileCrumbFolder(file)} title={fileTitle(file)} />
           : <SubjectTrail subjectId={id} folder={fileCrumbFolder(file)} title={fileTitle(file)} />}
-        {/* A PDF without markdown says why rather than lacking the toggle. */}
-        {isDocument ? (
-          <DocumentControls
-            mode={mode}
-            onMode={setMode}
-            status={status}
-            suggestions={suggestions}
-            onSuggestions={toggleSuggestions}
-            suggestStatus={suggestStatus}
-            history={history}
-            onHistory={setHistory}
-            onSaveVersion={saveVersion}
-          />
-        ) : (
-          pdf.isPdf && pdf.mdChecked &&
-          (pdf.mdExists ? (
-            <PdfMdToggle value={pdf.viewMode} onChange={pdf.setViewMode} />
-          ) : (
-            <MarkdownUnavailable file={file} openSeq={parseDetails} />
-          ))
-        )}
-        {/* A PDF can be copied into a notebook or a whiteboard to draw on. */}
-        {!isDocument && !drawingKind && /\.pdf$/i.test(file.filename) && <DrawOnCopy file={file} />}
-        {/* A synced page is our markdown of a Canvas page or an Ed thread;
-            this opens the original, embeds and styling included, in a
-            browser tab. The lesson view has its own, for the shown slide. */}
-        {!isDocument && !isLessonView && isWebUrl(file.source_url) && (
-          <PaneIconActions><OpenOriginal href={file.source_url!} /></PaneIconActions>
-        )}
       </PaneHeaderRow>
-      <div ref={setBody} className="flex-1 min-h-0 overflow-hidden flex flex-col">
+      {isDocument && (
+        <DocumentControls
+          mode={mode}
+          onMode={setMode}
+          status={status}
+          suggestions={suggestions}
+          onSuggestions={toggleSuggestions}
+          suggestStatus={suggestStatus}
+          history={history}
+          onHistory={setHistory}
+          onSaveVersion={saveVersion}
+        />
+      )}
+      <div ref={setBody} className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
         {drawingKind ? (
           <Suspense fallback={<LoadingFill />}><WhiteboardEditor key={file.id} file={file} kind={drawingKind} /></Suspense>
         ) : isDocument ? (
@@ -227,8 +233,11 @@ export default function SubjectFilePage() {
             pdfViewMode={pdf.viewMode}
             pdfLink={pdf.link}
             locate={locate}
+            pdfToolbarEnd={pdfEnd}
           />
         )}
+        {/* A PDF's toolbar row has room for it; a page has no row. */}
+        {original && !pdf.isPdf && <PaneCornerAction>{original}</PaneCornerAction>}
       </div>
     </div>
   );

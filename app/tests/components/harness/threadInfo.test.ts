@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { File } from "@phosphor-icons/react";
 import { InfoGroup, InfoRow } from "@/components/harness/threadInfo/InfoRow";
-import { MIN_COLUMN, RAIL, RESERVE, threadInfoFloats } from "@/components/harness/threadInfo/layout";
+import { CARD_TOP, GAP, MIN_COLUMN, RAIL, RESERVE, threadInfoFloats } from "@/components/harness/threadInfo/layout";
 import { registerWorkKind, workKinds, type WorkKind } from "@/components/harness/threadInfo/work";
 import { displayCode, humanizeSlug } from "@/lib/format/format";
 
@@ -21,9 +21,11 @@ describe("threadInfoFloats: the card floats only beside a column of at least MIN
     expect(threadInfoFloats(1440 / 2, 800, 300)).toBe(false);
   });
 
-  test("a card taller than the pane is a popover, since it never scrolls", () => {
-    expect(threadInfoFloats(1400, 400, 376)).toBe(true);
-    expect(threadInfoFloats(1400, 400, 377)).toBe(false);
+  test("a card taller than the pane under the corner button is a popover, since it never scrolls", () => {
+    // The card starts under the button and keeps a gap above the pane's bottom.
+    const tallest = 400 - CARD_TOP - GAP;
+    expect(threadInfoFloats(1400, 400, tallest)).toBe(true);
+    expect(threadInfoFloats(1400, 400, tallest + 1)).toBe(false);
   });
 
   test("before the card has drawn, the width alone decides", () => {

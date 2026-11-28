@@ -58,7 +58,7 @@ const STATE_ICON: Record<ParseState["kind"], PhosphorIcon> = {
  *  when the fix is there. A latched or permanent failure has nothing to retry. */
 type ParseAction = { hint: string; run: () => void };
 
-/** A file row's click: a failure opens the file, whose header shows the
+/** A file row's click: a failure opens the file, whose PDF toolbar shows the
  *  backend's whole message and the retry; everything else as on the file. */
 function rowActionOf(
   state: ParseState,

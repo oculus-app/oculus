@@ -145,7 +145,7 @@ the row and in its filter's options (`discussion/ThreadIcons.tsx`): a Phosphor
 icon per thread type, a filled tick for answered and a hollow circle for
 unanswered questions, and Ed's own colour square before a category (muted when
 the colour is unknown). A row with an Ed link shows *Open in Ed* on hover
-(⌘ for a new tab); a thread's file page offers the same in its header, decided by the `source_url` host (`isEdUrl`, `app/src/lib/ed/links.ts`).
+(⌘ for a new tab); a thread's file page offers the same over its top right corner, decided by the `source_url` host (`isEdUrl`, `app/src/lib/ed/links.ts`).
 
 `parseEdThread` reads a thread's JSON front matter (number, type, answered,
 category path, category colour, URL) and falls back to the
@@ -240,11 +240,12 @@ Drive's rail section at `/drive/*` and the Files tab at
   (`useReconcileParseStatus`), for a parse an earlier session finished, and a
   folder in a subject or at the top level asks for its own files' rows
   (below).
-- **The view.** The header holds the trail, a search scoped to the folder
-  and everything below it, and New (folder, note, whiteboard, notebook, upload
-  files or a folder), drawn only where the folder is `writable`, the top
-  level included. The Type,
-  From and Modified pills, like the search, switch to the flat recursive list,
+- **The view.** The header holds the trail and nothing else. The toolbar
+  under it (`DriveToolbar`) has the Type, From and Modified pills on the left
+  and, on the right, a search scoped to the folder and everything below it
+  (`DriveSearch`), the grid/list switch, the details toggle and New (folder,
+  note, whiteboard, notebook, upload files or a folder), drawn only where the
+  folder is `writable`, the top level included. The pills, like the search, switch to the flat recursive list,
   narrowed by `filterListing` (`lib/drive/filters.ts`); a search alone keeps
   matching folders. Grid or list is remembered per root (`useStoredState`,
   grid in Drive, list in a subject's Files tab by default). The grid draws folder
@@ -718,7 +719,7 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
 - **A file row shows the state as an icon** (`app/src/components/files/ParseState.tsx`),
   its title and a few words by failure `kind` on hover — never the backend's
   message, which can run to a TLS chain. Clicking `failed` or `can't parse`
-  opens the file with its header's parse popover open: the whole message and,
+  opens the file with its PDF toolbar's parse popover open: the whole message and,
   for `failed`, Retry. `not parsed` re-kicks `parse_file`; `skipped` lifts
   the mark (`parse_skip` with `skip: false`) and then parses, and its file
   page's popover offers the same as Parse now; a token cause opens

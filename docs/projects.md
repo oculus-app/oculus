@@ -180,7 +180,9 @@ whose parent is missing rather than dropping it.
   `boardOf`'s default board and `useTaskList` rows for an unfiled task.
 - **The task page is a header, a pill row and four blocks.** The header holds
   the nav fold toggle (only inside `TasksLayout`; `useTasksPanel()` is null in
-  the side panel), back, the shared breadcrumb and a `…` menu with Delete. A subtask
+  the side panel), back and the shared breadcrumb; the page has no row under
+  it, so its `…` menu with Delete floats over the body's top right corner
+  (`PaneCornerAction`, [ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)). A subtask
   shows `… › parent task › subtask`; its back arrow opens the parent. Root
   tasks show `… › project › task` or `Tasks › task` while unfiled. The
   breadcrumb popover lists hidden ancestors in path order. When the header
@@ -221,7 +223,7 @@ whose parent is missing rather than dropping it.
   day keeps the set time, else defaults to 23:59 for a due date and the
   morning for a start. `variant="pill"` draws it as a property pill.
 - **The project page starts with the shared breadcrumb header**, followed
-  by `Overview | Tasks`. Overview shares the task page's editable title,
+  by `Overview | Tasks` with the project's `…` menu at that row's end. Overview shares the task page's editable title,
   then property pills (status, subject, dates, progress and tags), calendar
   link, About editor and upcoming tasks. Board / Table / Timeline sit
   below the tabs when Tasks is selected. The board and table use the same
@@ -238,7 +240,10 @@ whose parent is missing rather than dropping it.
   ⌘⌥B). Its rows navigate rather than swap state, so both pages keep history,
   ⌘-click and tab restore. The rail has one item, **Tasks**, opening `/tasks`
   and lit on `/projects*` too. `SectionHeader` uses the same `PageHeader`
-  and `PaneTrail` as Chat and Studio. Their nav columns share `SideNavHeading`; New task is a nav row.
+  and `PaneTrail` as Chat and Studio, with the list's count as the title's
+  muted `meta`. Their nav columns share `SideNavHeading`; New task is a nav
+  row, and while the column is folded away it sits at the end of the Tasks
+  page's `TaskToolbar`, as New project does on Projects.
 - **`projectParents`** starts at Projects and links the subject to
   `/tasks?subject=<id>` (Personal uses `subject=personal`). Projects, tasks and subject file paths use `Breadcrumb` /
   `BreadcrumbItems`; hidden ancestors open in a popover. Segments are
@@ -248,7 +253,8 @@ whose parent is missing rather than dropping it.
   pane width, search takes its own full-width row and the filters sit below
   in a horizontal strip with scroll fades. Wide panes keep one row with a
   readable minimum search width; long filter selections scroll within their
-  strip. The toolbar stays outside the table's horizontal scroller.
+  strip. The toolbar's `end` (a New button) sits after the strip, outside
+  its scroll. The toolbar stays outside the table's horizontal scroller.
 - **The index is one `GridTable`**, with the Tasks page's Name, Tags,
   Subject, Due and Updated columns and sortable headers. Projects open their
   task rows in place; parents can open their subtasks. `TaskRow` owns the

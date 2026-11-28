@@ -12,7 +12,7 @@ maths is [editor-maths.md](./editor-maths.md).
 
 | Piece | Location |
 | --- | --- |
-| The view, title and mode; header controls | `app/src/components/documents/DocumentEditor/`, `app/src/components/documents/DocumentControls.tsx` |
+| The view, title and mode; the toolbar row under the page header | `app/src/components/documents/DocumentEditor/`, `app/src/components/documents/DocumentControls.tsx` |
 | Extensions: live preview, Raw mode, code, tables, widgets, commands | `app/src/components/documents/editor/` |
 | One session per note | `app/src/lib/notes/documentSessions.ts` |
 | Find and replace | `app/src/components/documents/editor/chrome/find.ts`, `app/src/components/documents/editor/chrome/useEditorFind.ts` |
@@ -25,8 +25,9 @@ maths is [editor-maths.md](./editor-maths.md).
 
 It lives in `app/src/components/documents/editor/`; nothing is re-serialised.
 `DocumentEditor/` owns the view, title and mode and loads only for a
-student document; its lightweight header controls live in
-`app/src/components/documents/DocumentControls.tsx`. `FilePage` keys the
+student document; its save word, versions, suggestions and mode sit in the
+file page's toolbar row under its header,
+`app/src/components/documents/DocumentControls.tsx` (a `PaneToolbar`). `FilePage` keys the
 whole editor by row id: image attachments belong to one note, while a
 rename keeps its editor. The note and History's version share one column,
 `NoteColumn.tsx`, fixed at the note's full width: a narrower pane scrolls it
@@ -224,7 +225,7 @@ selected.
   its own width shrinks (container queries). The list groups by day with
   size deltas and takes arrow keys. The version bar
   (`app/src/components/documents/HistoryPanel/VersionBar/`) holds the actions,
-  change navigation and *Show changes*. The header's Save version (⇧⌘S, focused
+  change navigation and *Show changes*. The toolbar's Save version (⇧⌘S, focused
   pane only; ⌘S stays a flush) flushes first so the checkpoint matches the file.
   **Restore as copy** is the default: a new note "<title> (v3)" in a new tab.
   **Replace current** takes a `restore` snapshot first, then swaps the text

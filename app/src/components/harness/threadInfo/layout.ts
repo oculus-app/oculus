@@ -1,8 +1,9 @@
 /**
- * Where Thread info goes in the chat pane. The card floats at the pane's top
- * right while the timeline column moves left to clear it, narrowing to no
- * less than `MIN_COLUMN`, with the question rail's gutter kept on its left;
- * otherwise it is the header button's popover. Widths are layout pixels
+ * Where Thread info goes in the chat pane. Its button floats in the chat
+ * area's top right corner; the card floats under it while the timeline
+ * column moves left to clear it, narrowing to no less than `MIN_COLUMN`,
+ * with the question rail's gutter kept on its left; otherwise it is the
+ * button's popover. Widths are layout pixels
  * (`clientWidth`), which page zoom does not scale.
  */
 
@@ -16,6 +17,10 @@ export const MIN_COLUMN = 640;
 export const CARD_WIDTH = 280;
 /** From the pane's edges, and between the card and the column. */
 export const GAP = 12;
+/** The corner button's size (`ThreadInfoButton`, in its glass pill). */
+export const BUTTON = 36;
+/** The card's top: under the button, `GAP` below it. */
+export const CARD_TOP = GAP + BUTTON + GAP;
 /** Right padding the scroller and composer take while the card floats: the
  *  card, its inset from the pane's edge and a gap before the column. */
 export const RESERVE = CARD_WIDTH + GAP * 2;
@@ -26,5 +31,5 @@ export const RESERVE = CARD_WIDTH + GAP * 2;
  * card taller than the pane is a popover instead.
  */
 export function threadInfoFloats(width: number, height: number, cardHeight: number): boolean {
-  return width - RAIL - RESERVE >= MIN_COLUMN && cardHeight + GAP * 2 <= height;
+  return width - RAIL - RESERVE >= MIN_COLUMN && CARD_TOP + cardHeight + GAP <= height;
 }

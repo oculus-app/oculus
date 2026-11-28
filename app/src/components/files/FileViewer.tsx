@@ -7,6 +7,7 @@ import { ReferenceLink } from "@/components/markdown/ReferenceLink";
 import { MD_COMPONENTS } from "@/components/markdown/MdComponents";
 import { PDFViewer } from "@/components/files/pdf/PDFViewer";
 import { DocPdfGate } from "@/components/files/pdf/DocPdfGate";
+import { PdfEndToolbar, PdfToolbarEnd } from "@/components/files/pdf/toolbarEnd";
 import { docPdfRelPath, isCodeFile, isOfficeFile, isPdfBacked, isPictureFile, isSheetFile, isVideoFile, parsedMdRelPath } from "@/lib/files/fileTypes";
 import { openLibraryPath, type FileLocate } from "@/lib/files/openFile";
 import { libraryImageSrc, libraryLinkTarget } from "@/lib/files/libraryLinks";
@@ -24,8 +25,8 @@ import { useParseStore } from "@/stores/sync/parseStore";
 export type PdfViewMode = "pdf" | "markdown";
 
 /**
- * PDF ↔ parsed-markdown toggle state, lifted out so the host renders the
- * toggle in its own header, and the faces' shared state (`link`: the reading
+ * PDF ↔ parsed-markdown toggle state, lifted out so the host hands the
+ * toggle to the viewer's toolbar row (`pdfToolbarEnd`), and the faces' shared state (`link`: the reading
  * position each restores), fresh per file. Also the "is there markdown?"
  * probe: `mdChecked` holds both controls back until it answers, or
  * `MarkdownUnavailable` would flash on every parsed file. A live parse-status
@@ -112,13 +113,17 @@ interface FileViewerProps {
   pdfLink?: PdfMdLink;
   /** A cited spot in the PDF (`PDFViewer`). */
   locate?: FileLocate;
+  /** A PDF's host controls, at the right end of its toolbar row; the
+   *  markdown face keeps the row for them alone. */
+  pdfToolbarEnd?: ReactNode;
 }
 
 /**
  * Renders one scraped file: markdown pages/announcements, PDFs, spreadsheets
  * (as their text), images and pictures (SVG as an `<img>`), videos (in the media player, `VideoFileViewer`)
  * and source files (read-only in `CodeEditor`, `CodeFileViewer`).
- * Chrome-free — the host owns the header (title + PdfMdToggle).
+ * The host owns the header; a PDF's toolbar row carries the host's
+ * `pdfToolbarEnd` (PdfMdToggle, Draw) on both faces.
  */
 export function FileViewer({
   file,
@@ -127,6 +132,7 @@ export function FileViewer({
   pdfViewMode = "pdf",
   pdfLink,
   locate,
+  pdfToolbarEnd,
 }: FileViewerProps) {
   const dataDir = useDataDir();
   // Office documents render as their converted sibling PDF.
@@ -171,20 +177,25 @@ export function FileViewer({
 
   if (pdfRelPath) {
     return (
-      <div className="flex flex-col h-full">
-        {pdfViewMode === "markdown" && mdRelPath ? (
-          markdown(mdRelPath, pdfLink)
-        ) : (
-          <PdfFace file={file}>
-            <PDFViewer
-              path={pdfRelPath}
-              locate={locate}
-              markdownPath={mdRelPath ?? undefined}
-              link={mdRelPath ? pdfLink : undefined}
-            />
-          </PdfFace>
-        )}
-      </div>
+      <PdfToolbarEnd.Provider value={pdfToolbarEnd}>
+        <div className="flex flex-col h-full">
+          {pdfViewMode === "markdown" && mdRelPath ? (
+            <>
+              <PdfEndToolbar />
+              {markdown(mdRelPath, pdfLink)}
+            </>
+          ) : (
+            <PdfFace file={file}>
+              <PDFViewer
+                path={pdfRelPath}
+                locate={locate}
+                markdownPath={mdRelPath ?? undefined}
+                link={mdRelPath ? pdfLink : undefined}
+              />
+            </PdfFace>
+          )}
+        </div>
+      </PdfToolbarEnd.Provider>
     );
   }
 

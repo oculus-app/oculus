@@ -3,14 +3,14 @@ import { Info } from "@phosphor-icons/react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { GAP, PAD } from "./layout";
+import { GAP } from "./layout";
 import { ThreadInfoCard, type ThreadInfoProps } from "./ThreadInfoCard";
 import type { ThreadInfoState } from "./useThreadInfo";
 
 /**
- * The button at the end of the chat header. With room in the pane it shows
- * or hides the floating card (remembered); without, it opens the same card
- * as its popover, aligned to the pane's right edge so it stays over the chat.
+ * The button floating in the chat area's top right corner. With room in the
+ * pane it shows or hides the floating card under it (remembered); without,
+ * it opens the same card as its popover, where the floating card would be.
  */
 export function ThreadInfoButton({ info, ...card }: ThreadInfoProps & { info: ThreadInfoState }) {
   const button = useRef<HTMLButtonElement>(null);
@@ -27,7 +27,7 @@ export function ThreadInfoButton({ info, ...card }: ThreadInfoProps & { info: Th
               {...(info.floats ? { "aria-pressed": info.shown } : { "aria-expanded": info.popoverOpen, "aria-haspopup": "dialog" as const })}
               onClick={info.toggle}
               className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
                 pressed
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:bg-sidebar-item-hover hover:text-foreground",
@@ -42,10 +42,10 @@ export function ThreadInfoButton({ info, ...card }: ThreadInfoProps & { info: Th
       <PopoverContent
         align="end"
         side="bottom"
-        // Where the floating card sits: `GAP` under the header, `GAP` from
-        // the pane's edge (the button sits `PAD` in).
-        sideOffset={GAP + 8}
-        alignOffset={GAP - PAD}
+        // Where the floating card sits: `GAP` under the button, right edges
+        // aligned. The pill's padding is outside the anchor.
+        sideOffset={GAP + 2}
+        alignOffset={-2}
         collisionPadding={GAP}
         // Focus goes to the card, not its first row, which would look hovered.
         onOpenAutoFocus={(e) => {

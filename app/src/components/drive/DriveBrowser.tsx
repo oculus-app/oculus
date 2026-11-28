@@ -325,20 +325,15 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
         {...handlers}
         className="relative flex h-full min-h-0 flex-col outline-none"
       >
-        <DriveHeader
-          crumbs={crumbs}
-          leading={leading}
-          query={filters.query}
-          onQuery={(query) => setFilters((f) => ({ ...f, query }))}
-          placeholder={folder === "" ? "Search Drive" : "Search this folder"}
-          action={writable && home ? <NewMenu busy={adding} onPick={startNew} /> : undefined}
-        />
+        <DriveHeader crumbs={crumbs} leading={leading} />
         <DriveToolbar
           filters={filters}
           onFilters={setFilters}
           layout={layout}
           onLayout={setLayout}
           details={detailsFit ? { open: detailsOpen, onToggle: () => setDetailsOpen((open) => !open) } : undefined}
+          placeholder={folder === "" ? "Search Drive" : "Search this folder"}
+          action={writable && home ? <NewMenu busy={adding} onPick={startNew} /> : undefined}
         />
         <div className="flex min-h-0 flex-1">
           <div

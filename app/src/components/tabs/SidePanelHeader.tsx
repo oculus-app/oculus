@@ -23,9 +23,9 @@ const STACKED = 3;
  * The side panel's title row, the same on every page: a switcher over the
  * stack's items, a rule, where the front item is, then expand and close at
  * the row's end. The page says where it is (`PaneHeader.tsx`: its nav toggle
- * and trail as crumbs, each under its icon) and may add its lone icon buttons
- * before expand; a page with no trail, or one not mounted yet, shows as its
- * item's icon and title. Tooltips keep their default side, upward, clear of a
+ * and trail as crumbs, each under its icon) and adds nothing else; its
+ * controls stay in its own rows below. A page with no trail, or one not
+ * mounted yet, shows as its item's icon and title. Tooltips keep their default side, upward, clear of a
  * browser item's native page below, whose clicks a portal over it holds back.
  */
 export function SidePanelHeader({
@@ -56,7 +56,6 @@ export function SidePanelHeader({
         <Breadcrumb items={[{ label: front.title, icon: <>{front.icon ?? <AppWindow size={14} />}</> }]} />
       )}
 
-      <div ref={header.setActions} className="flex shrink-0 items-center gap-0.5" />
       <PanelActions tabId={tabId} />
     </div>
   );

@@ -1,19 +1,17 @@
+import { useContext } from "react";
 import {
   BookOpen,
   CaretLeft,
   CaretRight,
   File as FileIcon,
-  MagnifyingGlassMinus,
-  MagnifyingGlassPlus,
   Rows,
 } from "@phosphor-icons/react";
+import { PaneToolbar } from "@/components/tabs/PaneHeader";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { MAX_ZOOM, MIN_ZOOM, type LayoutMode, type Shown } from "./layout";
-
-/** One toolbar press, as a ratio. */
-const ZOOM_STEP = 1.1;
+import type { LayoutMode, Shown } from "./layout";
+import { PdfToolbarEnd } from "./toolbarEnd";
 
 interface Props {
   mode: LayoutMode;
@@ -28,12 +26,10 @@ interface Props {
   onJump: (text: string) => void;
   onPrev: () => void;
   onNext: () => void;
-  scale: number;
-  onZoom: (factor: number) => void;
-  onResetZoom: () => void;
 }
 
-/** The one slim control row: layout, page, zoom. */
+/** The one slim control row: layout and page on the left, the host's
+ *  controls (`PdfToolbarEnd`) at its right end. */
 export function PdfToolbar({
   mode,
   onMode,
@@ -45,13 +41,11 @@ export function PdfToolbar({
   onJump,
   onPrev,
   onNext,
-  scale,
-  onZoom,
-  onResetZoom,
 }: Props) {
+  const end = useContext(PdfToolbarEnd);
   const paged = mode !== "scroll" && numPages > 1;
-  return (
-  <div className="shrink-0 flex items-center gap-3 px-3 h-9 border-b border-border-subtle bg-surface">
+  const controls = (
+  <>
     <ToggleGroup
       type="single"
       value={mode}
@@ -135,36 +129,12 @@ export function PdfToolbar({
         )}
       </div>
     )}
-
-    <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={() => onZoom(1 / ZOOM_STEP)}
-        disabled={scale <= MIN_ZOOM}
-        aria-label="Zoom out"
-      >
-        <MagnifyingGlassMinus size={13} />
-      </Button>
-      <button
-        onClick={onResetZoom}
-        className="tabular-nums w-11 text-center hover:text-foreground transition-colors"
-        aria-label="Fit page"
-        title="Fit page"
-      >
-        {Math.round(scale * 100)}%
-      </button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={() => onZoom(ZOOM_STEP)}
-        disabled={scale >= MAX_ZOOM}
-        aria-label="Zoom in"
-      >
-        <MagnifyingGlassPlus size={13} />
-      </Button>
-    </div>
-  </div>
+  </>
+  );
+  return (
+    <PaneToolbar className="bg-surface" end={end}>
+      {controls}
+    </PaneToolbar>
   );
 }
 

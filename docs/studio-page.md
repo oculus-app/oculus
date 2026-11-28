@@ -28,7 +28,7 @@ video starts that chat. The renderer, the commands and the thread link are
 | The inspector column both editors share: fold, width, sections, compact fields | `app/src/components/studio/panel/` (`InspectorColumn.tsx`, `fields.tsx`), `app/src/components/ui/CollapsibleSection.tsx`, `app/src/hooks/studio/useInspectorSections.ts` |
 | The playground's hooks: component list, source, stage frames, playhead, change flow | `app/src/hooks/studio/` (`useComponents`, `useComponentSource`, `useStageFrame`, `useStageWidth`, `usePlayhead`, `useLibraryChange`), `app/src/lib/studio/props.ts` (the form's sections, tooltips and changed-from-default), `app/src/lib/studio/changeRequest.ts` |
 | The library choice both pages share, where an item comes from, own versions | `app/src/hooks/studio/useStudioLibrary.ts`, `app/src/components/studio/LevelMark.tsx`, `app/src/components/studio/components/OwnVersionActions.tsx` |
-| The Themes page: list, sample scenes, header actions, token inspector, copies | `app/src/pages/studio/ThemesPage.tsx`, `app/src/components/studio/themes/` (`inspector/` for the token form), `app/src/hooks/studio/useThemeSource.ts`, `app/src/lib/studio/themeDraft.ts` |
+| The Themes page: list, sample scenes, toolbar, token inspector, copies | `app/src/pages/studio/ThemesPage.tsx`, `app/src/components/studio/themes/` (`inspector/` for the token form), `app/src/hooks/studio/useThemeSource.ts`, `app/src/lib/studio/themeDraft.ts` |
 | The colour control | `app/src/components/ui/color/`, `app/src/lib/ui/color.ts` |
 | The Pronunciation page: Review, Lexicon and History, the library filter, Add word, and what each decides (`pronunciationView.ts`) | `app/src/pages/studio/PronunciationPage.tsx`, `app/src/components/studio/pronunciation/`, `app/src/lib/studio/pronunciationView.ts`, `app/src/lib/studio/pronunciations.ts`, `app/src/lib/studio/lexicon.ts`, `app/src/components/settings/voice/useClipPlayer.ts` |
 | Paths | `app/src/lib/studio/routes.ts` |
@@ -535,8 +535,9 @@ columns:
 
 **The inspector column** (`InspectorColumn`, the same on the Themes page)
 holds a header row (a title and its actions: here the icon that resets the
-props to the chosen example) over a scroller. The header's last button
-(`InspectorToggle`, beside the library select) folds the whole column and the
+props to the chosen example) over a scroller. The page's toolbar row under
+its header (`PaneToolbar`: the library select on the left) ends in
+`InspectorToggle`, which folds the whole column and the
 stage takes its width; dragging the seam resizes it (264 to 420 px; dragging
 it narrow folds it, as the nav column). The fold and width are remembered per page
 (`oculus-studio-components-inspector`, `oculus-studio-themes-inspector`). The
@@ -617,7 +618,8 @@ and says so; a turn that left the text alone says the thread shows why.
 
 `/studio/themes/:name` opens one theme of the browsed library (the same
 library select and choice as the Components page); the bare route opens the
-theme new videos there take. **New theme** in the header saves a copy of the
+theme new videos there take. **New theme**, in the toolbar row under the
+header before the inspector's toggle, saves a copy of the
 built-in `default` under a name asked for. Three columns:
 
 - **The list** is every theme in effect for the library (`studio_themes`), a
@@ -637,7 +639,7 @@ built-in `default` under a name asked for. Three columns:
   folded Source row (the draft's text while there is one), and Ask for a
   change docked below.
 - **The inspector** (`inspector/`, in `InspectorColumn` as on the Components
-  page: the header's toggle folds it, the seam resizes it, both remembered
+  page: the toolbar's toggle folds it, the seam resizes it, both remembered
   under `oculus-studio-themes-inspector`) edits the draft in sections that
   fold (`oculus-studio-themes-sections`; Typography, Shape, Motion, Transition and
   Narration start folded). **Default for**: chips (Global, and the browsed
@@ -697,12 +699,13 @@ when not opaque ([ui.md](./ui.md) on native colour inputs).
 
 `/studio/pronunciation` is the student's side of the pronunciation review
 and the saved lexicons ([studio.md](./studio.md#the-student-reviews-the-agents-suggested-readings)).
-The header holds the title, a library filter (All libraries, Global, and each
-subject the data names or this term's subjects, as `SubjectIcon` and its short
-code) and **Add word**. Under it, the `ViewTabs` strip **Review**, **Lexicon**
+The header holds the title. Under it, the `ViewTabs` strip **Review**, **Lexicon**
 and **History**, each with its count in the chosen library (Review's in the
-brand's `NewCountBadge` while words wait), and a "Filter words…" field that
-narrows every tab by word, reading, phonemes, sentence or note. There are no
+brand's `NewCountBadge` while words wait), then at the row's end a "Filter
+words…" field that narrows every tab by word, reading, phonemes, sentence or
+note, a library filter (All libraries, Global, and each subject the data
+names or this term's subjects, as `SubjectIcon` and its short code) and
+**Add word**. There are no
 hint lines. The page opens on Review while a suggestion waits, else on
 Lexicon. It reads the suggestions, the lexicons and the history on mount and
 again whenever the window regains focus, since the CLI adds suggestions while

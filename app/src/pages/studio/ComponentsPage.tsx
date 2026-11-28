@@ -6,6 +6,7 @@ import { LibrarySelect } from "@/components/studio/components/LibrarySelect";
 import { Workbench } from "@/components/studio/components/Workbench";
 import { InspectorToggle, useInspectorPanel } from "@/components/studio/panel/InspectorColumn";
 import { StudioHeader } from "@/components/studio/StudioHeader";
+import { PaneToolbar } from "@/components/tabs/PaneHeader";
 import { LoadingFill } from "@/components/ui/layout/PageParts";
 import { useComponents } from "@/hooks/studio/useComponents";
 import { useLibraryChange } from "@/hooks/studio/useLibraryChange";
@@ -54,15 +55,10 @@ export default function ComponentsPage() {
 
   return (
     <>
-      <StudioHeader
-        title="Components"
-        actions={
-          <>
-            <LibrarySelect subjects={subjects} value={code} onChange={setCode} />
-            <InspectorToggle panel={panel} />
-          </>
-        }
-      />
+      <StudioHeader title="Components" />
+      <PaneToolbar end={<InspectorToggle panel={panel} />}>
+        <LibrarySelect subjects={subjects} value={code} onChange={setCode} />
+      </PaneToolbar>
       <div className="flex min-h-0 flex-1">
         <ComponentList components={components} loaded={loaded} error={error} subject={code} />
         {selected ? (

@@ -130,10 +130,21 @@ export default function CheatSheetPage() {
     { value: "tag", label: "Tag" },
   ];
   return (
-    <RevisionPage
-      title="Cheat sheet"
-      actions={
+    <RevisionPage title="Cheat sheet">
+      <div className="flex items-center gap-3">
+        <Input
+          aria-label="Search cheat sheet"
+          placeholder="Search definitions, formulas and tags"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="min-w-0 flex-1"
+        />
+        <div className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          Group by
+          <PillTabs tabs={tabs} value={group} onChange={setGroup} />
+        </div>
         <Button
+          className="shrink-0"
           size="sm"
           disabled={scope === "general"}
           onClick={() =>
@@ -156,20 +167,6 @@ export default function CheatSheetPage() {
           <Plus />
           New entry
         </Button>
-      }
-    >
-      <div className="flex items-center gap-3">
-        <Input
-          aria-label="Search cheat sheet"
-          placeholder="Search definitions, formulas and tags"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="min-w-0 flex-1"
-        />
-        <div className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          Group by
-          <PillTabs tabs={tabs} value={group} onChange={setGroup} />
-        </div>
       </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">

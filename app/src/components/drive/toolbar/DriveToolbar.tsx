@@ -16,6 +16,7 @@ import {
   type DriveSource,
 } from "@/lib/drive/filters";
 import { cn } from "@/lib/utils";
+import { DriveSearch } from "./DriveSearch";
 
 export type DriveLayout = "grid" | "list";
 
@@ -23,19 +24,24 @@ const pillLabel = <T extends string>(noun: string, picked: ReadonlySet<T>, label
   picked.size === 0 ? noun : picked.size === 1 ? labels[[...picked][0]] : `${noun} · ${picked.size}`;
 
 /**
- * Type, From and Modified pills (any of them turns the folder into a flat
- * list of everything below it), the grid/list switch, the details panel's
- * toggle where the pane is wide enough for it, and under them the
- * applied filters as chips. A fixed 40px row, so switching never moves the
- * entries.
+ * The browser's controls under its header: on the left the Type, From and
+ * Modified pills (any of them, like the search, turns the folder into a flat
+ * list of everything below it); on the right the search (`DriveSearch`), the
+ * grid/list switch, the details panel's toggle where the pane is wide
+ * enough for it, and New (`action`). Under them the applied filters as
+ * chips. A fixed 40px row, so switching never moves the entries.
  */
-export function DriveToolbar({ filters, onFilters, layout, onLayout, details }: {
+export function DriveToolbar({ filters, onFilters, layout, onLayout, details, placeholder, action }: {
   filters: DriveFilters;
   onFilters: (next: DriveFilters) => void;
   layout: DriveLayout;
   onLayout: (layout: DriveLayout) => void;
   /** The details panel's state; absent where the pane is too narrow for it. */
   details?: { open: boolean; onToggle: () => void };
+  /** The search's placeholder, which names its scope. */
+  placeholder: string;
+  /** New, where the folder takes new files. */
+  action?: ReactNode;
 }) {
   const set = (patch: Partial<DriveFilters>) => onFilters({ ...filters, ...patch });
   const chips: FilterChip[] = [
@@ -93,6 +99,7 @@ export function DriveToolbar({ filters, onFilters, layout, onLayout, details }: 
           }
         </FilterPopover>
         <span className="flex-1" />
+        <DriveSearch query={filters.query} onQuery={(query) => set({ query })} placeholder={placeholder} />
         <div role="radiogroup" aria-label="View" className="flex shrink-0 items-center rounded-lg border border-border-subtle p-0.5">
           <LayoutButton label="Grid" active={layout === "grid"} onClick={() => onLayout("grid")}>
             <SquaresFour size={14} />
@@ -118,6 +125,7 @@ export function DriveToolbar({ filters, onFilters, layout, onLayout, details }: 
             <Info size={15} weight={details.open ? "fill" : "regular"} />
           </button>
         )}
+        {action}
       </div>
       <FilterChips chips={chips} onClear={() => onFilters({ ...NO_FILTERS, query: filters.query })} />
     </>

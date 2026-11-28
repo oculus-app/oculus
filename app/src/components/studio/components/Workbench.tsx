@@ -58,7 +58,7 @@ export function Workbench({
   change: ReturnType<typeof useLibraryChange>;
   /** The component was copied into or removed from the subject's library. */
   onLibraryChanged: () => void;
-  /** The props inspector's width and fold, held by the page for its header. */
+  /** The props inspector's width and fold, held by the page for its toolbar. */
   panel: InspectorPanel;
 }) {
   const names = Object.keys(info.examples);

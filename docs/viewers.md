@@ -203,7 +203,8 @@ classes work even when there are no dollar delimiters.
   as markdown: any extension in `CODE_EXTS`, each held by a test to a grammar
   `fileLanguage` knows. See [the code editor](#one-code-editor-for-source-files).
 - **A file with a web `source_url` has an Open in Canvas / Open in Ed button**
-  (`OpenOriginal` in `FilePage`'s header, ⌘-click for a new tab). A synced
+  (`OpenOriginal`, ⌘-click for a new tab): at the end of a PDF's toolbar
+  row, or floating over a page's top right corner (`PaneCornerAction`). A synced
   Canvas page or Ed thread is our markdown of it; the button opens the
   original, with its embeds and styling, beside it through `openLink`. Ed
   thread and slide files also carry an `[Open in Ed]` line in their text.
@@ -304,11 +305,19 @@ classes work even when there are no dollar delimiters.
   last one lets go; a password-protected one says so in the viewer body.
   - **Layout is arithmetic, not measurement** (`layout.ts`): continuous
     scroll, single page, or a spread pairing 1|2, 3|4, chosen in the toolbar
-    and remembered. Scroll offsets, the page range, the fit and the zoom
+    (`PdfToolbar`: layout and the page box) and remembered. The toolbar row
+    is always the viewer's own, in the main pane and the side panel; the
+    host hands it the controls for the row's right end (`PdfToolbarEnd`,
+    `app/src/components/files/pdf/toolbarEnd.tsx`): the file page's PDF |
+    Markdown and Draw. The Markdown face, and an Office file still
+    converting, keep a row of the same height for those alone
+    (`PdfEndToolbar`), so switching faces never moves them. Scroll offsets, the page range, the fit and the zoom
     anchor all come from the page sizes, since page zoom scales
     `getBoundingClientRect` ([ui.md](./ui.md#gotchas)).
-  - **Zoom** is absolute (100% is printed size), 10%–1000%, by toolbar,
-    ⌘-wheel or pinch about the pointer; a pinch arrives as both `ctrlKey`
+  - **Zoom** is absolute (100% is printed size), 10%–1000%, by the pill
+    floating over the pages' bottom left corner (`PdfZoom`: out, the size,
+    which fits the page on a click, in; see-through over a blur of the page
+    until hovered or focused), ⌘-wheel or pinch about the pointer; a pinch arrives as both `ctrlKey`
     wheel and `gesture*` events, and only the gesture zooms. Until the reader
     zooms, the size fits the view and follows its resizes: a portrait page
     fills the width, a wider one fits whole, capped at 125%. The old rasters
@@ -398,8 +407,8 @@ classes work even when there are no dollar delimiters.
   (`LIBREOFFICE_DOWNLOAD`, `lib/pdf/pdfNotice.ts`)
   ([parsing.md](./parsing.md#an-office-file-without-its-pdf-is-converted-first)).
 
-- **A parsed PDF has two faces, PDF | Markdown** (`PdfMdToggle` in the file
-  page's header, state in `usePdfMd`). One shows at a time. A citation with
+- **A parsed PDF has two faces, PDF | Markdown** (`PdfMdToggle` at the end
+  of the PDF's toolbar row, state in `usePdfMd`). One shows at a time. A citation with
   a page turns Markdown to PDF.
   - **The Markdown face renders the `.pages.json` record**, not the `.md`
     (`buildBlockDoc` in `app/src/lib/pdf/pdfBlocks.ts`; [parsing.md](./parsing.md)

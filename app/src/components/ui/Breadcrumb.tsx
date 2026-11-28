@@ -89,9 +89,10 @@ export function BreadcrumbOverflow({ items }: { items: BreadcrumbItem[] }) {
           <DotsThree size={17} weight="bold" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-1">
+      <PopoverContent align="start" className="w-auto max-w-72 min-w-36 p-1">
         <div ref={ref} className="max-h-64 overflow-y-auto" aria-label="Parent pages">
-          {items.map((item, i) => <div key={`${item.href ?? item.label}-${i}`} className="rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-accent [&>button]:w-full">
+          {/* Nearest parent first, the root last: the list reads back from the trail. */}
+          {[...items].reverse().map((item, i) => <div key={`${item.href ?? item.label}-${i}`} className="rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-accent [&>button]:w-full">
             <Crumb item={item} onNavigate={() => setOpen(false)} />
           </div>)}
         </div>

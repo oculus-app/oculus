@@ -27,6 +27,7 @@ import {
 import { PdfLoadState } from "./PdfLoadState";
 import { PdfPage } from "./PdfPage";
 import { PdfToolbar } from "./PdfToolbar";
+import { PdfZoom } from "./PdfZoom";
 import { watchSelection } from "./textLayer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfFind } from "./usePdfFind";
@@ -560,9 +561,6 @@ function Viewer({ path, locate, markdownPath, link }: Props) {
         onJump={jumpTo}
         onPrev={prev}
         onNext={next}
-        scale={scale ?? 1}
-        onZoom={zoomBy}
-        onResetZoom={resetZoom}
       />
 
       {find.open && (
@@ -618,6 +616,7 @@ function Viewer({ path, locate, markdownPath, link }: Props) {
         </div>
 
         <PdfLoadState path={path} error={loadError} loading={!layout} onRetry={() => setOpenAttempt((n) => n + 1)} />
+        {layout && <PdfZoom scale={scale ?? 1} onZoom={zoomBy} onReset={resetZoom} />}
       </div>
     </div>
   );

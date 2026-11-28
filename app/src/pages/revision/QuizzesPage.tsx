@@ -4,6 +4,7 @@ import { CompactMd } from "@/components/markdown/MdComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RevisionPage } from "@/components/revision/RevisionPage";
+import { PaneToolbar } from "@/components/tabs/PaneHeader";
 import { ItemEditor } from "@/components/revision/ItemEditor";
 import { TopicPicker } from "@/components/revision/TopicPicker";
 import { SourceLink } from "@/components/revision/SourceLink";
@@ -78,15 +79,20 @@ export default function QuizzesPage() {
     return (
       <RevisionPage
         title={sets.find((s) => s.id === quiz.id)?.title ?? "Quiz"}
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => setQuiz(undefined)}>
-            Close quiz
-          </Button>
+        toolbar={
+          <PaneToolbar
+            end={
+              <Button variant="ghost" size="sm" onClick={() => setQuiz(undefined)}>
+                Close quiz
+              </Button>
+            }
+          >
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {Math.min(quiz.at + 1, quiz.items.length)} of {quiz.items.length}
+            </span>
+          </PaneToolbar>
         }
       >
-        <p className="text-xs text-muted-foreground">
-          {Math.min(quiz.at + 1, quiz.items.length)} of {quiz.items.length}
-        </p>
         {item ? (
           <QuestionSession
             key={`${quiz.session}:${item.id}`}

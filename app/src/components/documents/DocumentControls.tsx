@@ -2,6 +2,7 @@ import { shortcut } from "@/lib/platform";
 import { useEffect, useRef, useState } from "react";
 import { BookmarkSimple, CircleNotch, ClockCounterClockwise } from "@phosphor-icons/react";
 
+import { PaneToolbar } from "@/components/tabs/PaneHeader";
 import { useTabActive, useTabId } from "@/components/tabs/TabContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,14 +24,14 @@ export interface SuggestStatus {
 
 export const SUGGEST_IDLE: SuggestStatus = { pending: false, error: null };
 
-/** The header's status word; `idle` is blank. */
+/** The toolbar's status word; `idle` is blank. */
 export type SaveStatus =
   | { state: "idle" }
   | { state: "saving" }
   | { state: "saved" }
   | { state: "error"; message: string };
 
-/** What the header asks of the mounted editor (`DocumentEditor`'s `actions`). */
+/** What the toolbar asks of the mounted editor (`DocumentEditor`'s `actions`). */
 export interface DocumentActions {
   /** Flush, then save the editor's text as a checkpoint. */
   saveVersion(label?: string): Promise<DocumentVersion>;
@@ -47,8 +48,9 @@ const SAVED_VERSION_MS = 2500;
 /** Keeps the note focused, so toggling the panel leaves the caret where it was. */
 const keepFocus = (e: React.MouseEvent) => e.preventDefault();
 
-/** The save word, Save version, the history toggle, the AI-suggestions toggle
- *  and the Live/Raw pills, drawn in the host page's header. */
+/** A note's toolbar row under the host page's header: the save word on the
+ *  left; Save version, the history toggle, the AI-suggestions toggle and the
+ *  Live/Raw pills on the right. */
 export function DocumentControls({
   mode,
   onMode,
@@ -86,7 +88,34 @@ export function DocumentControls({
     : status.state === "saved" ? "Saved"
     : "";
   return (
-    <div className="flex shrink-0 items-center gap-3">
+    <PaneToolbar
+      end={
+        <>
+          <div className="flex items-center gap-1">
+            <SaveVersionButton
+              onSave={onSaveVersion}
+              onSaved={(v) => setSavedVersion(v.number != null ? `Saved v${v.number}` : "Saved version")}
+            />
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-pressed={history}
+              aria-label="Version history"
+              title="Version history"
+              onMouseDown={keepFocus}
+              onClick={() => onHistory(!history)}
+              className={cn(
+                history ? "text-brand hover:text-brand" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <ClockCounterClockwise size={14} weight={history ? "bold" : "regular"} />
+            </Button>
+            <SuggestToggle on={suggestions} onChange={onSuggestions} status={suggestStatus} />
+          </div>
+          <PillTabs tabs={MODES} value={mode} onChange={onMode} />
+        </>
+      }
+    >
       <span
         className={cn(
           "max-w-64 truncate text-[11px]",
@@ -96,29 +125,7 @@ export function DocumentControls({
       >
         {word}
       </span>
-      <div className="flex items-center gap-1">
-        <SaveVersionButton
-          onSave={onSaveVersion}
-          onSaved={(v) => setSavedVersion(v.number != null ? `Saved v${v.number}` : "Saved version")}
-        />
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-pressed={history}
-          aria-label="Version history"
-          title="Version history"
-          onMouseDown={keepFocus}
-          onClick={() => onHistory(!history)}
-          className={cn(
-            history ? "text-brand hover:text-brand" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <ClockCounterClockwise size={14} weight={history ? "bold" : "regular"} />
-        </Button>
-        <SuggestToggle on={suggestions} onChange={onSuggestions} status={suggestStatus} />
-      </div>
-      <PillTabs tabs={MODES} value={mode} onChange={onMode} />
-    </div>
+    </PaneToolbar>
   );
 }
 

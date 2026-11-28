@@ -59,11 +59,9 @@ export default function ProjectsIndexPage() {
       .catch(e => console.error("create project failed", e));
   }, [createProject, navigate]);
   return <div className="flex h-full min-h-0 flex-col">
-    <SectionHeader title="Projects">
-      <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">{branches.length} {branches.length === 1 ? "project" : "projects"}</span>
-      <NewProjectButton subjects={subjects} onCreate={create} />
-    </SectionHeader>
-    <TaskToolbar value={query} onChange={setQuery} placeholder="Search projects and tasks">
+    <SectionHeader title="Projects" meta={`${branches.length} ${branches.length === 1 ? "project" : "projects"}`} />
+    <TaskToolbar value={query} onChange={setQuery} placeholder="Search projects and tasks"
+      end={<NewProjectButton subjects={subjects} onCreate={create} />}>
       <TaskFilters filter={filter} tags={tags} onChange={setFilter} target="projects" />
       <SubjectFilter filter={filter} counts={counts} onChange={setFilter} />
       <Button variant="ghost" size="sm" disabled={!branches.length || Boolean(query.trim())}

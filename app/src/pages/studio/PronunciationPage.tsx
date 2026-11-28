@@ -190,22 +190,16 @@ export default function PronunciationPage() {
 
   return (
     <>
-      <StudioHeader
-        title="Pronunciation"
-        actions={
-          <>
-            <LibraryPicker codes={codes} value={library} onChange={setLibrary} all label="Library" />
-            <Button type="button" size="xs" onClick={() => setAdding(true)} disabled={adding}>
-              <Plus weight="bold" />
-              Add word
-            </Button>
-          </>
-        }
-      />
+      <StudioHeader title="Pronunciation" />
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border-subtle px-5 pt-3">
         <ViewTabs tabs={tabs} value={shown} onChange={setTab} />
-        <div className="pb-2">
+        <div className="flex items-center gap-2 pb-2">
           <SearchField value={query} onChange={setQuery} placeholder="Filter words…" />
+          <LibraryPicker codes={codes} value={library} onChange={setLibrary} all label="Library" />
+          <Button type="button" size="xs" onClick={() => setAdding(true)} disabled={adding}>
+            <Plus weight="bold" />
+            Add word
+          </Button>
         </div>
       </div>
       {adding && (

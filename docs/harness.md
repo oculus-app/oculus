@@ -41,7 +41,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Row titles: a reasoning block's "Thought for 12s" and latest line, an `oculus …` command's "Checked widget" | `app/src/lib/harness/thought.ts`, `app/src/lib/harness/oculusCli.ts`, `app/src-tauri/src/harness/app/thought_clock.rs` |
 | Page, thread list, recent list, timeline, rows, composer | `app/src/pages/tools/ChatPage.tsx`, `app/src/components/harness/` (`threads/`, `timeline/`, `composer/`; recent list: `threads/RecentThreads.tsx`) |
 | Unsent text per thread (and per new chat), each new chat's chosen scope, and the new chats waiting as rows, kept across switches and relaunches | `app/src/stores/chat/draftStore.ts`, `app/src/components/harness/threads/list/DraftRows.tsx`, `app/src/components/harness/threads/list/useLeftDraft.ts` |
-| Thread info: the card beside the chat, its header button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
+| Thread info: the card beside the chat, its corner button and popover, the Work registry; Read and Made derived from the rows | `app/src/components/harness/threadInfo/`, `app/src/lib/harness/threadInfo/` |
 | The video a thread makes: its card in the timeline, render tiles, inline player, Thread info's Work row; where the video is | `app/src/components/harness/video/`, `app/src/hooks/studio/useThreadVideo.ts`, `app/src/hooks/studio/useVideoProgress.ts`, `app/src/lib/studio/progress.ts`, `app/src/lib/studio/seriesView.ts`, `app/src/lib/studio/activity.ts` |
 | Proposal dispatch context and confirmed jobs | `app/src-tauri/src/harness/app/proposal_context.rs`, `app/src-tauri/src/harness/app/proposal_jobs/` |
 | Subagents: starting a child chat, waiting for its report, stopping it ([below](#subagents-are-child-chats)) | `app/src-tauri/src/harness/app/children/` |
@@ -1019,9 +1019,12 @@ message, because Claude's trims the leading space that says "new word".
 **Thread info** is a small card at the top right of an open thread
 (`components/harness/threadInfo/`). It is not the side panel, which is the
 split-screen stack beside a page ([shell.md](./shell.md#the-side-panel-is-a-stack-of-items-beside-the-page)).
-The button at the end of the chat header shows or hides it; the choice is kept
-in `oculus-thread-info-shown` (`useStoredState`), hidden until the student
-shows it.
+Its button floats in the top right corner of the thread area
+(`PaneCornerAction`, [ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card)),
+since the chat has no row under its header; an open thread's scroller starts
+below it, so the first message is never under it. The button shows or hides
+the card; the choice is kept in `oculus-thread-info-shown` (`useStoredState`),
+hidden until the student shows it.
 
 - **It floats only inside the chat pane.** While the timeline's scroller is
   wide enough (`threadInfoFloats` in `threadInfo/layout.ts`: the rail's 44px
@@ -1031,9 +1034,11 @@ shows it.
   clear of the scroller's scrollbar. A new thread and an open one share one
   scroller, so when the first send brings the card in, the column and
   composer ease over (200 ms) as the card fades in; a thread opened cold is
-  measured before paint and draws in place. With less room (a narrow window, the side
-  panel open), or when the card is taller than the pane, the button opens the
-  same card as its popover, aligned to the pane's right edge. Nothing floats
+  measured before paint and draws in place. The card sits under the
+  button (`CARD_TOP`), so it fits only while the pane has room for both. With
+  less room (a narrow window, the side panel open), or when the card is
+  taller than that, the button opens the same card as its popover, where the
+  floating card would be. Nothing floats
   over another pane ([shell.md](./shell.md)).
 - **It never scrolls.** Each list shows five rows and ends in "Show N more".
 - **Every row opens its thing as a file chip does**: beside the chat

@@ -4,13 +4,16 @@ import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useRevisionPanel } from "@/layouts/RevisionLayout";
 import { useRevisionData } from "@/layouts/RevisionLayout";
 import { useScrollFade } from "@/hooks/ui/useScrollFade";
+/** A Revision page: the header row (the nav toggle and the title), an
+ *  optional row of controls under it (`toolbar`, a `PaneToolbar`), and the
+ *  page's one scroller. */
 export function RevisionPage({
   title,
-  actions,
+  toolbar,
   children,
 }: {
   title: string;
-  actions?: ReactNode;
+  toolbar?: ReactNode;
   children: ReactNode;
 }) {
   const panel = useRevisionPanel();
@@ -21,8 +24,8 @@ export function RevisionPage({
     <>
       <PageHeader>
         <PaneTrail lead={<SideNavCollapseToggle panel={panel} />} title={title} />
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
       </PageHeader>
+      {toolbar}
       <div ref={scroll} className="page-scroll min-h-0 flex-1">
         <div className="mx-auto max-w-4xl space-y-5 px-6 py-5">
           {error && (

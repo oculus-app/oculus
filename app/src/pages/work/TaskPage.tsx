@@ -4,7 +4,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { projectHref } from "@/components/projects/nav/projectHref";
 import { taskHref } from "@/components/projects/nav/taskHref";
 import { TaskFiles } from "@/components/projects/task/TaskFiles";
-import { TaskHeader } from "@/components/projects/task/TaskHeader";
+import { TaskHeader, TaskMenu } from "@/components/projects/task/TaskHeader";
+import { PaneCornerAction } from "@/components/tabs/PaneHeader";
 import { TaskMeta } from "@/components/projects/task/TaskMeta";
 import { TaskProperties } from "@/components/projects/task/TaskProperties";
 import { Checklist } from "./task/Checklist";
@@ -63,62 +64,65 @@ export default function TaskPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TaskHeader task={task} project={project} parent={parent} onDelete={() => setConfirmDelete(true)} />
+      <TaskHeader task={task} project={project} parent={parent} />
 
-      <div className="page-scroll min-h-0 flex-1">
-        <div className="mx-auto max-w-3xl px-6 pt-8 pb-16">
-          <TaskTitle task={task} onRename={(title) => patch({ title })} />
+      <div className="relative min-h-0 flex-1">
+        <div className="page-scroll">
+          <div className="mx-auto max-w-3xl px-6 pt-8 pb-16">
+            <TaskTitle task={task} onRename={(title) => patch({ title })} />
 
-          {parent && (
-            <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="shrink-0">Subtask of</span>
-              <Link
-                to={taskHref(task.project_id, parent)}
-                className="min-w-0 truncate text-foreground hover:underline"
-              >
-                {parent.title}
-              </Link>
-            </p>
-          )}
+            {parent && (
+              <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="shrink-0">Subtask of</span>
+                <Link
+                  to={taskHref(task.project_id, parent)}
+                  className="min-w-0 truncate text-foreground hover:underline"
+                >
+                  {parent.title}
+                </Link>
+              </p>
+            )}
 
-          <TaskProperties
-            task={task}
-            project={project}
-            projects={projects}
-            checklist={children}
-            onMove={(columnId) => move(task.id, columnId)}
-            onRefile={refile}
-            onPatch={patch}
-          />
-
-          {/* Keyed by task so another task starts fresh. Siblings never share a
-              key: a shared one makes React drop an old sibling from the tree
-              without unmounting it, leaving its editor on the page. */}
-          <TaskBody
-            key={`body-${task.id}`}
-            task={task}
-            project={project}
-            onSave={(body) => patch({ body })}
-          />
-
-          {!isSubtask && (
-            <Checklist
+            <TaskProperties
+              task={task}
               project={project}
-              items={children}
-              onToggle={(item, columnId) => move(item.id, columnId)}
-              onAdd={(title) =>
-                // In the parent's project, even when that is none.
-                createTask({ projectId: task.project_id, parentId: task.id, title }).catch((e) =>
-                  console.error("create subtask failed", e),
-                )
-              }
+              projects={projects}
+              checklist={children}
+              onMove={(columnId) => move(task.id, columnId)}
+              onRefile={refile}
+              onPatch={patch}
             />
-          )}
 
-          <TaskFiles key={`files-${task.id}`} taskId={task.id} />
+            {/* Keyed by task so another task starts fresh. Siblings never share a
+                key: a shared one makes React drop an old sibling from the tree
+                without unmounting it, leaving its editor on the page. */}
+            <TaskBody
+              key={`body-${task.id}`}
+              task={task}
+              project={project}
+              onSave={(body) => patch({ body })}
+            />
 
-          <TaskMeta task={task} />
+            {!isSubtask && (
+              <Checklist
+                project={project}
+                items={children}
+                onToggle={(item, columnId) => move(item.id, columnId)}
+                onAdd={(title) =>
+                  // In the parent's project, even when that is none.
+                  createTask({ projectId: task.project_id, parentId: task.id, title }).catch((e) =>
+                    console.error("create subtask failed", e),
+                  )
+                }
+              />
+            )}
+
+            <TaskFiles key={`files-${task.id}`} taskId={task.id} />
+
+            <TaskMeta task={task} />
+          </div>
         </div>
+        <PaneCornerAction><TaskMenu onDelete={() => setConfirmDelete(true)} /></PaneCornerAction>
       </div>
 
       <ConfirmDialog

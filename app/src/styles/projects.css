@@ -18,10 +18,19 @@
     max-width: 18rem;
   }
 
-  .task-toolbar-actions {
+  .task-toolbar-row {
+    display: flex;
     min-width: 0;
     max-width: 100%;
-    margin: -0.25rem -0.25rem -0.25rem auto;
+    align-items: center;
+    /* 0.5rem past the strip's -0.25rem margin. */
+    gap: 0.75rem;
+    margin-left: auto;
+  }
+
+  .task-toolbar-actions {
+    min-width: 0;
+    margin: -0.25rem;
     padding: 0.25rem;
     overflow-x: auto;
     scrollbar-width: none;
@@ -43,6 +52,13 @@
     flex-shrink: 0;
   }
 
+  .task-toolbar-end {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   @container task-toolbar (width < 52rem) {
     .task-toolbar-layout {
       flex-direction: column;
@@ -55,8 +71,12 @@
       max-width: none;
     }
 
+    .task-toolbar-row {
+      margin-left: 0;
+    }
+
     .task-toolbar-actions {
-      margin-left: -0.25rem;
+      flex: 1;
     }
   }
 }

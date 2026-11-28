@@ -450,15 +450,15 @@ items with the same front item and width.
   page itself under its item's unless a parent already shows that one (a
   subject's file after the subject; a subject's own tab drops the subject
   crumb there and is its title under the subject's icon), the immediate
-  parent beside it only while both fit and the rest behind a "…" popover.
-  `PaneIconActions` wraps a
-  page's lone icon buttons (a task or project's menu, a chat's info toggle, a
-  synced page's open-original), which sit before expand. What is left of the
-  row, the wide controls (Drive's search and New, a file's PDF and Markdown
-  switch and Draw, a Studio page's actions), stays under the header as the
-  page's own row, at its end, and takes no space when there are none. The
-  trail lands in a layout effect, so a page with no trail — or one still on
-  `LoadingFill` — shows as its item's icon and title.
+  parent beside it only while both fit and the rest behind a "…" popover,
+  which lists them nearest first, the root last.
+  The top row holds nothing but the trail
+  ([ui.md](./ui.md#one-colour-two-fonts-and-a-floating-card): controls live in
+  the row under it or a `PaneToolbar`, a lone icon floats in
+  `PaneCornerAction`), so in the side panel the row is empty and takes no
+  space, and the page's own rows follow the header as they do in the main
+  pane. The trail lands in a layout effect, so a page with no trail — or one
+  still on `LoadingFill` — shows as its item's icon and title.
 - **Expand swaps the front item with the main page and hides the panel**
   (`expandSide`): the item gets the whole tab, and the page it replaced takes
   its place in the stack's front, so the strip toggle shows it beside and
@@ -495,7 +495,7 @@ items with the same front item and width.
   ([architecture.md](./architecture.md#native-pages-show-through-holes-the-app-opens)),
   so the controls sit in the header and the focus marker on the seam.
   A chat's Thread info card is not this panel: it floats in the chat pane's
-  own gutter, or becomes its header button's popover
+  own gutter, or becomes its corner button's popover
   ([harness.md](./harness.md#thread-info-sits-beside-the-chat)).
 - **Shell navigation leaves the panel open**: the sidebar, ⌘K and crumbs go to
   the focused pane.

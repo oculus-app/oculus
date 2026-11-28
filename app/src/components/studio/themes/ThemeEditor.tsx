@@ -59,7 +59,7 @@ export function ThemeEditor({
   onLibraryChanged: () => void;
   /** Opens another theme (a new copy) or the list (after a delete). */
   onOpen: (name: string | null) => void;
-  /** The token inspector's width and fold, held by the page for its header. */
+  /** The token inspector's width and fold, held by the page for its toolbar. */
   panel: InspectorPanel;
 }) {
   const source = useThemeSource(info.name, subject, revision);

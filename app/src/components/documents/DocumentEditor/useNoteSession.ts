@@ -12,7 +12,7 @@ import { countWords } from "./countWords";
 /**
  * The note's place in its shared session (`@/lib/notes/documentSessions`):
  * the lease, whether its text has loaded, the last save and word count, and
- * what the editor does with them (flush, the header's Save version, a
+ * what the editor does with them (flush, the toolbar's Save version, a
  * restored version replacing the text).
  */
 export function useNoteSession(
