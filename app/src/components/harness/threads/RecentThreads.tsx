@@ -7,6 +7,7 @@ import { displayCode, displayName, sqliteUtcToMs } from "@/lib/format/format";
 import { chatHref, getThreadPreviews, PROVIDERS, type HarnessThread } from "@/lib/harness";
 import { relativeTime } from "@/lib/activity/recents";
 import { VideoGlyph } from "./parts";
+import { PreviewLine } from "./PreviewLine";
 import { ROW_PREVIEW, ROW_TITLE, TITLE_ATTENTION, TITLE_READ } from "./rowType";
 import { ATTENTION, runStartedMs, StatusPill, threadRowStatus } from "./StatusPill";
 import { cn } from "@/lib/utils";
@@ -126,7 +127,11 @@ function Row({
               )
             )}
           </span>
-          {preview && <span className={cn("truncate", ROW_PREVIEW)}>{preview}</span>}
+          {preview && (
+            <span className={cn("truncate", ROW_PREVIEW)}>
+              <PreviewLine text={preview} />
+            </span>
+          )}
         </span>
       </button>
     </div>

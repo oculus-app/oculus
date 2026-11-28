@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { create } from "zustand";
 import { harnessSkills, type Skill } from "@/lib/harness/skills";
 
@@ -39,3 +40,14 @@ export const useSkillStore = create<{
     },
   };
 });
+
+/** The catalogue's names for drawing a `/name` as a chip outside a composer
+ *  (a list row's preview), reading the folders if nothing has yet. */
+export function useSkillNames(): ReadonlySet<string> | null {
+  const names = useSkillStore((s) => s.names);
+  const refresh = useSkillStore((s) => s.refresh);
+  useEffect(() => {
+    if (names == null) refresh();
+  }, [names, refresh]);
+  return names;
+}

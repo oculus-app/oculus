@@ -11,6 +11,7 @@ import { activityLine } from "@/lib/harness/activity";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
 import { VideoGlyph } from "./parts";
+import { PreviewLine } from "./PreviewLine";
 import { RowMenu } from "./RowMenu";
 import { DRAFT_MARK, DRAFT_TINT } from "./list/DraftRows";
 import {
@@ -28,7 +29,7 @@ import { ATTENTION, runStartedMs, STATUS_LOOK, StatusPill, threadRowStatus } fro
 
 /**
  * A thread as three lines (T3's sidebar row): its subject and, at the right,
- * its status or age; its title; its newest message and provider mark. The
+ * its status or age; its title; its newest message (`PreviewLine`) and provider mark. The
  * Subject view, whose group header names the subject, drops line one and
  * moves the right slot onto the title's line. A title is bright and medium while the thread wants the student
  * (`ATTENTION`), dimmed otherwise (`rowType`). Hover shows the ⋯ menu on no
@@ -142,10 +143,8 @@ export const ThreadRow = memo(function ThreadRow({
           <span className="min-w-0 flex-1 truncate">
             {own === "working" ? (
               <LiveLine threadId={t.id} fallback={preview} />
-            ) : own === "input" && question ? (
-              question
             ) : (
-              preview
+              <PreviewLine text={(own === "input" && question) || preview || ""} />
             )}
           </span>
           <span title={PROVIDERS.find((p) => p.id === t.provider)?.label} className="flex shrink-0">
@@ -186,7 +185,7 @@ function RightSlot({ thread, status, ownWork }: { thread: HarnessThread; status:
  *  The selector returns a string, so streamed tokens re-render nothing. */
 function LiveLine({ threadId, fallback }: { threadId: number; fallback: string | undefined }) {
   const line = useHarnessStore((s) => activityLine(s.items[threadId]));
-  return <>{line ?? fallback}</>;
+  return line ?? <PreviewLine text={fallback ?? ""} />;
 }
 
 /** The status in a dot, shown only while the column folds away. */

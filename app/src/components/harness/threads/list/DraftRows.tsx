@@ -4,11 +4,11 @@ import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
 import type { Subject } from "@/lib/db";
 import { displayCode } from "@/lib/format/format";
-import { stripAttachmentRefs } from "@/lib/harness/attachments";
 import { GENERAL_SCOPE, liveScope, type ChatScope } from "@/lib/harness/scope";
 import { cn } from "@/lib/utils";
 import { hasDraft, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { useShallow } from "zustand/react/shallow";
+import { PreviewLine } from "../PreviewLine";
 import { ROW_ACTIONS, ROW_META, ROW_TITLE, TITLE_READ, UNDER_ACTIONS } from "../rowType";
 import { ROW_EXIT_MS, useRowPresence } from "./useRowPresence";
 
@@ -26,7 +26,7 @@ export const DRAFT_TINT = "bg-warning/[0.07] hover:bg-warning/[0.11]";
  * writing has a row only if the tab left it holding something (`activeListed`,
  * from `useLeftDraft`), and that row stays as the tab found it, so typing in
  * a new chat draws nothing here. A row is the draft's scope and its first
- * line; hover offers to discard it.
+ * line, chips drawn (`PreviewLine`); hover offers to discard it.
  */
 export const DraftRows = memo(function DraftRows({
   subjects,
@@ -144,16 +144,14 @@ function DraftRow({
   const { text, pastes, pictures, stored } = shown;
   const scope = liveScope(stored, subjects);
   const subject = typeof scope === "number" ? subjects.find((s) => s.id === scope) : undefined;
-  const line = stripAttachmentRefs(text).split("\n").map((l) => l.trim()).find(Boolean);
-  const title =
-    line ??
-    (pastes
-      ? "Pasted text"
-      : pictures
-        ? pictures === 1 ? "A picture" : `${pictures} pictures`
-        : text.trim()
-          ? "Attached file"
-          : null);
+  const line = text.split("\n").map((l) => l.trim()).find(Boolean);
+  const title = line ? (
+    <PreviewLine text={line} />
+  ) : pastes ? (
+    "Pasted text"
+  ) : pictures ? (
+    pictures === 1 ? "A picture" : `${pictures} pictures`
+  ) : null;
   return (
     <div
       className={cn(

@@ -1,4 +1,5 @@
 import { getDb, getSetting } from "@/lib/db";
+import { splitLibraryPaths } from "@/lib/files/libraryPaths";
 import type { Provider } from "./providers";
 import type { HarnessThread, RateWindow } from "./types";
 
@@ -115,15 +116,24 @@ export function questionsSql(count: number): string {
                     GROUP BY q.thread_id)`;
 }
 
-/** Markdown off and whitespace folded, so a message reads as one line. */
+/** Markdown off and whitespace folded, so a message reads as one line. A
+ *  fence that is wholly a library path or an attachment keeps its backticks,
+ *  as the message spells it, for `PreviewLine` to draw as a chip. */
 export function flattenPreview(content: string | null): string {
+  const kept: string[] = [];
   return (content ?? "")
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`\n]+`/g, (fence) => {
+      if (splitLibraryPaths(fence)[0]?.kind === "text") return fence;
+      kept.push(fence);
+      return `\uE000${kept.length - 1}\uE001`;
+    })
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/^\s*(#+|>+|[-*+]|\d+\.)\s+/gm, "")
     // Not `_`: it is inside paths and course codes far more than emphasis.
     .replace(/[*`~|$]+/g, "")
     .replace(/\s+/g, " ")
+    .replace(/\uE000(\d+)\uE001/g, (_, i) => kept[Number(i)])
     .trim();
 }
 
@@ -139,7 +149,7 @@ async function readLines(sql: string, ids: number[]): Promise<Map<number, string
   return out;
 }
 
-/** Each thread's newest message, either side's, as one line of plain text;
+/** Each thread's newest message, either side's, as one line (`flattenPreview`);
  *  threads with none yet are absent. */
 export function getThreadPreviews(ids: number[]): Promise<Map<number, string>> {
   return readLines(previewsSql(ids.length), ids);

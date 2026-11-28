@@ -85,6 +85,15 @@ test("a preview reads as one plain line", () => {
   expect(flattenPreview("## Plan\n- **Read** [week 7](/x.pdf)\n\n```py\nx\n```\nthen `run` it")).toBe("Plan Read week 7 then run it");
 });
 
+test("a preview keeps the fences that are library paths or attachments, for its chips", () => {
+  expect(flattenPreview("/oculus-studio `COMP30026_cheatsheet.pdf` and **this** `./attachments/a1.png`\nplease")).toBe(
+    "/oculus-studio `COMP30026_cheatsheet.pdf` and this `./attachments/a1.png` please",
+  );
+  expect(flattenPreview("- see `courses/COMP30024/Course/Files/week-7.pdf`, not `x + y`")).toBe(
+    "see `courses/COMP30024/Course/Files/week-7.pdf`, not x + y",
+  );
+});
+
 test("the list reads every thread newest first, one past a limit to tell there are more", () => {
   for (let id = 1000; id <= 1106; id++) sqlite.run("INSERT INTO harness_threads(id, title) VALUES (?1, 'chat')", [id]);
   const first = all<{ id: number }>(THREADS_SQL, [101]);

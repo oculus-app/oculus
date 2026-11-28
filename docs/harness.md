@@ -1184,6 +1184,13 @@ the page writes it into the draft once and drops it from the route.
   (`activityLine`: "Reading week-7.pdf", "Thinking"). Previews are one read
   for the list (`useThreadPreviews`), redone when a listed thread's
   `updated_at` or waiting-question count changes, never per token. A
+  preview draws its chips, not the text on the wire (`PreviewLine`, also the
+  draft rows' and `RecentThreads`' line): a mention or attachment as its
+  glyph and underlined name, a `/name` the catalogue holds as a `SkillChip`,
+  a link as its words, none with a hover or a click, since the row is one
+  hit target. `flattenPreview` strips markdown but keeps the backticks of a
+  fence that is wholly a library path or an attachment, so the line can
+  find them; `useSkillNames` reads the catalogue if no composer has. A
   title is bright and medium while the thread is Done, Approval, Question
   or Failed, dimmed otherwise, and always a step brighter and larger than
   the preview (`threads/rowType.ts`, [ui.md](./ui.md)). Hover shows a ⋯
@@ -1209,7 +1216,7 @@ the page writes it into the draft once and drops it from the route.
   Going elsewhere lists what the composer holds; emptying it (send, discard
   or clearing the box) unlists it until it is left again. A row is a pencil
   (`DRAFT_MARK`), its scope ("No subject yet" until chosen) and its first
-  line, on a faint warning tint while it is not open (`DRAFT_TINT`); hover
+  line with its chips drawn (`PreviewLine`), on a faint warning tint while it is not open (`DRAFT_TINT`); hover
   offers × Discard. One emptied loses its row, and the next New forgets it
   (`openNewChat`). Rows and the divider grow in and fold away
   (`row-presence`, docs/ui.md), a leaving row still showing what it held;
@@ -3435,7 +3442,9 @@ composers share it through `useComposerTools`.
 - **A typed `/word` is text.** Enter with the menu showing no rows sends it
   as typed. Only chips are skills: the composer notes its chips' names for
   the text it sends (`notePickedSkills`), and `harnessSend` passes them as
-  `SendOptions.skills`.
+  `SendOptions.skills`. A sent message does not record which words were
+  chips, so its bubble and a list row's preview draw a chip by the draft's
+  rule: any `/name` the catalogue holds.
 
 **`harness_skills` scans four folders** (`app/src-tauri/src/harness/app/skills.rs`):
 `agents/.claude/skills` and `agents/.agents/skills` (Oculus), then
@@ -3559,7 +3568,16 @@ subject instead of sending.
 
 **The sent bubble draws the same chips in its prose** (`liftPictures`,
 `QuestionBubble`): a click opens a picture in the lightbox and a PDF or text
-file in the system's viewer, and a copy writes the path. Every picture is
+file in the system's viewer, and a copy writes the path. Its words are
+markdown (`QuestionMd`, in the bubble's `.md-compact` box): emphasis, lists,
+tables, highlighted code and maths as a reply draws them, with three
+differences. A line break typed inside a paragraph stays one
+(`remarkLineBreaks`); a `/name` the catalogue holds is a `SkillChip`
+(`remarkSkills`, `timeline/questionRemark.ts`), copied as `/name`; and a
+fence is only ever code, so nothing a student typed draws a diagram, a
+widget or generated UI. Typed HTML reads as text. A subagent's brief and a
+queued message draw the same way, the queued one in its muted colour
+(`.md-question`). Every picture is
 also in the row above the words, as T3's transcript keeps every image. A
 trailing line of nothing but picture paths is lifted out of the prose
 instead: it is a shelf picture no chip named, and how older messages carried

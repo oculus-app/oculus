@@ -9,19 +9,20 @@ import { attachmentPath, distinctPaths, splitAttachments } from "@/lib/harness/a
  * lifted out of the prose entirely, its edges closed up as before. Swept
  * here, not in `splitLibraryPaths`, which the composer shares and must
  * round-trip exactly. Pictures are data-directory-relative, in order, once.
+ * `text` is the prose as the message spells it, for the bubble's markdown.
  */
-export function liftPictures(words: string): { pictures: string[]; prose: TextPart[] } {
+export function liftPictures(words: string): { pictures: string[]; prose: TextPart[]; text: string } {
   const { text, paths } = splitAttachments(words);
   const parts = splitLibraryPaths(text);
   const inline = parts.flatMap((p) => (p.kind === "image" ? [p.path] : []));
   const trailing = paths.flatMap((p) => attachmentPath(p) ?? []);
   const pictures = distinctPaths([...inline, ...trailing]);
-  if (!trailing.length) return { pictures, prose: parts };
+  if (!trailing.length) return { pictures, prose: parts, text };
 
   const prose = [...parts];
   const first = prose[0];
   if (first?.kind === "text") prose[0] = { kind: "text", text: first.text.replace(/^\s+/, "") };
   const last = prose[prose.length - 1];
   if (last?.kind === "text") prose[prose.length - 1] = { kind: "text", text: last.text.replace(/\s+$/, "") };
-  return { pictures, prose: prose.filter((p) => p.kind !== "text" || p.text.length > 0) };
+  return { pictures, prose: prose.filter((p) => p.kind !== "text" || p.text.length > 0), text: text.trim() };
 }

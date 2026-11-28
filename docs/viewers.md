@@ -175,6 +175,8 @@ classes work even when there are no dollar delimiters.
   are deliberately *unlayered* — in `@layer base` they would lose to the
   utilities they override. **`InlineMd` flattens blocks** because chapter
   summaries sit inside buttons, and a `<p>` in a `<button>` closes it early.
+  A sent message is `QuestionMd`, the same components with fences kept as
+  code ([harness.md](./harness.md)).
 - **Maths is drawn by the maths engine**, a WebAssembly build of a Rust port
   of KaTeX 0.18.5 (`app/math-core/`; [development.md](./development.md#the-maths-wasm-is-built-not-committed))
   behind KaTeX's `renderToString` in `app/src/lib/maths/`, so the markup and

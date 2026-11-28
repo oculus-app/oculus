@@ -49,7 +49,7 @@ function clip(node: Text, range: Range): string {
   return node.data.slice(start, end);
 }
 
-/** Whitespace collapsed as drawn, unless the box is `pre*` (question bubbles). */
+/** Whitespace collapsed as drawn, unless the box is `pre*` (`CodeText`). */
 function clipText(node: Text, range: Range): string {
   const raw = clip(node, range);
   const ws = node.parentElement ? getComputedStyle(node.parentElement).whiteSpace : "normal";
@@ -103,6 +103,9 @@ function inline(node: Node, range: Range): string {
   // A mention chip (`FileChip.tsx`) copies as its path.
   const path = el.getAttribute("data-path");
   if (path) return `\`${path}\``;
+  // A picked skill (`SkillChip.tsx`) copies as the message spells it.
+  const skill = el.getAttribute("data-skill");
+  if (skill) return `/${skill}`;
 
   switch (el.tagName) {
     case "BR":

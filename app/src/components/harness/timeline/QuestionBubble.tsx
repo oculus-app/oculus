@@ -1,13 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowCounterClockwise, CaretDown, PencilSimple, X } from "@phosphor-icons/react";
 import { useClipMotion } from "@/hooks/ui/useClipMotion";
-import { AttachmentChip } from "@/components/markdown/AttachmentChip";
-import { CheckedFileChip } from "@/components/markdown/CheckedFileChip";
-import { LinkChip } from "@/components/markdown/LinkChip";
-import { openCitation, openLibraryPath } from "@/lib/files/openFile";
 import { attachmentSrc, distinctPaths, splitPastedText } from "@/lib/harness/attachments";
-import { parseLink, splitLinks } from "@/lib/harness/links";
-import { openLink } from "@/lib/shell/tabRouters";
 import { ImageLightbox } from "@/components/ui/lightbox/Lightbox";
 import { useDataDir } from "@/hooks/backend/useDataDir";
 import { useReferenceCheck } from "@/stores/chat/referenceStore";
@@ -19,6 +13,7 @@ import { AttachmentSaves } from "../save/AttachmentSaves";
 import { SaveToDriveAction } from "../save/SaveToDriveAction";
 import { liftPictures } from "./liftPictures";
 import { Action, CopyAction, MessageActions } from "./MessageActions";
+import { QuestionMd } from "./QuestionMd";
 import { QUESTION_MAX_H, useOverflows } from "./useOverflows";
 
 /** The edit box grows to its content up to this. */
@@ -69,10 +64,11 @@ export function QuestionBubble({
   const [body, long] = useOverflows(words, editing === null);
   const animateNext = useClipMotion(body, open);
   const box = useRef<HTMLTextAreaElement>(null);
-  // Mentions and attachments draw as chips rather than the paths the agent
-  // was sent; every picture is also in the row above. Only the prose is
-  // measured and folded; cards and pictures always show.
-  const { pictures, prose } = useMemo(() => liftPictures(words), [words]);
+  // The words draw as markdown (`QuestionMd`), mentions, attachments and
+  // picked skills as chips rather than the text the agent was sent; every
+  // picture is also in the row above. Only the prose is measured and folded;
+  // cards and pictures always show.
+  const { pictures, prose, text: said } = useMemo(() => liftPictures(words), [words]);
   // What the student attached, which the hover row offers to keep in Drive.
   const attached = useMemo(
     () => distinctPaths([...pictures, ...prose.flatMap((p) => (p.kind === "image" || p.kind === "attachment" ? [p.path] : []))]),
@@ -195,31 +191,12 @@ export function QuestionBubble({
               data-selectable
               // A mask, not a gradient: a queued bubble's ground is transparent.
               className={cn(
-                "whitespace-pre-wrap break-words",
+                "md-compact md-question min-w-0 break-words",
                 long && !open && "overflow-hidden [mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)]",
               )}
               style={long && !open ? { maxHeight: QUESTION_MAX_H } : undefined}
             >
-              {prose.map((p, i) => {
-                if (p.kind === "text") {
-                  return splitLinks(p.text).map((l, j) =>
-                    l.kind === "text" ? l.text : <LinkChip key={`${i}-${j}`} raw={l.raw} onClick={(newTab) => void openLink(parseLink(l.raw)?.href ?? l.raw, newTab)} />,
-                  );
-                }
-                if (p.kind === "image") {
-                  return <AttachmentChip key={i} path={p.raw} onOpen={() => setShown(p.path)} />;
-                }
-                // A PDF or text file opens in the system's viewer.
-                if (p.kind === "attachment") return <AttachmentChip key={i} path={p.raw} onOpen={() => openLibraryPath(p.path)} />;
-                return (
-                  <CheckedFileChip
-                    key={i}
-                    path={p.path}
-                    cite={p.cite}
-                    onClick={(newTab) => openCitation(p.cite, newTab)}
-                  />
-                );
-              })}
+              <QuestionMd text={said} onPicture={setShown} />
             </div>
             {long && (
               <button

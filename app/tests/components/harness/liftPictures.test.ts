@@ -29,6 +29,14 @@ describe("liftPictures", () => {
   });
 
   test("a message with no attachments is its parts", () => {
-    expect(liftPictures("  just words  ")).toEqual({ pictures: [], prose: [{ kind: "text", text: "  just words  " }] });
+    expect(liftPictures("  just words  ")).toEqual({
+      pictures: [],
+      prose: [{ kind: "text", text: "  just words  " }],
+      text: "  just words  ",
+    });
+  });
+
+  test("the prose as text keeps its chips' fences and loses a lifted trailing line", () => {
+    expect(liftPictures(withAttachments(`see \`${A}\` **now**\n`, [B])).text).toBe(`see \`${A}\` **now**`);
   });
 });
