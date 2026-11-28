@@ -4,6 +4,7 @@ import { CaretRight, Check, CircleNotch, Play, X } from "@phosphor-icons/react";
 import { fmtAgo } from "@/lib/format/format";
 import type { StepName, VideoStep } from "@/lib/studio/progress";
 import type { VideoDetail } from "@/lib/studio/videos";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 import { InlineVideo, type PlayRequest } from "./InlineVideo";
 import { StepNarration } from "./StepNarration";
@@ -86,7 +87,7 @@ export function VideoProgress({
         };
 
         let nested: ReactNode = null;
-        if (isOpen && detail) {
+        if (canOpen && detail) {
           if (s.name === "Script") {
             nested = <StepScript detail={detail} />;
           } else if (s.name === "Scenes") {
@@ -97,7 +98,7 @@ export function VideoProgress({
             );
           } else if (s.name === "Narration") {
             nested = <StepNarration detail={detail} playable={playable} onPlayAt={onPlayAt} />;
-          } else if ((s.name === "Draft" || s.name === "Final") && activeRender?.step === s.name) {
+          } else if (renderStep && activeRender?.step === renderStep) {
             const preset = s.name === "Final" ? "final" : "draft";
             nested = (
               <InlineVideo
@@ -176,7 +177,7 @@ export function VideoProgress({
                   {time && <div className="shrink-0">{time}</div>}
                 </div>
               )}
-              {nested && <div className="mt-2.5">{nested}</div>}
+              <Fold open={isOpen && nested != null} className="pt-2.5">{nested}</Fold>
             </div>
           </li>
         );

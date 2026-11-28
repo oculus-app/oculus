@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowCounterClockwise, CaretDown, PencilSimple, X } from "@phosphor-icons/react";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { AttachmentChip } from "@/components/markdown/AttachmentChip";
 import { CheckedFileChip } from "@/components/markdown/CheckedFileChip";
 import { LinkChip } from "@/components/markdown/LinkChip";
@@ -66,6 +67,7 @@ export function QuestionBubble({
   // Pasted text draws as cards beside the pictures, not in the words.
   const { text: words, pasted } = useMemo(() => splitPastedText(text), [text]);
   const [body, long] = useOverflows(words, editing === null);
+  const animateNext = useClipMotion(body, open);
   const box = useRef<HTMLTextAreaElement>(null);
   // Mentions and attachments draw as chips rather than the paths the agent
   // was sent; every picture is also in the row above. Only the prose is
@@ -224,11 +226,14 @@ export function QuestionBubble({
                 type="button"
                 data-copy-skip
                 aria-expanded={open}
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => {
+                  animateNext();
+                  setOpen((o) => !o);
+                }}
                 className="mt-1.5 flex cursor-pointer items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
               >
                 {open ? "Show less" : "Show more"}
-                <CaretDown size={11} className={cn("transition-transform", open && "rotate-180")} />
+                <CaretDown size={11} className={cn("transition-transform will-change-transform", open && "rotate-180")} />
               </button>
             )}
           </div>

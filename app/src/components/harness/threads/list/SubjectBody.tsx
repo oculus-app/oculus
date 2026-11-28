@@ -13,7 +13,7 @@ import { arrange, ORDER_KEY, PAGE } from "../order";
 import { SECTION_HEAD } from "../rowType";
 import { DropLine } from "../parts";
 import { byNewest } from "./RecentsBody";
-import { GroupRows } from "./GroupRows";
+import { Fold } from "@/components/ui/Fold";
 
 /**
  * The Subject view: the threads the store has read, grouped by subject
@@ -194,7 +194,7 @@ export function SubjectBody({
                 )}
               </div>
             </div>
-            <GroupRows open={open}>
+            <Fold open={open} className="flex flex-col gap-0.5">
               {g.items.slice(0, limit).map(row)}
               {(rest > 0 || more) && (
                 <button
@@ -223,7 +223,7 @@ export function SubjectBody({
                   )}
                 </button>
               )}
-            </GroupRows>
+            </Fold>
           </div>
         );
       })}

@@ -33,6 +33,8 @@ import {
   Waveform,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { Button } from "@/components/ui/button";
 import { CodeText, CompactMd } from "@/components/markdown/MdComponents";
 import { ImageLightbox } from "@/components/ui/lightbox/Lightbox";
@@ -248,7 +250,9 @@ export function RowShell({
           </button>
         )}
       </div>
-      {open && children && <div className={flush ? undefined : "px-2 pb-1 pt-0.5"}>{children}</div>}
+      <Fold open={open && !!children}>
+        <div className={flush ? undefined : "px-2 pb-1 pt-0.5"}>{children}</div>
+      </Fold>
     </div>
   );
 }
@@ -302,6 +306,7 @@ const DETAIL_MAX_H = 288;
 function ToolDetail({ lead, output }: { lead?: string; output: string }) {
   const [open, setOpen] = useState(false);
   const [body, long] = useOverflows(`${lead ?? ""}\n${output}`, true, DETAIL_MAX_H);
+  const animateNext = useClipMotion(body, open);
   const clipped = long && !open;
   return (
     <div className="rounded-md bg-surface">
@@ -321,7 +326,10 @@ function ToolDetail({ lead, output }: { lead?: string; output: string }) {
           type="button"
           data-copy-skip
           aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            animateNext();
+            setOpen((o) => !o);
+          }}
           className="flex cursor-pointer items-center gap-1 px-3 pb-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
           {open ? "Show less" : "Show more"}

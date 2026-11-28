@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
+import { Fold } from "@/components/ui/Fold";
 import { GridTable } from "@/components/ui/table/GridTable";
 import { TableGroup } from "@/components/ui/table/TableGroup";
 import { useStoredState } from "@/hooks/ui/useStoredState";
@@ -75,8 +76,12 @@ export function ProjectsIndexTable({ branches, tasks, projects, projectById, tag
     const open = searching ? !searchClosed.has(`project:${id}`) : expanded.has(String(id));
     return <Fragment key={id}>
       <ProjectIndexRow branch={branch} open={open} onToggle={() => searching ? toggleSearch(`project:${id}`) : onToggle(id)} cols={COLS} colsStyle={COLS_STYLE} now={now} actions={actions} tags={tags} />
-      {open && branch.nodes.flatMap(node => [taskRow(node.task.id, node.children.length, 1),
-        ...((searching ? !searchClosed.has(`task:${node.task.id}`) : !foldedTasks.has(node.task.id)) ? node.children.map(child => taskRow(child.id, 0, 2)) : [])])}
+      <Fold open={open} className="divide-y divide-border-subtle">
+        {branch.nodes.flatMap(node => [taskRow(node.task.id, node.children.length, 1),
+          node.children.length > 0 && <Fold key={`kids:${node.task.id}`} open={searching ? !searchClosed.has(`task:${node.task.id}`) : !foldedTasks.has(node.task.id)} className="divide-y divide-border-subtle">
+            {node.children.map(child => taskRow(child.id, 0, 2))}
+          </Fold>])}
+      </Fold>
     </Fragment>;
   });
   return <GridTable cols={COLS} colsStyle={COLS_STYLE} minWidth={tableMinWidth(COLUMNS)}

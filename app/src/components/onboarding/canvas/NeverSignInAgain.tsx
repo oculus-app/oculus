@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
-import { ArrowSquareOut, CaretDown, CaretRight } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretRight } from "@phosphor-icons/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Fold } from "@/components/ui/Fold";
+import { cn } from "@/lib/utils";
 import { AutoSignIn } from "@/components/settings/web/AutoSignIn";
 import { Button } from "@/components/ui/button";
 import { useInstitution } from "@/stores/sync/institutionStore";
@@ -14,25 +16,24 @@ import { useInstitution } from "@/stores/sync/institutionStore";
 export function NeverSignInAgain() {
   const institution = useInstitution();
   const [open, setOpen] = useState(false);
-  const Caret = open ? CaretDown : CaretRight;
   if (!institution?.okta || !institution.sso_host) return null;
   // Okta's own settings page, where a factor is enrolled.
   const oktaSettings = `https://${institution.sso_host}/enduser/settings`;
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="flex w-fit cursor-pointer items-center gap-1.5 text-[13px] font-medium text-foreground transition-colors hover:text-brand"
       >
-        <Caret size={12} className="shrink-0 text-muted-foreground" />
+        <CaretRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform will-change-transform", open && "rotate-90")} />
         Never sign in again
         <span className="font-normal text-muted-foreground">· optional</span>
       </button>
 
-      {open && (
+      <Fold open={open} className="pt-3">
         <div className="flex flex-col gap-4 rounded-xl border border-border-subtle bg-surface/40 p-4">
           <div className="flex flex-col gap-1.5 text-xs/relaxed text-muted-foreground">
             <p>
@@ -69,7 +70,7 @@ export function NeverSignInAgain() {
 
           <AutoSignIn embedded />
         </div>
-      )}
+      </Fold>
     </section>
   );
 }

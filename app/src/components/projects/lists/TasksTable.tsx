@@ -1,3 +1,4 @@
+import { Fold } from "@/components/ui/Fold";
 import { TableGroup } from "@/components/ui/table/TableGroup";
 import { TaskTableHeaders } from "./TaskTableHeaders";
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
@@ -116,10 +117,17 @@ export function TasksTable({
 
   const rows = (items: DbTaskWithProject[]) => {
     if (!display.groupSubtasks) return items.map((task) => row(task));
-    return items.flatMap((task) => [
-      row(task),
-      ...(!foldedParents.has(task.id) ? (nodeById.get(task.id)?.children ?? []).map((child) => row(child, true)) : []),
-    ]);
+    return items.flatMap((task) => {
+      const children = nodeById.get(task.id)?.children ?? [];
+      return [
+        row(task),
+        children.length > 0 && (
+          <Fold key={`kids:${task.id}`} open={!foldedParents.has(task.id)} className="divide-y divide-border-subtle">
+            {children.map((child) => row(child, true))}
+          </Fold>
+        ),
+      ];
+    });
   };
 
   return (

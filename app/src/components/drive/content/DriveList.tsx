@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Fold } from "@/components/ui/Fold";
 import { GridTable, HeaderLabels } from "@/components/ui/table/GridTable";
 import { DriveRow } from "./DriveRow";
 import { GroupHeading } from "./GroupHeading";
@@ -39,11 +40,11 @@ export function DriveList({ groups, folds, synced, narrow, before, empty }: {
                 <GroupHeading group={group} folds={folds} />
               </div>
             )}
-            {!isFolded(group, folds) && (
+            <Fold open={!isFolded(group, folds)}>
               <div className="divide-y divide-border-subtle">
                 {group.items.map((item) => <DriveRow key={item.key} item={item} cols={cols} narrow={narrow} />)}
               </div>
-            )}
+            </Fold>
           </div>
         ))}
       </div>

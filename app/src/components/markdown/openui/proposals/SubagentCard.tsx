@@ -1,4 +1,5 @@
 import { useCallback, useContext, useMemo, useState } from "react";
+import { Fold } from "@/components/ui/Fold";
 import { ArrowBendDownRight, CaretDown, SpinnerGap, TreeStructure } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ProviderMark } from "@/components/icons/ProviderMark";
@@ -218,7 +219,7 @@ function SubagentCardContent({ input }: { input: Row }) {
         </div>
       </div>
 
-      {briefOpen && (
+      <Fold open={briefOpen}>
         <div
           inert={frame.locked || undefined}
           className={cn(
@@ -237,7 +238,7 @@ function SubagentCardContent({ input }: { input: Row }) {
             <div className="whitespace-pre-wrap break-words">{String(state.task ?? "")}</div>
           )}
         </div>
-      )}
+      </Fold>
 
       {error && (
         <CardCallout className="mx-3 mt-0 mb-2.5" onRetry={loadFailed ? card.retry : undefined}>

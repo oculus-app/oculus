@@ -1,4 +1,5 @@
 import { Archive, BookOpen } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { useFolderListing } from "@/hooks/drive/useFolderListing";
 import type { Subject } from "@/lib/db";
@@ -60,7 +61,9 @@ export function SubjectsBranch({ entry, env, subjects }: {
         drop={{ rel, writable: false }}
         hover={env.hover}
       />
-      {expanded && <SubjectFolders rel={rel} env={env} subjects={subjects} />}
+      <Fold open={expanded}>
+        <SubjectFolders rel={rel} env={env} subjects={subjects} />
+      </Fold>
     </>
   );
 }
@@ -88,9 +91,11 @@ function SubjectFolders({ rel, env, subjects }: { rel: string; env: TreeEnv; sub
           hover={null}
         />
       )}
-      {pastOpen && past.map((entry) => (
-        <SubjectRow key={entry.relativePath} entry={entry} depth={2} env={env} subjects={subjects} />
-      ))}
+      <Fold open={pastOpen}>
+        {past.map((entry) => (
+          <SubjectRow key={entry.relativePath} entry={entry} depth={2} env={env} subjects={subjects} />
+        ))}
+      </Fold>
     </>
   );
 }

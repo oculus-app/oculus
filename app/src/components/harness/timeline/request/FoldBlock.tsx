@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CaretDown } from "@phosphor-icons/react";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { cn } from "@/lib/utils";
 import { useOverflows } from "../useOverflows";
 
@@ -11,6 +12,7 @@ const FOLD_MAX_H = 240;
 export function FoldBlock({ text, children }: { text: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [body, long] = useOverflows(text, true, FOLD_MAX_H);
+  const animateNext = useClipMotion(body, open);
   const clipped = long && !open;
   return (
     <div className="mt-1 rounded-md bg-surface">
@@ -29,7 +31,10 @@ export function FoldBlock({ text, children }: { text: string; children: React.Re
           type="button"
           data-copy-skip
           aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            animateNext();
+            setOpen((o) => !o);
+          }}
           className="flex cursor-pointer items-center gap-1 px-2.5 pb-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
           {open ? "Show less" : "Show more"}

@@ -1,4 +1,5 @@
 import { CaretRight } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -95,7 +96,9 @@ export function RunRow({
         </div>
       </div>
 
-      {expanded && <RunDetail run={run} />}
+      <Fold open={expanded}>
+        <RunDetail run={run} />
+      </Fold>
     </div>
   );
 }

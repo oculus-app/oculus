@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { ArrowLineUp, CaretRight, Play, SidebarSimple, SkipForward } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 import { displayCode, fmtAgo } from "@/lib/format/format";
 import { fileIconFor } from "@/lib/files/fileTypes";
@@ -129,7 +130,7 @@ export const Row = memo(function Row({
         </div>
       </div>
 
-      {expanded && (
+      <Fold open={expanded}>
         <Detail
           item={item}
           embedStage={stages}
@@ -138,7 +139,7 @@ export const Row = memo(function Row({
           onSkip={skip}
           onPrioritise={prioritise}
         />
-      )}
+      </Fold>
     </div>
   );
 });

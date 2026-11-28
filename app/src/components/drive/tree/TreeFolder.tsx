@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FolderSimple, LockSimple } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import type { DropHover } from "@/hooks/drive/useDriveDrop";
 import { useFolderListing } from "@/hooks/drive/useFolderListing";
 import type { FolderEntry } from "@/lib/drive/listing";
@@ -16,7 +17,8 @@ export interface TreeEnv {
 }
 
 /** A folder's row and, while open, its folders below it, read when it is
- *  first opened. Files are the browser's, never the tree's. */
+ *  first opened and easing in under it (`Fold`). Files are the browser's,
+ *  never the tree's. */
 export function TreeFolder({ entry, depth, env, icon, label, title, parentWritable }: {
   entry: FolderEntry;
   depth: number;
@@ -48,7 +50,9 @@ export function TreeFolder({ entry, depth, env, icon, label, title, parentWritab
         drop={{ rel, writable: entry.writable }}
         hover={env.hover}
       />
-      {expanded && <TreeChildren rel={rel} depth={depth + 1} env={env} writable={entry.writable} />}
+      <Fold open={expanded}>
+        <TreeChildren rel={rel} depth={depth + 1} env={env} writable={entry.writable} />
+      </Fold>
     </>
   );
 }

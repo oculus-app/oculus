@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { CaretDown, CaretRight } from "@phosphor-icons/react";
-import { useFoldMotion } from "@/components/harness/timeline/useFoldMotion";
+import { Fold } from "@/components/ui/Fold";
 import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
 import type { HarnessThread } from "@/lib/harness";
 import { cn } from "@/lib/utils";
@@ -73,7 +73,7 @@ export function ChildRows({
             <span className="tabular-nums">{count}</span> {noun}
           </span>
         </button>
-        <FoldBody open={open}>
+        <Fold open={open} className="ml-[15px] flex flex-col border-l border-border-subtle pl-1">
           {rows.map((r) => {
             const t = seen.current.get(r.id);
             if (!t) return null;
@@ -91,29 +91,8 @@ export function ChildRows({
               </div>
             );
           })}
-        </FoldBody>
+        </Fold>
       </div>
     </div>
   ));
-}
-
-/** The open fold's body, easing open and shut as a Subject group does
- *  (`useFoldMotion`). It animates opacity and transform, so it keeps its
- *  layer from the start (`will-change`) and the icons inside never re-snap. */
-function FoldBody({ open, children }: { open: boolean; children: ReactNode }) {
-  const motion = useFoldMotion(open);
-  const [was, setWas] = useState(open);
-  if (was !== open) {
-    setWas(open);
-    motion.animateNext(open);
-  }
-  if (!motion.mounted) return null;
-  return (
-    <div
-      ref={motion.body}
-      className="ml-[15px] flex flex-col border-l border-border-subtle pl-1 will-change-[opacity,transform]"
-    >
-      {children}
-    </div>
-  );
 }

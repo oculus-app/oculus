@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CaretRight } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 import type { SyncRunSummary } from "@/lib/db";
 import { usePagedRows } from "@/components/ui/table/TablePagination";
@@ -89,7 +90,7 @@ export function SyncHistoryTable({
                 <CaretRight
                   size={9}
                   className={cn(
-                    "shrink-0 text-muted-foreground/50 transition-transform",
+                    "shrink-0 text-muted-foreground/50 transition-transform will-change-transform",
                     !collapsed && "rotate-90",
                   )}
                 />
@@ -102,7 +103,7 @@ export function SyncHistoryTable({
                   </span>
                 )}
               </div>
-              {!collapsed && (
+              <Fold open={!collapsed}>
                 <div className="divide-y divide-border-subtle">
                   {group.runs.map((run) => (
                     <RunRow
@@ -114,7 +115,7 @@ export function SyncHistoryTable({
                     />
                   ))}
                 </div>
-              )}
+              </Fold>
             </div>
           );
         })}

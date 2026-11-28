@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CaretDown } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 
 /** A foldable group inside a GridTable, keeping its rows under one header. */
@@ -20,7 +21,7 @@ export function TableGroup({ label, count, icon, open, onToggle, children }: {
         <span className="min-w-0 truncate text-xs font-medium text-foreground">{label}</span>
         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{count}</span>
       </button>
-      {open && <div className="divide-y divide-border-subtle border-b border-border-subtle">{children}</div>}
+      <Fold open={open}><div className="divide-y divide-border-subtle border-b border-border-subtle">{children}</div></Fold>
     </section>
   );
 }

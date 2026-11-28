@@ -1155,7 +1155,7 @@ the page writes it into the draft once and drops it from the route.
   subject), groups in dragged order (`oculus-chat-groups-order`; a group
   never placed sorts above, by recency), each folding
   (`oculus-chat-groups-collapsed`) with the timeline's fold ease
-  (`GroupRows` on `useFoldMotion`), five rows then Show n more; a folded
+  (`Fold`), five rows then Show n more; a folded
   group reopens at five. A group
   header is the subject's glyph and short code, so its rows drop their
   subject line; its right slot is the count, the Working dashed circle while folded

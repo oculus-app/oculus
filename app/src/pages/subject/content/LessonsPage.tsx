@@ -1,5 +1,7 @@
 import { useEffect, useMemo } from "react";
-import { CaretDown, CaretRight, ChalkboardTeacher } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
+import { cn } from "@/lib/utils";
+import { CaretRight, ChalkboardTeacher } from "@phosphor-icons/react";
 import { SubjectLoading, SubjectPage, SubjectEmpty } from "@/components/subjects/SubjectPage";
 import { useSubjectFiles } from "@/hooks/data/useSubjectFiles";
 import { useCourseFileData } from "@/hooks/data/useCourseFileData";
@@ -65,17 +67,17 @@ export default function SubjectLessonsPage() {
               onClick={() => setOpen(key, !open)}
               className="mb-1 flex w-full items-center gap-2 py-2 text-left"
             >
-              {open ? <CaretDown size={12} className="text-muted-foreground" /> : <CaretRight size={12} className="text-muted-foreground" />}
+              <CaretRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform will-change-transform", open && "rotate-90")} />
               <span className="truncate text-[13px] font-medium text-foreground">{group.label}</span>
               <span className="shrink-0 text-[11px] text-muted-foreground">
                 {count} {count === 1 ? "lesson" : "lessons"}
               </span>
             </button>
-            {open && (
+            <Fold open={open}>
               <div className="divide-y divide-border-subtle border-y border-border-subtle">
                 {group.lessons.map((lesson) => <LessonRow key={lesson.file.id} lesson={lesson} />)}
               </div>
-            )}
+            </Fold>
           </section>
         );
       })}

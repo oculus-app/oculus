@@ -1,9 +1,10 @@
 import { LectureRow } from "@/components/lectures/LectureRow";
+import { Fold } from "@/components/ui/Fold";
+import { cn } from "@/lib/utils";
 import { SubjectPage } from "@/components/subjects/SubjectPage";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowsClockwise,
-  CaretDown,
   CaretRight,
   Play,
   WarningCircle,
@@ -173,14 +174,14 @@ export default function SubjectLecturesPage() {
                     })}
                     className="mb-1 flex w-full items-center gap-2 py-2 text-left"
                   >
-                    {weekLectures.length === 0 ? <span className="w-3" /> : open ? <CaretDown size={12} className="text-muted-foreground" /> : <CaretRight size={12} className="text-muted-foreground" />}
+                    {weekLectures.length === 0 ? <span className="w-3" /> : <CaretRight size={12} className={cn("shrink-0 text-muted-foreground transition-transform will-change-transform", open && "rotate-90")} />}
                     <span className={`text-[13px] font-medium ${isBreak ? "text-muted-foreground" : "text-foreground"}`}>{label}</span>
                     <span className="text-[11px] text-muted-foreground">
                       {weekLectures.length > 0 ? `${weekLectures.length} ${weekLectures.length === 1 ? "lecture" : "lectures"}` : isBreak ? "No scheduled lectures" : "No recordings"}
                       {start && (start === end ? ` · ${start}` : ` · ${start} – ${end}`)}
                     </span>
                   </button>
-                  {open && weekLectures.length > 0 && (
+                  <Fold open={open && weekLectures.length > 0}>
                     <div className="divide-y divide-border-subtle border-y border-border-subtle">
                       {weekLectures.map((lec) => (
                         <LectureRow
@@ -195,7 +196,7 @@ export default function SubjectLecturesPage() {
                         />
                       ))}
                     </div>
-                  )}
+                  </Fold>
                 </section>
               );
             })}

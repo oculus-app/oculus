@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CaretDown } from "@phosphor-icons/react";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -54,6 +55,7 @@ export function CardTitle({
 }) {
   const [ref, long] = useClamped(title);
   const [open, setOpen] = useState(false);
+  const animateNext = useClipMotion(ref, open);
   const folded = long && !open;
   return (
     <div className="min-w-0 flex-1">
@@ -84,12 +86,13 @@ export function CardTitle({
           aria-expanded={open}
           onClick={(e) => {
             e.stopPropagation();
+            animateNext();
             setOpen((o) => !o);
           }}
           className="mt-0.5 flex cursor-pointer items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
           {open ? "Show less" : "Show more"}
-          <CaretDown size={10} className={cn("transition-transform", open && "rotate-180")} />
+          <CaretDown size={10} className={cn("transition-transform will-change-transform", open && "rotate-180")} />
         </button>
       )}
     </div>

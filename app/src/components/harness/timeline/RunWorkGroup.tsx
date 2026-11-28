@@ -7,7 +7,7 @@ import { runWaitingOn, WAITING_LABEL } from "@/lib/harness";
 import { chooseFold, foldChoice } from "@/stores/chat/runFolds";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { Bundle, Item } from "./ItemRows";
-import { useFoldMotion } from "./useFoldMotion";
+import { useFoldMotion } from "@/hooks/ui/useFoldMotion";
 import { Working } from "./Working";
 import { foldFindText, foldLabel, foldMatches, foldOpens, foldRows, type WorkFold } from "./rows";
 

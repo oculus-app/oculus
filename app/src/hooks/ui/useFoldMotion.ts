@@ -1,12 +1,15 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
-const OPEN_MS = 200;
-const CLOSE_MS = 160;
+export const OPEN_MS = 200;
+export const CLOSE_MS = 160;
 /** Ease-in-out: a decelerate-only curve leaves a slow tail that reads as the
  *  answer below creeping into place after the fold has finished. */
-const EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
+export const EASE = "cubic-bezier(0.4, 0, 0.2, 1)";
 
-function reducedMotion(): boolean {
+/** Draw at once: the student asked for less motion, or there is no Web
+ *  Animations API (the tests' DOM). */
+export function skipMotion(): boolean {
+  if (typeof Element === "undefined" || typeof Element.prototype.animate !== "function") return true;
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -26,7 +29,7 @@ export function useFoldMotion(open: boolean) {
   const [closing, setClosing] = useState(false);
 
   const animateNext = (next: boolean) => {
-    if (reducedMotion()) return;
+    if (skipMotion()) return;
     pending.current = true;
     if (!next) setClosing(true);
   };

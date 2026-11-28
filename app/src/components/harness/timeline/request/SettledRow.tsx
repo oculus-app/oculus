@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CaretRight } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 
 /** A settled request as one work-row line (`RowShell`'s look): how it was
@@ -54,12 +55,12 @@ export function SettledRow({
           <RequestNotes notes={notes} warn={warn} />
         </div>
       )}
-      {open && (
+      <Fold open={open}>
         <div className="flex flex-col gap-1.5 pb-1 pl-[30px] pr-2 pt-0.5">
           <p className="text-[11px] text-muted-foreground">{title}</p>
           {children}
         </div>
-      )}
+      </Fold>
     </div>
   );
 }

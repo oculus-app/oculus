@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from "react";
+import { Fold } from "@/components/ui/Fold";
 import { useScrollFade } from "@/hooks/ui/useScrollFade";
 import type { DriveItem } from "@/lib/drive/items";
 import { FileCard } from "./FileCard";
@@ -37,7 +38,9 @@ export function DriveGrid({ groups, folds, before, empty }: {
           <div data-glide>
             <GroupHeading group={group} folds={folds} className="mb-2" />
           </div>
-          {!isFolded(group, folds) && <GroupCards group={group} />}
+          <Fold open={!isFolded(group, folds)}>
+            <GroupCards group={group} />
+          </Fold>
         </section>
       ))}
     </div>

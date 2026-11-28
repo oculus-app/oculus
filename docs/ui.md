@@ -29,6 +29,7 @@ Read this before any UI work.
 | The colour control: a swatch that opens a pad, hue and opacity strips and hex text (`opaque` drops the opacity strip), or with a `palette` a grid of colours, their shades and the hex code with the pad behind Custom | `app/src/components/ui/color/`, `app/src/lib/ui/color.ts` |
 | Identity icons, shared picker and colour palette | `app/src/components/ui/icon/`, `app/src/lib/ui/iconPreferences.ts` |
 | A titled block that folds, its state kept by the caller | `app/src/components/ui/CollapsibleSection.tsx` |
+| A disclosure's body easing open and shut, and a Show more clip easing between its clip and the whole | `app/src/components/ui/Fold.tsx`, `app/src/components/ui/collapsible.tsx`, `app/src/hooks/ui/useFoldMotion.ts`, `app/src/hooks/ui/useClipMotion.ts` |
 | Study widgets in markdown replies | `app/src/components/markdown/openui/components/` |
 | Agent-written widgets and the kit they are built from | `app/src/components/markdown/widget/`, `app/widget-kit/` |
 | Generative UI markup (` ```ui ` fences) and its token-backed vocabulary | `app/src/components/markdown/genui/` |
@@ -531,8 +532,8 @@ themes are opt-in and keep the same structure.
   that swaps between two icons, never rotating, and the count in
   `tabular-nums`) is a sibling of the row's button, never inside it. Open,
   the children are indented 15px on a `border-subtle` hairline guide and drop
-  the meta line their parent already shows. The body eases with
-  `useFoldMotion` and carries `will-change-[opacity,transform]`; the fold
+  the meta line their parent already shows. The body eases in a
+  `Fold`, which carries `will-change-[opacity,transform]`; the fold
   line and each child join and leave with `row-presence`.
 - **Subject tabs share `SubjectPage` for width and gutters** under
   `SubjectLayout`'s header row (the toggle, the subject crumb, the tab's
@@ -680,6 +681,19 @@ glyph; subject and project crumbs retain their custom identity icons.
   `data-state`, so a Radix content just takes the class; anything else sets
   `data-state` and `--popup-origin` itself and stays mounted for the 110 ms
   exit (`usePresence`). Don't add `animate-in`/`zoom-in` classes to a popup.
+- **Everything that expands or collapses eases like Chat's "Worked for"
+  fold**: height, a fade and a 4px drop, 200 ms open and 160 ms shut on one
+  ease-in-out curve (`useFoldMotion`), with nothing under reduced motion. A
+  disclosure's body is a `Fold` (or a `CollapsibleContent`, which is one),
+  never `{open && …}`: it keeps drawing what it last showed through the
+  close, so the caller may drop its content at once. Space between header
+  and body is the `Fold`'s padding, not a parent's `gap` or a child's margin,
+  or it jumps at the ends. Inside a `divide-y` list the `Fold` is one more
+  sibling, so it takes `divide-y` itself for the rows it holds. A Show more
+  clip (`max-height` while folded) calls `useClipMotion`'s `animateNext`
+  before it flips. A caret rotates (`transition-transform
+  will-change-transform`) unless its row swaps two icons on purpose (Chat's
+  subagent fold, Drive's group headings and tree).
 - **A list row joining or leaving moves with `row-presence`**: its height
   grows from nothing as it fades in (`@starting-style`, only on
   `data-enter`, so the first draw doesn't animate) and folds back as it fades

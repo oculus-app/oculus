@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CaretRight } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { useRequestReveal } from "@/stores/chat/requestReveal";
 import { cn } from "@/lib/utils";
 import { RequestNotes } from "./SettledRow";
@@ -82,7 +83,9 @@ export function WaitingRow({
           <RequestNotes notes={notes} warn={warn} />
         </div>
       )}
-      {open && <div className="flex flex-col gap-1.5 pb-1 pl-[30px] pr-2 pt-0.5">{children}</div>}
+      <Fold open={open}>
+        <div className="flex flex-col gap-1.5 pb-1 pl-[30px] pr-2 pt-0.5">{children}</div>
+      </Fold>
     </div>
   );
 }

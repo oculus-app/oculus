@@ -7,6 +7,7 @@ import { fmtClockSecs } from "@/lib/lectures/media";
 import { openVideoBeside } from "@/lib/studio/openVideo";
 import { videoHref } from "@/lib/studio/routes";
 import { videoSeconds } from "@/lib/studio/videos";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 import { CardPlayer, type CardPlay } from "./CardPlayer";
 import type { PlayRequest } from "./InlineVideo";
@@ -173,7 +174,7 @@ export function VideoCard({ threadId }: { threadId: number }) {
           </span>
         )}
       </div>
-      {timeline && (
+      <Fold open={timeline}>
         <div className="border-t border-border-subtle px-4 py-3.5">
           <VideoProgress
             steps={progress.steps}
@@ -184,7 +185,7 @@ export function VideoCard({ threadId }: { threadId: number }) {
             onOpenBeside={beside}
           />
         </div>
-      )}
+      </Fold>
       {play?.kind === "part" && (
         <div className="border-t border-border-subtle p-3">
           <div className="mb-2 flex items-center justify-between gap-2">

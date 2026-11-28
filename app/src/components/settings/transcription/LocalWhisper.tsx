@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { CaretRight, Star } from "@phosphor-icons/react";
+import { Fold } from "@/components/ui/Fold";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
@@ -260,11 +261,11 @@ function Models({ catalogue, settings, downloads, onChange, onModelsChanged }: {
               <CaretRight
                 size={10}
                 weight="bold"
-                className={cn("transition-transform", showOthers && "rotate-90")}
+                className={cn("transition-transform will-change-transform", showOthers && "rotate-90")}
               />
               Other models
             </button>
-            {showOthers ? others.map(row) : null}
+            <Fold open={showOthers}>{others.map(row)}</Fold>
           </>
         ) : null}
       </div>
