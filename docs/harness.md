@@ -3799,7 +3799,8 @@ do the card's last button and a button on its player's control bar. Nothing
 opens it on its own, not a render's end nor a turn's. Its chevron button opens
 the progress timeline (**Script**, **Scenes**, **Narration**, **Draft**,
 **Final**), where each step shows when it finished or what it is doing and
-nests the artifact it produced:
+shows the artifact it produced flat under its title, in the step's column
+beside the rail, with row dividers and no box of its own:
 
 - **Script** (`StepScript`) lists each scene's number, title, length once timed
   and selectable words from `script.md`.
