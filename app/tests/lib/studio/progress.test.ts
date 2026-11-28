@@ -25,6 +25,7 @@ const scene = (over: Partial<SceneInfo> = {}): SceneInfo => ({
   start: null,
   duration: null,
   text: "Words.",
+  audio: null,
   ...over,
 });
 

@@ -81,6 +81,9 @@ export interface SceneInfo {
   duration: number | null;
   /** The scene's narration, from `script.md`'s `## id` section. */
   text: string | null;
+  /** Absolute path to its narration clip (a `.wav` under `narration/`),
+   *  when one matches its current text; null for a silent scene. */
+  audio: string | null;
 }
 
 /** One export preset's file. */

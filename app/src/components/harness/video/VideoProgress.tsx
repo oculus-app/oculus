@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { CaretRight, Check, CircleNotch, Play, X } from "@phosphor-icons/react";
 
-import { fmtAgo } from "@/lib/format/format";
+import { fmtAgo, fmtFullStamp } from "@/lib/format/format";
 import type { StepName, VideoStep } from "@/lib/studio/progress";
 import type { VideoDetail } from "@/lib/studio/videos";
 import { Fold } from "@/components/ui/Fold";
@@ -40,8 +40,9 @@ function Mark({ state }: { state: VideoStep["state"] }) {
 /**
  * The card's progress timeline: Script, Scenes, Narration, Draft, Final,
  * each with when it finished or what it is doing now, and the artifact that
- * step produced nested directly inside it (the script, the storyboard, the
- * narration timings, and the draft or final inline player).
+ * step produced flat under it, with no box of its own (the script, the
+ * storyboard, the narration timings with each scene's clip, and the draft
+ * or final inline player).
  */
 export function VideoProgress({
   steps,
@@ -91,13 +92,9 @@ export function VideoProgress({
           if (s.name === "Script") {
             nested = <StepScript detail={detail} />;
           } else if (s.name === "Scenes") {
-            nested = (
-              <div className="rounded-lg border border-border-subtle bg-surface/50 p-3">
-                <Storyboard detail={detail} playable={playable} onPlay={onPlayAt} />
-              </div>
-            );
+            nested = <Storyboard detail={detail} playable={playable} onPlay={onPlayAt} />;
           } else if (s.name === "Narration") {
-            nested = <StepNarration detail={detail} playable={playable} onPlayAt={onPlayAt} />;
+            nested = <StepNarration detail={detail} />;
           } else if (renderStep && activeRender?.step === renderStep) {
             const preset = s.name === "Final" ? "final" : "draft";
             nested = (
@@ -114,7 +111,11 @@ export function VideoProgress({
 
         const time =
           s.state === "done" && s.when != null ? (
-            <time className="text-xs whitespace-nowrap text-muted-foreground tabular-nums" dateTime={new Date(s.when * 1000).toISOString()}>
+            <time
+              className="text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+              dateTime={new Date(s.when * 1000).toISOString()}
+              title={fmtFullStamp(s.when * 1000)}
+            >
               {fmtAgo(s.when * 1000)}
             </time>
           ) : null;
@@ -177,7 +178,7 @@ export function VideoProgress({
                   {time && <div className="shrink-0">{time}</div>}
                 </div>
               )}
-              <Fold open={isOpen && nested != null} className="pt-2.5">{nested}</Fold>
+              <Fold open={isOpen && nested != null} className="pt-4">{nested}</Fold>
             </div>
           </li>
         );

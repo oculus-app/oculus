@@ -62,7 +62,9 @@ function fmtDate(iso: string | null): string {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return d.toLocaleDateString(displayLocale);
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return fmtDay(d);
 }
 
 /** Relative time from an epoch-ms timestamp — same buckets as `fmtDate`. */

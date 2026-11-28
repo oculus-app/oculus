@@ -280,6 +280,7 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
     std::fs::write(dir.join("renders/draft.mp4"), "x").unwrap();
     std::fs::write(dir.join("renders/small.mp4"), "x").unwrap();
     std::fs::write(dir.join("renders/notes.txt"), "x").unwrap();
+    std::fs::write(dir.join("narration/fixture-intro.wav"), "x").unwrap();
 
     let detail = detail_in(
         &videos,
@@ -316,6 +317,11 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
     assert_eq!(outro.start, intro.duration);
     assert_eq!(outro.duration, Some(1.5));
     assert_eq!(outro.text, None, "a silent scene has no words");
+    assert_eq!(
+        intro.audio.as_deref(),
+        Some(&*dir.join("narration/fixture-intro.wav").to_string_lossy())
+    );
+    assert_eq!(outro.audio, None, "a silent scene has no clip");
     assert_eq!(detail.renders.len(), 2, "{:?}", detail.renders);
     assert_eq!(
         detail.renders[0].path,
@@ -334,6 +340,7 @@ fn the_detail_of_a_narrated_video_has_scene_times_and_words() {
     assert_eq!(json["row"]["slug"], "narrated");
     assert!(json["timingProblem"].is_null());
     assert!(json["scenes"][0]["built"].as_bool().unwrap());
+    assert!(json["scenes"][1]["audio"].is_null());
 
     let unconfigured = detail_in(
         &videos,
@@ -385,6 +392,10 @@ fn the_detail_of_an_unnarrated_video_has_no_times_and_falls_back_to_the_settings
     assert_eq!(
         detail.scenes[0].text.as_deref(),
         Some("A different sentence.")
+    );
+    assert!(
+        detail.scenes.iter().all(|s| s.audio.is_none()),
+        "a clip for older text is not the scene's"
     );
     assert!(detail.renders.is_empty());
 

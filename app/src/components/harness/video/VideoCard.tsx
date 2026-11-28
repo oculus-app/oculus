@@ -61,8 +61,8 @@ function CardButton({
  * The video a thread is making, a row of its timeline under the work of the
  * last run that touched it (`buildRows`): thumbnail, title and one
  * status line; the chevron opens the progress steps where each step's own
- * output (script, storyboard scenes, narration timings, rendered draft or
- * final player) nests inside it. The title, and the expand buttons on the
+ * output (script, storyboard scenes, narration timings whose rows play each
+ * scene's clip, rendered draft or final player) sits flat under it. The title, and the expand buttons on the
  * card and its player, open the video's page beside the chat (⌘-click: a
  * new tab). A series part's chat takes the series' title, follows its own
  * part (`useThreadVideo`) and always shows the Parts outline, whose made
@@ -139,7 +139,10 @@ export function VideoCard({ threadId }: { threadId: number }) {
     play?.kind === "part" ? (series?.series.parts.find((p) => p.slug === play.play.slug) ?? null) : null;
 
   return (
-    <section aria-label={`Video: ${title}`} className="overflow-hidden rounded-[14px] border border-border bg-card">
+    <section
+      aria-label={`Video: ${title}`}
+      className="overflow-hidden rounded-[14px] border border-border bg-card will-change-transform"
+    >
       <div className="relative flex items-center gap-1 py-2 pr-2 pl-2">
         <Tooltip>
           <TooltipTrigger asChild>

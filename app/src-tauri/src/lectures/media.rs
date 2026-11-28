@@ -120,19 +120,7 @@ fn handle(request: tiny_http::Request, data_dir: &Path, token: &str, kit: &Kit) 
         return respond_status(request, 500);
     };
 
-    let content_type = match path.extension().and_then(|e| e.to_str()) {
-        Some("mp4") | Some("m4v") => "video/mp4",
-        Some("mov") => "video/quicktime",
-        Some("webm") => "video/webm",
-        Some("m4a") => "audio/mp4",
-        Some("mp3") => "audio/mpeg",
-        Some("vtt") => "text/vtt",
-        Some("pdf") => "application/pdf",
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("webp") => "image/webp",
-        _ => "application/octet-stream",
-    };
+    let content_type = content_type(&path);
     let hdr = |k: &str, v: &str| Header::from_bytes(k.as_bytes(), v.as_bytes()).unwrap();
 
     let range = request
@@ -236,6 +224,24 @@ fn random_token() -> String {
     buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// The served file's MIME type, by its extension.
+fn content_type(path: &Path) -> &'static str {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("mp4") | Some("m4v") => "video/mp4",
+        Some("mov") => "video/quicktime",
+        Some("webm") => "video/webm",
+        Some("m4a") => "audio/mp4",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("vtt") => "text/vtt",
+        Some("pdf") => "application/pdf",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,5 +280,18 @@ mod tests {
         let video = get(server.port, "/not-the-token?path=/etc/hosts");
         assert!(video.starts_with("http/1.1 403"), "{video}");
         assert!(!video.contains("access-control-allow-origin"), "{video}");
+    }
+
+    #[test]
+    fn studio_narration_clips_are_served_as_wav() {
+        assert_eq!(
+            content_type(Path::new("/v/narration/intro.wav")),
+            "audio/wav"
+        );
+        assert_eq!(content_type(Path::new("/v/renders/draft.mp4")), "video/mp4");
+        assert_eq!(
+            content_type(Path::new("/v/notes")),
+            "application/octet-stream"
+        );
     }
 }

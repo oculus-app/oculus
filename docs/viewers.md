@@ -536,15 +536,16 @@ bar. Every video streams from Rust's media server via `mediaSrc()`
   ([harness.md](./harness.md#a-studio-thread-carries-its-video)). `dock` and
   `dockLabel` are optional, and with no dock there is no dock button, no
   resize handle and T does nothing; `captions={false}` leaves out the captions
-  button. `useLibraryPlayback` is what `VideoFileViewer` and Studio's element
-  share: pause with the tab, and one sound across lectures and library videos.
+  button. `useLibraryPlayback` is what `VideoFileViewer`, Studio's element
+  and a chat card's narration clip share: pause with the tab, and one sound
+  across lectures and library media.
 - **Course ▸ Media holds the downloaded videos** from module links and
   Canvas-page embeds. Drive lists them as files alongside any `.vtt`
   captions. The Modules page offers downloads for module videos that have
   no local copy.
 - **One sound at a time**: a library video playing pauses the lecture
-  (`pauseLecturePlayback`) and other library videos; a lecture's leader
-  playing pauses every registered library video (`registerLibraryVideo` in
+  (`pauseLecturePlayback`) and other library media; a lecture's leader
+  playing pauses every registered library element (`registerLibraryVideo` in
   `app/src/lib/lectures/media/library.ts`).
 - **A video without a transcript offers Transcribe** in its Transcript tab
   (`TranscribeEmpty`). Runs live in `useTranscription`, outside React, so a

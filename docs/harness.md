@@ -3797,8 +3797,15 @@ nests the artifact it produced:
   narration, and "Play from this scene", which opens the rendered video step
   and starts playback there.
 - **Narration** (`StepNarration`) shows the voice and total length over each
-  scene's start time and duration; clicking a scene jumps playback to that
-  moment once a render exists.
+  scene's start time and duration. A row whose scene has a clip
+  (`SceneInfo.audio`, the `.wav` under `narration/` that matches its current
+  text) plays that clip in place, render or not (`useNarrationClip`: one
+  hidden `<audio>` through `mediaSrc`, its URL versioned by
+  `narrationModified`). One clip plays at a time: the playing row turns
+  brand with a Stop icon, a second click stops it, another row switches to
+  its clip, and collapsing the step stops it. The element shares the app's
+  one sound (`useLibraryPlayback`), so it pauses a render or lecture that is
+  playing and they pause it. A silent scene's row is not a button.
 - **Draft** and **Final** show Play when that preset's render exists and grow
   the inline player (`InlineVideo`: Studio's `VideoPlayer` without a dock,
   playing that step's preset and sharing the app's one sound through

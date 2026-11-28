@@ -53,6 +53,10 @@ pub struct SceneInfo {
     pub start: Option<f64>,
     pub duration: Option<f64>,
     pub text: Option<String>,
+    /// Absolute path to the scene's narration clip, when the manifest has
+    /// one for its current text and the file is on disk; null for a silent
+    /// scene or one not yet narrated.
+    pub audio: Option<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -103,6 +107,7 @@ pub fn detail_in(
             start: timeline.as_ref().map(|t| t.start(i)),
             duration: timeline.as_ref().and_then(|t| t.scene_length(i)),
             text: project.section(i).map(|s| s.text.clone()),
+            audio: clip_path(&dir, &project, i),
         })
         .collect();
     let voice = voice::resolve_video(project.video.voice.as_ref(), settings)
@@ -129,6 +134,13 @@ pub fn detail_in(
         scenes,
         renders: renders(&dir),
     })
+}
+
+/// Scene `index`'s narration clip on disk, absolute.
+fn clip_path(dir: &Path, project: &Project, index: usize) -> Option<String> {
+    let clip = project.narration(index).ok().flatten()?;
+    let path = dir.join("narration").join(&clip.audio);
+    path.is_file().then(|| path.to_string_lossy().into_owned())
 }
 
 /// Each preset's file that exists, with when it was written.

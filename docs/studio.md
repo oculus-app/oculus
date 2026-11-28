@@ -2329,7 +2329,8 @@ The list reads both the video folders and the series outlines. Commands on one v
 - **A render plays from the media server.** `lectures/media.rs` serves
   files under `studio/videos/` (Range requests, so a seek works), and the
   asset protocol's scope in `tauri.conf.json` names `$APPDATA/.oculus/studio/videos/**`;
-  the page reaches `renders/draft.mp4` with `mediaSrc(path)`.
+  the page reaches `renders/draft.mp4` with `mediaSrc(path)`, and the chat
+  card a scene's narration clip (`audio/wav`) the same way.
 - **Stills share render slots**, half the cores (`slot.rs`, as the PDF
   viewer's `on_render_slot`), so a page of thumbnails queues without holding
   threads, and each renders on the blocking pool.
