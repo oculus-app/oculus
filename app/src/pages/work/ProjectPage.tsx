@@ -15,10 +15,9 @@ import {
   type TimelineZoom,
 } from "@/components/projects/timeline/ProjectTimeline";
 import { projectParents } from "@/components/projects/nav/projectBreadcrumbs";
-import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { boardProgress, taskTree } from "@/components/projects/tasks/taskTree";
 import { useProjectActions } from "@/components/projects/lists/useProjectActions";
-import { PageHeader } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneBreadcrumb, PaneIconActions } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useTasksPanel } from "@/layouts/TasksLayout";
 import { useProjectsStore } from "@/stores/planning/projectsStore";
@@ -123,10 +122,12 @@ export default function ProjectPage() {
 
   const titleRow = (
     <PageHeader>
-      {panel && <SideNavCollapseToggle panel={panel} />}
-      <Breadcrumb items={[...projectParents(project), { label: project.name, icon: <ProjectIcon project={project} size={14} /> }]} />
-      {tab === "tasks" && <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{progress.done}/{progress.total} done</span>}
-      <ProjectMenu
+      <PaneBreadcrumb
+        lead={panel && <SideNavCollapseToggle panel={panel} />}
+        items={[...projectParents(project), { label: project.name, icon: <ProjectIcon project={project} size={14} /> }]}
+        meta={tab === "tasks" && `${progress.done}/${progress.total} done`}
+      />
+      <PaneIconActions><ProjectMenu
         project={project}
         className="shrink-0"
         onRename={(name) => actions.onRename(project, name)}
@@ -140,7 +141,7 @@ export default function ProjectPage() {
           actions.onDelete(project);
           navigate("/projects");
         }}
-      />
+      /></PaneIconActions>
     </PageHeader>
   );
 

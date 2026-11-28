@@ -3,14 +3,14 @@ import { Navigate, Outlet, useLocation, useOutletContext, useParams } from "reac
 import { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import { SideNavShell } from "@/components/ui/layout/SideNavShell";
 import { useSubjects } from "@/hooks/data/useSubjects";
-import { SubjectCrumbs } from "@/components/subjects/SubjectCrumbs";
+import { SubjectTrail } from "@/components/subjects/SubjectCrumbs";
 import {
   SUBJECT_NAV_PANEL,
   SubjectNav,
   SubjectNavSkeleton,
   subjectTabLabel,
 } from "@/components/subjects/SubjectNav";
-import { PaneHeaderRow, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PaneHeaderRow } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import type { Subject } from "@/lib/db";
 
@@ -93,16 +93,11 @@ export default function SubjectLayout() {
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {!ownHeader && <PaneHeaderRow className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border-subtle px-6">
-          <SideNavCollapseToggle panel={panel} />
-          <PaneTrail>
-            <nav
-              aria-label="Breadcrumb"
-              className="flex shrink-0 items-center gap-2.5 text-[11px] text-muted-foreground"
-            >
-              <SubjectCrumbs subjectId={subject.id} />
-            </nav>
-            <PaneTitle>{subjectTabLabel(pathname)}</PaneTitle>
-          </PaneTrail>
+          <SubjectTrail
+            lead={<SideNavCollapseToggle panel={panel} />}
+            subjectId={subject.id}
+            title={subjectTabLabel(pathname)}
+          />
         </PaneHeaderRow>}
 
         {/* Keyed so switching subjects remounts the tab. */}

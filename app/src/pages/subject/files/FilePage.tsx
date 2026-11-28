@@ -16,8 +16,8 @@ import {
 } from "@/components/documents/DocumentControls";
 import { FileViewer, PdfMdToggle, usePdfMd } from "@/components/files/FileViewer";
 import { MarkdownUnavailable } from "@/components/files/ParseState";
-import { DriveFileCrumbs } from "@/components/drive/header/DriveFileCrumbs";
-import { SubjectCrumbs, fileCrumbFolder } from "@/components/subjects/SubjectCrumbs";
+import { DriveFileTrail } from "@/components/drive/header/DriveFileCrumbs";
+import { SubjectTrail, fileCrumbFolder } from "@/components/subjects/SubjectCrumbs";
 import { DRIVE_HREF } from "@/lib/drive/routes";
 import { TOP_LEVEL } from "@/lib/files/libraryLayout";
 import { LessonView } from "@/components/lessons/LessonView";
@@ -33,7 +33,7 @@ import {
 } from "@/lib/files/openFile";
 import { useLocateHighlight } from "@/hooks/find/useLocateHighlight";
 import { LoadingFill } from "@/components/ui/layout/PageParts";
-import { PaneHeaderRow, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PaneHeaderRow, PaneIconActions } from "@/components/tabs/PaneHeader";
 import { useDocumentPrefsStore } from "@/stores/documents/documentPrefsStore";
 import type { DbFile } from "@/lib/db";
 
@@ -157,17 +157,9 @@ export default function SubjectFilePage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <PaneHeaderRow className="h-11 shrink-0 flex items-center gap-2.5 px-5 border-b border-border-subtle">
-        <PaneTrail>
-          <nav
-            aria-label="Breadcrumb"
-            className="flex shrink-0 items-center gap-2.5 text-[11px] text-muted-foreground"
-          >
-            {topLevel
-              ? <DriveFileCrumbs folder={fileCrumbFolder(file)} />
-              : <SubjectCrumbs subjectId={id} folder={fileCrumbFolder(file)} />}
-          </nav>
-          <PaneTitle>{fileTitle(file)}</PaneTitle>
-        </PaneTrail>
+        {topLevel
+          ? <DriveFileTrail folder={fileCrumbFolder(file)} title={fileTitle(file)} />
+          : <SubjectTrail subjectId={id} folder={fileCrumbFolder(file)} title={fileTitle(file)} />}
         {/* A PDF without markdown says why rather than lacking the toggle. */}
         {isDocument ? (
           <DocumentControls
@@ -195,7 +187,7 @@ export default function SubjectFilePage() {
             this opens the original, embeds and styling included, in a
             browser tab. The lesson view has its own, for the shown slide. */}
         {!isDocument && !isLessonView && isWebUrl(file.source_url) && (
-          <OpenOriginal href={file.source_url!} />
+          <PaneIconActions><OpenOriginal href={file.source_url!} /></PaneIconActions>
         )}
       </PaneHeaderRow>
       <div ref={setBody} className="flex-1 min-h-0 overflow-hidden flex flex-col">

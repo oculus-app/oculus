@@ -17,7 +17,7 @@ Read this before any UI work.
 | Composites built on them | `app/src/components/ui/layout/`, `app/src/components/ui/table/`, `app/src/components/ui/search/`, `app/src/components/ui/lightbox/` |
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
-| Page headers, titles and breadcrumb parent popovers | `app/src/components/tabs/PaneHeader.tsx` (`PageHeader`, `PaneTitle`, `PaneTrail`), `app/src/components/ui/Breadcrumb.tsx` |
+| Page headers, titles and breadcrumb parent popovers | `app/src/components/tabs/PaneHeader.tsx` (`PageHeader`, `PaneTrail`, `PaneBreadcrumb`, `PaneIconActions`), `app/src/components/ui/Breadcrumb.tsx` |
 | A path on one line that glides when it doesn't fit | `app/src/components/ui/Trail.tsx`, `app/src/hooks/ui/useTrailGlide.ts`, `app/src/lib/ui/trailGlide.ts` |
 | Page navigation and its responsive shell | `app/src/components/ui/layout/SideNav.tsx`, `app/src/components/ui/layout/SideNavShell.tsx`, `app/src/hooks/ui/useSideNavPanel.ts` |
 | Settings pane layout and stacking rows | `app/src/styles/settings.css`, `app/src/layouts/SettingsLayout.tsx`, `app/src/components/settings/SettingsNav.tsx` |

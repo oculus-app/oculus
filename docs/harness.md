@@ -4166,7 +4166,7 @@ Nothing caps how many children run, and a child's usage is its own.
   a child's Done or Failed stays on its own row), with no timer for a
   child's Working. A Subject group's folded ring counts a working child.
 - **On its page** the header has a crumb to the parent before the child's
-  title, marked with the parent's agent (`ParentCrumb`), and the brief row
+  title, marked with the parent's agent (`ThreadTrail`), and the brief row
   (`meta.fromThread`) is drawn full width on the left, on the page's ground,
   under "From ⟨parent's title⟩", which opens the parent beside the chat
   (`BriefFrom`), drawn once above the brief's pasted cards and words, so a

@@ -238,7 +238,7 @@ whose parent is missing rather than dropping it.
   ⌘⌥B). Its rows navigate rather than swap state, so both pages keep history,
   ⌘-click and tab restore. The rail has one item, **Tasks**, opening `/tasks`
   and lit on `/projects*` too. `SectionHeader` uses the same `PageHeader`
-  and `PaneTitle` as Chat and Studio. Their nav columns share `SideNavHeading`; New task is a nav row.
+  and `PaneTrail` as Chat and Studio. Their nav columns share `SideNavHeading`; New task is a nav row.
 - **`projectParents`** starts at Projects and links the subject to
   `/tasks?subject=<id>` (Personal uses `subject=personal`). Projects, tasks and subject file paths use `Breadcrumb` /
   `BreadcrumbItems`; hidden ancestors open in a popover. Segments are

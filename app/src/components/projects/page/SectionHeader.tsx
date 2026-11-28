@@ -1,4 +1,4 @@
-import { PageHeader, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneTrail } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useTasksPanel } from "@/layouts/TasksLayout";
 
@@ -18,8 +18,7 @@ export function SectionHeader({
 
   return (
     <PageHeader>
-      {panel && <SideNavCollapseToggle panel={panel} />}
-      {title && <PaneTrail><PaneTitle>{title}</PaneTitle></PaneTrail>}
+      <PaneTrail lead={panel && <SideNavCollapseToggle panel={panel} />} title={title ?? ""} />
       {children}
     </PageHeader>
   );

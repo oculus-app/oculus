@@ -3,7 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 import { SideNavShell } from "@/components/ui/layout/SideNavShell";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
-import { PageHeader, PaneTitle } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneTrail } from "@/components/tabs/PaneHeader";
 import { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import SettingsNav from "@/components/settings/SettingsNav";
 import { SETTINGS_PAGES, type SettingsJump } from "@/lib/search/settings";
@@ -69,8 +69,7 @@ export default function SettingsLayout() {
   return (
     <SideNavShell panel={panel} nav={<SettingsNav panel={panel} />}>
       <PageHeader>
-        <SideNavCollapseToggle panel={panel} />
-        <PaneTitle>Settings</PaneTitle>
+        <PaneTrail lead={<SideNavCollapseToggle panel={panel} />} title="Settings" />
       </PageHeader>
 
       {fullBleed ? (

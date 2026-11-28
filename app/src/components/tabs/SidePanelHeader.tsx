@@ -8,8 +8,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { HeaderClaim } from "@/components/tabs/PaneHeader";
+import type { HeaderSlots } from "@/components/tabs/PaneHeader";
 import { useTabInfo } from "@/components/tabs/tabInfo";
+import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { expandSide } from "@/lib/shell/tabRouters";
 import { frontOf, type SidePanel } from "@/lib/shell/sideStack";
 import { cn } from "@/lib/utils";
@@ -19,46 +20,49 @@ import { HOME, useTabStore } from "@/stores/shell/tabStore";
 const STACKED = 3;
 
 /**
- * The side panel's standalone title row: a switcher over the stack's items,
- * the front item's title, expand and close. A page whose own top row takes the
- * slot (`PaneHeader.tsx`) hides it and draws the same controls. Tooltips keep
- * their default side, upward, clear of a browser item's native page below,
- * whose clicks a portal over it holds back.
+ * The side panel's title row, the same on every page: a switcher over the
+ * stack's items, a rule, where the front item is, then expand and close at
+ * the row's end. The page says where it is (`PaneHeader.tsx`: its nav toggle
+ * and trail as crumbs, each under its icon) and may add its lone icon buttons
+ * before expand; a page with no trail, or one not mounted yet, shows as its
+ * item's icon and title. Tooltips keep their default side, upward, clear of a
+ * browser item's native page below, whose clicks a portal over it holds back.
  */
 export function SidePanelHeader({
   tabId,
   side,
-  claim,
+  header,
 }: {
   tabId: number;
   side: SidePanel;
-  claim: HeaderClaim;
+  header: HeaderSlots;
 }) {
   const tabInfo = useTabInfo();
-  const claimed = useSyncExternalStore(claim.subscribe, claim.claimed);
-  if (claimed || side.hidden) return null;
+  const filled = useSyncExternalStore(header.subscribe, header.filled);
+  if (side.hidden) return null;
+  const front = tabInfo(frontOf(side).path, 14);
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-border-subtle px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border-subtle px-2">
       <Switcher tabId={tabId} side={side} tabInfo={tabInfo} />
+      <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
 
-      <span className="min-w-0 flex-1 truncate px-1.5 text-[12px] font-medium text-foreground">
-        {tabInfo(frontOf(side).path).title}
-      </span>
+      <div
+        ref={header.setTrail}
+        className={cn("min-w-0 flex-1 items-center gap-1.5", filled ? "flex" : "hidden")}
+      />
+      {!filled && (
+        <Breadcrumb items={[{ label: front.title, icon: <>{front.icon ?? <AppWindow size={14} />}</> }]} />
+      )}
 
+      <div ref={header.setActions} className="flex shrink-0 items-center gap-0.5" />
       <PanelActions tabId={tabId} />
     </div>
   );
 }
 
-/** The switcher, for a page row holding the header slot. */
-export function PanelSwitcher({ tabId, side }: { tabId: number; side: SidePanel }) {
-  const tabInfo = useTabInfo();
-  return side.hidden ? null : <Switcher tabId={tabId} side={side} tabInfo={tabInfo} />;
-}
-
 /** Expand (⌘-click: a new tab) and close; a group that never shrinks. */
-export function PanelActions({ tabId }: { tabId: number }) {
+function PanelActions({ tabId }: { tabId: number }) {
   const front = useTabStore((s) => s.tabs.find((t) => t.id === tabId)?.side?.front);
   const hidden = useTabStore((s) => s.tabs.find((t) => t.id === tabId)?.side?.hidden);
   const removeSide = useTabStore((s) => s.removeSide);

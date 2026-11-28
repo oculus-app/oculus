@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
-import { Breadcrumb, type BreadcrumbItem } from "@/components/ui/Breadcrumb";
+import { PaneBreadcrumb, PaneHeaderRow, useInSidePanel } from "@/components/tabs/PaneHeader";
+import type { BreadcrumbItem } from "@/components/ui/Breadcrumb";
+import { cn } from "@/lib/utils";
 
 /**
  * The browser's 48px header: the trail on the left; the search, scoped to
  * the folder on screen and everything below it, and the New menu (`action`)
- * on the right.
+ * on the right. In the side panel the trail is the panel's header
+ * (`PaneBreadcrumb`), and the search takes the row's width beside New.
  */
 export function DriveHeader({ crumbs, leading, query, onQuery, placeholder, action }: {
   crumbs: BreadcrumbItem[];
@@ -16,11 +19,14 @@ export function DriveHeader({ crumbs, leading, query, onQuery, placeholder, acti
   placeholder: string;
   action?: ReactNode;
 }) {
+  const inSide = useInSidePanel();
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 px-5">
-      {leading}
-      <Breadcrumb items={crumbs} />
-      <div className="flex h-8 w-52 min-w-28 shrink items-center gap-2 rounded-full border border-input bg-card px-3 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25">
+    <PaneHeaderRow className="flex h-12 shrink-0 items-center gap-3 px-5">
+      <PaneBreadcrumb lead={leading} items={crumbs} />
+      <div className={cn(
+        "flex h-8 min-w-28 items-center gap-2 rounded-full border border-input bg-card px-3 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25",
+        inSide ? "flex-1" : "w-52 shrink",
+      )}>
         <MagnifyingGlass size={13} className="shrink-0 text-muted-foreground" />
         <input
           value={query}
@@ -50,6 +56,6 @@ export function DriveHeader({ crumbs, leading, query, onQuery, placeholder, acti
         )}
       </div>
       {action}
-    </div>
+    </PaneHeaderRow>
   );
 }

@@ -60,7 +60,6 @@ export default function ProjectsIndexPage() {
   }, [createProject, navigate]);
   return <div className="flex h-full min-h-0 flex-col">
     <SectionHeader title="Projects">
-      <span className="flex-1" />
       <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">{branches.length} {branches.length === 1 ? "project" : "projects"}</span>
       <NewProjectButton subjects={subjects} onCreate={create} />
     </SectionHeader>

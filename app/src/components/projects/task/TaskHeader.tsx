@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { ArrowLeft, DotsThree, TrashSimple } from "@phosphor-icons/react";
 import { projectHref } from "@/components/projects/nav/projectHref";
-import { PageHeader, useInSidePanel } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneBreadcrumb, PaneIconActions, useInSidePanel } from "@/components/tabs/PaneHeader";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useTasksPanel } from "@/layouts/TasksLayout";
 import { navigateActive } from "@/lib/shell/tabRouters";
 import type { DbProject, DbProjectTask } from "@/lib/planning/projects";
-import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { taskBreadcrumbs } from "@/components/projects/nav/taskBreadcrumbs";
 import { taskHref } from "@/components/projects/nav/taskHref";
 
@@ -31,21 +30,26 @@ export function TaskHeader({
 
   return (
     <PageHeader>
-      {panel && <SideNavCollapseToggle panel={panel} />}
-      {!inSide && (
-        <button
-          type="button"
-          aria-label="Back"
-          data-tab-href={back}
-          onClick={() => navigateActive(back)}
-          className="-mr-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <ArrowLeft size={15} />
-        </button>
-      )}
-      <Breadcrumb items={items} />
-      {/* The side panel's own controls follow this in the row. */}
-      <TaskMenu onDelete={onDelete} />
+      <PaneBreadcrumb
+        lead={
+          <>
+            {panel && <SideNavCollapseToggle panel={panel} />}
+            {!inSide && (
+              <button
+                type="button"
+                aria-label="Back"
+                data-tab-href={back}
+                onClick={() => navigateActive(back)}
+                className="-mr-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <ArrowLeft size={15} />
+              </button>
+            )}
+          </>
+        }
+        items={items}
+      />
+      <PaneIconActions><TaskMenu onDelete={onDelete} /></PaneIconActions>
     </PageHeader>
   );
 }

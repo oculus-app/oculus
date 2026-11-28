@@ -1,37 +1,50 @@
 import {
   createContext,
+  isValidElement,
   useContext,
   useLayoutEffect,
-  useRef,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { PanelActions, PanelSwitcher } from "@/components/tabs/SidePanelHeader";
-import { useScrollFade } from "@/hooks/ui/useScrollFade";
-import type { SidePanel } from "@/lib/shell/sideStack";
+import { createPortal } from "react-dom";
+import { AppWindow } from "@phosphor-icons/react";
+import { useTabInfo } from "@/components/tabs/tabInfo";
+import { Breadcrumb, BreadcrumbItems, type BreadcrumbItem } from "@/components/ui/Breadcrumb";
+import { frontOf, type SidePanel } from "@/lib/shell/sideStack";
 import { cn } from "@/lib/utils";
 
 /**
- * A page's top row doubling as the side panel's header. `TabPane` gives a
- * side pane a slot; a page row built on `PaneHeaderRow` takes it, drawing the
- * panel's switcher at its start and expand and × at its end, and
- * `SidePanelHeader` hides while it is taken. The claim lands in a layout
- * effect, so the standalone header shows until the row mounts (a lazy route's
- * `LoadingFill`) and is gone before the row first paints. In the main pane
- * the row renders as a plain row.
+ * A page's top row, and the part of it the side panel's header shows. In the
+ * main pane the row is the page's own: nav toggle, trail, buttons. In the
+ * side panel `SidePanelHeader` is the one title row, the same on every page:
+ * `TabPane` gives the pane the header's two places (`HeaderSlots`), the
+ * page's trail (`PaneTrail`, `PaneBreadcrumb`) portals into the first as
+ * crumbs, and its lone icon buttons (`PaneIconActions`) into the second,
+ * before expand and ×. What is left of the row, the page's wide controls,
+ * stays under the header as its own row, and is gone when there are none.
+ * The trail lands in a layout effect, so the header shows the item's title
+ * until the page mounts (a lazy route's `LoadingFill`) and the trail before
+ * the page first paints.
  */
 
-/** Which page row holds the side panel's header, if any. */
-export interface HeaderClaim {
+/** The side panel header's two places a page fills. */
+export interface HeaderSlots {
   subscribe: (listener: () => void) => () => void;
-  claimed: () => boolean;
-  /** The holding row's height, for the find bar floating below it. */
-  height: () => number;
-  take: (row: HTMLElement) => () => void;
+  /** After the switcher: the page's nav toggle and trail. */
+  trail: () => HTMLElement | null;
+  /** Before expand: the page's icon buttons. */
+  actions: () => HTMLElement | null;
+  setTrail: (el: HTMLElement | null) => void;
+  setActions: (el: HTMLElement | null) => void;
+  /** Whether a page's trail stands in for the item's title. */
+  filled: () => boolean;
+  fill: () => () => void;
 }
 
-export function createHeaderClaim(): HeaderClaim {
-  let row: HTMLElement | null = null;
-  let height = 0;
+export function createHeaderSlots(): HeaderSlots {
+  let trail: HTMLElement | null = null;
+  let actions: HTMLElement | null = null;
+  let fills = 0;
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((l) => l());
   return {
@@ -39,16 +52,22 @@ export function createHeaderClaim(): HeaderClaim {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    claimed: () => row != null,
-    height: () => height,
-    take: (el) => {
-      row = el;
-      height = el.offsetHeight;
+    trail: () => trail,
+    actions: () => actions,
+    setTrail: (el) => {
+      trail = el;
+      emit();
+    },
+    setActions: (el) => {
+      actions = el;
+      emit();
+    },
+    filled: () => fills > 0,
+    fill: () => {
+      fills += 1;
       emit();
       return () => {
-        if (row !== el) return;
-        row = null;
-        height = 0;
+        fills -= 1;
         emit();
       };
     },
@@ -58,7 +77,7 @@ export function createHeaderClaim(): HeaderClaim {
 export interface SideSlot {
   tabId: number;
   side: SidePanel;
-  claim: HeaderClaim;
+  header: HeaderSlots;
 }
 
 const SideSlotContext = createContext<SideSlot | null>(null);
@@ -71,35 +90,13 @@ export function useInSidePanel(): boolean {
 }
 
 /**
- * A page's top row. In the side panel it takes the header slot and adds the
- * panel's controls, which never shrink; `standalone` leaves the slot to
- * `SidePanelHeader` (a page whose row has no trail, like chat history).
+ * A page's top row. In the side panel its trail and icon buttons are in the
+ * panel's header, so the row holds only the page's wide controls, at its
+ * end, and takes no space when it has none.
  */
-export function PaneHeaderRow({
-  className,
-  standalone,
-  children,
-}: {
-  className: string;
-  standalone?: boolean;
-  children: ReactNode;
-}) {
-  const ctx = useContext(SideSlotContext);
-  const slot = standalone ? null : ctx;
-  const claim = slot?.claim;
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const row = ref.current;
-    return claim && row ? claim.take(row) : undefined;
-  }, [claim]);
-
-  return (
-    <div ref={ref} className={cn(className, slot && "px-2")}>
-      {slot && <PanelSwitcher tabId={slot.tabId} side={slot.side} />}
-      {children}
-      {slot && <PanelActions tabId={slot.tabId} />}
-    </div>
-  );
+export function PaneHeaderRow({ className, children }: { className: string; children: ReactNode }) {
+  const inSide = useInSidePanel();
+  return <div className={cn(className, inSide && "justify-end empty:hidden")}>{children}</div>;
 }
 
 /** The common 48px top bar for Chat, Studio and planning pages. */
@@ -107,36 +104,109 @@ export function PageHeader({ children, className }: { children: ReactNode; class
   return <PaneHeaderRow className={cn("flex h-12 shrink-0 items-center gap-2.5 border-b border-border-subtle px-6", className)}>{children}</PaneHeaderRow>;
 }
 
-/** Keeps a side panel's trail scrollable without changing its parent path. */
-export function PaneTrail({ children }: { children: ReactNode }) {
-  return useInSidePanel() ? <SideTrail>{children}</SideTrail> : <>{children}</>;
-}
-
-function SideTrail({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useScrollFade(ref, "x");
-  return (
-    <div ref={ref} className="-mx-1 min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="flex w-max items-center gap-2.5 p-1">{children}</div>
-    </div>
-  );
+interface TrailProps {
+  /** Before the trail: the page's nav toggle, a way back. */
+  lead?: ReactNode;
+  /** Muted after the trail: a count, a series part. */
+  meta?: ReactNode;
 }
 
 /**
- * A page row's title: truncated in the main pane; in the side panel's
- * scroller it keeps its full width and scrolls instead.
+ * A page's trail as small crumbs before its title: the row's `parents`, then
+ * `title`. In the side panel they are the header's crumbs, the title under
+ * the item's own icon. `shrinkParents` lets long parents truncate before the
+ * title does.
  */
-export function PaneTitle({ className, children }: { className?: string; children: ReactNode }) {
-  const inSide = useInSidePanel();
+export function PaneTrail({ lead, meta, parents = [], title, shrinkParents }: TrailProps & {
+  parents?: BreadcrumbItem[];
+  title: string;
+  shrinkParents?: boolean;
+}) {
+  const slot = useContext(SideSlotContext);
+  if (slot) return <SideTitleTrail slot={slot} lead={lead} meta={meta} parents={parents} title={title} />;
   return (
-    <h1
-      className={cn(
-        inSide ? "shrink-0 whitespace-nowrap" : "min-w-0 flex-1 truncate",
-        "text-[13px] font-semibold text-foreground",
-        className,
+    <>
+      {lead}
+      {parents.length > 0 && (
+        <nav
+          aria-label="Breadcrumb"
+          className={cn(
+            "flex items-center gap-2.5 text-[11px] text-muted-foreground",
+            shrinkParents ? "min-w-0 max-w-[45%] shrink" : "shrink-0",
+          )}
+        >
+          <BreadcrumbItems items={parents} trailing />
+        </nav>
       )}
-    >
-      {children}
-    </h1>
+      <h1 className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+        {title}
+        {meta ? <span className="ml-2 font-normal text-muted-foreground tabular-nums">{meta}</span> : null}
+      </h1>
+    </>
   );
+}
+
+/** A page's trail as one `Breadcrumb`, its last item the page itself. */
+export function PaneBreadcrumb({ lead, meta, items }: TrailProps & { items: BreadcrumbItem[] }) {
+  const slot = useContext(SideSlotContext);
+  if (slot) return <SideTrail header={slot.header} lead={lead} meta={meta} items={items} />;
+  return (
+    <>
+      {lead}
+      <Breadcrumb items={items} />
+      {meta ? <TrailMeta>{meta}</TrailMeta> : null}
+    </>
+  );
+}
+
+/** A page's lone icon buttons (a menu, an info toggle): in the side panel
+ *  they sit in the header before expand, never in a row of their own. */
+export function PaneIconActions({ children }: { children: ReactNode }) {
+  const slot = useContext(SideSlotContext);
+  return slot ? <HeaderActions header={slot.header}>{children}</HeaderActions> : <>{children}</>;
+}
+
+function HeaderActions({ header, children }: { header: HeaderSlots; children: ReactNode }) {
+  const el = useSyncExternalStore(header.subscribe, header.actions);
+  return el ? createPortal(children, el) : null;
+}
+
+/** `PaneTrail` in the side panel: the title joins the crumbs under the icon
+ *  its item has in the switcher, or under none where a parent already shows
+ *  that icon (a subject's page after the subject). */
+function SideTitleTrail({ slot, lead, meta, parents, title }: TrailProps & {
+  slot: SideSlot;
+  parents: BreadcrumbItem[];
+  title: string;
+}) {
+  const icon = useTabInfo()(frontOf(slot.side).path, 14).icon ?? <AppWindow size={14} />;
+  const repeated = parents.some((parent) => sameIcon(parent.icon, icon));
+  return <SideTrail header={slot.header} lead={lead} meta={meta} items={[...parents, { label: title, icon: repeated ? undefined : <>{icon}</> }]} />;
+}
+
+/** Whether two icons draw the same thing: one component, equal props. */
+function sameIcon(a: ReactNode, b: ReactNode): boolean {
+  if (!isValidElement(a) || !isValidElement(b) || a.type !== b.type) return false;
+  const pa = a.props as Record<string, unknown>;
+  const pb = b.props as Record<string, unknown>;
+  const keys = Object.keys(pa);
+  return keys.length === Object.keys(pb).length && keys.every((key) => pa[key] === pb[key]);
+}
+
+function SideTrail({ header, lead, meta, items }: TrailProps & { header: HeaderSlots; items: BreadcrumbItem[] }) {
+  const el = useSyncExternalStore(header.subscribe, header.trail);
+  useLayoutEffect(() => header.fill(), [header]);
+  if (!el) return null;
+  return createPortal(
+    <>
+      {lead}
+      <Breadcrumb items={items} />
+      {meta ? <TrailMeta>{meta}</TrailMeta> : null}
+    </>,
+    el,
+  );
+}
+
+function TrailMeta({ children }: { children: ReactNode }) {
+  return <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{children}</span>;
 }

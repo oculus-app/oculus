@@ -4,7 +4,7 @@ import { Folder } from "@phosphor-icons/react";
 import { fileKindTone } from "@/components/drive/content/ItemIcon";
 import { RecencyDot } from "@/components/files/FileRecency";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
-import { PageHeader, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneTrail } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { SkeletonRows } from "@/components/ui/layout/PageParts";
 import { GridTable, HeaderLabels } from "@/components/ui/table/GridTable";
@@ -79,10 +79,7 @@ export default function DriveRecentPage() {
   return (
     <div ref={ref} className="flex h-full min-h-0 flex-col">
       <PageHeader>
-        <SideNavCollapseToggle panel={panel} />
-        <PaneTrail>
-          <PaneTitle>Recent</PaneTitle>
-        </PaneTrail>
+        <PaneTrail lead={<SideNavCollapseToggle panel={panel} />} title="Recent" />
       </PageHeader>
       <div className="min-h-0 flex-1">
         <GridTable cols={cols} header={<HeaderLabels labels={labels} />} empty={empty}>

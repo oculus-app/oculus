@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "@phosphor-icons/react";
 
-import { PageHeader, PaneTitle, PaneTrail, useInSidePanel } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneTrail, useInSidePanel } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useStudioPanel } from "@/layouts/StudioLayout";
 
@@ -27,24 +27,26 @@ export function StudioHeader({
   const inSide = useInSidePanel();
   return (
     <PageHeader>
-      {!inSide && <SideNavCollapseToggle panel={panel} />}
-      {back && (
-        <button
-          type="button"
-          aria-label="Back"
-          data-tab-href={back}
-          onClick={() => navigate(back)}
-          className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <ArrowLeft size={15} />
-        </button>
-      )}
-      <PaneTrail>
-        <PaneTitle>
-          {title}
-          {meta && <span className="ml-2 font-normal text-muted-foreground tabular-nums">{meta}</span>}
-        </PaneTitle>
-      </PaneTrail>
+      <PaneTrail
+        lead={
+          <>
+            {!inSide && <SideNavCollapseToggle panel={panel} />}
+            {back && (
+              <button
+                type="button"
+                aria-label="Back"
+                data-tab-href={back}
+                onClick={() => navigate(back)}
+                className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <ArrowLeft size={15} />
+              </button>
+            )}
+          </>
+        }
+        title={title}
+        meta={meta}
+      />
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </PageHeader>
   );

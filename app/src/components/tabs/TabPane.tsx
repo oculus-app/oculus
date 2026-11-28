@@ -5,17 +5,15 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
-  type ReactNode,
 } from "react";
 import { createMemoryRouter, parsePath, RouterProvider } from "react-router-dom";
 import { routes } from "@/routes";
 import { TabContext } from "@/components/tabs/TabContext";
 import { SidePanelHeader } from "@/components/tabs/SidePanelHeader";
 import {
-  createHeaderClaim,
+  createHeaderSlots,
   SideSlotProvider,
-  type HeaderClaim,
+  type HeaderSlots,
   type SideSlot,
 } from "@/components/tabs/PaneHeader";
 import { ResizeHandle } from "@/components/ui/layout/ResizeHandle";
@@ -62,12 +60,12 @@ const TabPane = memo(function TabPane({
   const [dragRatio, setDragRatio] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const stackRef = useRef<HTMLDivElement>(null);
-  // Which page row, if any, stands in for the side panel's header.
-  const [claim] = useState(createHeaderClaim);
+  // The side panel header's places for the front page's trail and buttons.
+  const [header] = useState(createHeaderSlots);
   const sidePanel = tab.side;
   const slot = useMemo(
-    () => (sidePanel ? { tabId, side: sidePanel, claim } : null),
-    [tabId, sidePanel, claim],
+    () => (sidePanel ? { tabId, side: sidePanel, header } : null),
+    [tabId, sidePanel, header],
   );
 
   // Detaches a drag in progress; an unmount mid-drag calls it.
@@ -146,7 +144,7 @@ const TabPane = memo(function TabPane({
           ratio={ratio}
           panel={side === "side" ? tab.side : null}
           slot={side === "side" ? slot : null}
-          claim={claim}
+          header={header}
         />
       ))}
       {/* The divider carries the focus marker (indigo edge on the focused
@@ -188,7 +186,7 @@ function Column({
   ratio,
   panel,
   slot,
-  claim,
+  header,
 }: {
   pane: PaneState | SideItem;
   tabId: number;
@@ -200,7 +198,7 @@ function Column({
   /** The side panel, for the column holding its front item. */
   panel: SidePanel | null;
   slot: SideSlot | null;
-  claim: HeaderClaim;
+  header: HeaderSlots;
 }) {
   const focusPane = useTabStore((s) => s.focusPane);
   const main = side === "main";
@@ -230,15 +228,9 @@ function Column({
       style={style}
       inert={!tabActive || !shown}
     >
-      {panel && <SidePanelHeader tabId={tabId} side={panel} claim={claim} />}
+      {panel && <SidePanelHeader tabId={tabId} side={panel} header={header} />}
       <SideSlotProvider value={slot}>
-        <Pane
-          pane={pane}
-          tabId={tabId}
-          side={side}
-          tabActive={tabActive && shown}
-          claim={main ? undefined : claim}
-        />
+        <Pane pane={pane} tabId={tabId} side={side} tabActive={tabActive && shown} />
       </SideSlotProvider>
     </div>
   );
@@ -261,14 +253,11 @@ function Pane({
   tabId,
   side,
   tabActive,
-  claim,
 }: {
   pane: PaneState | SideItem;
   tabId: number;
   side: PaneSide;
   tabActive: boolean;
-  /** The side panel's header slot, which the find bar floats below. */
-  claim?: HeaderClaim;
 }) {
   const id = pane.id;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -308,26 +297,7 @@ function Pane({
         <RouterProvider router={router} />
       </TabContext.Provider>
       {/* ⌘F's fallback for whatever page the pane shows (`lib/menu/find.ts`). */}
-      {claim ? (
-        <BelowHeader claim={claim}>
-          <PageFind rootRef={rootRef} page={id} />
-        </BelowHeader>
-      ) : (
-        <PageFind rootRef={rootRef} page={id} />
-      )}
-    </div>
-  );
-}
-
-/**
- * Moves the floating find bar below a page row holding the side panel's
- * header, clear of expand and ×. Zero height, so it takes no clicks itself.
- */
-function BelowHeader({ claim, children }: { claim: HeaderClaim; children: ReactNode }) {
-  const top = useSyncExternalStore(claim.subscribe, claim.height);
-  return (
-    <div className="absolute inset-x-0 h-0" style={{ top }}>
-      {children}
+      <PageFind rootRef={rootRef} page={id} />
     </div>
   );
 }

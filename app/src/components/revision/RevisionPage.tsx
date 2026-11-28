@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { PageHeader, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneTrail } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useRevisionPanel } from "@/layouts/RevisionLayout";
 import { useRevisionData } from "@/layouts/RevisionLayout";
@@ -20,10 +20,7 @@ export function RevisionPage({
   return (
     <>
       <PageHeader>
-        <SideNavCollapseToggle panel={panel} />
-        <PaneTrail>
-          <PaneTitle>{title}</PaneTitle>
-        </PaneTrail>
+        <PaneTrail lead={<SideNavCollapseToggle panel={panel} />} title={title} />
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </PageHeader>
       <div ref={scroll} className="page-scroll min-h-0 flex-1">

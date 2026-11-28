@@ -8,7 +8,7 @@ const RETRY_MAX_MS = 30_000;
 
 /**
  * The thread a Chat tab's route names, a subagent's parent (its crumb and
- * brief, `ParentCrumb`, `BriefFrom`), or a Subagent card's child. The store
+ * brief, `ThreadTrail`, `BriefFrom`), or a Subagent card's child. The store
  * lists the newest threads, so an older one (a restored tab, a ⌘-click from
  * search) is read by id and kept in the list; with `keep: false` (the card,
  * which only asks whether its child exists) it is held in `known` instead,

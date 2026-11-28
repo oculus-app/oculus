@@ -4,7 +4,7 @@ import { Composer } from "@/components/harness/composer/Composer";
 import { placeCaretAtEnd } from "@/components/harness/mentions/dom";
 import { DraftHero } from "@/components/harness/composer/DraftHero";
 import { NewThreadDialog } from "@/components/harness/threads/NewThreadDialog";
-import { ParentCrumb } from "@/components/harness/threads/ParentCrumb";
+import { ThreadTrail } from "@/components/harness/threads/ParentCrumb";
 import { RecentThreads } from "@/components/harness/threads/RecentThreads";
 import { THREAD_LIST_PANEL, ThreadList } from "@/components/harness/threads/ThreadList";
 import { ThreadMap } from "@/components/harness/timeline/ThreadMap";
@@ -19,7 +19,7 @@ import { useThreadActions } from "@/components/harness/threads/useThreadActions"
 import { useComposerSelection } from "@/components/harness/threads/useComposerSelection";
 import { useRouteThread } from "@/components/harness/threads/useRouteThread";
 import { useTabId } from "@/components/tabs/TabContext";
-import { PageHeader, PaneTitle, PaneTrail } from "@/components/tabs/PaneHeader";
+import { PageHeader, PaneIconActions } from "@/components/tabs/PaneHeader";
 import { DropOverlay } from "@/components/ui/layout/DropOverlay";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
 import { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
@@ -398,12 +398,12 @@ export default function ChatPage() {
 
       <div ref={columnRef} className="relative flex h-full min-w-0 flex-1 flex-col">
         <PageHeader>
-          <SideNavCollapseToggle panel={listPanel} />
-          <PaneTrail>
-            {!fresh && thread?.parent_id != null && <ParentCrumb parentId={thread.parent_id} />}
-            <PaneTitle>{fresh ? "New thread" : thread ? thread.title?.trim() || "Untitled" : ""}</PaneTitle>
-          </PaneTrail>
-          {infoCard && <ThreadInfoButton info={info} {...infoCard} />}
+          <ThreadTrail
+            lead={<SideNavCollapseToggle panel={listPanel} />}
+            parentId={fresh ? null : thread?.parent_id ?? null}
+            title={fresh ? "New thread" : thread ? thread.title?.trim() || "Untitled" : ""}
+          />
+          {infoCard && <PaneIconActions><ThreadInfoButton info={info} {...infoCard} /></PaneIconActions>}
         </PageHeader>
 
         <div ref={info.areaRef} className="relative min-h-0 flex-1">

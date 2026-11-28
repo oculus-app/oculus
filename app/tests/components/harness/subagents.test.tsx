@@ -16,7 +16,7 @@ Object.defineProperty(globalThis, "document", {
 Object.defineProperty(globalThis, "window", {
   configurable: true, value: { addEventListener() {}, setTimeout, clearTimeout },
 });
-const { ParentCrumb } = await import("@/components/harness/threads/ParentCrumb");
+const { ThreadTrail } = await import("@/components/harness/threads/ParentCrumb");
 const { QuestionBubble: Bubble } = await import("@/components/harness/timeline/QuestionBubble");
 const { TooltipProvider } = await import("@/components/ui/tooltip");
 /** The bubble's actions carry tooltips, which need their provider. */
@@ -132,10 +132,13 @@ describe("a child's page", () => {
   initial.threadsLoaded = true;
 
   test("its crumb is the parent, with the parent's agent mark", () => {
-    const html = renderToStaticMarkup(<ParentCrumb parentId={1} />);
+    const html = renderToStaticMarkup(<ThreadTrail parentId={1} title="Summarise week 7" />);
     expect(html).toContain('data-tab-href="/chat?t=1');
     expect(html).toContain("Plan the revision week");
-    expect(renderToStaticMarkup(<ParentCrumb parentId={null} />)).toBe("");
+    expect(html).toContain("Summarise week 7</h1>");
+    const alone = renderToStaticMarkup(<ThreadTrail parentId={null} title="Summarise week 7" />);
+    expect(alone).not.toContain("data-tab-href");
+    expect(alone).toContain("Summarise week 7</h1>");
   });
 
   test("its brief reads as the parent's: full width on the left, under From", () => {

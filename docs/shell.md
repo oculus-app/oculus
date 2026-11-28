@@ -143,7 +143,7 @@ before leaving a playing lecture.
   no subjects synced, as an empty view pointing at Sync. Every other way to a
   subject is the switcher, ⌘K or a crumb.
 - **`/subjects/:id/file` and `/subjects/:id/lecture` sit outside
-  `SubjectLayout`** so a document takes the whole card; `SubjectCrumbs` gives
+  `SubjectLayout`** so a document takes the whole card; `SubjectTrail` gives
   them a trail back, as buttons with `data-tab-href` rather than `Link`s so a
   click goes through `navigateActive`. A file's trail is its folders: the
   subject, Files, then each folder it sits in, each opening that folder in
@@ -181,7 +181,7 @@ before leaving a playing lecture.
   outside `DriveLayout`: it has no subject, so `filePagePath` gives that
   route for a row on the reserved top-level row (`TOP_LEVEL`), and
   `fileRouteSubject` reads either route back. Its trail is My Drive and its
-  folders (`DriveFileCrumbs`), and its tab carries Drive's folder where a
+  folders (`DriveFileTrail`), and its tab carries Drive's folder where a
   subject's file carries the subject's icon. In Recent it is its own row.
 
 Saved tabs and Recent entries with an unknown route return to Home, and an
@@ -414,24 +414,33 @@ items with the same front item and width.
   `addTab(path, state)` seeds the first router entry (`AppTab.entryState`), so
   ⌘-click on expand, a citation or a file chip keeps the cited spot. It is not
   stored in `oculus-tabs`.
-- **The header is a switcher** — up to three stacked item icons, then `+N`,
-  opening a list with a × per item and a "New side tab" row that pushes `/new`
-  — then expand and ×, which removes only the front item and shows the most
-  recently viewed item left. Removing the last item closes the panel. A page
-  with its own top row (file, lecture, task,
-  project, chat thread) builds it on `PaneHeaderRow`
-  (`app/src/components/tabs/PaneHeader.tsx`), which in the side panel claims
-  the header slot `TabPane` provides and draws the switcher at the row's start
-  and expand and × after the page's buttons. Claims land in a layout effect,
-  so any other page — or one still on `LoadingFill` — shows the standalone
-  `SidePanelHeader` (switcher, front item's title, controls). In a claimed
-  row `PaneTrail` makes crumbs and title a sideways scroller with faded edges.
-  Subject paths hide their ancestors behind a "…" popover. Planning pages
-  give the current page priority: the immediate parent stays beside it only
-  while both fit; otherwise every parent moves into the shared `Breadcrumb` popover
-  (`app/src/components/ui/Breadcrumb.tsx`). Selecting a parent navigates
-  without changing the trail's layout. Breadcrumbs measure their available header
-  width directly rather than using the sideways `PaneTrail` scroller.
+- **The header is one row, the same on every page** (`SidePanelHeader`): a
+  switcher — up to three stacked item icons, then `+N`, opening a list with a
+  × per item and a "New side tab" row that pushes `/new` — a rule, where the
+  front item is, then expand and × pinned at the row's end. × removes only the
+  front item and shows the most recently viewed item left; removing the last
+  item closes the panel.
+- **The header's middle is the page's trail, and nothing else of the page.**
+  A page builds its top row on `PaneHeaderRow`
+  (`app/src/components/tabs/PaneHeader.tsx`) and says where it is with
+  `PaneTrail` (parents and a title: subject pages, files, lectures, chat,
+  Studio, Settings) or `PaneBreadcrumb` (a list of crumbs: Drive's browser and
+  so a subject's Files, tasks, projects), each taking the row's nav toggle or
+  way back as `lead`. In the main pane those draw in the row. In the side
+  panel they portal into the header as one `Breadcrumb`
+  (`app/src/components/ui/Breadcrumb.tsx`): every crumb under an icon, the
+  page itself under its item's unless a parent already shows that one (a
+  subject's file after the subject; a subject's own tab drops the subject
+  crumb there and is its title under the subject's icon), the immediate
+  parent beside it only while both fit and the rest behind a "…" popover.
+  `PaneIconActions` wraps a
+  page's lone icon buttons (a task or project's menu, a chat's info toggle, a
+  synced page's open-original), which sit before expand. What is left of the
+  row, the wide controls (Drive's search and New, a file's PDF and Markdown
+  switch and Draw, a Studio page's actions), stays under the header as the
+  page's own row, at its end, and takes no space when there are none. The
+  trail lands in a layout effect, so a page with no trail — or one still on
+  `LoadingFill` — shows as its item's icon and title.
 - **Expand swaps the front item with the main page and hides the panel**
   (`expandSide`): the item gets the whole tab, and the page it replaced takes
   its place in the stack's front, so the strip toggle shows it beside and

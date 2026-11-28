@@ -7,7 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 export interface BreadcrumbItem {
   label: string;
   href?: string;
-  icon: ReactElement;
+  /** Absent on a crumb whose icon would repeat one before it. */
+  icon?: ReactElement;
 }
 
 /** The current page keeps the available width; parents fold into the popover. */
