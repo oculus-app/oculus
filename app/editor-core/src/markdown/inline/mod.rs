@@ -186,8 +186,8 @@ impl<'a> InlineContext<'a> {
                 };
             }
             let mut content = vec![Elt::new(open.kind.mark(), start, open.to)];
-            for k in j + 1..i {
-                if let Some(Part::Elt(e)) = self.parts[k].take() {
+            for part in &mut self.parts[j + 1..i] {
+                if let Some(Part::Elt(e)) = part.take() {
                     content.push(e);
                 }
             }

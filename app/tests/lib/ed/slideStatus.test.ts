@@ -1,19 +1,18 @@
-import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { createJSONStorage } from "zustand/middleware";
 import { lessonProgress, type LessonIndex, type LessonSlide } from "@/lib/ed/lessons";
+import { recordSlideStatus, useSlideStatusStore, withSlideStatuses } from "@/lib/ed/slideStatus";
 
-// The store persists to localStorage, which a test process has none of.
-const globals = globalThis as { localStorage?: unknown };
-const hadStorage = "localStorage" in globals;
+// The store takes its storage from `window` when first imported, and what
+// `window` is then depends on the files run before this one. Give it its own.
 const memory = new Map<string, string>();
-globals.localStorage ??= {
-  getItem: (k: string) => memory.get(k) ?? null,
-  setItem: (k: string, v: string) => void memory.set(k, v),
-  removeItem: (k: string) => void memory.delete(k),
-};
-afterAll(() => {
-  if (!hadStorage) delete globals.localStorage;
+useSlideStatusStore.persist?.setOptions({
+  storage: createJSONStorage(() => ({
+    getItem: (k: string) => memory.get(k) ?? null,
+    setItem: (k: string, v: string) => void memory.set(k, v),
+    removeItem: (k: string) => void memory.delete(k),
+  })),
 });
-const { recordSlideStatus, useSlideStatusStore, withSlideStatuses } = await import("@/lib/ed/slideStatus");
 
 const slide = (id: number | null, status: string | null): LessonSlide => ({
   id,

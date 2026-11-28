@@ -24,6 +24,15 @@ describe("oculus CLI row titles", () => {
       .toEqual({ title: "Listed memories", em: "COMP30026", icon: "memory" });
   });
 
+  // A pattern that backtracks exponentially takes seconds over these.
+  test("long words that are no shell wrapper are left alone at once", () => {
+    for (const length of [60, 120, 240, 480, 960, 1920]) {
+      const line = `/${"a".repeat(length)}/oculus read Lecture_8.pdf`;
+      expect(unwrapShell(line)).toBe(line);
+    }
+    expect(unwrapShell(`/${"a".repeat(2000)}/zsh -lc 'oculus status'`)).toBe("oculus status");
+  }, 1000);
+
   test("a heredoc is the command's stdin, not more commands", () => {
     expect(parseShell(`oculus memory write gaps --body - <<'EOF'\n- one\n- oculus read x\nEOF`)).toEqual({
       commands: [["oculus", "memory", "write", "gaps", "--body", "-"]],

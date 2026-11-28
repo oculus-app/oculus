@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fallbackLine, modelLine } from "@/components/settings/transcription/DictationCleanup";
+import * as cleanup from "@/components/settings/transcription/DictationCleanup";
 import type { S1MiniStatus } from "@/lib/dictation/cleanup";
 import type { CleanupChoice } from "@/lib/lectures/transcribe";
 
@@ -17,6 +17,16 @@ const present = s1({ status: "present" });
 const groq = (fallback: boolean): CleanupChoice => ({ model: "groq", fallback });
 const local = (fallback: boolean): CleanupChoice => ({ model: "s1Mini", fallback });
 const off: CleanupChoice = { model: "off", fallback: false };
+
+/** Both lines as a Mac, or another platform, words them, whatever runs the test. */
+const lines = (mac: boolean) => ({
+  modelLine: (choice: CleanupChoice | null, connected: boolean | null, status: S1MiniStatus | null) =>
+    cleanup.modelLine(choice, connected, status, mac),
+  fallbackLine: (choice: CleanupChoice | null, connected: boolean | null, status: S1MiniStatus | null) =>
+    cleanup.fallbackLine(choice, connected, status, mac),
+});
+const { modelLine, fallbackLine } = lines(true);
+const elsewhere = lines(false);
 
 describe("the model's line", () => {
   test("blank until the choice and the chosen model's status are read", () => {
@@ -66,5 +76,25 @@ describe("the fallback's line", () => {
       warn: true,
     });
     expect(fallbackLine(local(true), null, present)?.warn).toBe(false);
+  });
+});
+
+describe("off a Mac", () => {
+  test("S1-mini can't run, downloaded or not", () => {
+    const cannot = { text: "S1-mini can't run here: choose another model.", warn: true };
+    expect(elsewhere.modelLine(local(false), true, s1())).toEqual(cannot);
+    expect(elsewhere.modelLine(local(true), true, s1({ status: "present", unavailable: "it needs a Mac" }))).toEqual(cannot);
+    expect(elsewhere.modelLine(local(false), true, null).text.trim()).toBe("");
+  });
+
+  test("Groq and Off read as on a Mac", () => {
+    expect(elsewhere.modelLine(groq(true), true, null)).toEqual(modelLine(groq(true), true, null));
+    expect(elsewhere.modelLine(groq(true), false, s1())).toEqual(modelLine(groq(true), false, s1()));
+    expect(elsewhere.modelLine(off, null, null)).toEqual(modelLine(off, null, null));
+  });
+
+  test("there is no fallback to offer", () => {
+    expect(elsewhere.fallbackLine(groq(true), true, s1())).toBeNull();
+    expect(elsewhere.fallbackLine(local(true), false, present)).toBeNull();
   });
 });

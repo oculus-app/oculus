@@ -107,8 +107,9 @@ function heredocEnd(line: string, from: number, { delimiter, tabs }: { delimiter
 }
 
 /** One literal shell word; adjacent quoted spans join. `$` and backticks in
- *  double quotes expand in the outer shell, so those never match. */
-const LITERAL = /(?:[\w./,:@%+=-]+|'[^']*'|"(?:[^"\\$`]|\\.)*"|\\.)+/.source;
+ *  double quotes expand in the outer shell, so those never match. Bare
+ *  characters repeat one at a time: a nested `+` backtracks exponentially. */
+const LITERAL = /(?:[\w./,:@%+=-]|'[^']*'|"(?:[^"\\$`]|\\.)*"|\\.)+/.source;
 const WRAPPED = new RegExp(`^[ \\t]*(${LITERAL})[ \\t]+-l?c[ \\t]+(${LITERAL})[ \\t]*$`, "s");
 
 function unquote(word: string): string {
