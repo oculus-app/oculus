@@ -45,7 +45,7 @@ import {
   type SendOptions,
 } from "@/lib/harness";
 import { itemsFor, useHarnessStore } from "@/stores/chat/harnessStore";
-import { draftKey, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
+import { draftKey, newChatKey, newestEmptyChat, useDraftStore } from "@/stores/chat/draftStore";
 import { cn } from "@/lib/utils";
 import { noteNewChatSent } from "@/stores/studio/seriesMakeStore";
 import { useVideosStore } from "@/stores/studio/videosStore";
@@ -89,9 +89,16 @@ export default function ChatPage() {
   const subjectsLoaded = useHarnessStore((s) => s.subjectsLoaded);
   // A new thread's scope is its draft's (`draftStore`), shared by every Chat
   // tab showing that new chat; unchosen until the student or an entry point picks.
-  const newKey = newChatKey(draftId ?? "");
+  // Bare `/chat` moves to the newest empty new chat (below) a frame after it
+  // draws; read that one's scope meanwhile, so its subject is there from the start.
+  const pendingDraft = useDraftStore((s) => (activeId == null && draftId == null ? newestEmptyChat(s) : null));
+  const newKey = newChatKey(draftId ?? pendingDraft ?? "");
   const storedScope = useDraftStore((s) => s.scopes[newKey]);
-  const scope = subjectsLoaded ? liveScope(storedScope, subjects) : null;
+  // An entry point's `?s=` (a Subject group's "+") seeds the new thread's scope
+  // once; read straight off the route until then, so the headline never draws
+  // "Choose a subject" first. The route effect below then drops it.
+  const seed = activeId == null ? chatScope(here.search) : null;
+  const scope = subjectsLoaded ? liveScope(seed ?? storedScope, subjects) : null;
   const running = useHarnessStore((s) => (activeId != null && s.live[activeId]?.running) || false);
   // Words a rewind handed back to this tab's composer — local, so a
   // rewind in one Chat tab doesn't type into every tab. `n` makes the same text
@@ -165,10 +172,7 @@ export default function ChatPage() {
 
   const paneId = useTabId();
 
-  // An entry point's `?s=` (a Subject group's "+") seeds the new thread's scope once;
-  // the route effect below then drops it, so a re-render cannot seed again.
-  const seed = activeId == null ? chatScope(here.search) : null;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (seed != null) useDraftStore.getState().setScope(newKey, seed);
   }, [seed, newKey]);
 

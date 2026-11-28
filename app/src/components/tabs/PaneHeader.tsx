@@ -92,11 +92,12 @@ export function useInSidePanel(): boolean {
 /**
  * A page's top row. In the side panel its trail and icon buttons are in the
  * panel's header, so the row holds only the page's wide controls, at its
- * end, and takes no space when it has none.
+ * end, and takes no space when it has none. A narrow page's nav drawer
+ * opens below it (`SideNavShell`).
  */
 export function PaneHeaderRow({ className, children }: { className: string; children: ReactNode }) {
   const inSide = useInSidePanel();
-  return <div className={cn(className, inSide && "justify-end empty:hidden")}>{children}</div>;
+  return <div data-pane-header className={cn(className, inSide && "justify-end empty:hidden")}>{children}</div>;
 }
 
 /** The common 48px top bar for Chat, Studio and planning pages. */

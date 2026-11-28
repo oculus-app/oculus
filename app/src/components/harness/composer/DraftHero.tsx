@@ -35,15 +35,19 @@ export function DraftHero({
   const lineRef = useRef<HTMLDivElement>(null);
   const [stacked, setStacked] = useState(false);
 
+  // Half a pixel of slack: a sentence that exactly fits must not flip.
+  const measure = () => {
+    const box = boxRef.current;
+    const line = lineRef.current;
+    if (box && line) setStacked(line.getBoundingClientRect().width > box.getBoundingClientRect().width + 0.5);
+  };
+  // Every render, before paint: a new subject must not draw one frame unstacked.
+  useLayoutEffect(measure);
   useLayoutEffect(() => {
     const box = boxRef.current;
     const line = lineRef.current;
     if (!box || !line) return;
-    // Half a pixel of slack: a sentence that exactly fits must not flip.
-    const measure = () =>
-      setStacked(line.getBoundingClientRect().width > box.getBoundingClientRect().width + 0.5);
-    measure();
-    // The line changes width with the subject and when the font loads.
+    // The line changes width when the font loads and the box with the pane.
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     observer.observe(line);

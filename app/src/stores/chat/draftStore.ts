@@ -47,6 +47,14 @@ export function hasDraft(s: Held, key: string): boolean {
   return !!s.drafts[key]?.trim() || !!s.pastes[key]?.length || !!s.shelves[key]?.length;
 }
 
+/** The newest new chat holding nothing: the one bare `/chat` takes (`emptyNewChat`). */
+export function newestEmptyChat(s: Held & { newChats: NewChats }): string | null {
+  const empty = Object.entries(s.newChats)
+    .filter(([id]) => !hasDraft(s, newChatKey(id)))
+    .sort((a, b) => b[1] - a[1])[0];
+  return empty ? empty[0] : null;
+}
+
 /** A stored map, keeping only the entries `valid` accepts. */
 function read<T>(key: string, valid: (v: unknown) => v is T): Record<string, T> {
   try {
@@ -168,13 +176,7 @@ export const useDraftStore = create<DraftState>((set, get) => ({
     set({ newChats: next });
     return id;
   },
-  emptyNewChat: () => {
-    const s = get();
-    const empty = Object.entries(s.newChats)
-      .filter(([id]) => !hasDraft(s, newChatKey(id)))
-      .sort((a, b) => b[1] - a[1])[0];
-    return empty ? empty[0] : get().openNewChat();
-  },
+  emptyNewChat: () => newestEmptyChat(get()) ?? get().openNewChat(),
   keepNewChat: (id) => {
     const s = get();
     if (id in s.newChats) return;

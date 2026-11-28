@@ -22,7 +22,7 @@ export function DriveNav({ panel }: { panel: ReturnType<typeof useSideNavPanel> 
         aria-label="Drive"
         width={panel.width}
         collapsed={collapsed}
-        animate={!panel.dragging}
+        animate={panel.animate}
         header={<SideNavHeading icon={Folder}>Drive</SideNavHeading>}
       >
         <div className="mb-2">

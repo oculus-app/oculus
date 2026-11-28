@@ -6,7 +6,7 @@ import { nestChildren } from "@/lib/harness/children";
 import type { Subject } from "@/lib/db";
 import type { ChatScope } from "@/lib/harness/scope";
 import { useCollapsedGroups } from "@/hooks/shell/useCollapsedGroups";
-import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
+import type { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import { useStoredSet, useStoredState } from "@/hooks/ui/useStoredState";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
@@ -54,7 +54,7 @@ export const ThreadList = memo(function ThreadList({
   onNew,
   onDelete,
 }: {
-  panel: ReturnType<typeof useResizablePanel>;
+  panel: ReturnType<typeof useSideNavPanel>;
   threads: HarnessThread[];
   subjects: Subject[];
   activeId: number | null;
@@ -179,7 +179,7 @@ export const ThreadList = memo(function ThreadList({
         aria-label="Conversations"
         width={panel.width}
         collapsed={collapsed}
-        animate={!panel.dragging}
+        animate={panel.animate}
         header={
           <ListHeader
             view={view}

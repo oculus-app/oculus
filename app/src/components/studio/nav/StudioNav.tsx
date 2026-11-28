@@ -12,7 +12,7 @@ import {
   SideNavHeading,
   SideNavLink,
 } from "@/components/ui/layout/SideNav";
-import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
+import type { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import { useStartVideo } from "@/hooks/studio/useNewVideoChat";
 import { COMPONENTS_HREF, PRONUNCIATION_HREF, THEMES_HREF, VIDEOS_HREF } from "@/lib/studio/routes";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ import { usePendingCount } from "@/stores/studio/pronunciationCountStore";
  * grid's subject highlighted, when one is chosen), then Videos, Components,
  * Themes and Pronunciation with the count of suggestions waiting for review.
  */
-export function StudioNav({ panel }: { panel: ReturnType<typeof useResizablePanel> }) {
+export function StudioNav({ panel }: { panel: ReturnType<typeof useSideNavPanel> }) {
   const { collapsed } = panel;
   const newVideo = useStartVideo();
   const pending = usePendingCount();
@@ -35,7 +35,7 @@ export function StudioNav({ panel }: { panel: ReturnType<typeof useResizablePane
         aria-label="Studio"
         width={panel.width}
         collapsed={collapsed}
-        animate={!panel.dragging}
+        animate={panel.animate}
         header={<SideNavHeading icon={FilmSlate}>Studio</SideNavHeading>}
       >
         <button type="button" data-side-nav-close onClick={() => newVideo(storedSubject())} className={cn(SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE, "cursor-pointer")}>

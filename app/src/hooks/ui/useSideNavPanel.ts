@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTabActive, useTabId } from "@/components/tabs/TabContext";
 import { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
@@ -17,6 +17,14 @@ export function useSideNavPanel(options: Parameters<typeof useResizablePanel>[0]
   const paneId = useTabId();
 
   useLayoutEffect(() => setOpen(false), [overlay, location.key, active]);
+
+  // Switching between docked and drawer (first measure, a hidden page shown,
+  // a resize) snaps; only a toggle eases. Easing resumes a frame later.
+  const [shownOverlay, setShownOverlay] = useState(overlay);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setShownOverlay(overlay));
+    return () => cancelAnimationFrame(frame);
+  }, [overlay]);
 
   const dismiss = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => {
@@ -42,6 +50,8 @@ export function useSideNavPanel(options: Parameters<typeof useResizablePanel>[0]
     overlay,
     dismiss,
     collapsed: overlay ? !open : desktop.collapsed,
+    /** Whether the column eases width changes: not while dragging or switching modes. */
+    animate: !desktop.dragging && shownOverlay === overlay,
     width: overlay ? (open ? desktop.restWidth : 0) : desktop.width,
     toggle,
     setCollapsed,

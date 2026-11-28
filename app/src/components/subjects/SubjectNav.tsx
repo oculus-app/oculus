@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/layout/SideNav";
 import { ResizeHandle } from "@/components/ui/layout/ResizeHandle";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
+import type { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import type { Subject } from "@/lib/db";
 import { displayCode, displayName } from "@/lib/format/format";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ export const SUBJECT_NAV_PANEL = {
   storageKey: "oculus-subject-nav-width",
 };
 
-type Panel = ReturnType<typeof useResizablePanel>;
+type Panel = ReturnType<typeof useSideNavPanel>;
 
 /** The tab open at `pathname`, for the page header's title. */
 export function subjectTabLabel(pathname: string): string {
@@ -69,7 +69,7 @@ export function SubjectNav({
         aria-label={displayCode(subject.code)}
         width={panel.width}
         collapsed={collapsed}
-        animate={!panel.dragging}
+        animate={panel.animate}
         header={
           <>
             <div className="px-4 pt-4 pb-3">

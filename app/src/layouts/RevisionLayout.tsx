@@ -156,7 +156,7 @@ export default function RevisionLayout() {
             aria-label="Revision"
             width={panel.width}
             collapsed={panel.collapsed}
-            animate={!panel.dragging}
+            animate={panel.animate}
             header={
               <>
                 <SideNavHeading icon={Lightbulb}>Revision</SideNavHeading>

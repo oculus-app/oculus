@@ -10,7 +10,7 @@ import { ResizeHandle } from "@/components/ui/layout/ResizeHandle";
 import { SIDE_NAV_FOLDS, SideNav, SideNavHeading } from "@/components/ui/layout/SideNav";
 import { useTaskList } from "@/hooks/data/useTaskList";
 import { useTaskTags } from "@/hooks/data/useTaskTags";
-import type { useResizablePanel } from "@/hooks/gestures/useResizablePanel";
+import type { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import { cn } from "@/lib/utils";
 
 const VIEW_ICONS: Record<TaskViewId, Icon> = {
@@ -23,7 +23,7 @@ const VIEW_ICONS: Record<TaskViewId, Icon> = {
  * registry. View, tag and subject scope are URL state on `/tasks`, each link
  * keeping the others, so ⌘-click and tab restore carry both. ⌘⌥B folds it.
  */
-export function TasksNav({ panel }: { panel: ReturnType<typeof useResizablePanel> }) {
+export function TasksNav({ panel }: { panel: ReturnType<typeof useSideNavPanel> }) {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const { tasks, projects } = useTaskList("all");
@@ -54,7 +54,7 @@ export function TasksNav({ panel }: { panel: ReturnType<typeof useResizablePanel
         aria-label="Tasks"
         width={panel.width}
         collapsed={collapsed}
-        animate={!panel.dragging}
+        animate={panel.animate}
         header={
           <>
             <SideNavHeading icon={ListChecks}>Tasks</SideNavHeading>

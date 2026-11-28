@@ -46,7 +46,7 @@ export default function SettingsNav({ panel }: { panel: ReturnType<typeof useSid
       aria-label="Settings"
       width={panel.width}
       collapsed={panel.collapsed}
-      animate={!panel.dragging}
+      animate={panel.animate}
       header={
         <>
           <div className="px-4 pt-4 pb-3">
