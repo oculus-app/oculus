@@ -15,6 +15,7 @@ import { useActivePaneId } from "@/stores/shell/tabStore";
 import { useTabActive, useTabId } from "@/components/tabs/TabContext";
 import { FindBar } from "@/components/ui/search/FindBar";
 import { AddressSuggestions } from "./browser/AddressSuggestions";
+import { SiteIcon } from "./browser/SiteIcon";
 import { DownloadsButton } from "./browser/downloads/DownloadsButton";
 import { useBrowserAddressBar } from "./browser/useBrowserAddressBar";
 import { useBrowserFind } from "./browser/useBrowserFind";
@@ -72,6 +73,8 @@ export default function BrowserPage() {
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-item-hover hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors";
 
   const zoom = tab?.zoom ?? 1;
+  // While typing, the field's icon is the row Enter would go to.
+  const pending = listOpen ? suggestions[picked] : undefined;
 
   return (
     <div ref={rootRef} className="flex h-full flex-col">
@@ -104,26 +107,38 @@ export default function BrowserPage() {
               className={cn(tab?.loading && "animate-spin")}
             />
           </button>
-          <input
-            ref={addressRef}
-            value={address}
-            disabled={!tab}
-            onChange={(e) => setAddress(e.target.value)}
-            onFocus={(e) => {
-              setEditing(true);
-              e.currentTarget.select();
-            }}
-            onBlur={() => {
-              setEditing(false);
-              setAddress(tab?.url ?? "");
-              setMatches([]);
-            }}
-            onKeyDown={onAddressKeyDown}
-            spellCheck={false}
-            autoComplete="off"
-            className="h-7 min-w-0 flex-1 rounded-full bg-secondary px-3.5 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground focus:bg-card focus:ring-2 focus:ring-brand/40 disabled:opacity-50"
-            placeholder="Search or enter address"
-          />
+          {/* A label, so a click on the icon lands in the field. */}
+          <label
+            className={cn(
+              "flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full bg-secondary pl-3 pr-3.5 focus-within:bg-card focus-within:ring-2 focus-within:ring-brand/40",
+              !tab && "opacity-50",
+            )}
+          >
+            <SiteIcon
+              url={pending ? pending.url : tab?.url}
+              search={pending ? pending.kind === "search" : !tab?.url}
+            />
+            <input
+              ref={addressRef}
+              value={address}
+              disabled={!tab}
+              onChange={(e) => setAddress(e.target.value)}
+              onFocus={(e) => {
+                setEditing(true);
+                e.currentTarget.select();
+              }}
+              onBlur={() => {
+                setEditing(false);
+                setAddress(tab?.url ?? "");
+                setMatches([]);
+              }}
+              onKeyDown={onAddressKeyDown}
+              spellCheck={false}
+              autoComplete="off"
+              className="h-full min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground"
+              placeholder="Search or enter address"
+            />
+          </label>
           {/* Shown only off 100%; resets to actual size. */}
           {Math.abs(zoom - 1) > 0.001 && (
             <button

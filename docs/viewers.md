@@ -1095,6 +1095,10 @@ without a dark theme retain their own colours.
 - **History is one row per URL, ranked by frecency**, recorded on load
   *finish* (one row per redirect chain). `historyUrl` drops the fragment, and
   the whole query if any part looks like a credential.
+- **The address field leads with the page's icon** (`SiteIcon`: the host's
+  cached favicon, else a globe, a magnifier for a search or an empty tab).
+  While the suggestions are open it is the highlighted row's icon, the row
+  Enter goes to.
 - **macOS pages claim to be Safari** (`PAGE_USER_AGENT`) so UA-sniffing sites
   serve their full pages; Windows keeps WebView2's default user agent.
   An `initialization_script` reports a real
