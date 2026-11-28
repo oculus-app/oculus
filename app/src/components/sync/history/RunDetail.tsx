@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { getSyncRunFiles, type SyncRunFile, type SyncRunSummary } from "@/lib/db";
+import type { SyncRunFile, SyncRunSummary } from "@/lib/db";
 import { displayCode } from "@/lib/format/format";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { INLINE_FILE_LIMIT } from "@/components/sync/history/constants";
@@ -37,24 +37,9 @@ function SubjectChips({ codes }: { codes: string[] }) {
   );
 }
 
-export function RunDetail({ run }: { run: SyncRunSummary }) {
-  const [files, setFiles] = useState<SyncRunFile[] | null>(null);
+/** A run's expanded body, drawn once its files are loaded (`useRunFiles`). */
+export function RunDetail({ run, files }: { run: SyncRunSummary; files: SyncRunFile[] }) {
   const [modalOpen, setModalOpen] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    getSyncRunFiles(run.id)
-      .then((rows) => alive && setFiles(rows))
-      .catch(() => alive && setFiles([]));
-    return () => {
-      alive = false;
-    };
-    // Refetch while the run is live so the list grows with the sync.
-  }, [run.id, run.file_count, run.status]);
-
-  if (files === null) {
-    return <div className="px-12 py-3 text-xs text-muted-foreground">Loading…</div>;
-  }
 
   const changed = files.filter((f) => f.action !== "unchanged");
   const shown = changed.slice(0, INLINE_FILE_LIMIT);

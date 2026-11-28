@@ -9,6 +9,7 @@ import type { SyncProgress } from "@/stores/sync/syncStore";
 import { COLS } from "@/components/sync/history/constants";
 import { FileCounts } from "@/components/sync/history/FileCounts";
 import { RunDetail } from "@/components/sync/history/RunDetail";
+import { useRunFiles } from "@/components/sync/history/useRunFiles";
 
 export function RunRow({
   run,
@@ -27,6 +28,7 @@ export function RunRow({
   const running = run.status === "running";
   // Reconciled runs get finished_at at the next launch, so show no duration.
   const interrupted = run.error === INTERRUPTED_SYNC_ERROR;
+  const files = useRunFiles(run, expanded);
 
   return (
     <div data-sync-run={run.id}>
@@ -96,8 +98,8 @@ export function RunRow({
         </div>
       </div>
 
-      <Fold open={expanded}>
-        <RunDetail run={run} />
+      <Fold open={expanded && files !== null}>
+        {files && <RunDetail run={run} files={files} />}
       </Fold>
     </div>
   );
