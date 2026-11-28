@@ -32,6 +32,6 @@ fn serializer_matches_json_stringify_layout() {
         serde_json::json!({"b": [], "a": {}, "n": [1, {"x": 2.0}], "s": "q\"\u{1}\u{2028}"});
     assert_eq!(
         serialize(&value).unwrap(),
-        "{\n  \"b\": [],\n  \"a\": {},\n  \"n\": [\n    1,\n    {\n      \"x\": 2\n    }\n  ],\n  \"s\": \"q\\\"\\u0001\u{2028}\"\n}\n"
+        "{\"b\":[],\"a\":{},\"n\":[1,{\"x\":2}],\"s\":\"q\\\"\\u0001\u{2028}\"}\n"
     );
 }

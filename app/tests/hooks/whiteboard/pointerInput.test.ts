@@ -156,7 +156,7 @@ describe('Pencil and touch pointer lifecycle', () => {
     expect(points).toContainEqual({ x: 10, y: 30 });
     expect(points?.[points.length - 1]).toEqual({ x: 40, y: 30 });
   });
-  test('lifting the Pencil preserves every captured point at different zoom levels, including through undo and redo', () => {
+  test('lifting the Pencil preserves every captured point rounded to 2 decimals at different zoom levels, including through undo and redo', () => {
     for (const zoom of [0.125, 1, 8]) {
       setup();
       editor().zoom(zoom); h.render();
@@ -166,16 +166,34 @@ describe('Pencil and touch pointer lifecycle', () => {
       ]));
       editor().pointerUp(pointer(1, 'pen', 32, 0));
       const ink = last()!.elements[0];
+      const r = (n: number) => Math.round(n * 100) / 100 || 0;
       expect(ink.points).toEqual([
         { x: 0, y: 0 }, { x: 0, y: 0 },
-        { x: 8 / zoom, y: 0.25 / zoom }, { x: 16 / zoom, y: 0 },
-        { x: 24 / zoom, y: 0.25 / zoom }, { x: 32 / zoom, y: 0 },
+        { x: r(8 / zoom), y: r(0.25 / zoom) }, { x: r(16 / zoom), y: 0 },
+        { x: r(24 / zoom), y: r(0.25 / zoom) }, { x: r(32 / zoom), y: 0 },
       ]);
       expect(last()!.viewport.zoom).toBe(zoom);
       h.render(); editor().history(); h.render();
       expect(last()!.elements).toEqual([]);
       editor().history(true); h.render();
       expect(last()!.elements).toEqual([ink]);
+    }
+  });
+  test('committed freehand points round to 2 decimals without -0 so memory and file agree', () => {
+    editor().zoom(3); h.render();
+    editor().pointerDown(pointer(1, 'pen', 10, 10));
+    editor().pointerMove(pointer(1, 'pen', 17, 10 - 0.001, {}, [
+      { clientX: 11, clientY: 12 }, { clientX: 14, clientY: 10 - 0.003 },
+    ]));
+    editor().pointerUp(pointer(1, 'pen', 17, 10 - 0.001));
+    const ink = last()!.elements[0];
+    expect(ink.points).toEqual([
+      { x: 0, y: 0 }, { x: 0, y: 0 },
+      { x: 0.33, y: 0.67 }, { x: 1.33, y: 0 }, { x: 2.33, y: 0 },
+    ]);
+    for (const p of ink.points!) {
+      expect(Object.is(p.x, -0)).toBe(false);
+      expect(Object.is(p.y, -0)).toBe(false);
     }
   });
   test('recovering a lost pen release preserves the previous stroke samples', () => {

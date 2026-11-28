@@ -1,17 +1,17 @@
 //! Writes a document byte-for-byte as `serializeWhiteboardDocument` does:
-//! `JSON.stringify(doc, null, 2) + "\n"`. serde_json's pretty printer already
-//! matches the indentation, escaping and (with `preserve_order`) key order;
+//! `JSON.stringify(doc) + "\n"`. serde_json's compact formatter already
+//! matches the punctuation, escaping and (with `preserve_order`) key order;
 //! numbers are the difference, so they go through JavaScript's
 //! `Number.prototype.toString` rules (`1.0` → `1`, `1e21` → `1e+21`, `-0` → `0`).
 
 use serde::Serialize;
-use serde_json::ser::{Formatter, PrettyFormatter};
+use serde_json::ser::Formatter;
 use serde_json::Value;
 use std::io::{self, Write};
 
 pub fn serialize(document: &Value) -> Result<String, String> {
     let mut out = Vec::new();
-    let mut serializer = serde_json::Serializer::with_formatter(&mut out, JsFormatter::default());
+    let mut serializer = serde_json::Serializer::with_formatter(&mut out, JsFormatter);
     document
         .serialize(&mut serializer)
         .map_err(|e| e.to_string())?;
@@ -50,8 +50,7 @@ pub fn js_number(value: f64) -> String {
     }
 }
 
-#[derive(Default)]
-struct JsFormatter(PrettyFormatter<'static>);
+struct JsFormatter;
 
 impl Formatter for JsFormatter {
     fn write_i64<W: ?Sized + Write>(&mut self, writer: &mut W, value: i64) -> io::Result<()> {
@@ -64,49 +63,5 @@ impl Formatter for JsFormatter {
 
     fn write_f64<W: ?Sized + Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
         writer.write_all(js_number(value).as_bytes())
-    }
-
-    fn begin_array<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.begin_array(writer)
-    }
-
-    fn end_array<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.end_array(writer)
-    }
-
-    fn begin_array_value<W: ?Sized + Write>(
-        &mut self,
-        writer: &mut W,
-        first: bool,
-    ) -> io::Result<()> {
-        self.0.begin_array_value(writer, first)
-    }
-
-    fn end_array_value<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.end_array_value(writer)
-    }
-
-    fn begin_object<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.begin_object(writer)
-    }
-
-    fn end_object<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.end_object(writer)
-    }
-
-    fn begin_object_key<W: ?Sized + Write>(
-        &mut self,
-        writer: &mut W,
-        first: bool,
-    ) -> io::Result<()> {
-        self.0.begin_object_key(writer, first)
-    }
-
-    fn begin_object_value<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.begin_object_value(writer)
-    }
-
-    fn end_object_value<W: ?Sized + Write>(&mut self, writer: &mut W) -> io::Result<()> {
-        self.0.end_object_value(writer)
     }
 }

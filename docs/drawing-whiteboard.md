@@ -127,7 +127,10 @@ extension). Where no file is in view, as in Settings → Device sharing, it says
 The envelope is `type: oculus-whiteboard`, `version: 1`, with elements, a viewport
 and background. Element coordinates are world coordinates; viewport x/y
 translate in screen units before applying zoom. Polyline points are local to
-their element's x/y. IDs are unique within one document.
+their element's x/y. IDs are unique within one document. Both serializers
+(`serializeWhiteboardDocument` in `model.ts` and `authority/format.rs`) write
+minified JSON with a trailing newline, and both readers accept pretty-printed
+and minified JSON alike.
 
 Both readers (`parseWhiteboardDocument`, `validate` in `authority/model.rs`)
 also take `type: oculus-canvas` and write `oculus-whiteboard` on the next
@@ -650,8 +653,10 @@ neither cancels nor redirects a Pencil stroke.
 - Selection drags wait for 4 screen pixels of mouse movement or 10 with a pen or finger. Small Pencil movements select the image beneath them without moving it or starting a box selection; ink keeps its own sampling.
 - The release is the stroke's last sample, so a down and up with no move
   between still draws, and a freedraw tap commits a dot. Coalesced pen samples
-  stay in the committed stroke. Committing keeps the preview’s points unchanged,
-  so lifting the pointer preserves the curve already drawn.
+  stay in the committed stroke. Committing keeps every captured point (no
+  simplification) and rounds freehand coordinates to 2 decimal places (`0.01`
+  world units, `0.08` px at 800% zoom) via `roundPoints` in `geometry.ts`, so
+  the in-memory document and the saved file agree.
 - A pointer cancellation, tool switch or Undo during a freehand stroke
   discards the preview. The held Pencil can start drawing again on its next
   contact. Undo during the stroke keeps earlier committed edits.

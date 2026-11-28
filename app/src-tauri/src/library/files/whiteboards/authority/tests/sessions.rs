@@ -121,21 +121,21 @@ fn ids(text: &str) -> Vec<String> {
 
 #[test]
 fn documents_without_a_pen_open_unchanged() {
+    let fixtures =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/whiteboard-model");
     for (kind, name) in [
         (DrawingKind::Whiteboard, "every-type.json"),
         (DrawingKind::Notebook, "notebook-paper.json"),
     ] {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../tests/fixtures/whiteboard-model/valid")
-            .join(name);
-        let text = std::fs::read_to_string(path).unwrap();
+        let text = std::fs::read_to_string(fixtures.join("valid").join(name)).unwrap();
+        let canonical = std::fs::read_to_string(fixtures.join("serialized").join(name)).unwrap();
         let root = Scratch::new("authority-legacy-drawing");
         let rel = super::super::super::create_at(&root, kind, "TEST", "Shared", &text)
             .unwrap()
             .relative_path;
         let authority = Authority::new(Arc::new(Rows::default()));
         let opened = authority.open(FILE, &root, &rel, &text).unwrap();
-        assert_eq!(opened.text, text);
+        assert_eq!(opened.text, canonical);
         assert_eq!(std::fs::read_to_string(root.join(rel)).unwrap(), text);
     }
 }
@@ -157,7 +157,7 @@ fn a_commit_persists_bumps_the_revision_and_broadcasts() {
     assert_eq!(ack.transaction.unwrap()["edits"][0]["id"], "b");
     let disk = f.disk();
     assert_eq!(ids(&disk), ["a", "b"]);
-    assert!(disk.contains("\"meta\": {\n    \"kept\": 1\n  }"));
+    assert!(disk.contains("\"meta\":{\"kept\":1}"));
     assert!(disk.ends_with("}\n"));
     assert_eq!(disk, f.authority.snapshot(FILE).unwrap().text);
     assert_eq!(f.changes(), [(1, Some("ipad".to_string()))]);
@@ -336,11 +336,11 @@ fn an_external_edit_pauses_without_touching_the_file() {
         .authority
         .resolve_external(FILE, Resolution::AdoptDisk)
         .unwrap();
-    assert!(adopted.text.contains("\"background\": \"dots\""));
+    assert!(adopted.text.contains("\"background\":\"dots\""));
     assert_eq!(adopted.revision, 3);
     assert_eq!(f.changes().last(), Some(&(3, None)));
     f.authority.commit(FILE, op("c", 3, add("d"))).unwrap();
-    assert!(f.disk().contains("\"background\": \"dots\""));
+    assert!(f.disk().contains("\"background\":\"dots\""));
 }
 
 #[test]
