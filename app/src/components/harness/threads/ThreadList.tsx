@@ -7,7 +7,7 @@ import type { Subject } from "@/lib/db";
 import type { ChatScope } from "@/lib/harness/scope";
 import { useCollapsedGroups } from "@/hooks/shell/useCollapsedGroups";
 import type { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
-import { useStoredSet, useStoredState } from "@/hooks/ui/useStoredState";
+import { useStoredSet } from "@/hooks/ui/useStoredState";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { draftKey, hasDraft, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
@@ -18,9 +18,8 @@ import { ChildRows } from "./list/ChildRows";
 import { threadRowStatus } from "./StatusPill";
 import { ThreadRow } from "./ThreadRow";
 import { useThreadPreviews } from "./useThreadPreviews";
-import { CHILDREN_OPEN_KEY, COLLAPSED_KEY, VIEW_KEY } from "./order";
-import { ListHeader, readThreadView } from "./list/Header";
-import { byNewest, RecentsBody } from "./list/RecentsBody";
+import { byNewest, CHILDREN_OPEN_KEY, COLLAPSED_KEY } from "./order";
+import { ListHeader } from "./list/Header";
 import { SubjectBody } from "./list/SubjectBody";
 import { SearchResults } from "./search/SearchResults";
 import { useThreadSearch } from "./search/useThreadSearch";
@@ -29,9 +28,8 @@ export { THREAD_LIST_PANEL } from "./order";
 
 /**
  * Chat's nav column on `SideNav`, the subject page's column: search and new
- * chat on top, the view switch under them, then the threads as Recents
- * (newest first) or by Subject, remembered per device; typing a search
- * swaps the view for results. A subagent's chat is listed under its parent
+ * chat on top, then the threads grouped by subject; typing a search swaps
+ * the groups for results. A subagent's chat is listed under its parent
  * in a fold (`ChildRows`), remembered open per device, never at the top
  * level. It takes its width and fold from
  * `panel` (`ChatPage` owns it); ⌘⌥B or the page header's toggle folds it
@@ -71,7 +69,6 @@ export const ThreadList = memo(function ThreadList({
   onDelete: (id: number, attachments: string[]) => void;
 }) {
   const { collapsed } = panel;
-  const [view, setView] = useStoredState(VIEW_KEY, readThreadView);
   const [deleting, setDeleting] = useState<HarnessThread | null>(null);
   const [query, setQuery] = useState("");
   const found = useThreadSearch(query);
@@ -79,7 +76,7 @@ export const ThreadList = memo(function ThreadList({
   // The Subject view's folded groups — not the column's own `collapsed`.
   const { folded, setOpen } = useCollapsedGroups(COLLAPSED_KEY);
   // Children leave the top level for their parent's fold, shut until opened.
-  // Newest first, so each fold lists its children as Recents lists chats.
+  // Newest first, so each fold lists its newest child first.
   const nest = useMemo(() => nestChildren(byNewest(threads)), [threads]);
   const [kidsOpen, setKidsOpen] = useStoredSet(CHILDREN_OPEN_KEY);
   const toggleKids = useCallback(
@@ -103,7 +100,7 @@ export const ThreadList = memo(function ThreadList({
   useEffect(() => {
     if (activeParent != null) toggleKids(activeParent, true);
   }, [activeParent, toggleKids]);
-  // A Subject group's working ring and its paging count a family as its parent.
+  // A subject group's working ring and its paging count a family as its parent.
   const familyRunning = useMemo(() => {
     const busy = new Set(runningIds);
     for (const [parent, kids] of nest.children) if (kids.some((k) => runningIds.has(k.id))) busy.add(parent);
@@ -111,7 +108,6 @@ export const ThreadList = memo(function ThreadList({
   }, [nest, runningIds]);
   const newChat = useCallback(() => onNew(), [onNew]);
   const lines = useThreadPreviews(threads);
-  const bySubject = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
   // The composer this tab has open shows its draft only once the tab has left it.
   const openListed = useLeftDraft(
     activeDraft != null ? newChatKey(activeDraft) : activeId != null ? draftKey(activeId, "chat") : null,
@@ -135,12 +131,10 @@ export const ThreadList = memo(function ThreadList({
     [onOpen],
   );
 
-  const threadRow = (t: HarnessThread, showSubject: boolean, childStatus?: ReturnType<typeof childAttention>) => (
+  const threadRow = (t: HarnessThread, childStatus?: ReturnType<typeof childAttention>) => (
     <ThreadRow
       key={t.id}
       thread={t}
-      subject={t.subject_id == null ? undefined : bySubject.get(t.subject_id)}
-      showSubject={showSubject}
       preview={lines.messages.get(t.id)}
       question={lines.questions.get(t.id)}
       active={t.id === activeId}
@@ -152,16 +146,15 @@ export const ThreadList = memo(function ThreadList({
       onAskDelete={setDeleting}
     />
   );
-  // A child row drops its subject line: it shares its parent's.
-  const childRow = (t: HarnessThread) => threadRow(t, false);
-  const row = (showSubject: boolean) => (t: HarnessThread) => {
+  const childRow = (t: HarnessThread) => threadRow(t);
+  const row = (t: HarnessThread) => {
     const kids = nest.children.get(t.id) ?? [];
     const open = kidsOpen.has(String(t.id));
     // Folded, the parent shows what its children most need.
     const bubbled = open ? null : childAttention(kids.map((k) => threadRowStatus(k, runningIds.has(k.id))));
     return (
       <div key={t.id} className="flex flex-col">
-        {threadRow(t, showSubject, bubbled)}
+        {threadRow(t, bubbled)}
         <ChildRows
           parentTitle={t.title?.trim() || "Untitled"}
           kids={kids}
@@ -182,13 +175,10 @@ export const ThreadList = memo(function ThreadList({
         animate={panel.animate}
         header={
           <ListHeader
-            view={view}
-            onView={setView}
             query={query}
             onQuery={setQuery}
             onSearchEnter={() => found?.results[0] && openThread(found.results[0])}
             onNew={newChat}
-            collapsed={collapsed}
           />
         }
       >
@@ -203,8 +193,6 @@ export const ThreadList = memo(function ThreadList({
         )}
         {found ? (
           <SearchResults found={found} activeId={activeId} onOpen={openThread} />
-        ) : view === "recents" ? (
-          <RecentsBody threads={nest.top} more={more} onMore={showMore} row={row(true)} />
         ) : (
           <SubjectBody
             threads={nest.top}
@@ -217,7 +205,7 @@ export const ThreadList = memo(function ThreadList({
             onNew={onNew}
             more={more}
             onMore={showMore}
-            row={row(false)}
+            row={row}
           />
         )}
       </SideNav>

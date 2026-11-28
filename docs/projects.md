@@ -293,6 +293,11 @@ starting on a card's `<span>` pre-empts the element drag. The WebKit
 rules are in [ui.md](./ui.md#gotchas) — never cancel `pointerdown` (it kills the
 click into the task), cancel `pointermove` instead.
 
+Holding a card near a column's top or bottom scrolls that column, and near the
+board's left or right edge scrolls the board (`edgeScroll`); targeting follows
+each column's own scroll, and a drop after a scroll glides to where its slot now
+sits on screen.
+
 **A drop is not the end of the move.** The new order arrives from a SQLite
 re-read a moment later, so releasing opens a **settle** phase: the card glides
 to its gap, the view keeps drawing the list it had at release

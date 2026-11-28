@@ -23,6 +23,7 @@ page.
 | Pointer gestures, history, keyboard commands and the notebook's page rules | `app/src/hooks/whiteboard/useWhiteboardInteraction.ts` |
 | Two-finger pan and pinch | `app/src/lib/whiteboard/touchViewport.ts` |
 | Pan momentum: release speed and glide | `app/src/lib/whiteboard/momentum.ts` |
+| Which drags pan the camera at the canvas edge, and how fast | `app/src/lib/whiteboard/edgePan.ts` |
 | What a reload resumes on this device: tool, drawing style, each drawing's camera | `app/src/lib/whiteboard/viewState.ts` |
 | Zoom ranges | `app/src/lib/whiteboard/zoom.ts` |
 | Content transactions (undo steps and shared edits) and rebasing | `app/src/lib/whiteboard/collaboration.ts`, `app/src/lib/whiteboard/clientReconciliation.ts` |
@@ -661,6 +662,13 @@ neither cancels nor redirects a Pencil stroke.
   than dropping it or joining the two.
 - Pointer capture can throw when the pointer is already gone; the gesture
   continues without it.
+- A drag held near the canvas edge or past it pans the camera that way every
+  frame, on the same `edgeSpeed` curve as a list's edge scroll, and re-applies
+  the gesture under the still pointer, so a move, resize, point or segment
+  drag, a selection box or lasso, a shape or a region reaches past the view.
+  Touch never edge-pans, nor does an erase or pen ink (writing in a page's
+  margin is ordinary); mouse ink does. The camera goes through `setView`, so a
+  notebook's stops at its pages, and is saved on release.
 
 ## The eraser takes whole elements or cuts strokes
 

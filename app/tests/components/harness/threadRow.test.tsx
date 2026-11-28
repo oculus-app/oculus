@@ -4,9 +4,7 @@ import type { HarnessItem, HarnessThread } from "@/lib/harness";
 import type { Subject } from "@/lib/db";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { ThreadRow } from "@/components/harness/threads/ThreadRow";
-import { RECENTS_FIRST, RecentsBody } from "@/components/harness/threads/list/RecentsBody";
 import { SubjectBody } from "@/components/harness/threads/list/SubjectBody";
-import { ListHeader, readThreadView } from "@/components/harness/threads/list/Header";
 import { activityLine } from "@/lib/harness/activity";
 
 // A server render reads a zustand store's initial state, so live rows go there.
@@ -39,8 +37,6 @@ const render = (patch: Partial<HarnessThread>, props: Partial<Parameters<typeof 
   renderToStaticMarkup(
     <ThreadRow
       thread={thread(patch)}
-      subject={subject}
-      showSubject
       preview="So P(D | +) is about 0.09"
       question={undefined}
       active={false}
@@ -57,10 +53,9 @@ const render = (patch: Partial<HarnessThread>, props: Partial<Parameters<typeof 
 const titleClass = (html: string) => html.match(/<span class="([^"]*)">Alpha-beta pruning walkthrough<\/span>/)?.[1] ?? "";
 
 describe("ThreadRow", () => {
-  test("an idle, read thread shows its subject, age and last message, title dimmed", () => {
+  test("an idle, read thread shows its age and last message, title dimmed", () => {
     const html = render({ settled_at: sqlite(30 * 60_000), viewed_at: new Date().toISOString() });
-    expect(html).toContain("COMP30024");
-    expect(html).not.toContain("COMP30024_2026");
+    expect(html).not.toContain("COMP30024");
     expect(html).toContain(">25m<");
     expect(html).toContain("So P(D | +) is about 0.09");
     expect(titleClass(html)).toContain("text-foreground/80");
@@ -122,14 +117,9 @@ describe("ThreadRow", () => {
     }
   });
 
-  test("the Subject view drops the subject line and keeps the status on the title's line", () => {
-    const html = render({ settled_at: sqlite(60_000) }, { showSubject: false });
-    expect(html).not.toContain("COMP30024");
+  test("the status sits on the title's line", () => {
+    const html = render({ settled_at: sqlite(60_000) });
     expect(html).toMatch(/Alpha-beta pruning walkthrough<\/span>.*Done/);
-  });
-
-  test("a general thread reads General", () => {
-    expect(render({ subject_id: null }, { subject: undefined })).toContain("General");
   });
 
   test("hover offers the menu alone", () => {
@@ -153,35 +143,6 @@ describe("activityLine", () => {
     expect(activityLine([row({ meta: '{"kind":"read","ok":true}', content: "a.pdf" })])).toBeNull();
     expect(activityLine([row({ kind: "assistant", content: "hi" })])).toBeNull();
     expect(activityLine(undefined)).toBeNull();
-  });
-});
-
-describe("Recents", () => {
-  const list = [
-    thread({ id: 1, updated_at: sqlite(30_000), status: "running" }),
-    thread({ id: 2, updated_at: sqlite(20_000), pending_requests: 1 }),
-    thread({ id: 3, updated_at: sqlite(60_000), status: "error" }),
-    thread({ id: 4, updated_at: sqlite(2_000) }),
-  ];
-  const body = (more: boolean, threads = list) =>
-    renderToStaticMarkup(
-      <RecentsBody threads={threads} more={more} onMore={() => {}} row={(t) => <div key={t.id} data-row={t.id} />} />,
-    );
-  const rows = (html: string) => [...html.matchAll(/data-row="(\d+)"/g)].map((m) => Number(m[1]));
-
-  test("every thread newest first with no heading, working ones in place", () => {
-    const html = body(false);
-    expect(html).not.toContain(">Recents<");
-    expect(rows(html)).toEqual([4, 2, 1, 3]);
-    expect(html).not.toContain("aria-hidden");
-  });
-
-  test("draws the first rows, with a scroll sentinel while more exist", () => {
-    const many = Array.from({ length: RECENTS_FIRST + 3 }, (_, i) => thread({ id: i + 1, updated_at: sqlite((i + 1) * 1000) }));
-    const html = body(false, many);
-    expect(rows(html)).toHaveLength(RECENTS_FIRST);
-    expect(html).toContain('aria-hidden="true"');
-    expect(body(true)).toContain('aria-hidden="true"');
   });
 });
 
@@ -226,31 +187,5 @@ describe("Subject view", () => {
     expect(body(false, many)).toMatch(/Show <span class="tabular-nums">2<\/span> more/);
     expect(body(false, list)).not.toContain("Show more");
     expect(body(true, list).match(/>Show more</g)?.length).toBe(3);
-  });
-});
-
-describe("view switch", () => {
-  const header = (view: "recents" | "subject") =>
-    renderToStaticMarkup(
-      <ListHeader
-        view={view}
-        onView={() => {}}
-        query=""
-        onQuery={() => {}}
-        onSearchEnter={() => {}}
-        onNew={() => {}}
-        collapsed={false}
-      />,
-    );
-
-  test("Recents and Subject tabs, the stored one selected", () => {
-    expect(header("recents")).toMatch(/aria-selected="true"[^>]*>.*?Recents/);
-    expect(header("subject")).toMatch(/aria-selected="true"[^>]*>.*?Subject/);
-  });
-
-  test("anything but subject opens on Recents, status included", () => {
-    expect(readThreadView("subject")).toBe("subject");
-    expect(readThreadView("status")).toBe("recents");
-    expect(readThreadView(null)).toBe("recents");
   });
 });

@@ -84,7 +84,7 @@ a new entry) ends the open one, which saves its title and body as it closes.
 Entries reorder from the grip in the left gutter on `useCardDrag`, or with the
 arrow keys on a focused grip; the cards themselves never drag. Holding a card
 near the page's top or bottom edge scrolls it, easing in toward the edge
-(`autoScroll`). A moved note
+(`edgeScroll`, as every in-window drag). A moved note
 gets a position between its neighbours. Grouped by topic, a drop into another
 group also moves the entry to that topic (or to Unsorted) in the same write;
 grouped by tag, a drop into another group springs back.

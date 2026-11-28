@@ -1119,22 +1119,15 @@ the page writes it into the draft once and drops it from the route.
   a `SideNav`, the subject page's column ([ui.md](./ui.md)), 284px by
   default. Its header is the search field (`SideNavSearch`) with the
   new-chat button at its right, lit while no thread is open, and under them
-  the view switch, two tabs with icons (Recents, a clock; Subject, a book)
-  remembered per device (`oculus-chat-list-view`; any stored value but
-  `subject` opens on Recents, `readThreadView`). It resizes, and ⌘⌥B or the
+  the threads grouped by subject. It resizes, and ⌘⌥B or the
   toggle in the page header beside the title (`ChatPage` owns the panel
   state) folds it away entirely. The chord acts only in the
   tab in front, since the subject column answers it too. Its resize handle
   goes with it, so it can't clash with a side panel's; the toggle or ⌘⌥B
   brings it back.
-- **Recents view** (`RecentsBody`): every thread newest first by
-  `updated_at`, with no headings (the tab names it), so Working, Approval,
-  Question and Failed stay in place by time and nothing jumps to the top.
-  It draws 5 rows (`RECENTS_FIRST`) and adds 10 whenever a sentinel under
-  the last row nears view (an `IntersectionObserver`), so it scrolls without
-  a button. The store reads the newest 100 (`THREAD_PAGE`) plus one, which
-  says whether older ones exist; once the rows drawn reach them, the
-  sentinel raises the limit by another 100 (`showMoreThreads`). A thread a view holds that is older than those read
+- **Reading threads**: the store reads the newest 100 (`THREAD_PAGE`) plus
+  one, which says whether older ones exist; a group's Show more raises the
+  limit by another 100 (`showMoreThreads`). A thread a group holds that is older than those read
   is read by id and kept in the store (`loadThreads`, `getThreadsByIds`), and
   opening a search hit lists it at once (`keep`). A thread Rust started
   itself, a subagent's chat, has no send from the webview to follow with a
@@ -1150,23 +1143,24 @@ the page writes it into the draft once and drops it from the route.
   (or before the first one) that the read missed keeps the row it was
   adopted with, or is adopted when the read lands. An account-level event
   (thread id 0) reads nothing.
-- **Subject view** (`SubjectBody`): the same threads the store has read,
+- **Subject groups** (`SubjectBody`): the threads the store has read,
   grouped by subject (`groupBySubject`, General for none or a deleted
-  subject), groups in dragged order (`oculus-chat-groups-order`; a group
-  never placed sorts above, by recency), each folding
+  subject), rows newest first by `updated_at` so a status never jumps a row
+  to the top, groups in dragged order (`oculus-chat-groups-order`; a group
+  never placed sorts above, by recency; a header held at the column's top or
+  bottom scrolls it, `edgeScroll`), each folding
   (`oculus-chat-groups-collapsed`) with the timeline's fold ease
   (`Fold`), five rows then Show n more; a folded
   group reopens at five. A group
-  header is the subject's glyph and short code, so its rows drop their
-  subject line; its right slot is the count, the Working dashed circle while folded
+  header is the subject's glyph and short code, so a row is two lines, its
+  title and status, then its newest message (`ThreadRow`); its right slot is the count, the Working dashed circle while folded
   over a running thread, and `+` on hover, a new chat in that group's scope
   (`chatHref`'s `?s=`). Once a group shows every thread read, its Show more
   calls `showMoreThreads` while older threads exist, so a subject's older
   chats arrive a hundred threads at a time; a subject whose threads are all
   older than those read has no group until then.
-- **Search** replaces the view while the field holds text: debounced
-  150 ms (`debouncedSearch`, a stale answer never lands), the view switch
-  steps aside, Esc or × clears,
+- **Search** replaces the groups while the field holds text: debounced
+  150 ms (`debouncedSearch`, a stale answer never lands), Esc or × clears,
   Enter opens the first result. No ⌘ key: ⌘K is the app's Search. A
   result is a row's three lines: subject and age, title, and the snippet. FTS
   wraps hits in private-use markers (`HIT_OPEN`/`HIT_CLOSE`), so a
@@ -4178,7 +4172,7 @@ Nothing caps how many children run, and a child's usage is its own.
 **A child reads as a child wherever it is drawn** (`app/src/lib/harness/children.ts`):
 
 - **In the Chat column** a child is listed under its parent and leaves the
-  top level of Recents and of its Subject group (`nestChildren`, one level
+  top level of its subject group (`nestChildren`, one level
   deep). A child whose parent is not among the threads read, or was
   deleted, is an ordinary chat. The parent's row is followed by a fold line,
   a caret and "2 subagents" (`threads/list/ChildRows.tsx`), shut until opened

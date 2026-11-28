@@ -3,7 +3,7 @@ import { parseHTML } from "linkedom";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { HarnessItem, HarnessThread } from "@/lib/harness";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
-import { CHILDREN_OPEN_KEY, VIEW_KEY } from "@/components/harness/threads/order";
+import { CHILDREN_OPEN_KEY } from "@/components/harness/threads/order";
 
 const settings = new Map<string, string>();
 const dom = parseHTML("<!doctype html><html><body></body></html>");
@@ -48,22 +48,19 @@ function column(threads: HarnessThread[], open: boolean) {
   /></TooltipProvider>)).document;
 }
 
-for (const view of ["recents", "subject"]) {
-  test(`${view} nests the child once and lists it at the top after parent deletion`, () => {
-    settings.set(VIEW_KEY, view);
-    const fold = '[aria-label="1 subagent of Plan revision"]';
-    const childRow = '[data-thread-row="12"]';
-    const closed = column([child, parent], false);
-    expect(closed.querySelector(fold)?.getAttribute("aria-expanded")).toBe("false");
-    expect(closed.querySelector(childRow)).toBeNull();
-    const open = column([child, parent], true);
-    expect(open.querySelectorAll(childRow)).toHaveLength(1);
-    expect(open.querySelector(fold)?.nextElementSibling?.querySelector(childRow)).toBe(open.querySelector(childRow));
-    const orphan = column([{ ...child, parent_id: null }], false);
-    expect(orphan.querySelector(fold)).toBeNull();
-    expect(orphan.querySelectorAll(childRow)).toHaveLength(1);
-  });
-}
+test("the column nests the child once and lists it at the top after parent deletion", () => {
+  const fold = '[aria-label="1 subagent of Plan revision"]';
+  const childRow = '[data-thread-row="12"]';
+  const closed = column([child, parent], false);
+  expect(closed.querySelector(fold)?.getAttribute("aria-expanded")).toBe("false");
+  expect(closed.querySelector(childRow)).toBeNull();
+  const open = column([child, parent], true);
+  expect(open.querySelectorAll(childRow)).toHaveLength(1);
+  expect(open.querySelector(fold)?.nextElementSibling?.querySelector(childRow)).toBe(open.querySelector(childRow));
+  const orphan = column([{ ...child, parent_id: null }], false);
+  expect(orphan.querySelector(fold)).toBeNull();
+  expect(orphan.querySelectorAll(childRow)).toHaveLength(1);
+});
 
 function message(text: string, meta: string | null) {
   initial.threads = [parent, child];

@@ -1,9 +1,10 @@
+import type { HarnessThread } from "@/lib/harness";
+import { sqliteUtcToMs } from "@/lib/format/format";
+
 export const COLLAPSED_KEY = "oculus-chat-groups-collapsed";
 export const ORDER_KEY = "oculus-chat-groups-order";
 /** The parents whose subagents' fold is open; any other is shut. */
 export const CHILDREN_OPEN_KEY = "oculus-chat-children-open";
-/** The column's view, Recents or Subject, beside its width and folds. */
-export const VIEW_KEY = "oculus-chat-list-view";
 
 /** The column's width bounds; folded, it is gone entirely. `ChatPage` owns the
  *  panel so its header can hold the fold toggle. */
@@ -17,6 +18,11 @@ export const THREAD_LIST_PANEL = {
 
 /** Threads a Subject group shows at first, and how many each "Show more" adds. */
 export const PAGE = 5;
+
+/** Newest first; equal times keep the list's order (`sort` is stable). */
+export function byNewest(threads: HarnessThread[]): HarnessThread[] {
+  return threads.slice().sort((a, b) => (sqliteUtcToMs(b.updated_at) ?? 0) - (sqliteUtcToMs(a.updated_at) ?? 0));
+}
 
 /** Recency, overruled by the dragged `order`. Unplaced groups (index -1) sort
  *  above placed ones — a new subject has a live conversation — and stay in

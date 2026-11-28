@@ -81,7 +81,7 @@ export default function CheatSheetPage() {
       run(() => moveNote(id, before, after, { topic_ids }));
       return true;
     },
-    { settleOn: notes, autoScroll: true },
+    { settleOn: notes },
   );
   const live = drag.drag;
   // Over another tag's group a drop does nothing, so nothing slides apart.

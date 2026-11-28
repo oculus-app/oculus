@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { edgeScroll, scrollChain, type EdgeScroll } from "@/hooks/gestures/edgeScroll";
 
 /**
  * The pointer-capture gesture every in-window drag shares: past a small
@@ -120,7 +121,8 @@ interface Box {
 
 /**
  * Reorder for a strip of tabs or rail icons, rects captured once at lift and
- * the order written only on drop. `swapOn` is deliberately per strip — see
+ * the order written only on drop. Held near the edge of a scroller the strip
+ * sits in, it scrolls that scroller along the strip's axis (`edgeScroll`). `swapOn` is deliberately per strip — see
  * docs/ui.md: `ViewTabs` swaps on the leading edge, `TopTabBar` on the centre.
  */
 export function useStripReorder<K>({
@@ -156,6 +158,35 @@ export function useStripReorder<K>({
     let gap = 0;
     let from = -1;
     let target = -1;
+    let travel = 0;
+    let chain: HTMLElement[] = [];
+    let scroll: EdgeScroll | null = null;
+
+    /** Places the item at pointer travel plus scroll travel, both in the
+     *  lift's frame: the strip and its rects scroll together. */
+    const place = () => {
+      if (from === -1) return;
+      const t = scroll?.of(chain) ?? { x: 0, y: 0 };
+      const at = travel + (axis === "x" ? t.x : t.y);
+      const me = boxes[from];
+      const last = boxes[boxes.length - 1];
+      const delta = Math.min(
+        Math.max(at, boxes[0].start - me.start),
+        last.start + last.size - (me.start + me.size),
+      );
+      target = from;
+      if (swapOn === "edge") {
+        const lead = me.start + delta;
+        const trail = me.start + me.size + delta;
+        for (let i = from - 1; i >= 0; i--) if (lead < boxes[i].mid) target = i;
+        for (let i = from + 1; i < boxes.length; i++) if (trail > boxes[i].mid) target = i;
+      } else {
+        const centre = me.mid + delta;
+        for (let i = from - 1; i >= 0; i--) if (centre < boxes[i].mid) target = i;
+        for (let i = from + 1; i < boxes.length; i++) if (centre > boxes[i].mid) target = i;
+      }
+      setDrag({ key, delta, from, target, size: me.size, gap });
+    };
 
     gesture.start(e, {
       lift: () => {
@@ -172,30 +203,19 @@ export function useStripReorder<K>({
           fixedGap ??
           (boxes.length > 1 ? boxes[1].start - (boxes[0].start + boxes[0].size) : 0);
         from = order.indexOf(key);
-        return from !== -1;
+        if (from === -1) return false;
+        chain = scrollChain(measured[from]!.parentElement);
+        scroll = edgeScroll(chain, axis, place);
+        return true;
       },
-      move: (_ev, dx, dy) => {
-        const travel = axis === "x" ? dx : dy;
-        const me = boxes[from];
-        const last = boxes[boxes.length - 1];
-        const delta = Math.min(
-          Math.max(travel, boxes[0].start - me.start),
-          last.start + last.size - (me.start + me.size),
-        );
-        target = from;
-        if (swapOn === "edge") {
-          const lead = me.start + delta;
-          const trail = me.start + me.size + delta;
-          for (let i = from - 1; i >= 0; i--) if (lead < boxes[i].mid) target = i;
-          for (let i = from + 1; i < boxes.length; i++) if (trail > boxes[i].mid) target = i;
-        } else {
-          const centre = me.mid + delta;
-          for (let i = from - 1; i >= 0; i--) if (centre < boxes[i].mid) target = i;
-          for (let i = from + 1; i < boxes.length; i++) if (centre > boxes[i].mid) target = i;
-        }
-        setDrag({ key, delta, from, target, size: me.size, gap });
+      move: (ev, dx, dy) => {
+        travel = axis === "x" ? dx : dy;
+        place();
+        scroll?.at(ev.clientX, ev.clientY);
       },
       end: () => {
+        scroll?.stop();
+        scroll = null;
         if (from !== -1 && target !== -1 && target !== from) {
           const next = [...order];
           next.splice(target, 0, next.splice(from, 1)[0]);

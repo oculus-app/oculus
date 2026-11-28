@@ -26,6 +26,7 @@ import { commitTextEdit, labelTargetAt, stylePatchChanges } from '@/lib/whiteboa
 import { resizeBounds, resizeElements } from '@/lib/whiteboard/resize';
 import { placeImagesIn, type WhiteboardImageSource } from '@/lib/whiteboard/mediaPlacement';
 import { TouchViewportGesture } from '@/lib/whiteboard/touchViewport';
+import { edgePanStep, edgePans } from '@/lib/whiteboard/edgePan';
 import { VelocityTracker, eventTime, glide, gliding } from '@/lib/whiteboard/momentum';
 import { loadCamera, loadToolState, saveCamera, saveToolState } from '@/lib/whiteboard/viewState';
 import { applyWhiteboardTransaction, diffWhiteboardContent, hasWhiteboardChanges, sameValue, type WhiteboardTransaction } from '@/lib/whiteboard/collaboration';
@@ -85,6 +86,8 @@ type Gesture = {
   bounds?: Bounds;
   shift?: boolean;
 };
+/** Where a gesture's pointer is, in canvas pixels, and the modifier keys its last event held. */
+type GestureSample = { screen: Point; shiftKey: boolean; metaKey: boolean; ctrlKey: boolean };
 /**
  * An erase in progress. Nothing leaves the scene until release: overrides hold the result (null for an erased
  * element, a cut stroke's first piece under its ID, its other pieces under new IDs) and `ghosts` what goes.
@@ -144,7 +147,7 @@ function restoreLayerOrder(document: WhiteboardDocument, transaction: Whiteboard
 }
 
 /** What moved the camera, for the companion's diagnostics. */
-type CameraCause = 'restore' | 'pan' | 'two-finger' | 'glide' | 'wheel' | 'page' | 'fit' | 'zoom' | 'first-fit' | 'resize' | 'external' | 'cancel' | 'publish' | 'other';
+type CameraCause = 'restore' | 'pan' | 'edge' | 'two-finger' | 'glide' | 'wheel' | 'page' | 'fit' | 'zoom' | 'first-fit' | 'resize' | 'external' | 'cancel' | 'publish' | 'other';
 /** A single camera write of 150 screen pixels or a quarter's zoom is logged with its cause; pans and glides move in small steps. */
 function traceJump(from: WhiteboardViewport, to: WhiteboardViewport, cause: CameraCause, clamped: boolean) {
   const dx = to.x - from.x, dy = to.y - from.y, zoom = to.zoom / from.zoom;
@@ -247,6 +250,8 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
   const fitted = useRef(false), restored = useRef(false);
   /** A refused or cancelled contact stays idle until release, even if WebKit sends another move with the pen down. */
   const refusedPointer = useRef<number | null>(null);
+  /** An edge pan's frame, the pointer it follows, and whether it has moved the camera during this gesture. */
+  const edgeFrame = useRef(0), edgeSample = useRef<GestureSample | null>(null), edgePanned = useRef(false);
   /** The one flag every page behaviour keys off, read through `paintOptions` by the handlers. */
   const notebook = options.kind === 'notebook';
   const paintOptions = useRef({ grid, editingId: textDraft?.element.id, notebook });
@@ -563,6 +568,7 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
       cancelAnimationFrame(frame.current);
       frame.current = 0;
       cancelAnimationFrame(navFrame.current); navFrame.current = 0;
+      cancelAnimationFrame(edgeFrame.current); edgeFrame.current = 0;
       if (haltGlide('unmount') && !optionsRef.current.onViewportChange) emit(documentRef.current);
       if (viewSave.current) { clearTimeout(viewSave.current); viewSave.current = null; emit(documentRef.current); }
     };
@@ -735,6 +741,7 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
     live.current?.clear();
     clearCaptureHold(); captureGhost.current = undefined; gesture.current = null; overrides.current.clear(); marquee.current = undefined; lasso.current = undefined; bindHint.current = null;
     marqueePreview.current = null; erasing.current = null; eraseTargets.current = null;
+    endEdgePan();
   };
   /** Commits the preview unchanged so lifting the pointer preserves the ink already drawn; a cut stroke's pieces stay where it was. */
   const commitGesture = () => commitChanges(new Map(overrides.current), erasing.current?.pieces);
@@ -976,8 +983,8 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
     }
     if (active.pointerId !== event.pointerId) return;
     event.preventDefault();
-    const rect = canvas.current!.getBoundingClientRect(), viewport = documentRef.current.viewport;
-    const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top }, point = screenToWorld(screen, viewport);
+    const rect = canvas.current!.getBoundingClientRect();
+    const screen = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     const distance = Math.hypot(screen.x - active.screen.x, screen.y - active.screen.y);
     const selectionGesture = ['marquee', 'lasso', 'move', 'resize', 'point', 'segment', 'crop-confirm'].includes(active.mode) || (active.mode === 'capture' && !!active.bounds);
     const threshold = selectionGesture || active.mode === 'capture-copy' ? active.pointerType === 'mouse' ? 4 : 10 : 2;
@@ -992,7 +999,23 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
       const viewport = active.original.viewport;
       setView({ ...viewport, x: viewport.x + screen.x - active.screen.x, y: viewport.y + screen.y - active.screen.y }, 'pan');
       panVelocity.current.add(eventTime(event), documentRef.current.viewport);
-    } else if (active.mode === 'draw' && active.id) {
+      redraw();
+      return;
+    }
+    const sample: GestureSample = { screen, shiftKey: event.shiftKey, metaKey: event.metaKey, ctrlKey: event.ctrlKey };
+    // Safari batches pen samples into one event; the coalesced ones keep a stroke's or a loop's curve and each is a step of an erase.
+    const coalesced = active.mode === 'draw' || active.mode === 'lasso' || active.mode === 'erase' ? event.nativeEvent?.getCoalescedEvents?.() ?? [] : [];
+    applyGesture(active, sample, [...coalesced.map(each => ({ x: each.clientX - rect.left, y: each.clientY - rect.top })), screen]);
+    followEdge(active, sample, rect);
+  };
+
+  /**
+   * Applies the pointer at `sample` to the gesture `active`: every mode but pan, which `pointerMove` owns. `samples` are the screen positions since the last call, ending at `sample.screen`; strokes, loops and erases
+   * use them all. Both a pointer move and an edge-pan frame (the camera moved under a still pointer) come here.
+   */
+  const applyGesture = (active: Gesture, sample: GestureSample, samples: readonly Point[]) => {
+    const viewport = documentRef.current.viewport, point = screenToWorld(sample.screen, viewport);
+    if (active.mode === 'draw' && active.id) {
       const element = overrides.current.get(active.id)!;
       let width = point.x - active.start.x, height = point.y - active.start.y;
       if (element.type === 'freedraw') {
@@ -1002,10 +1025,7 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
           const x = position.x - active.start.x, y = position.y - active.start.y, last = points[points.length - 1];
           if (x !== last.x || y !== last.y) points.push({ x, y });
         };
-        for (const sample of event.nativeEvent?.getCoalescedEvents?.() ?? []) {
-          append(screenToWorld({ x: sample.clientX - rect.left, y: sample.clientY - rect.top }, viewport));
-        }
-        append(point);
+        for (const screen of samples) append(screenToWorld(screen, viewport));
         if (points.length === count) return;
         const next = { ...element, width, height };
         overrides.current.set(element.id, next);
@@ -1013,7 +1033,7 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
         else redraw();
         return;
       }
-      if (event.shiftKey) {
+      if (sample.shiftKey) {
         if (element.type === 'line' || element.type === 'arrow') {
           const angle = Math.round(Math.atan2(height, width) / (Math.PI / 4)) * Math.PI / 4;
           const length = Math.hypot(width, height); width = Math.cos(angle) * length; height = Math.sin(angle) * length;
@@ -1022,23 +1042,23 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
       const points = element.points ? [{ x: 0, y: 0 }, { x: width, y: height }] : undefined;
       // x/y are restated because a bound start has moved the previewed arrow off the pointer-down point.
       const next = { ...element, x: active.start.x, y: active.start.y, width, height, points };
-      previewChanges(new Map([[element.id, next.type === 'arrow' ? bindEnd(next, 'end', point, event) : next]]));
+      previewChanges(new Map([[element.id, next.type === 'arrow' ? bindEnd(next, 'end', point, sample) : next]]));
     } else if (active.mode === 'move') {
       let dx = point.x - active.start.x, dy = point.y - active.start.y;
-      if (event.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+      if (sample.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
       const delta = moveDelta(active.original.elements, dx, dy);
       previewChanges(moveElements(active.original.elements, selected.current, delta.x, delta.y));
     } else if (active.mode === 'point' && active.base && active.index !== undefined) {
       // An arrow end binds where the pointer is; Shift aligns the dragged point's segment to 45°.
-      const next = movePoint(active.base, active.index, point, event.shiftKey);
+      const next = movePoint(active.base, active.index, point, sample.shiftKey);
       const end = next.type === 'arrow' ? endAt(next, active.index) : undefined;
-      previewChanges(new Map([[next.id, end ? bindEnd(next, end, point, event) : next]]));
+      previewChanges(new Map([[next.id, end ? bindEnd(next, end, point, sample) : next]]));
     } else if (active.mode === 'segment' && active.base && active.index !== undefined) {
       const delta = { x: point.x - active.start.x, y: point.y - active.start.y };
       previewChanges(new Map([[active.base.id, moveSegment(active.base, active.index, delta, sceneLookup(documentRef.current.elements, overrides.current))]]));
     } else if (active.mode === 'resize' && active.bounds && active.handle !== undefined) {
       const original = active.bounds;
-      previewChanges(resizeElements(active.original.elements, selected.current, original, resizeBounds(original, active.handle, point, event.shiftKey)));
+      previewChanges(resizeElements(active.original.elements, selected.current, original, resizeBounds(original, active.handle, point, sample.shiftKey)));
     } else if (active.mode === 'capture-copy' && active.bounds && regionRef.current) {
       const offset = 10 / documentRef.current.viewport.zoom;
       marquee.current = moveRegion(active.bounds, { x: point.x - active.start.x + offset, y: point.y - active.start.y - offset });
@@ -1051,15 +1071,42 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
       marquee.current = normalize(active.start, point);
       previewBox(active, marquee.current);
     } else if (active.mode === 'lasso') {
-      // Safari batches pen samples into one event; the coalesced ones keep the loop's curve.
-      const coalesced = event.nativeEvent?.getCoalescedEvents?.() ?? [];
-      for (const sample of [...coalesced, event]) lasso.current?.push(coordinates(sample).point);
+      for (const screen of samples) lasso.current?.push(screenToWorld(screen, viewport));
     } else if (active.mode === 'erase') {
-      // Safari batches pen samples into one event; each coalesced one is a step of the sweep.
-      const coalesced = event.nativeEvent?.getCoalescedEvents?.() ?? [];
-      eraseThrough(active.original.elements, [...coalesced, event].map(sample => coordinates(sample).point));
+      eraseThrough(active.original.elements, samples.map(screen => screenToWorld(screen, viewport)));
     }
     redraw();
+  };
+
+  /** Keeps an edge pan running while `active`'s pointer, at `sample`, is held in a band at the canvas's edge or past it. */
+  const followEdge = (active: Gesture, sample: GestureSample, rect: { width: number; height: number }) => {
+    if (!active.moved || !edgePans(active.mode, active.pointerType, !!activeStroke())) return;
+    edgeSample.current = sample;
+    const step = edgePanStep(sample.screen, rect);
+    if ((step.x || step.y) && !edgeFrame.current) edgeFrame.current = requestAnimationFrame(edgeTick);
+  };
+  /** One frame of an edge pan: the camera moves, then the gesture follows the still pointer. Re-arms while the camera moves. */
+  const edgeTick = () => {
+    edgeFrame.current = 0;
+    const active = gesture.current, sample = edgeSample.current, element = canvas.current;
+    if (!active || !sample || !element || !edgePans(active.mode, active.pointerType, !!activeStroke())) return;
+    const step = edgePanStep(sample.screen, element.getBoundingClientRect());
+    if (!step.x && !step.y) return;
+    const before = documentRef.current.viewport;
+    setView({ ...before, x: before.x + step.x, y: before.y + step.y }, 'edge');
+    const after = documentRef.current.viewport;
+    // A notebook's camera stops at its pages; the next pointer move tries again.
+    if (after.x === before.x && after.y === before.y) return;
+    edgePanned.current = true;
+    applyGesture(active, sample, [sample.screen]);
+    edgeFrame.current = requestAnimationFrame(edgeTick);
+  };
+  /** Stops an edge pan and saves the camera it moved, as a pan's release does. */
+  const endEdgePan = () => {
+    cancelAnimationFrame(edgeFrame.current); edgeFrame.current = 0; edgeSample.current = null;
+    if (!edgePanned.current) return;
+    edgePanned.current = false;
+    settleView();
   };
 
   /** Moves the camera to where both fingers are now, and samples their midpoint for the release speed. */
@@ -1094,6 +1141,7 @@ export function useWhiteboardInteraction(document: WhiteboardDocument, onChange:
     pointerMove(event);
     clearCaptureHold();
     gesture.current = null; bindHint.current = null;
+    endEdgePan();
     releasePointer(event);
     if (active.mode === 'crop-confirm') { void applyCrop(); redraw(); return; }
     if (active.mode === 'capture-copy' && regionRef.current?.kind === 'capture' && marquee.current) {

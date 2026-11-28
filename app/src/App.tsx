@@ -9,6 +9,7 @@ import { watchNewFiles } from "@/stores/sync/newFilesStore";
 import { watchLectureDownloads } from "@/stores/lectures/lectureDownloadStore";
 import { restoreIndexQueue } from "@/stores/sync/indexStore";
 import { watchFinalDeletes } from "@/stores/drive/pendingDeleteStore";
+import { watchHtmlDragScroll } from "@/hooks/gestures/edgeScroll";
 import AppLayout from "@/layouts/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Onboarding } from "@/components/onboarding/Onboarding";
@@ -19,6 +20,7 @@ function EventBridge() {
   useEffect(() => watchNewFiles(), []);
   useEffect(() => watchLectureDownloads(), []);
   useEffect(() => watchFinalDeletes(), []);
+  useEffect(() => watchHtmlDragScroll(), []);
   // Boot only: Settings re-checks the key but must never restart metered work.
   useEffect(() => void restoreIndexQueue(), []);
   return null;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { usePointerDrag } from "@/hooks/gestures/usePointerDrag";
+import { edgeScroll, scrollChain, type EdgeScroll } from "@/hooks/gestures/edgeScroll";
 
 export { DRAG_SURFACE } from "@/hooks/gestures/usePointerDrag";
 
@@ -19,12 +20,6 @@ const SETTLE_MS = 200;
  *  spring-back rather than a list frozen in its pre-drop order. */
 const SETTLE_CAP_MS = 600;
 
-/** Depth (px) of the band at a scroller's top and bottom that scrolls it. */
-const EDGE = 56;
-
-/** Fastest auto-scroll, px per frame, reached at the scroller's edge. */
-const EDGE_SPEED = 16;
-
 /** The item a gesture starts on; ids are per-container. */
 interface CardDragItem {
   id: number;
@@ -37,10 +32,10 @@ export interface CardDragState {
   dx: number;
   dy: number;
   /**
-   * How far the list's scroller has moved since the lift
-   * ({@link CardDragOptions.autoScroll}). An item drawn in the list's own flow
-   * is translated by `dy + scroll`; 0 while settling, when `dy` is the slot's
-   * layout offset.
+   * How far the dragged item's own scrollers have moved it up since the lift
+   * (edge scrolling, a wheel). `dx`/`dy` are viewport travel, right for a copy
+   * in a fixed overlay; an item drawn in the list's own flow is translated by
+   * `dy + scroll`, while settling too.
    */
   scroll: number;
   containerId: string;
@@ -101,7 +96,9 @@ interface ItemBox {
 }
 
 interface Snapshot {
-  containers: { id: string; rect: DOMRect }[];
+  /** Each container's box, the scrollers that move it, and the scrollers that
+   *  move its items (an inner column scroller too). */
+  containers: { id: string; rect: DOMRect; boxChain: HTMLElement[]; itemChain: HTMLElement[] }[];
   /** Per container, its items sorted top to bottom (render order). */
   lists: Map<string, ItemBox[]>;
   gap: number;
@@ -126,35 +123,6 @@ export interface CardDragOptions {
    * out and there is no settle.
    */
   settleOn?: unknown;
-  /**
-   * Scroll the dragged item's nearest scrolling ancestor while the pointer is
-   * in the band at its top or bottom, faster the nearer the edge, and keep
-   * targeting the list as it moves under the pointer (a wheel scroll too).
-   */
-  autoScroll?: boolean;
-}
-
-/** The nearest ancestor that scrolls vertically and has something to scroll. */
-function scrollerOf(node: HTMLElement): HTMLElement | null {
-  for (let el = node.parentElement; el; el = el.parentElement) {
-    const { overflowY } = getComputedStyle(el);
-    if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
-      return el;
-    }
-  }
-  return null;
-}
-
-/** px per frame for a pointer at `y`: eased in across the band, so the
- *  scroll starts slowly rather than jumping. Negative scrolls up. */
-function edgeSpeed(y: number, rect: DOMRect): number {
-  const band = Math.min(EDGE, rect.height / 4);
-  const up = rect.top + band - y;
-  const down = y - (rect.bottom - band);
-  const depth = Math.max(up, down);
-  if (depth <= 0) return 0;
-  const speed = Math.ceil(EDGE_SPEED * Math.min(1, depth / band) ** 2);
-  return up > 0 ? -speed : speed;
 }
 
 /**
@@ -299,12 +267,10 @@ export function useCardDrag(
   /** Every rect, once, at lift: items only move by `transform` during a drag,
    *  so re-measuring would read back displaced positions. */
   const capture = (item: CardDragItem): Snapshot | null => {
-    const boxes: { id: string; rect: DOMRect }[] = [];
-    for (const [id, node] of containers.current) {
-      boxes.push({ id, rect: node.getBoundingClientRect() });
-    }
     const lists = new Map<string, ItemBox[]>();
+    const firstItem = new Map<string, HTMLElement>();
     for (const entry of items.current.values()) {
+      if (!firstItem.has(entry.containerId)) firstItem.set(entry.containerId, entry.node);
       const r = entry.node.getBoundingClientRect();
       const box: ItemBox = {
         id: entry.id,
@@ -319,6 +285,11 @@ export function useCardDrag(
       else lists.set(entry.containerId, [box]);
     }
     for (const list of lists.values()) list.sort((a, b) => a.top - b.top);
+    const boxes = [...containers.current].map(([id, node]) => {
+      const boxChain = scrollChain(node.parentElement);
+      const first = firstItem.get(id);
+      return { id, rect: node.getBoundingClientRect(), boxChain, itemChain: first ? scrollChain(first.parentElement) : boxChain };
+    });
 
     const own = lists.get(item.containerId);
     const index = own ? own.findIndex((b) => b.id === item.id) : -1;
@@ -339,37 +310,38 @@ export function useCardDrag(
     let latest: CardDrop | null = null;
     // Between containers (a gutter), the last container hit still stands.
     let lastTarget = item.containerId;
-    // Auto-scroll: the scroller, its scrollTop at lift, the last pointer, and
-    // the frame in flight.
-    let scroller: HTMLElement | null = null;
-    let scroll0 = 0;
     let pointer: { x: number; y: number; dx: number; dy: number } | null = null;
-    let frame = 0;
+    // Edge scrolling over every scroller that moves a container or its items.
+    let scroll: EdgeScroll | null = null;
+    const chainOf = (id: string, part: "boxChain" | "itemChain") =>
+      snap?.containers.find((c) => c.id === id)?.[part] ?? [];
 
     /** Targets the slot under the pointer; rects were captured at lift, so a
-     *  scroll since then moves them up by its travel. */
+     *  scroll since then moves them by its travel. */
     const update = () => {
       const s = snap;
       const p = pointer;
       if (!s || !p) return;
-      const travel = scroller ? scroller.scrollTop - scroll0 : 0;
       for (const c of s.containers) {
+        const t = scroll?.of(c.boxChain) ?? { x: 0, y: 0 };
         if (
-          p.x >= c.rect.left &&
-          p.x <= c.rect.right &&
-          p.y >= c.rect.top - travel &&
-          p.y <= c.rect.bottom - travel
+          p.x >= c.rect.left - t.x &&
+          p.x <= c.rect.right - t.x &&
+          p.y >= c.rect.top - t.y &&
+          p.y <= c.rect.bottom - t.y
         ) {
           lastTarget = c.id;
           break;
         }
       }
 
-      // The item's centre, not the pointer's, against the captured midpoints.
+      // The item's centre, not the pointer's, against the captured midpoints
+      // moved by the target's own scroll.
+      const travel = scroll?.of(chainOf(lastTarget, "itemChain")).y ?? 0;
       const centre = s.from.box.mid + p.dy + travel;
-        const others = (s.lists.get(lastTarget) ?? []).filter((b) => b.id !== item.id);
-        let index = 0;
-        while (index < others.length && others[index].mid < centre) index++;
+      const others = (s.lists.get(lastTarget) ?? []).filter((b) => b.id !== item.id);
+      let index = 0;
+      while (index < others.length && others[index].mid < centre) index++;
 
       latest = {
         id: item.id,
@@ -383,7 +355,7 @@ export function useCardDrag(
         id: item.id,
         dx: p.dx,
         dy: p.dy,
-        scroll: travel,
+        scroll: scroll?.of(chainOf(s.from.containerId, "itemChain")).y ?? 0,
         containerId: s.from.containerId,
         targetContainerId: lastTarget,
         targetIndex: index,
@@ -392,40 +364,27 @@ export function useCardDrag(
       });
     };
 
-    /** One frame of edge scrolling; it re-arms while the scroller still moves
-     *  and the next pointer move restarts it once it has stopped. */
-    const tick = () => {
-      frame = 0;
-      if (!scroller || !pointer) return;
-      const v = edgeSpeed(pointer.y, scroller.getBoundingClientRect());
-      if (!v) return;
-      const before = scroller.scrollTop;
-      scroller.scrollTop = before + v;
-      if (scroller.scrollTop !== before) frame = requestAnimationFrame(tick);
-    };
-
     gesture.start(e, {
       lift: () => {
         snap = capture(item);
         snapshot.current = snap;
-        if (snap && options.autoScroll) {
-          const node = items.current.get(`${item.containerId}\0${item.id}`)?.node;
-          scroller = node ? scrollerOf(node) : null;
-          scroll0 = scroller?.scrollTop ?? 0;
-          // The scroll event re-targets for edge scrolling and the wheel alike.
-          scroller?.addEventListener("scroll", update, { passive: true });
+        if (snap) {
+          const chains = snap.containers.flatMap((c) => [...c.boxChain, ...c.itemChain]);
+          // A scroll re-targets, the edge's and the wheel's alike.
+          scroll = edgeScroll(chains, "xy", update);
         }
         return snap != null;
       },
       move: (ev, dx, dy) => {
         pointer = { x: ev.clientX, y: ev.clientY, dx, dy };
         update();
-        if (scroller && !frame) frame = requestAnimationFrame(tick);
+        scroll?.at(ev.clientX, ev.clientY);
       },
       end: () => {
-        if (frame) cancelAnimationFrame(frame);
-        scroller?.removeEventListener("scroll", update);
-        scroller = null;
+        const sourceTravel = scroll?.of(chainOf(item.containerId, "itemChain")) ?? { x: 0, y: 0 };
+        const targetTravel = latest ? (scroll?.of(chainOf(latest.containerId, "itemChain")) ?? { x: 0, y: 0 }) : sourceTravel;
+        scroll?.stop();
+        scroll = null;
         pointer = null;
         const drop = latest;
         const s = snap;
@@ -441,8 +400,17 @@ export function useCardDrag(
         settle.current = { key: settleKey.current, at: performance.now() };
         settleTimer.current = window.setTimeout(stop, SETTLE_CAP_MS);
         // Only offset and phase change; neighbours keep the gap they hold open.
+        // The slot was measured at lift, so its scroll since moves it on screen.
         setDrag((prev) =>
-          prev ? { ...prev, dx: to.dx, dy: to.dy, scroll: 0, settling: true } : prev,
+          prev
+            ? {
+                ...prev,
+                dx: to.dx - targetTravel.x,
+                dy: to.dy - targetTravel.y,
+                scroll: sourceTravel.y,
+                settling: true,
+              }
+            : prev,
         );
       },
     });

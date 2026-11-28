@@ -7,12 +7,12 @@ import type { Subject } from "@/lib/db";
 import { GENERAL_SCOPE, type ChatScope } from "@/lib/harness/scope";
 import { groupBySubject } from "@/lib/ui/subjectGroups";
 import { usePointerDrag } from "@/hooks/gestures/usePointerDrag";
+import { edgeScroll, scrollChain, type EdgeScroll } from "@/hooks/gestures/edgeScroll";
 import { useStoredSet } from "@/hooks/ui/useStoredState";
 import { cn } from "@/lib/utils";
-import { arrange, ORDER_KEY, PAGE } from "../order";
+import { arrange, byNewest, ORDER_KEY, PAGE } from "../order";
 import { SECTION_HEAD } from "../rowType";
 import { DropLine } from "../parts";
-import { byNewest } from "./RecentsBody";
 import { Fold } from "@/components/ui/Fold";
 
 /**
@@ -69,28 +69,44 @@ export function SubjectBody({
 
   // Header reorder on pointer events (see docs/ui.md). Groups differ in
   // height, so a drop line marks the gap instead of sliding boxes; edges are
-  // measured once at lift.
+  // measured once at lift and moved by the column's scroll since, which a
+  // header held at the column's top or bottom drives (`edgeScroll`).
   const onHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>, key: string) => {
     if (collapsed) return;
     let edges: number[] = [];
     let latest: number | null = null;
+    let y = 0;
+    let chain: HTMLElement[] = [];
+    let scroll: EdgeScroll | null = null;
+    const place = () => {
+      if (!edges.length) return;
+      const at0 = y + (scroll?.of(chain).y ?? 0);
+      let at = 0;
+      for (let i = 1; i < edges.length; i++) {
+        if (Math.abs(at0 - edges[i]) < Math.abs(at0 - edges[at])) at = i;
+      }
+      latest = at;
+      setDrag({ key, at });
+    };
     gesture.start(e, {
       lift: () => {
         if (groups.length < 2) return false;
         // Gaps: the first box's top, then each box's bottom.
-        const rects = groups.map((g) => boxes.current.get(g.key)!.getBoundingClientRect());
+        const nodes = groups.map((g) => boxes.current.get(g.key)!);
+        const rects = nodes.map((n) => n.getBoundingClientRect());
         edges = [rects[0].top, ...rects.map((r) => r.bottom)];
+        chain = scrollChain(nodes[0].parentElement);
+        scroll = edgeScroll(chain, "y", place);
         return true;
       },
       move: (ev) => {
-        let at = 0;
-        for (let i = 1; i < edges.length; i++) {
-          if (Math.abs(ev.clientY - edges[i]) < Math.abs(ev.clientY - edges[at])) at = i;
-        }
-        latest = at;
-        setDrag({ key, at });
+        y = ev.clientY;
+        place();
+        scroll?.at(ev.clientX, ev.clientY);
       },
       end: () => {
+        scroll?.stop();
+        scroll = null;
         if (latest != null) {
           const from = groups.findIndex((g) => g.key === key);
           const keys = groups.map((g) => g.key);

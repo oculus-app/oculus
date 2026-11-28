@@ -366,7 +366,8 @@ Drive's rail section at `/drive/*` and the Files tab at
   screen), and go to `import_uploads` with that folder as `targetDir`. Entries
   drag with HTML5 events, so a drag reaches the tree in the nav column;
   `dragstart` puts the paths on the transfer (`DRIVE_DRAG_TYPE`) or WebKit
-  cancels it. Between the student's folders a drag moves (`move_entries`), out
+  cancels it. Held at the browser's edge, or above it, the drag scrolls it
+  (`watchHtmlDragScroll`, [ui.md](./ui.md#gotchas)). Between the student's folders a drag moves (`move_entries`), out
   of a synced folder it copies (`copy_to_own`), and each copy's parse is
   kicked. A folder the student can't add to fades with "Can't add here" while
   the drag is over it and takes nothing (`planDrop`, `useDriveDrop`).

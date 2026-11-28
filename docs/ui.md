@@ -21,7 +21,7 @@ Read this before any UI work.
 | A path on one line that glides when it doesn't fit | `app/src/components/ui/Trail.tsx`, `app/src/hooks/ui/useTrailGlide.ts`, `app/src/lib/ui/trailGlide.ts` |
 | Page navigation and its responsive shell | `app/src/components/ui/layout/SideNav.tsx`, `app/src/components/ui/layout/SideNavShell.tsx`, `app/src/hooks/ui/useSideNavPanel.ts` |
 | Settings pane layout and stacking rows | `app/src/styles/settings.css`, `app/src/layouts/SettingsLayout.tsx`, `app/src/components/settings/SettingsNav.tsx` |
-| Drag gestures | `app/src/hooks/gestures/usePointerDrag.ts`, `app/src/hooks/gestures/useCardDrag.ts`, `app/src/hooks/gestures/useFileDrop.ts` |
+| Drag gestures | `app/src/hooks/gestures/usePointerDrag.ts`, `app/src/hooks/gestures/useCardDrag.ts`, `app/src/hooks/gestures/edgeScroll.ts`, `app/src/hooks/gestures/useFileDrop.ts` |
 | Subject grouping and persisted collapsed groups | `app/src/lib/ui/subjectGroups.ts`, `app/src/hooks/shell/useCollapsedGroups.ts` |
 | Flat divided lists, table chrome | `app/src/components/ui/layout/PageParts.tsx`, `app/src/components/ui/table/GridTable.tsx`, `app/src/components/ui/table/TableGroup.tsx`, `app/src/components/ui/table/ViewTabs.tsx`, `app/src/components/ui/table/TablePagination.tsx` |
 | Toolbar filters: pill popovers, checklists, applied-filter chips | `app/src/components/ui/filter/` |
@@ -601,6 +601,14 @@ glyph; subject and project crumbs retain their custom identity icons.
   `ViewTabs`, the sidebar rail, chat groups, boards and tables via `useCardDrag`); HTML5 DnD only
   for leaving the window, and for Drive's entries, whose drags cross from the
   browser to the tree in the nav column (`app/src/lib/drive/drop.ts`).
+- **Every in-window drag scrolls at the edge** (`edgeScroll`): held in the
+  56px band at a scroller's edge, or past it, the innermost scroller that can
+  still move takes the scroll, eased in towards the edge. A drag measures its
+  rects once at lift, so it adds the scroll travel since (`EdgeScroll.of`)
+  rather than re-measuring. A new drag surface wires it in too. WebKit scrolls
+  nothing during an HTML5 drag either, so `watchHtmlDragScroll` (installed in
+  `App.tsx`) edge-scrolls every one from window `dragover`, over the scrollers
+  under the pointer and those the drag started in.
 - **HTML5 drag needs `dataTransfer.setData()`** or WebKit cancels it silently,
   and `preventDefault()` on `dragstart` cancels it outright — see the drag-out
   in `dragAsMarkdown` (`app/src/lib/markdown/selection.ts`), wired up in
@@ -660,8 +668,7 @@ glyph; subject and project crumbs retain their custom identity icons.
   expands (`SwitcherList` in `app/src/components/subjects/nav/SubjectSwitcher.tsx`), and anything that transitions
   `opacity` or `transform` — a hover-reveal button (`MessageActions` in
   `app/src/components/harness/timeline/`, `ThreadRow`'s delete), a caret that fades and rotates, the
-  label fade `SIDE_NAV_FOLDS`, and a side nav's fold settling (Chat's
-  Recents/Subject icons, `threads/list/Header.tsx`). All carry `will-change`, which keeps the layer on
+  label fade `SIDE_NAV_FOLDS`, and a side nav's fold settling. All carry `will-change`, which keeps the layer on
   from the start. Whole-pixel row heights do not help. **Every new
   `transition-opacity` / `transition-transform` on an icon, or on a row holding
   one, gets `will-change-[opacity]` (or `[opacity,transform]`)** — grep for
