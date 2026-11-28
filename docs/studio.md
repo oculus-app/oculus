@@ -44,8 +44,9 @@ crops library PDF pages into slides (`slide`), and narrates.
 | Narrating a video: the `Speaker` trait, the TTS client, the `voice` settings row, the cache, the manifest writer | `app/src-tauri/src/studio/` (`tts/`, `voice/`, `narrate/`) |
 | The Kokoro engine: its model pack, the 20 voices (`voices/`), reader, chunking and synthesis | `app/src-tauri/src/studio/tts/kokoro/` |
 | Text to Kokoro phonemes (the G2P), the lexicon, the guesser and its pack; the lint of a video's narration that needs them | `app/src-tauri/src/studio/voice/g2p/` (`guess/`, `lexicon.rs`), `app/src-tauri/src/studio/voice/lint/` |
-| The pronunciation review: suggestions stored one file each, the lexicon writer, finding a word in a video's narration; its Tauri commands and wrappers | `app/src-tauri/src/studio/voice/review/` (`key.rs`, `lexicon.rs`, `locate.rs`), `app/src-tauri/src/studio/commands/pronunciations.rs`, `app/src/lib/studio/pronunciations.ts` |
-| Settings -> Studio (Narration, Pronunciation, Word timing): the `voice` row and its engine, the server's model list, Kokoro's packs, voices and sample, the pronunciation review, the aligner download; its Tauri commands | `app/src/pages/settings/studio/`, `app/src/components/settings/voice/` (`pronunciations/`, `voices/`), `app/src/lib/studio/` (`voice.ts`, `voicePacks.ts`, `kokoroVoices.ts`, `aligner.ts`), `app/src-tauri/src/studio/commands/` (`voice.rs`, `kokoro.rs`, `voice_files.rs`, `aligner.rs`, `progress.rs`), `app/src-tauri/src/studio/tts/models.rs` |
+| The pronunciation review: suggestions stored one file each, the lexicon writer, the history log, finding a word in a video's narration; its Tauri commands (the review's, the saved lexicons' and the history's) and wrappers | `app/src-tauri/src/studio/voice/review/` (`key.rs`, `lexicon.rs`, `locate.rs`), `app/src-tauri/src/studio/commands/`, `app/src/lib/studio/pronunciations.ts`, `app/src/lib/studio/lexicon.ts` |
+| The Studio -> Pronunciation page over them | [studio-page.md](./studio-page.md#pronunciation) |
+| Settings -> Studio (Narration, Word timing): the `voice` row and its engine, the server's model list, Kokoro's packs, voices and sample, the aligner download; its Tauri commands | `app/src/pages/settings/studio/`, `app/src/components/settings/voice/` (`voices/`), `app/src/lib/studio/` (`voice.ts`, `voicePacks.ts`, `kokoroVoices.ts`, `aligner.ts`), `app/src-tauri/src/studio/commands/` (`voice.rs`, `kokoro.rs`, `voice_files.rs`, `aligner.rs`, `progress.rs`), `app/src-tauri/src/studio/tts/models.rs` |
 | Rendering a video: the export presets, ffmpeg's toolkit and the encoder choice, plan, workers and the reorder buffer, ffmpeg, the segment cache, the narration track, mux, the `.vtt` beside each narrated render, each preset's status, one render per folder | `app/src-tauri/src/studio/render/` (`preset.rs`, `toolkit.rs`, `settings.rs`, `export.rs`, `status.rs`), `app/src-tauri/crates/oculus-core/build.rs` (`STUDIO_RENDER_BUILD`) |
 | A Final or Small render into Drive: the suggested folder and name, the first copy and its rows, replacing the linked file, the link table | `app/src-tauri/src/studio/export/` (`place.rs`, `rows.rs`, `disk.rs`), `app/src-tauri/src/db/store/studio_exports.rs` |
 | Rendering from the app: `studio_render`, `studio_render_cancel`, `studio_exports`, the `studio-render-progress` event and their wrappers; the page over them is [studio-page.md](./studio-page.md) | `app/src-tauri/src/studio/commands/render.rs`, `app/src/lib/studio/render.ts` |
@@ -198,7 +199,8 @@ export default ({ title, bullets, accent }, { t, duration, theme, size }) =>
 Everything Studio keeps is under `<app data>/studio/`
 (`library::paths::studio_dir`): `videos/<slug>/` (one folder per video),
 `series/<slug>/` (one outline per series), `library/` (the global library), `subjects/<CODE>/` (each subject's) and
-`pronunciations/` (the readings waiting for the student's review, see
+`pronunciations/` (the readings waiting for the student's review and
+`history.jsonl`, every decision and lexicon change, see
 "The student reviews the agent's suggested readings").
 `courses/` stays read-only to agents, so no library lives there. `studio/`
 sits beside `agents/` in the state folder (`library::paths::studio_dir`,
@@ -379,7 +381,7 @@ tells the student what to set in Settings -> Studio; it never downloads the
 aligner or the voice packs. After narrating with Kokoro it judges each
 guessed-word note, suggests a reading for each doubtful word with `oculus
 studio pronounce suggest` (it never edits a lexicon), tells the student to
-review them in Settings -> Studio -> Pronunciation, and carries on: a decision applies at the
+review them in Studio -> Pronunciation, and carries on: a decision applies at the
 next narrate, and a suggestion marked wrong comes back in the notes with
 the student's note for another try.
 
@@ -974,8 +976,9 @@ case, then (ending `'s`) its stem's entry plus `-s`, then any key equal in
 lower case; `’` reads as `'` in keys and in the words looked up. Every
 entry is checked on load, and a bad phoneme or a respelling part the
 dictionary lacks fails naming the file and the key. The app writes the
-lexicon files, from the student's review (next section); the agent's skill
-tells it never to edit them.
+lexicon files, from the student's review and from the student's own edits
+on Studio -> Pronunciation (next section); the agent's skill tells it
+never to edit them.
 
 **Guessed words are notes.** A guess never stops narration, but every
 guessed word is printed by `narrate` and `lint` as a `check pronunciation`
@@ -1022,7 +1025,7 @@ suggested for words it doubts, until the student decides on each.
   says fails; a word that is not a guess is still stored, with the
   phonemes it reads with now. It prints the reading's phonemes, how the
   word reads now, the scene, line and sentence, and that the student
-  reviews it in Settings -> Studio -> Pronunciation (`--json`: the item plus `phonemes`).
+  reviews it in Studio -> Pronunciation (`--json`: the item plus `phonemes`).
 - **`oculus studio pronounce list [--video DIR]`** prints each item,
   newest first: its status, word, reading, subject, video, scene and line,
   and under a wrong one the student's note (`--json`: `[{ id, ...the
@@ -1030,7 +1033,7 @@ suggested for words it doubts, until the student decides on each.
 - **Notes.** `narrate` and `lint` look up each guessed word's file under
   the video's subject, a possessive's under its stem (`Store::annotate`),
   and end its note with
-  `(suggested "NESS-ter-off", awaiting review in Settings -> Studio -> Pronunciation)` or
+  `(suggested "NESS-ter-off", awaiting review in Studio -> Pronunciation)` or
   `(suggestion "NESS-ter-off" marked wrong: "<note>"; suggest again)`.
 - **Deciding** (`Store::decide`) writes the word into the subject's
   `lexicon.json`, or the global library's for a video without a subject:
@@ -1042,7 +1045,26 @@ suggested for words it doubts, until the student decides on each.
   and refuses a file that is not a JSON object rather than overwrite it.
   The item's file is then deleted, unless a new suggestion replaced it
   meanwhile. A decision applies at the video's next narrate.
-- **Tauri commands** (`commands/pronunciations.rs`, wrapped in
+- **The history** is `<app data>/studio/pronunciations/history.jsonl`,
+  one event a line, each appended with a single `O_APPEND` write so the CLI
+  and the app never interleave; a line that does not parse is skipped and
+  logged. An event is `{ id, at, kind, word, subject, previous, reading,
+  note, video, reverts }`: an id unique to it (`<unix millis>-<random
+  hex>`), the UTC time, the kind, the word and its subject (or `null` for
+  the global lexicon), the lexicon value before and after (`null` for none
+  or removed), the student's note, the suggestion's video slug, and the
+  event a revert undid. `Store::decide` logs `accepted` (correct) or `kept`
+  (fine) with the value it replaced, `Store::mark_wrong` logs `wrong` with
+  the suggestion sent back as `reading`, and the lexicon commands below log
+  `added`, `edited` (only when the value changes) and `removed`. Read back,
+  each event carries `reverted`, whether a later `reverted` event names it.
+- **Reverting** an `accepted`, `kept`, `added`, `edited` or `removed` event
+  that is not yet reverted puts the word's value back to the event's
+  `previous`, removing the key when that is `null`, and logs `reverted`
+  with the value before and after it and the id it undid. It is refused,
+  with "<word> has changed since; edit it in the lexicon", once the word's
+  value is no longer the event's `reading`.
+- **Tauri commands** (`app/src-tauri/src/studio/commands/`, wrapped in
   `lib/studio/pronunciations.ts`): `studio_pronunciations_list()` gives
   every item; `studio_pronunciation_decide(id, decision: "correct" |
   "fine")` gives `{ lexicon, word, reading }`;
@@ -1052,13 +1074,32 @@ suggested for words it doubts, until the student decides on each.
   does, in Settings -> Studio -> Narration's voice and speed, reading the subject's
   lexicon with one entry over it that pins the word to the original
   phonemes or to the suggestion (`LexiconFiles::pin`), and gives the WAV's
-  bytes. The Pronunciation page is built on them
-  (next section).
+  bytes. `studio_pronunciation_history()` gives every event, newest first,
+  and `studio_pronunciation_revert(id)` the new `reverted` event or the
+  refusal's sentence.
+- **Lexicon commands** (the same folder, wrapped in
+  `lib/studio/lexicon.ts`): `studio_lexicon_list()` gives `{ subject, word,
+  reading, phonemes, error, overrides }` for every key of the global
+  lexicon, then of each subject's that has a `lexicon.json` by code, each
+  file's keys in file order (`_` comments skipped): the phonemes the reading
+  checks to, or `null` and the check's sentence as `error`, and for a
+  subject's entry whether the global lexicon has the same word in lower
+  case, which it overrides for that subject. A file that is not a JSON
+  object fails the call naming it. `studio_lexicon_set(subject, word,
+  reading)` trims both, refuses a blank, checks, writes with the review's
+  writer and gives the entry; `studio_lexicon_remove(subject, word)` deletes
+  the key, the rest keeping their places, and refuses a word that is not
+  there. `studio_lexicon_check(word, reading)` gives the phonemes or
+  rejects with the check's sentence, and `studio_lexicon_sample(subject,
+  word, reading)` reads the word alone pinned to `reading` over that
+  subject's lexicon, as the review's sample does. None makes a billed call.
+  [studio-page.md](./studio-page.md#pronunciation) is the page built on
+  them.
 
 ## Settings -> Studio chooses the engine and holds the models
 
-Settings has a Studio group of three pages: Narration, Pronunciation and
-Word timing. Settings never makes a
+Settings has a Studio group of two pages: Narration and Word timing.
+Settings never makes a
 billed call: its one network call to a server is listing models, which is
 free, and the only sample is Kokoro's, made on this Mac.
 
@@ -1112,29 +1153,6 @@ free, and the only sample is Kokoro's, made on this Mac.
   it, unsets blanks, normalises the URL (`tts::normalise_base`), refuses a
   speed that is not a positive number, and answers with what it stored. A
   refusal shows under its row.
-- **Pronunciation** (`/settings/pronunciation`, `components/settings/voice/pronunciations/`) lists
-  the review's items, newest first, under a one-line hint. It loads on
-  mount and again whenever the window regains focus, since the CLI adds
-  items while the page is open; with none it says "No words waiting for
-  review." A row shows the word and its suggested reading, the sentence
-  muted with the word picked out, and a metadata line with the subject's icon
-  and code (or Library) and the video with its Studio film icon (clicking
-  either opens that subject or video; ⌘-click opens a new tab). On
-  the right, **Original** and **Suggestion** play the
-  word read each way (`studio_pronunciation_sample`; "Making…" while
-  Kokoro makes it, a click again stops). One clip plays at a time across
-  the section (`useClipPlayer`, which the voice sample also uses; blob URLs
-  revoked at the end, on Stop and when the page goes). Beneath, three
-  verdicts in order — **Suggestion correct** (green check), **Pronunciation is
-  fine** (thumbs-up) and **Suggestion wrong** (red cross): the first two decide,
-  and the row gives way to a muted line saying which lexicon it went into
-  and that it applies when the video is next narrated, until the next
-  reload; **Suggestion wrong** opens "How is it said? (optional)", a text
-  field with Send and Cancel (Enter and Escape). A wrong row stays listed,
-  muted, with its samples and "Sent back to the agent" and the student's
-  note in place of the verdicts, until the agent's next suggestion replaces
-  it as pending. A row's buttons wait while its request runs, and a failed
-  request or sample shows in red on the row.
 - **Word timing** (`/settings/word-timing`) is the aligner model's row, like a Local Whisper model:
   "wav2vec2 base (English)", its 378 MB size and status, Download (then a
   percentage, a progress bar and Cancel) or Delete behind a confirmation,

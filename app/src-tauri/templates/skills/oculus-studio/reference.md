@@ -1074,7 +1074,7 @@ is said; you suggest, and never edit a `lexicon.json`.
   it gives, and records how Kokoro reads the word now and the sentence it
   is in; a new suggestion for the same word replaces the last. `--json`
   gives the stored item plus `phonemes`.
-- In Settings → Studio → Pronunciation the student hears the sentence read both ways and
+- In Studio → Pronunciation the student hears the sentence read both ways and
   picks one: the suggestion is correct (it goes into the lexicon), the
   guess is fine (the guess goes into the lexicon, so it is no longer
   flagged), or the suggestion is wrong, with a note on how the word is

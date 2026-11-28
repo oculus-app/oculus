@@ -1,13 +1,14 @@
-//! The pronunciation review in Settings -> Studio -> Pronunciation (`studio::voice::review`):
-//! the agent's suggestions, the student's three verdicts, and a sample of
-//! the word read either way, synthesised by Kokoro on this computer.
+//! The pronunciation review in Studio -> Pronunciation (`studio::voice::review`):
+//! the agent's suggestions, the student's three verdicts, a sample of the
+//! word read either way, synthesised by Kokoro on this computer, and the
+//! history of decisions and lexicon changes with its Revert.
 
 use serde::Deserialize;
 
 use super::kokoro::sample;
 use crate::studio::tts::kokoro::{LexiconFiles, Packs};
 use crate::studio::voice::g2p::{guess, Dictionary};
-use crate::studio::voice::review::{Decided, Decision, Item, Record, Store};
+use crate::studio::voice::review::{Decided, Decision, Item, Logged, Record, Store};
 use crate::studio::voice::{self, VoiceSettings};
 
 /// Which reading a sample pins the word to.
@@ -27,15 +28,27 @@ pub(super) fn sample_record(
     which: Which,
     settings: &VoiceSettings,
     packs: Packs,
-    mut lexicon: LexiconFiles,
+    lexicon: LexiconFiles,
 ) -> Result<Vec<u8>, String> {
     let value = match which {
         Which::Original => format!("/{}/", record.original),
         Which::Suggestion => record.reading.clone(),
     };
-    lexicon.pin = Some((record.word.clone(), value));
+    sample_word(&record.word, &value, settings, packs, lexicon)
+}
+
+/// `word` alone as WAV bytes in the settings' voice and speed, pinned to
+/// the lexicon value `reading` over `lexicon`.
+pub(super) fn sample_word(
+    word: &str,
+    reading: &str,
+    settings: &VoiceSettings,
+    packs: Packs,
+    mut lexicon: LexiconFiles,
+) -> Result<Vec<u8>, String> {
+    lexicon.pin = Some((word.to_owned(), reading.to_owned()));
     let voice = settings.voice.as_deref().unwrap_or_default();
-    sample(voice, settings.speed, Some(&record.word), packs, lexicon)
+    sample(voice, settings.speed, Some(word), packs, lexicon)
 }
 
 /// Every suggestion, newest first: pending and wrong ones.
@@ -84,6 +97,25 @@ pub async fn studio_pronunciation_sample(
             LexiconFiles::app(subject),
         )
         .map(tauri::ipc::Response::new)
+    })
+    .await
+}
+
+/// Every decision and lexicon change, newest first, each saying whether it
+/// was reverted.
+#[tauri::command]
+pub async fn studio_pronunciation_history() -> Result<Vec<Logged>, String> {
+    crate::runtime::blocking::run(|| Store::app().history().read()).await
+}
+
+/// Puts the word of history event `id` back to its value before the
+/// event, refused when the word has changed since, and returns the
+/// `reverted` event it logs.
+#[tauri::command]
+pub async fn studio_pronunciation_revert(id: String) -> Result<Logged, String> {
+    crate::runtime::blocking::run(move || {
+        let dict = Dictionary::load(&guess::dir())?;
+        Store::app().revert(&id, &dict)
     })
     .await
 }

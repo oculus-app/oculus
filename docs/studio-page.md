@@ -1,7 +1,8 @@
 # The Studio page
 
 The rail's Studio section: browse every video, watch and export one, try the
-components a video is built from, and edit the themes it is drawn in. Videos
+components a video is built from, edit the themes it is drawn in, and say how
+its narration pronounces words. Videos
 are made in Chat, where the thread shows the video's card and plays it
 ([harness.md](./harness.md#a-studio-thread-carries-its-video)); Studio's New
 video starts that chat. The renderer, the commands and the thread link are
@@ -12,8 +13,8 @@ video starts that chat. The renderer, the commands and the thread link are
 | Piece | Location |
 | --- | --- |
 | Routes, the nav column's width and fold, the page header row | `app/src/routes.tsx`, `app/src/layouts/StudioLayout.tsx`, `app/src/components/studio/StudioHeader.tsx` |
-| The nav column: New video, Videos, Components, Themes | `app/src/components/studio/nav/` |
-| Pages | `app/src/pages/studio/` (`VideosPage`, `VideoPage`, `VideoRedirect`, `ComponentsPage`, `ThemesPage`) |
+| The nav column: New video, Videos, Components, Themes, Pronunciation with its pending count | `app/src/components/studio/nav/`, `app/src/stores/studio/pronunciationCountStore.ts` |
+| Pages | `app/src/pages/studio/` (`VideosPage`, `VideoPage`, `VideoRedirect`, `ComponentsPage`, `ThemesPage`, `PronunciationPage`) |
 | New video: a new Chat thread with the skill chip in its box | `app/src/hooks/studio/useNewVideoChat.ts` |
 | Series grouping, outline navigation, and the chat each part is made in | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/lib/studio/threadRunning.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
 | A series' part on the video page and in the chat card: the series bar, the Parts outline, the frame of a part not made, and what each decides (`seriesView.ts`) | `app/src/components/studio/series/` (`SeriesBar.tsx`, `PartsOutline.tsx`, `UnmadePart.tsx`), `app/src/lib/studio/seriesView.ts` |
@@ -29,13 +30,16 @@ video starts that chat. The renderer, the commands and the thread link are
 | The library choice both pages share, where an item comes from, own versions | `app/src/hooks/studio/useStudioLibrary.ts`, `app/src/components/studio/LevelMark.tsx`, `app/src/components/studio/components/OwnVersionActions.tsx` |
 | The Themes page: list, sample scenes, header actions, token inspector, copies | `app/src/pages/studio/ThemesPage.tsx`, `app/src/components/studio/themes/` (`inspector/` for the token form), `app/src/hooks/studio/useThemeSource.ts`, `app/src/lib/studio/themeDraft.ts` |
 | The colour control | `app/src/components/ui/color/`, `app/src/lib/ui/color.ts` |
+| The Pronunciation page: Review, Lexicon and History, the library filter, Add word, and what each decides (`pronunciationView.ts`) | `app/src/pages/studio/PronunciationPage.tsx`, `app/src/components/studio/pronunciation/`, `app/src/lib/studio/pronunciationView.ts`, `app/src/lib/studio/pronunciations.ts`, `app/src/lib/studio/lexicon.ts`, `app/src/components/settings/voice/useClipPlayer.ts` |
 | Paths | `app/src/lib/studio/routes.ts` |
 
-## Six routes under one nav column
+## Seven routes under one nav column
 
 `/studio` opens the grid at `/studio/videos`, `/studio/videos/:slug` is a
 video's detail (a series' part's too, made or not), `/studio/components` and `/studio/components/:name` the
-playground, and `/studio/themes` and `/studio/themes/:name` the Themes page.
+playground, `/studio/themes` and `/studio/themes/:name` the Themes page,
+and `/studio/pronunciation` the Pronunciation page (`/settings/pronunciation`
+redirects there).
 A saved tab on a path below a video's opens the video (`VideoRedirect`), and
 any other Studio path the grid. `StudioLayout` owns the nav column's panel (`useResizablePanel`, ⌘⌥B and
 each page header's toggle, as Chat's column) and reads the video list once;
@@ -47,7 +51,12 @@ no toggle: the panel's switcher, expand and × claim the row as on any page
 built on `PageHeader` ([shell.md](./shell.md#the-side-panel-is-a-stack-of-items-beside-the-page)).
 
 The rail's Studio item shows a brand dot while any render runs (a narration
-does not light it); there are no toasts or bars ([ui.md](./ui.md)).
+does not light it); there are no toasts or bars ([ui.md](./ui.md)). The nav
+column's Pronunciation row carries the count of suggestions waiting for a
+verdict (`NewCountBadge`, none at 0): `usePendingCount` reads
+`studio_pronunciations_list` on mount and whenever the window regains focus,
+and the Pronunciation page sets it from each read of its own and reads it
+again after a verdict or a wrong mark (`pronunciationCountStore.ts`).
 
 ## New video starts a chat
 
@@ -683,6 +692,68 @@ reports positions as fractions of the element's box, so page zoom does not
 matter) and the arrow keys move each part. It holds the hue itself, so
 dragging through grey keeps it, and hands back `#rrggbb`, or `#rrggbbaa`
 when not opaque ([ui.md](./ui.md) on native colour inputs).
+
+## Pronunciation
+
+`/studio/pronunciation` is the student's side of the pronunciation review
+and the saved lexicons ([studio.md](./studio.md#the-student-reviews-the-agents-suggested-readings)).
+The header holds the title, a library filter (All libraries, Global, and each
+subject the data names or this term's subjects, as `SubjectIcon` and its short
+code) and **Add word**. Under it, the `ViewTabs` strip **Review**, **Lexicon**
+and **History**, each with its count in the chosen library (Review's in the
+brand's `NewCountBadge` while words wait), and a "Filter words…" field that
+narrows every tab by word, reading, phonemes, sentence or note. There are no
+hint lines. The page opens on Review while a suggestion waits, else on
+Lexicon. It reads the suggestions, the lexicons and the history on mount and
+again whenever the window regains focus, since the CLI adds suggestions while
+the page is open. One clip plays at a time across the page (`useClipPlayer`,
+which Settings' voice sample also uses; blob URLs revoked at the end, on Stop
+and when the page goes), and every button that plays shows "Making…" while
+Kokoro makes it and Stop while it plays. A failed read or write is said in
+red where it happened, never in a toast.
+
+- **Review** lists the suggestions, newest first, in one scroller. A row is
+  the word and its reading in a code-font chip, the sentence muted with the
+  word picked out, and a line with the subject (or Global), the video with
+  its film icon (each a link; ⌘-click or a middle click opens a new tab) and
+  how long ago. On the right, **Original** and **Suggestion** play the word
+  read each way (`studio_pronunciation_sample`); beneath, three `xs` verdicts
+  — **Suggestion correct** (green), **Pronunciation is fine** and
+  **Suggestion wrong** (red). The first two decide, and the row gives way to a
+  muted line saying which lexicon it went into and that it applies when the
+  video is next narrated, with **View in lexicon**, which opens Lexicon
+  filtered to the word, until the next read. **Suggestion wrong** opens "How
+  is it said? (optional)", a field with Send and Cancel (Enter and Escape). A
+  wrong row stays, muted, with its samples and "Sent back to agent" and the
+  note in place of the verdicts, until the agent's next suggestion replaces
+  it. A row's buttons wait while its request runs.
+- **Lexicon** is a `GridTable` (Word, Reading, Phonemes, Library) of every
+  saved word (`studio_lexicon_list`): the reading in a chip, the phonemes it
+  checks to muted, or the check's sentence in red, and the library with
+  "overrides Global" under a subject's entry for a word the global lexicon
+  also has. Each row has three ghost icon actions with tooltips: play
+  (`studio_lexicon_sample`), edit, which turns the reading into a field with
+  Save and Cancel (play then reads the draft), and remove, which asks
+  nothing: History's Revert puts it back.
+- **History** lists every decision and lexicon change, newest first
+  (`studio_pronunciation_history`): the word, its kind as a chip (Accepted,
+  Kept guess, Sent back, Added, Edited, Removed, Reverted), the value before
+  struck through and the value after, the note under one sent back, then the
+  subject and the video, or "Added by hand" ("Edited by hand", "Removed by
+  hand", "Reverted in History") for one with none, and how long ago.
+  **Revert** (`studio_pronunciation_revert`) is on an Accepted, Kept guess,
+  Added, Edited or Removed event that is not yet reverted, which says
+  "Reverted" instead; a refused revert says why on its row.
+- **Add word** opens a form above the tab: Word, Reading (a respelling or
+  `/phonemes/`) and Save to (Global or a subject; the filtered library at
+  first). The reading is checked 300 ms after typing rests
+  (`studio_lexicon_check`), showing the phonemes or why it does not check;
+  Play reads the word that way. **Save to lexicon** writes it
+  (`studio_lexicon_set`) and opens Lexicon; a refusal shows its sentence
+  under the fields.
+
+Any verdict, edit, removal, addition or revert reads the lexicons and the
+history again.
 
 ## Stills are shared and queued
 

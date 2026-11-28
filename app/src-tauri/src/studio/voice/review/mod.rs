@@ -1,9 +1,11 @@
 //! Pronunciation review: the Studio agent suggests a reading for a word it
 //! doubts (`oculus studio pronounce suggest`), and the student decides in
-//! Settings -> Studio -> Pronunciation. Accepting the suggestion writes it into the lexicon;
-//! keeping the guess pins the guessed phonemes there as `/…/`; rejecting it
-//! marks it `wrong` with the student's note for the agent to try again. The
-//! review is the only writer of `lexicon.json` (`lexicon`).
+//! Studio -> Pronunciation. Accepting the suggestion writes it into the
+//! lexicon; keeping the guess pins the guessed phonemes there as `/…/`;
+//! rejecting it marks it `wrong` with the student's note for the agent to
+//! try again. The same page lists, edits and reverts the lexicon files
+//! (`entries`, `lexicon`), and every decision and change is logged
+//! (`history`).
 //!
 //! Each suggestion is its own JSON file,
 //! `<data dir>/studio/pronunciations/<subject or _library>/<key>.json`
@@ -11,6 +13,8 @@
 //! between them: neither ever rewrites a list the other holds. A new
 //! suggestion for the same subject and word replaces the file.
 
+mod entries;
+pub mod history;
 mod key;
 mod lexicon;
 mod locate;
@@ -26,8 +30,9 @@ use crate::runtime::{atomic_write, clock};
 use crate::studio::voice::g2p::Dictionary;
 use crate::studio::voice::lint::Note;
 
+pub use history::{History, Kind, Logged};
 pub use key::LIBRARY;
-pub use lexicon::{check, write_entry};
+pub use lexicon::{check, write_entry, LexiconEntry};
 pub use locate::{locate, Located};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,12 +98,12 @@ pub struct Review {
 }
 
 impl Review {
-    /// `(suggested "NESS-ter-off", awaiting review in Settings -> Studio -> Pronunciation)`,
+    /// `(suggested "NESS-ter-off", awaiting review in Studio -> Pronunciation)`,
     /// or the student's verdict on a wrong one.
     pub fn suffix(&self) -> String {
         match (self.status, &self.note) {
             (Status::Pending, _) => format!(
-                "(suggested \"{}\", awaiting review in Settings -> Studio -> Pronunciation)",
+                "(suggested \"{}\", awaiting review in Studio -> Pronunciation)",
                 self.reading
             ),
             (Status::Wrong, Some(note)) => format!(
@@ -149,6 +154,13 @@ impl Store {
             root: studio_dir(&data_dir()).join("pronunciations"),
             library: global_dir(),
             subjects: subjects_dir(),
+        }
+    }
+
+    /// The log of decisions and lexicon changes.
+    pub fn history(&self) -> History {
+        History {
+            path: self.root.join("history.jsonl"),
         }
     }
 
@@ -235,18 +247,26 @@ impl Store {
         read(&self.path(&id).ok()?).ok()
     }
 
-    /// Marks `id` wrong with the student's `note` (blank is none).
+    /// Marks `id` wrong with the student's `note` (blank is none), and logs
+    /// it.
     pub fn mark_wrong(&self, id: &str, note: Option<String>) -> Result<Item, String> {
         let mut item = self.get(id)?;
         item.record.status = Status::Wrong;
         item.record.note = note.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty());
         atomic_write::json(&self.path(id)?, &item.record)?;
+        let r = &item.record;
+        self.history().record(&history::Event {
+            reading: Some(r.reading.clone()),
+            note: r.note.clone(),
+            video: Some(r.video.clone()),
+            ..history::Event::new(Kind::Wrong, &r.word, r.subject.as_deref())
+        });
         Ok(item)
     }
 
     /// Writes `id`'s word into its lexicon, as the suggestion (`Correct`) or
-    /// as the original phonemes (`Fine`), then deletes the item, unless a
-    /// new suggestion replaced it meanwhile.
+    /// as the original phonemes (`Fine`), logs it with the value before,
+    /// then deletes the item, unless a new suggestion replaced it meanwhile.
     pub fn decide(
         &self,
         id: &str,
@@ -259,7 +279,17 @@ impl Store {
             Decision::Fine => format!("/{}/", record.original),
         };
         let lexicon = self.lexicon_file(record.subject.as_deref());
-        write_entry(&lexicon, &record.word, &reading, dict)?;
+        let previous = write_entry(&lexicon, &record.word, &reading, dict)?;
+        let kind = match decision {
+            Decision::Correct => Kind::Accepted,
+            Decision::Fine => Kind::Kept,
+        };
+        self.history().record(&history::Event {
+            previous,
+            reading: Some(reading.clone()),
+            video: Some(record.video.clone()),
+            ..history::Event::new(kind, &record.word, record.subject.as_deref())
+        });
         let path = self.path(id)?;
         if read(&path).is_ok_and(|now| now == record) {
             std::fs::remove_file(&path).map_err(|e| format!("{}: {e}", path.display()))?;

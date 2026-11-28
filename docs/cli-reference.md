@@ -2926,10 +2926,10 @@ Suggest how Kokoro should say a word, for the student to review
 
 The lexicon (`lexicon.json`) is written only by the app: an agent that doubts a guessed
 word suggests a reading with `suggest`, and the student hears the word's sentence both
-ways in Settings -> Studio -> Pronunciation and accepts the suggestion, keeps the guess,
-or marks it wrong with a note. An accepted reading or a kept guess goes into the
-subject's lexicon (the global library's for a video with no subject) and applies at the
-next `narrate`. `list` shows what is still waiting and what was marked wrong.
+ways in Studio -> Pronunciation and accepts the suggestion, keeps the guess, or marks it
+wrong with a note. An accepted reading or a kept guess goes into the subject's lexicon
+(the global library's for a video with no subject) and applies at the next `narrate`.
+`list` shows what is still waiting and what was marked wrong.
 
 Usage: oculus studio pronounce <COMMAND>
 
@@ -2956,8 +2956,7 @@ find `WORD` (any case; `Word's` counts): its first guessed place, else its first
 recording how Kokoro reads it now, its sentence, scene and script.md line. A word the
 narration never says fails. The suggestion is stored as pending under the video's
 subject, replacing an earlier one for the same word; it prints the reading's phonemes.
-The student reviews it in Settings -> Studio -> Pronunciation. Needs the `g2p-en-us`
-pack.
+The student reviews it in Studio -> Pronunciation. Needs the `g2p-en-us` pack.
 
 oculus studio pronounce suggest momentum Nesterov NESS-ter-off
 

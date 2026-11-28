@@ -44,7 +44,7 @@ pub(crate) enum StudioAction {
     ///
     /// The lexicon (`lexicon.json`) is written only by the app: an agent
     /// that doubts a guessed word suggests a reading with `suggest`, and the
-    /// student hears the word's sentence both ways in Settings -> Studio -> Pronunciation and
+    /// student hears the word's sentence both ways in Studio -> Pronunciation and
     /// accepts the suggestion, keeps the guess, or marks it wrong with a
     /// note. An accepted reading or a kept guess goes into the subject's
     /// lexicon (the global library's for a video with no subject) and
@@ -163,7 +163,7 @@ pub(crate) enum StudioPronounceAction {
 /// and script.md line. A word the narration never says fails. The
 /// suggestion is stored as pending under the video's subject, replacing an
 /// earlier one for the same word; it prints the reading's phonemes. The
-/// student reviews it in Settings -> Studio -> Pronunciation. Needs the `g2p-en-us` pack.
+/// student reviews it in Studio -> Pronunciation. Needs the `g2p-en-us` pack.
 ///
 ///     oculus studio pronounce suggest momentum Nesterov NESS-ter-off
 #[derive(Args)]

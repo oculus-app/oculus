@@ -22,3 +22,6 @@ export const THEMES_HREF = "/studio/themes";
 export function themeHref(name: string): string {
   return `${THEMES_HREF}/${encodeURIComponent(name)}`;
 }
+
+/** Pronunciation: review suggested readings, the lexicons, their history. */
+export const PRONUNCIATION_HREF = "/studio/pronunciation";

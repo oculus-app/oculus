@@ -77,3 +77,42 @@ export function pronunciationSample(
 ): Promise<ArrayBuffer> {
   return invoke<ArrayBuffer>("studio_pronunciation_sample", { id, which });
 }
+
+/** What a history event records. `wrong` is a suggestion sent back; the
+ *  rest changed a lexicon. */
+export type HistoryKind = "accepted" | "kept" | "wrong" | "added" | "edited" | "removed" | "reverted";
+
+/** Mirrors one line of `studio/pronunciations/history.jsonl`. */
+export interface HistoryEvent {
+  id: string;
+  /** `YYYY-MM-DDTHH:MM:SS`, UTC. */
+  at: string;
+  kind: HistoryKind;
+  word: string;
+  subject: string | null;
+  /** The lexicon value before (null: none). */
+  previous: string | null;
+  /** The lexicon value after (null: removed); for `wrong`, the suggestion
+   *  sent back. */
+  reading: string | null;
+  /** `wrong`: the student's note. */
+  note: string | null;
+  /** accepted, kept, wrong: the suggestion's video slug. */
+  video: string | null;
+  /** `reverted`: the id of the event it undid. */
+  reverts: string | null;
+  /** A later `reverted` event names this one. */
+  reverted: boolean;
+}
+
+/** Every decision and lexicon change, newest first. */
+export function pronunciationHistory(): Promise<HistoryEvent[]> {
+  return invoke<HistoryEvent[]>("studio_pronunciation_history");
+}
+
+/** Puts the word's lexicon value back to the event's `previous` and gives
+ *  the new `reverted` event; rejects with a sentence fit to show (the word
+ *  has changed since, the event cannot be reverted). */
+export function revertPronunciation(id: string): Promise<HistoryEvent> {
+  return invoke<HistoryEvent>("studio_pronunciation_revert", { id });
+}

@@ -106,7 +106,8 @@ export const routes: RouteObject[] = [
       },
       {
         // Videos: the nav column (`StudioLayout`) beside the grid, one
-        // video's detail, the Components playground and the Themes page. Any
+        // video's detail, the Components playground, the Themes page and
+        // Pronunciation. Any
         // other path below a video's opens the video, and any other Studio
         // path the grid.
         path: "studio",
@@ -120,6 +121,7 @@ export const routes: RouteObject[] = [
           { path: "components/:name", lazy: page(() => import("@/pages/studio/ComponentsPage")) },
           { path: "themes", lazy: page(() => import("@/pages/studio/ThemesPage")) },
           { path: "themes/:name", lazy: page(() => import("@/pages/studio/ThemesPage")) },
+          { path: "pronunciation", lazy: page(() => import("@/pages/studio/PronunciationPage")) },
           { path: "*", element: <Navigate to="/studio/videos" replace /> },
         ],
       },
@@ -145,7 +147,7 @@ export const routes: RouteObject[] = [
           { path: "transcription", lazy: page(() => import("@/pages/settings/library/TranscriptionPage")) },
           { path: "voice", element: <Navigate to="../narration" replace /> },
           { path: "narration", lazy: page(() => import("@/pages/settings/studio/NarrationPage")) },
-          { path: "pronunciation", lazy: page(() => import("@/pages/settings/studio/PronunciationPage")) },
+          { path: "pronunciation", element: <Navigate to="/studio/pronunciation" replace /> },
           { path: "word-timing", lazy: page(() => import("@/pages/settings/studio/WordTimingPage")) },
           // Legacy paths that restored tabs and Recent entries may carry.
           { path: "ai", element: <Navigate to="../agents" replace /> },

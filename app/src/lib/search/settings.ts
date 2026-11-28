@@ -11,7 +11,6 @@ import {
   Robot,
   SpeakerHigh,
   Timer,
-  Translate,
   Waveform,
   type Icon,
 } from "@phosphor-icons/react";
@@ -41,7 +40,6 @@ export type SettingsPageId =
   | "embeddings"
   | "transcription"
   | "narration"
-  | "pronunciation"
   | "word-timing";
 
 export interface SettingsPage {
@@ -72,7 +70,6 @@ export const SETTINGS_PAGES: readonly SettingsPage[] = [
   { id: "embeddings", label: "Embeddings", icon: Graph, group: "Library" },
   { id: "transcription", label: "Transcription", icon: Waveform, group: "Library" },
   { id: "narration", label: "Narration", icon: SpeakerHigh, group: "Studio" },
-  { id: "pronunciation", label: "Pronunciation", icon: Translate, group: "Studio" },
   { id: "word-timing", label: "Word timing", icon: Timer, group: "Studio" },
 ];
 
@@ -220,8 +217,6 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     ["Voice", ["speaker", "af_heart", "am_michael", "downloaded"]],
     ["Speed", ["rate", "pace"]],
   ]),
-
-  page("pronunciation", ["studio", "lexicon", "review", "suggestion", "guessed words", "pronunciations"]),
 
   page("word-timing", ["studio", "aligner", "alignment", "word cues", "timing"]),
   ...rows("word-timing", "Word timing", [

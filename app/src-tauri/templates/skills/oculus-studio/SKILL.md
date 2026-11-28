@@ -495,7 +495,7 @@ word is said: never edit a `lexicon.json`. Judge each guess from its
 phonemes; for a doubtful one only, suggest a reading with `oculus studio
 pronounce suggest <slug> Nesterov NESS-ter-off` (`reference.md`,
 "Pronunciation", has the rules), tell the student which words you
-suggested, and that they decide in Settings → Studio → Pronunciation. Do
+suggested, and that they decide in Studio → Pronunciation. Do
 not wait: carry on with the video. A suggestion marked wrong comes back in
 the notes with the student's note; suggest again following it.
 

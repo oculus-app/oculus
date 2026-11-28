@@ -1,5 +1,5 @@
 //! `oculus studio pronounce`: an agent's suggested readings, stored for the
-//! student's review in Settings -> Studio -> Pronunciation
+//! student's review in Studio -> Pronunciation
 //! (`app_lib::studio::voice::review`).
 
 use crate::*;
@@ -67,7 +67,7 @@ impl Ctx {
         println!(
             "{}",
             paint(
-                "  the student reviews it in Settings -> Studio -> Pronunciation; a decision applies at the next narrate",
+                "  the student reviews it in Studio -> Pronunciation; a decision applies at the next narrate",
                 DIM
             )
         );

@@ -9,6 +9,7 @@ import {
   Kanban,
   ListChecks,
   MagnifyingGlass,
+  Translate,
   VideoCamera,
   type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
@@ -26,6 +27,7 @@ import { displayCode, displayName } from "@/lib/format/format";
 import { fmtLectureDate, lecturePagePath } from "@/lib/lectures";
 import { filePagePath, fileTitle } from "@/lib/files/openFile";
 import { DRIVE_RECENT_HREF } from "@/lib/drive/routes";
+import { PRONUNCIATION_HREF } from "@/lib/studio/routes";
 import { FILTER_KEYS, filterId, kindOf, type SearchFilter } from "./filters";
 import type { IconSpec, SearchItem, SnippetPart } from "./types";
 
@@ -38,6 +40,7 @@ export const PLACES: { label: string; path: string; icon: PhosphorIcon }[] = [
   { label: "Projects", path: "/projects", icon: Kanban },
   { label: "Tasks", path: "/tasks", icon: ListChecks },
   { label: "Sync", path: "/sync", icon: ArrowsClockwise },
+  { label: "Studio · Pronunciation", path: PRONUNCIATION_HREF, icon: Translate },
   { label: "Settings · Canvas", path: "/settings/canvas", icon: GearSix },
   { label: "Settings · Appearance", path: "/settings/appearance", icon: GearSix },
   { label: "Settings · Browser", path: "/settings/browser", icon: GearSix },
@@ -49,7 +52,6 @@ export const PLACES: { label: string; path: string; icon: PhosphorIcon }[] = [
   { label: "Settings · Embeddings", path: "/settings/embeddings", icon: GearSix },
   { label: "Settings · Transcription", path: "/settings/transcription", icon: GearSix },
   { label: "Settings · Narration", path: "/settings/narration", icon: GearSix },
-  { label: "Settings · Pronunciation", path: "/settings/pronunciation", icon: GearSix },
   { label: "Settings · Word timing", path: "/settings/word-timing", icon: GearSix },
 ];
 

@@ -23,6 +23,7 @@ import {
   Palette,
   Notebook,
   Scribble,
+  Translate,
 } from "@phosphor-icons/react";
 import { browseId, hostOf, type BrowserTab } from "@/lib/browser";
 import { faviconFor } from "@/hooks/shell/useBrowserTabs";
@@ -147,6 +148,7 @@ export function tabInfo(
     const theme = /^\/studio\/themes\/([^/]+)/.exec(pathname);
     if (theme) return { title: decodeURIComponent(theme[1]), icon: <Palette size={size} /> };
     if (pathname.startsWith("/studio/themes")) return { title: "Themes", icon: <Palette size={size} /> };
+    if (pathname.startsWith("/studio/pronunciation")) return { title: "Pronunciation", icon: <Translate size={size} /> };
     return { title: "Videos", icon: <FilmSlate size={size} /> };
   }
   if (pathname === DRIVE_RECENT_HREF) return { title: "Recent", icon: <ClockCounterClockwise size={size} /> };
