@@ -87,7 +87,10 @@ before leaving a playing lecture.
   The browser draws the tab's header row (the column's toggle, then the trail
   from Files), so `SubjectLayout` leaves its own out on that tab and hands the
   panel down through `useSubjectPanel`, a context, since the outlet carries
-  the subject. Older paths that saved tabs and Recent may carry are replaced
+  the subject. The context is its own file (`app/src/layouts/subjectPanel.ts`)
+  with no app imports at runtime, so a dev edit elsewhere never leaves a page
+  with a second copy of it ([development.md](./development.md#gotchas)).
+  Older paths that saved tabs and Recent may carry are replaced
   once the page loads (`resolveLegacyTab`): `files/downloads` by Course ▸ Files,
   `files/media` by Course ▸ Media (Course when there is none), `files/uploads`,
   `files/drive`, `files/documents`, `files/canvases` and `files/notebooks` by

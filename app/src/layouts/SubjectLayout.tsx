@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Navigate, Outlet, useLocation, useOutletContext, useParams } from "react-router-dom";
 import { useSideNavPanel } from "@/hooks/ui/useSideNavPanel";
 import { SideNavShell } from "@/components/ui/layout/SideNavShell";
@@ -12,15 +12,10 @@ import {
 } from "@/components/subjects/SubjectNav";
 import { PaneHeaderRow } from "@/components/tabs/PaneHeader";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
+import { SubjectPanelContext } from "@/layouts/subjectPanel";
 import type { Subject } from "@/lib/db";
 
 const LAST_SUBJECT_KEY = "oculus-last-subject";
-
-type Panel = ReturnType<typeof useSideNavPanel>;
-
-/** The nav column's panel, for a tab that draws its own header row. A
- *  context, not the outlet's: that carries the subject (`useSubject`). */
-const SubjectPanelContext = createContext<Panel | null>(null);
 
 /** Tabs whose page draws the header row itself (Files: Drive's browser,
  *  whose trail goes on from the subject). */
@@ -114,11 +109,4 @@ export default function SubjectLayout() {
 /** The subject for the current /subjects/:subjectId route. */
 export function useSubject(): Subject {
   return useOutletContext<Subject>();
-}
-
-/** The subject's nav column, for a tab drawing its own header's toggle. */
-export function useSubjectPanel(): Panel {
-  const panel = useContext(SubjectPanelContext);
-  if (!panel) throw new Error("useSubjectPanel outside SubjectLayout");
-  return panel;
 }

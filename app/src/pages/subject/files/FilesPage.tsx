@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { DriveBrowser } from "@/components/drive";
 import { SideNavCollapseToggle } from "@/components/ui/layout/SideNav";
-import { useSubject, useSubjectPanel } from "@/layouts/SubjectLayout";
+import { useSubject } from "@/layouts/SubjectLayout";
+import { useSubjectPanel } from "@/layouts/subjectPanel";
 import { resolveLegacyTab } from "@/lib/drive/legacyTabs";
 import { listFolder } from "@/lib/drive/listing";
 import { filesFolderHref, parseFilesRoute } from "@/lib/drive/routes";
