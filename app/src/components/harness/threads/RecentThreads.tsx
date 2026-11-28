@@ -8,6 +8,7 @@ import { chatHref, getThreadPreviews, PROVIDERS, type HarnessThread } from "@/li
 import { relativeTime } from "@/lib/activity/recents";
 import { VideoGlyph } from "./parts";
 import { PreviewLine } from "./PreviewLine";
+import { cachedPreviews, rememberPreviews } from "./previewCache";
 import { ROW_PREVIEW, ROW_TITLE, TITLE_ATTENTION, TITLE_READ } from "./rowType";
 import { ATTENTION, runStartedMs, StatusPill, threadRowStatus } from "./StatusPill";
 import { cn } from "@/lib/utils";
@@ -34,14 +35,17 @@ export const RecentThreads = memo(function RecentThreads({
 }) {
   const recent = useMemo(() => threads.slice(0, SHOWN), [threads]);
   const bySubject = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
-  const [previews, setPreviews] = useState<Map<number, string>>(new Map());
+  const [previews, setPreviews] = useState(() => cachedPreviews(recent.map((t) => t.id)));
 
   // Re-read when a listed thread changes, not on every store write.
   const key = recent.map((t) => `${t.id}:${t.updated_at}`).join(",");
   useEffect(() => {
     let live = true;
     getThreadPreviews(recent.map((t) => t.id))
-      .then((p) => live && setPreviews(p))
+      .then((p) => {
+        rememberPreviews(p);
+        if (live) setPreviews(p);
+      })
       .catch((e) => console.error("thread previews failed", e));
     return () => {
       live = false;

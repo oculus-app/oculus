@@ -9,6 +9,7 @@ import type { HarnessModel, HarnessRun, HarnessThread } from "@/lib/harness";
 import { chatHref } from "@/lib/harness/route";
 import { STOP_PATIENCE_MS } from "@/lib/harness/runs";
 import { PROVIDERS } from "@/lib/harness/registry";
+import { forgetProviderModels } from "@/hooks/agents/useProviderModels";
 import { proposalApi, type Proposal } from "@/lib/harness/proposals";
 
 const dom = parseHTML("<!doctype html><html><body></body></html>");
@@ -83,6 +84,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  forgetProviderModels();
   useHarnessStore.setState({ threads: [], threadsLoaded: true });
   host = document.body.appendChild(document.createElement("div"));
   root = createRoot(host);

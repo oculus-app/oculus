@@ -5,6 +5,14 @@ import { useWindowEvent } from "@/hooks/backend/useEvents";
 import { PROVIDERS, providerAvailability, providerInfo, type HarnessModel, type Provider, type PickerProvider } from "@/lib/harness";
 import { useCatalogue } from "@/lib/harness/opencodeCatalogue";
 
+/** The last list each provider gave, so a picker mounted again names its model from the first frame. */
+let lastFetched: Partial<Record<Provider, HarnessModel[]>> = {};
+
+/** Forgets those lists, for tests that answer a catalogue themselves. */
+export function forgetProviderModels(): void {
+  lastFetched = {};
+}
+
 /**
  * Every picker's providers, each with its catalogue and CLI health. Names no
  * provider: everything comes off `PROVIDERS`. `needed` is which CLIs are worth
@@ -25,7 +33,8 @@ export function useProviderModels(
   /** Models for a provider not on screen, to resolve a selection. */
   modelsFor: (p: Provider) => HarnessModel[];
 } {
-  const [fetched, setFetched] = useState<Partial<Record<Provider, HarnessModel[]>>>({});
+  // Seeded from the last lists; each mount still asks once and replaces them.
+  const [fetched, setFetched] = useState<Partial<Record<Provider, HarnessModel[]>>>(() => ({ ...lastFetched }));
   // Asked through `peekModels` and found not running.
   const [dormant, setDormant] = useState<ReadonlySet<Provider>>(new Set());
   const asked = useRef(new Set<Provider>());
@@ -68,6 +77,7 @@ export function useProviderModels(
       const ask = !start && info.peekModels ? info.peekModels : info.fetchModels;
       ask()
         .then((models) => {
+          if (models) lastFetched[id] = models;
           setFetched((f) => ({ ...f, [id]: models ?? [] }));
           setDormant((d) => {
             if (d.has(id) === (models === null)) return d;
