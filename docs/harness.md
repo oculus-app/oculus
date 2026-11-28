@@ -926,6 +926,11 @@ maths-heavy replies mounts a page at a time.
   `RetainedRow` renders into a stable portal host. `useRowVisibility` watches
   row boxes within 200px of the scroller; outside that range it detaches the
   host and leaves a fixed-height box using the last observed content height.
+  Opening a thread draws its newest rows bottom up, in the frame before the
+  jump to the bottom, until they fill the view and that 200px, and skips the
+  rows above outright: left to `content-visibility: auto`, they would draw a
+  frame after the jump at their 160px estimates, and the thread would paint
+  a screen too high before following down.
   Resizing does not lay out or restyle those detached maths and text trees.
   Revealing reattaches the same host, so expanded tools and edits survive;
   native scroll offsets inside the host are recorded on scroll and restored.

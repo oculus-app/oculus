@@ -3,6 +3,9 @@ import { ANCHOR_ROW } from "@/hooks/ui/useStickToBottom";
 import { onExpand } from "@/lib/ui/expandable";
 import { anchorDrift, HELD_ANCHOR, pickAnchor, scrollParent, SKIPPED_CONTENT, zoomScale } from "@/lib/ui/scrollAnchor";
 
+// Rows this close to the scroller stay drawn.
+const MARGIN = 200;
+
 /** Move off-screen portal hosts out of the document while retaining their React
  *  state. Fixed-height row boxes remain in the scroll flow; revealing restores
  *  each host, its native scroll offsets, and its current content. */
@@ -35,6 +38,36 @@ export function useRowVisibility(rootRef: RefObject<HTMLDivElement | null>, thre
         el.scrollLeft = at.left;
       }
     };
+    const hide = (row: HTMLElement, height: number) => {
+      row.style.containIntrinsicBlockSize = `${height}px`;
+      row.style.height = `${height + 8}px`;
+      row.style.contain = "size layout style paint";
+      row.setAttribute(SKIPPED_CONTENT, "");
+      row.style.contentVisibility = "hidden";
+      const host = contents.get(row)?.host;
+      // Detaching a frame destroys its browsing context. Media and frames
+      // retain their connection; ordinary message DOM leaves the document.
+      // A player scrolled out of sight stops rather than playing unseen.
+      host?.querySelectorAll("video, audio").forEach((m) => (m as HTMLMediaElement).pause());
+      if (host && !host.querySelector("iframe, video, audio")) host.remove();
+    };
+    // A thread opens at its bottom. Left to `content-visibility: auto`, the
+    // newest rows draw a frame after the jump to their 160px estimates, and
+    // the thread paints a screen too high. So draw them first, bottom up,
+    // until they fill the view and its margin, and skip the rows above.
+    const openAtBottom = () => {
+      if (expanded || !scroller?.clientHeight) return;
+      const list = [...root.children].filter((c): c is HTMLElement => rows.has(c as HTMLElement));
+      let need = scroller.clientHeight + MARGIN;
+      let i = list.length - 1;
+      for (; i >= 0 && need > 0; i--) {
+        show(list[i]);
+        need -= list[i].offsetHeight - 8;
+      }
+      // Read every estimate before writing any, so this lays out once.
+      const above = list.slice(0, i + 1).map((row) => Math.max(0, row.offsetHeight - 8));
+      above.forEach((height, j) => hide(list[j], height));
+    };
     const selected = (row: HTMLElement) => {
       if (row.hasAttribute(HELD_ANCHOR) || row.contains(document.activeElement)) return true;
       // A player there is fullscreen: the window's resize must not pause it.
@@ -58,21 +91,10 @@ export function useRowVisibility(rootRef: RefObject<HTMLDivElement | null>, thre
           show(row);
         } else {
           // skip-offscreen supplies 4px of padding at each block edge.
-          const height = heights.get(row) ?? Math.max(0, entry.boundingClientRect.height / scale - 8);
-          row.style.containIntrinsicBlockSize = `${height}px`;
-          row.style.height = `${height + 8}px`;
-          row.style.contain = "size layout style paint";
-          row.setAttribute(SKIPPED_CONTENT, "");
-          row.style.contentVisibility = "hidden";
-          const host = contents.get(row)?.host;
-          // Detaching a frame destroys its browsing context. Media and frames
-          // retain their connection; ordinary message DOM leaves the document.
-          // A player scrolled out of sight stops rather than playing unseen.
-          host?.querySelectorAll("video, audio").forEach((m) => (m as HTMLMediaElement).pause());
-          if (host && !host.querySelector("iframe, video, audio")) host.remove();
+          hide(row, heights.get(row) ?? Math.max(0, entry.boundingClientRect.height / scale - 8));
         }
       }
-    }, { root: scroller, rootMargin: "200px 0px" });
+    }, { root: scroller, rootMargin: `${MARGIN}px 0px` });
 
     // Direct children only: appending history must not walk the maths DOM.
     let initial = true;
@@ -111,6 +133,9 @@ export function useRowVisibility(rootRef: RefObject<HTMLDivElement | null>, thre
     };
     sync();
     initial = false;
+    // A row's content renders after this commit (`RetainedRow`); the frame's
+    // callbacks run before the jump to the bottom and the first paint.
+    const opening = requestAnimationFrame(openAtBottom);
     const changes = new MutationObserver(sync);
     changes.observe(root, { childList: true });
     const off = onExpand(root, ({ upToId }) => {
@@ -135,6 +160,7 @@ export function useRowVisibility(rootRef: RefObject<HTMLDivElement | null>, thre
       }
     });
     return () => {
+      cancelAnimationFrame(opening);
       off();
       changes.disconnect();
       visibility.disconnect();
