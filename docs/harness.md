@@ -1197,7 +1197,10 @@ the page writes it into the draft once and drops it from the route.
   find them; `useSkillNames` reads the catalogue if no composer has. A
   title is bright and medium while the thread is Done, Approval, Question
   or Failed, dimmed otherwise, and always a step brighter and larger than
-  the preview (`threads/rowType.ts`, [ui.md](./ui.md)). Hover shows a ⋯
+  the preview (`threads/rowType.ts`, [ui.md](./ui.md)). A row opens on
+  the press, as a tab does, and keeps focus where it was, so the composer's
+  ring holds (`pressOpen`, `app/src/lib/ui/pressOpen.ts`; also draft,
+  search and recent rows); its highlight moves with no fade. Hover shows a ⋯
   menu (open in a new tab, and delete, which asks first and offers to delete
   the files only that chat attached, [below](#attachments-are-files-in-agentsattachments)); the menu is not modal, so the row stays hovered when it closes. It has no surface of its own: the line under it (the subject's,
   or the title's in the Subject view) fades out at its end (`UNDER_ACTIONS`),

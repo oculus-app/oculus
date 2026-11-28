@@ -6,6 +6,7 @@ import { displayCode, sqliteUtcToMs } from "@/lib/format/format";
 import { shortAge } from "@/lib/activity/recents";
 import { chatHref, PROVIDERS, type ThreadSearchResult } from "@/lib/harness";
 import { cn } from "@/lib/utils";
+import { pressOpen } from "@/lib/ui/pressOpen";
 import { ROW_META, ROW_PREVIEW, ROW_TITLE, TITLE_READ, TITLE_READ_ACTIVE } from "../rowType";
 import { Snippet } from "./Snippet";
 
@@ -28,9 +29,9 @@ export const SearchRow = memo(function SearchRow({
       data-search-row={r.id}
       data-tab-href={chatHref(r.id, r.title)}
       aria-current={active ? "page" : undefined}
-      onClick={() => onOpen(r)}
+      {...pressOpen(() => onOpen(r))}
       className={cn(
-        "flex w-full min-w-0 flex-col rounded-lg px-2.5 pt-1.5 pb-[7px] text-left transition-colors",
+        "flex w-full min-w-0 flex-col rounded-lg px-2.5 pt-1.5 pb-[7px] text-left",
         active ? "bg-sidebar-item-active" : "hover:bg-sidebar-item-hover",
       )}
     >

@@ -8,6 +8,7 @@ import { chatHref, PROVIDERS, withChildren, type HarnessThread, type ThreadStatu
 import { activityLine } from "@/lib/harness/activity";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { cn } from "@/lib/utils";
+import { pressOpen } from "@/lib/ui/pressOpen";
 import { VideoGlyph } from "./parts";
 import { PreviewLine } from "./PreviewLine";
 import { RowMenu } from "./RowMenu";
@@ -75,7 +76,7 @@ export const ThreadRow = memo(function ThreadRow({
     <div
       data-thread-row={t.id}
       className={cn(
-        "group/thread relative rounded-lg transition-colors",
+        "group/thread relative rounded-lg",
         active ? "bg-sidebar-item-active" : drafted ? DRAFT_TINT : "hover:bg-sidebar-item-hover",
       )}
     >
@@ -85,7 +86,7 @@ export const ThreadRow = memo(function ThreadRow({
         // ⌘-click opens the thread in a new tab (`app/src/lib/shell/newTabClicks.ts`).
         data-tab-href={chatHref(t.id, t.title)}
         aria-current={active ? "page" : undefined}
-        onClick={() => onOpen(t.id)}
+        {...pressOpen(() => onOpen(t.id))}
         className="flex w-full min-w-0 flex-col px-2.5 pt-1.5 pb-[7px] text-left"
       >
         <span

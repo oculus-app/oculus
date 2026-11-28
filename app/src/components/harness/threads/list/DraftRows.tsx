@@ -6,6 +6,7 @@ import type { Subject } from "@/lib/db";
 import { displayCode } from "@/lib/format/format";
 import { GENERAL_SCOPE, liveScope, type ChatScope } from "@/lib/harness/scope";
 import { cn } from "@/lib/utils";
+import { pressOpen } from "@/lib/ui/pressOpen";
 import { hasDraft, newChatKey, useDraftStore } from "@/stores/chat/draftStore";
 import { useShallow } from "zustand/react/shallow";
 import { PreviewLine } from "../PreviewLine";
@@ -155,14 +156,14 @@ function DraftRow({
   return (
     <div
       className={cn(
-        "group/thread relative rounded-lg transition-colors",
+        "group/thread relative rounded-lg",
         active ? "bg-sidebar-item-active" : title ? DRAFT_TINT : "hover:bg-sidebar-item-hover",
       )}
     >
       <button
         type="button"
         aria-current={active ? "page" : undefined}
-        onClick={() => onOpen(id)}
+        {...pressOpen(() => onOpen(id))}
         className="flex w-full min-w-0 flex-col px-2.5 pt-1.5 pb-[7px] text-left"
       >
         <span className={cn("flex h-[18px] w-full min-w-0 items-center gap-1.5", ROW_META, UNDER_ACTIONS)}>

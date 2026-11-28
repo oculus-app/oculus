@@ -12,6 +12,7 @@ import { cachedPreviews, rememberPreviews } from "./previewCache";
 import { ROW_PREVIEW, ROW_TITLE, TITLE_ATTENTION, TITLE_READ } from "./rowType";
 import { ATTENTION, runStartedMs, StatusPill, threadRowStatus } from "./StatusPill";
 import { cn } from "@/lib/utils";
+import { pressOpen } from "@/lib/ui/pressOpen";
 
 /** Rows shown; the nav column lists every thread. */
 const SHOWN = 3;
@@ -97,7 +98,7 @@ function Row({
       <button
         type="button"
         data-tab-href={chatHref(t.id, t.title)}
-        onClick={() => onOpen(t.id)}
+        {...pressOpen(() => onOpen(t.id))}
         className="flex w-full min-w-0 items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent"
       >
         <span title={PROVIDERS.find((p) => p.id === t.provider)?.label} className="mt-[3px] shrink-0">
