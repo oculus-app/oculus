@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { useStoredState } from "@/hooks/ui/useStoredState";
 import { setAppearance, themesFor, useAppearance, type ThemeMode } from "@/lib/ui/themes";
 import { ThemeCard } from "./ThemeCard";
@@ -30,6 +31,7 @@ export function ThemeGrid({ mode, inUse }: { mode: ThemeMode; inUse: boolean }) 
   const [expanded, setExpanded] = useStoredState(`oculus-appearance-grid-${mode}`, readExpanded, writeExpanded);
   const [cols, setCols] = useState(themes.length);
   const grid = useRef<HTMLDivElement>(null);
+  const animateNext = useClipMotion(grid, expanded);
   const cards = useRef(new Map<string, HTMLButtonElement>());
   const focusNext = useRef<string | null>(null);
   const chosen = Math.max(0, themes.findIndex((t) => t.id === prefs[mode]));
@@ -82,7 +84,10 @@ export function ThemeGrid({ mode, inUse }: { mode: ThemeMode; inUse: boolean }) 
           <button
             type="button"
             aria-expanded={expanded}
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => {
+              animateNext();
+              setExpanded(!expanded);
+            }}
             className="ml-auto cursor-pointer rounded-full px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             {expanded ? "Show less" : `See all ${themes.length}`}

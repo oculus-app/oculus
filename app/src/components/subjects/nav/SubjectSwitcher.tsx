@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { CaretRight, CaretUpDown } from "@phosphor-icons/react";
 import { NewCountBadge } from "@/components/NewCountBadge";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
 import { useScrollFade } from "@/hooks/ui/useScrollFade";
@@ -189,18 +190,13 @@ function SwitcherList({
       <div>
         {current.map(row)}
         {past.length > 0 && (
-          <div className={cn(current.length > 0 && "mt-2")}>
-            <button
-              type="button"
-              aria-expanded={pastOpen}
-              onClick={() => setPastOpen((o) => !o)}
-              className="mb-0.5 flex w-full cursor-pointer items-center gap-1 px-2 py-1 text-left text-[11px] font-medium tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
-            >
-              <CaretRight size={10} className={cn("shrink-0 transition-transform", pastOpen && "rotate-90")} />
+          <Collapsible open={pastOpen} onOpenChange={setPastOpen} className={cn(current.length > 0 && "mt-2")}>
+            <CollapsibleTrigger className="mb-0.5 flex w-full cursor-pointer items-center gap-1 px-2 py-1 text-left text-[11px] font-medium tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
+              <CaretRight size={10} className={cn("shrink-0 transition-transform will-change-transform", pastOpen && "rotate-90")} />
               Past subjects ({past.length})
-            </button>
-            {pastOpen && past.map(row)}
-          </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>{past.map(row)}</CollapsibleContent>
+          </Collapsible>
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CaretDownIcon } from "@phosphor-icons/react";
 
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ColorPicker, HexInput } from "@/components/ui/color/ColorPicker";
 import { parseHex, toHex } from "@/lib/ui/color";
 import { cn } from "@/lib/utils";
@@ -101,22 +102,23 @@ export function ColorPalette({
           <div className="flex h-7 items-center text-muted-foreground/70">None for this colour</div>
         )}
       </div>
-      <div className="space-y-2">
+      <Collapsible open={custom} onOpenChange={setCustom}>
         <div className="flex items-center justify-between text-muted-foreground">
           <span>Hex code</span>
-          <button
-            type="button"
-            aria-expanded={custom}
-            onClick={() => setCustom((open) => !open)}
+          <CollapsibleTrigger
             className="-mr-1 flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-0.5 outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand"
           >
             Custom
-            <CaretDownIcon size={11} className={cn("transition-transform", custom && "rotate-180")} />
-          </button>
+            <CaretDownIcon size={11} className={cn("transition-transform will-change-transform", custom && "rotate-180")} />
+          </CollapsibleTrigger>
         </div>
-        <HexInput value={value} onCommit={typed} />
-        {custom ? <ColorPicker value={parseHex(value) ? value : "#000000"} onChange={onChange} opaque={opaque} hex={false} /> : null}
-      </div>
+        <div className="pt-2">
+          <HexInput value={value} onCommit={typed} />
+        </div>
+        <CollapsibleContent className="pt-2">
+          <ColorPicker value={parseHex(value) ? value : "#000000"} onChange={onChange} opaque={opaque} hex={false} />
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

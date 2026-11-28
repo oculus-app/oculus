@@ -1,4 +1,5 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { cn } from "@/lib/utils";
 
 const ROW = "flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] leading-5";
@@ -92,6 +93,8 @@ export function InfoGroup<T>({
   leading?: ReactNode;
 }) {
   const [all, setAll] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
+  const animateNext = useClipMotion(list, all);
   if (rows.length === 0 && !leading) return null;
   const hidden = rows.length - LIMIT;
   const shown = all || hidden <= 0 ? rows : rows.slice(0, LIMIT);
@@ -105,11 +108,16 @@ export function InfoGroup<T>({
     >
       <h3 className="px-2.5 pt-1.5 pb-0.5 font-sans text-[11px] font-medium text-muted-foreground">{heading}</h3>
       {leading}
-      {shown.map(render)}
+      <div ref={list} className="flex flex-col">
+        {shown.map(render)}
+      </div>
       {hidden > 0 && (
         <button
           type="button"
-          onClick={() => setAll((a) => !a)}
+          onClick={() => {
+            animateNext();
+            setAll((a) => !a);
+          }}
           className="cursor-pointer rounded-lg px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           {all ? "Show less" : `Show ${hidden} more`}

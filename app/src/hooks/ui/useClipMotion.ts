@@ -2,12 +2,14 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
 import { CLOSE_MS, EASE, OPEN_MS, skipMotion } from "./useFoldMotion";
 
 /**
- * Show more and Show less on a clipped block (`max-height` while folded),
- * easing its height between the clip and the whole with a fold's timing
- * (`useFoldMotion`). Call `animateNext` before the state flips: it reads the
- * height the block has now, and the next change of `open` plays from it.
+ * Show more and Show less: a block's height eases from what it was to what
+ * it now is, with a fold's timing (`useFoldMotion`) — a clipped block
+ * (`max-height` while folded) between its clip and the whole, or a list
+ * between its rows before and after a page more. Call `animateNext` before
+ * the state flips: it reads the height now, and the next change of `at`
+ * plays from it.
  */
-export function useClipMotion(ref: RefObject<HTMLElement | null>, open: boolean) {
+export function useClipMotion(ref: RefObject<HTMLElement | null>, at: unknown) {
   const from = useRef<number | null>(null);
 
   const animateNext = () => {
@@ -28,7 +30,7 @@ export function useClipMotion(ref: RefObject<HTMLElement | null>, open: boolean)
         { height: `${start}px`, maxHeight: "none" },
         { height: `${end}px`, maxHeight: "none" },
       ],
-      { duration: open ? OPEN_MS : CLOSE_MS, easing: EASE },
+      { duration: end > start ? OPEN_MS : CLOSE_MS, easing: EASE },
     );
     const done = () => {
       el.style.overflow = "";
@@ -39,7 +41,7 @@ export function useClipMotion(ref: RefObject<HTMLElement | null>, open: boolean)
       anim.cancel();
       done();
     };
-  }, [open, ref]);
+  }, [at, ref]);
 
   return animateNext;
 }

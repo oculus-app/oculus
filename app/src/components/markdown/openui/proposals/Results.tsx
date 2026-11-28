@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { ArrowSquareOut, CalendarBlank, CaretDown, CaretUp, FileText, Note } from "@phosphor-icons/react";
 import { TagDot } from "@/components/projects/tags/TagDot";
 import { isTagColor } from "@/lib/planning/projects/tags";
@@ -21,6 +22,8 @@ export function Results({ proposal }: { proposal: Proposal }) {
   const [live, setLive] = useState<Record<string, Row | null>>({});
   const [error, setError] = useState<string>();
   const [all, setAll] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
+  const animateNext = useClipMotion(list, all);
   const key = JSON.stringify(proposal.made);
   useEffect(() => {
     let active = true;
@@ -62,7 +65,7 @@ export function Results({ proposal }: { proposal: Proposal }) {
     else { const to = href(item); if (to) navigateActive(to); }
   };
   return <div className="px-4 py-2">
-    {(all ? proposal.made : proposal.made.slice(0, SHOWN)).map((item, i) => {
+    <div ref={list}>{(all ? proposal.made : proposal.made.slice(0, SHOWN)).map((item, i) => {
       const key = `${item.entity}:${item.id}`;
       // A made row read back as missing was deleted since (or by Undo); it keeps its title, struck through.
       const gone = item.op !== "delete" && key in live && live[key] === null;
@@ -88,8 +91,8 @@ export function Results({ proposal }: { proposal: Proposal }) {
         {/* An undone change leaves its item in place, so it still opens. */}
         {opens && <button type="button" data-tab-href={href(item) ?? undefined} onClick={(e) => open(item, e.metaKey || e.ctrlKey)} onAuxClick={(e) => { if (e.button === 1) open(item, true); }} className="-mr-1 inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:bg-brand-muted hover:text-brand" aria-label={`Open ${title}`}>Open<ArrowSquareOut size={12} /></button>}
       </div>;
-    })}
-    {proposal.made.length > SHOWN && <Button variant="ghost" size="xs" className="-ml-2 text-muted-foreground" onClick={() => setAll(!all)}>{all ? <><CaretUp />Show less</> : <><CaretDown />Show {proposal.made.length - SHOWN} more</>}</Button>}
+    })}</div>
+    {proposal.made.length > SHOWN && <Button variant="ghost" size="xs" className="-ml-2 text-muted-foreground" onClick={() => { animateNext(); setAll(!all); }}>{all ? <><CaretUp />Show less</> : <><CaretDown />Show {proposal.made.length - SHOWN} more</>}</Button>}
     {error && <div className="text-xs text-destructive">Couldn’t load current links: {error}</div>}
   </div>;
 }

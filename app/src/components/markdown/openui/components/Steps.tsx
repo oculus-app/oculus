@@ -1,9 +1,10 @@
-import { useContext } from "react";
+import { useContext, useRef } from "react";
 import { defineComponent, useIsStreaming } from "@openuidev/react-lang";
 import { MoreComing, StreamingStatus, StreamingPending } from "../Streaming";
 import { z } from "zod/v4";
 import { Frame, Pill, Rich } from "./Frame";
 import { useWidgetProgress } from "../progress";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 
 export const Step = defineComponent({
   name: "Step",
@@ -33,7 +34,13 @@ export const Steps = defineComponent({
     const steps = (props.steps ?? []).map((s) => (s?.props ?? {}) as StepProps);
     const progress = useWidgetProgress(0);
     const shown = progress.value;
-    const setShown = progress.setValue;
+    const list = useRef<HTMLOListElement>(null);
+    const animateNext = useClipMotion(list, shown);
+    // Each reveal eases the list to its new height.
+    const setShown = (n: number) => {
+      animateNext();
+      progress.setValue(n);
+    };
     const total = steps.length;
     if (!total) return streaming ? <Frame title={typeof props.problem === "string" ? props.problem : undefined}><MoreComing /></Frame> : null;
     const all = shown >= total;
@@ -56,7 +63,7 @@ export const Steps = defineComponent({
           )
         }
       >
-        <ol className="flex flex-col gap-2">
+        <ol ref={list} className="flex flex-col gap-2">
           {steps.slice(0, shown).map((s, i) => (
             <li key={i} className="flex gap-2.5">
               <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-muted text-[11px] font-semibold tabular-nums text-brand">

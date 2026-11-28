@@ -18,6 +18,7 @@ import { useWidgetAsk } from "./ask/useWidgetAsk";
 import { streamGate } from "./stream/gate";
 import { moduleCode } from "./stream/preview";
 import { usePreview } from "./stream/usePreview";
+import { Fold } from "@/components/ui/Fold";
 import { cn } from "@/lib/utils";
 
 /** Last reported heights by source, so a remounted widget starts at its size. */
@@ -229,7 +230,9 @@ export function LiveWidget({
           />
         </div>
       )}
-      {showSource && !streaming && <div className="border-t border-border px-3 [&>pre]:my-3">{code}</div>}
+      <Fold open={showSource && !streaming}>
+        <div className="border-t border-border px-3 [&>pre]:my-3">{code}</div>
+      </Fold>
       {expanded && (
         <WidgetExpand
           doc={expanded.doc}

@@ -8,6 +8,7 @@ import { getProjects } from "@/lib/planning/projects/reads";
 import type { DbProject } from "@/lib/planning/projects/rows";
 import { getSubjects, type Subject } from "@/lib/db";
 import { Button } from "@/components/ui/button";
+import { useClipMotion } from "@/hooks/ui/useClipMotion";
 import { displayValue } from "./ProposalParts";
 import { object, type Row } from "./model";
 import { MarkdownInput } from "./MarkdownInput";
@@ -102,28 +103,31 @@ export function Fields({ row, names, onChange, columns, topics, subjectId, entit
  * fenced code and display maths. Source fields use the line diff below. */
 export function TextDiff({ before, after, markdown = false }: { before: unknown; after: unknown; markdown?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const body = useRef<HTMLDivElement>(null);
+  const animateNext = useClipMotion(body, expanded);
+  const toggle = () => { animateNext(); setExpanded(!expanded); };
   const oldText = String(before ?? ""), newText = String(after ?? "");
   if (markdown) {
     const long = Math.max(oldText.length, newText.length) > 400 || Math.max(oldText.split("\n").length, newText.split("\n").length) > 6;
     return <div className="w-full min-w-0">
-      <div className={`space-y-2 ${long && !expanded ? "max-h-64 overflow-y-auto" : ""}`}>
+      <div ref={body} className={`space-y-2 ${long && !expanded ? "max-h-64 overflow-y-auto" : ""}`}>
         {[{ text: oldText, added: false }, { text: newText, added: true }].filter(({ text }) => text).map(({ text, added }) => <div key={String(added)} className={`min-w-0 rounded-md border border-border-subtle px-3 py-2 ${added ? "bg-success/8" : "bg-destructive/6"}`}>
           <div className={`mb-1 text-[11px] font-medium ${added ? "text-success" : "text-destructive"}`}>{added ? "Added" : "Removed"}</div>
           <CompactMd text={text} />
         </div>)}
       </div>
-      {long && <Button variant="link" size="xs" className="px-0" onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : "Show full change"}</Button>}
+      {long && <Button variant="link" size="xs" className="px-0" onClick={toggle}>{expanded ? "Show less" : "Show full change"}</Button>}
     </div>;
   }
   const lines = [...oldText.split("\n").filter((line) => line && !newText.split("\n").includes(line)).map((line) => ({ line, added: false })), ...newText.split("\n").filter((line) => line && !oldText.split("\n").includes(line)).map((line) => ({ line, added: true }))];
   return <div className="w-full min-w-0">
-    <div className="overflow-hidden rounded-md border border-border-subtle text-[12.5px] leading-5">
+    <div ref={body} className="overflow-hidden rounded-md border border-border-subtle text-[12.5px] leading-5">
       {(expanded ? lines : lines.slice(0, 3)).map(({ line, added }, i) => <div key={i} className={`flex min-w-0 gap-2 px-2 py-0.5 ${added ? "bg-success/8" : "bg-destructive/6 text-muted-foreground"}`}>
         <span aria-label={added ? "Added" : "Removed"} className={`w-2 shrink-0 select-none ${added ? "text-success" : "text-destructive"}`}>{added ? "+" : "−"}</span>
         <span className="min-w-0 break-words">{line}</span>
       </div>)}
     </div>
-    {lines.length > 3 && <Button variant="link" size="xs" className="px-0" onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : `Show all ${lines.length} lines`}</Button>}
+    {lines.length > 3 && <Button variant="link" size="xs" className="px-0" onClick={toggle}>{expanded ? "Show less" : `Show all ${lines.length} lines`}</Button>}
   </div>;
 }
 

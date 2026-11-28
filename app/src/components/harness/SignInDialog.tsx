@@ -24,6 +24,7 @@ import { signInAccount, useSignInStatus } from "@/hooks/agents/useSignInStatus";
 import { navigateActive } from "@/lib/shell/tabRouters";
 import { copyText, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -319,24 +320,20 @@ export function SignInDialog({
         {run?.error && <p className="text-xs text-destructive">{run.error}</p>}
 
         {!!run?.lines.length && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowLog((s) => !s)}
-              className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
+          <Collapsible open={showLog} onOpenChange={setShowLog}>
+            <CollapsibleTrigger className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
               <CaretRight
                 size={11}
-                className={cn("transition-transform", showLog && "rotate-90")}
+                className={cn("transition-transform will-change-transform", showLog && "rotate-90")}
               />
               {showLog ? "Hide output" : "Show output"}
-            </button>
-            {showLog && (
-              <div className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border-subtle bg-surface p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1.5">
+              <div className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border-subtle bg-surface p-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
                 {run.lines.join("\n")}
               </div>
-            )}
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         <DialogFooter>

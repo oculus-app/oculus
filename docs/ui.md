@@ -29,7 +29,7 @@ Read this before any UI work.
 | The colour control: a swatch that opens a pad, hue and opacity strips and hex text (`opaque` drops the opacity strip), or with a `palette` a grid of colours, their shades and the hex code with the pad behind Custom | `app/src/components/ui/color/`, `app/src/lib/ui/color.ts` |
 | Identity icons, shared picker and colour palette | `app/src/components/ui/icon/`, `app/src/lib/ui/iconPreferences.ts` |
 | A titled block that folds, its state kept by the caller | `app/src/components/ui/CollapsibleSection.tsx` |
-| A disclosure's body easing open and shut, and a Show more clip easing between its clip and the whole | `app/src/components/ui/Fold.tsx`, `app/src/components/ui/collapsible.tsx`, `app/src/hooks/ui/useFoldMotion.ts`, `app/src/hooks/ui/useClipMotion.ts` |
+| A disclosure's body easing open and shut, and a Show more easing between the height it had and the one it has | `app/src/components/ui/Fold.tsx`, `app/src/components/ui/collapsible.tsx`, `app/src/hooks/ui/useFoldMotion.ts`, `app/src/hooks/ui/useClipMotion.ts` |
 | Study widgets in markdown replies | `app/src/components/markdown/openui/components/` |
 | Agent-written widgets and the kit they are built from | `app/src/components/markdown/widget/`, `app/widget-kit/` |
 | Generative UI markup (` ```ui ` fences) and its token-backed vocabulary | `app/src/components/markdown/genui/` |
@@ -696,9 +696,10 @@ glyph; subject and project crumbs retain their custom identity icons.
   close, so the caller may drop its content at once. Space between header
   and body is the `Fold`'s padding, not a parent's `gap` or a child's margin,
   or it jumps at the ends. Inside a `divide-y` list the `Fold` is one more
-  sibling, so it takes `divide-y` itself for the rows it holds. A Show more
-  clip (`max-height` while folded) calls `useClipMotion`'s `animateNext`
-  before it flips. A caret rotates (`transition-transform
+  sibling, so it takes `divide-y` itself for the rows it holds. A Show more,
+  whether a clip (`max-height` while folded) or a list that grows by a page
+  or slices to its first rows, calls `useClipMotion`'s `animateNext` before
+  it flips, on the element whose height changes. A caret rotates (`transition-transform
   will-change-transform`) unless its row swaps two icons on purpose (Chat's
   subagent fold, Drive's group headings and tree).
 - **A list row joining or leaving moves with `row-presence`**: its height

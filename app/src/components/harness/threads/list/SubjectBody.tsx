@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Books, CaretRight, CircleDashed, Plus } from "@phosphor-icons/react";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
-import { SIDE_NAV_FOLDS, SIDE_NAV_ROW, SIDE_NAV_ROW_IDLE } from "@/components/ui/layout/SideNav";
+import { SIDE_NAV_FOLDS } from "@/components/ui/layout/SideNav";
 import type { HarnessThread } from "@/lib/harness";
 import type { Subject } from "@/lib/db";
 import { GENERAL_SCOPE, type ChatScope } from "@/lib/harness/scope";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { arrange, byNewest, ORDER_KEY, PAGE } from "../order";
 import { SECTION_HEAD } from "../rowType";
 import { DropLine } from "../parts";
+import { PagedRows } from "./PagedRows";
 import { Fold } from "@/components/ui/Fold";
 
 /**
@@ -210,35 +211,20 @@ export function SubjectBody({
                 )}
               </div>
             </div>
-            <Fold open={open} className="flex flex-col gap-0.5">
-              {g.items.slice(0, limit).map(row)}
-              {(rest > 0 || more) && (
-                <button
-                  type="button"
-                  tabIndex={collapsed ? -1 : undefined}
-                  onClick={() => {
-                    setShown((prev) => ({ ...prev, [g.key]: limit + PAGE }));
-                    // Every thread read is shown: read older ones, which may
-                    // hold more of this subject's.
-                    if (rest <= 0) onMore();
-                  }}
-                  className={cn(
-                    SIDE_NAV_ROW,
-                    SIDE_NAV_ROW_IDLE,
-                    SIDE_NAV_FOLDS,
-                    "px-2.5 text-[11.5px] group-data-[collapsed=true]/nav:pointer-events-none",
-                  )}
-                >
-                  {/* One child: the row's flex gap would split the words. */}
-                  {rest > 0 ? (
-                    <span>
-                      Show <span className="tabular-nums">{Math.min(PAGE, rest)}</span> more
-                    </span>
-                  ) : (
-                    "Show more"
-                  )}
-                </button>
-              )}
+            <Fold open={open}>
+              <PagedRows
+                items={g.items}
+                limit={limit}
+                more={more}
+                collapsed={collapsed}
+                onShowMore={() => {
+                  setShown((prev) => ({ ...prev, [g.key]: limit + PAGE }));
+                  // Every thread read is shown: read older ones, which may
+                  // hold more of this subject's.
+                  if (rest <= 0) onMore();
+                }}
+                row={row}
+              />
             </Fold>
           </div>
         );
