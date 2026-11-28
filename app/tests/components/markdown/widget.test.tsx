@@ -187,6 +187,7 @@ describe("readWidgetMessage", () => {
     expect(msg({ type: "oculus-widget", kind: "state", state: { a: 1 } })?.kind).toBe("state");
     expect(msg({ type: "oculus-widget", kind: "error", phase: "render", message: "boom" })?.kind).toBe("error");
     expect(msg({ type: "oculus-widget", kind: "overflow", width: 500, frameWidth: 400 })?.kind).toBe("overflow");
+    expect(msg({ type: "oculus-widget", kind: "fits" })).toEqual({ type: "oculus-widget", kind: "fits" });
   });
 
   test("rejects other sources, other types and bad shapes", () => {

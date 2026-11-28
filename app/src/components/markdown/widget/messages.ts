@@ -41,6 +41,8 @@ export function readWidgetMessage(e: { source: unknown; data: unknown }, frame: 
       return finite(d.width) && finite(d.frameWidth)
         ? { type: WIDGET_MESSAGE, kind: "overflow", width: Math.ceil(d.width), frameWidth: Math.floor(d.frameWidth) }
         : null;
+    case "fits":
+      return { type: WIDGET_MESSAGE, kind: "fits" };
     // Sizes are the gate's to refuse (`ask/gate.ts`), with a reply; a shape
     // that is wrong gets none, since the kit never posts one.
     case "ask":

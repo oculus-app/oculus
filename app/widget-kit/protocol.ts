@@ -21,6 +21,8 @@ export type WidgetMessage =
   | { type: typeof WIDGET_MESSAGE; kind: "error"; phase: ErrorPhase; message: string }
   /** Content wider than the frame: `body` clips it, so it is an error. */
   | { type: typeof WIDGET_MESSAGE; kind: "overflow"; width: number; frameWidth: number }
+  /** Content that overflowed fits again (the frame widened). */
+  | { type: typeof WIDGET_MESSAGE; kind: "fits" }
   /** `oculus/ask`'s `ask`: one model call answering JSON that matches
    *  `schema`. The parent answers with a `reply` carrying the same `id`. */
   | { type: typeof WIDGET_MESSAGE; kind: "ask"; id: string; prompt: string; schema: Record<string, unknown> }

@@ -23,7 +23,7 @@ const EMPTY: FrameReport = { height: null, error: null, wide: null };
 
 /**
  * What one widget frame has said since it loaded `doc`: its height, its
- * newest error, horizontal overflow. State goes to `onState`. Only messages
+ * newest error, horizontal overflow until it fits again. State goes to `onState`. Only messages
  * whose source is this frame's window count (`readWidgetMessage`). No
  * timeouts: a frame that never reports stays `height: null`, and a kit that
  * never loads is reported by the frame's own guard script on `load`.
@@ -84,6 +84,7 @@ export function useWidgetFrame(
         setSpokenDoc(docRef.current);
         setReport((r) => (r.height === m.height ? r : { ...r, height: m.height }));
       } else if (m.kind === "error") setReport((r) => ({ ...r, error: { phase: m.phase, message: m.message } }));
+      else if (m.kind === "fits") setReport((r) => (r.wide ? { ...r, wide: null } : r));
       else setReport((r) => ({ ...r, wide: { width: m.width, frameWidth: m.frameWidth } }));
     };
     window.addEventListener("message", onMessage);

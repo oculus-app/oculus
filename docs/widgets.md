@@ -194,7 +194,8 @@ The frame posts `{ type: "oculus-widget", kind, … }` to its parent:
 | `height` | `height` (CSS px, rounded up) | the runtime, whenever `#root` resizes |
 | `state` | `state`, the whole object | the runtime, 200 ms after the last change |
 | `error` | `phase` (`kit`, `csp`, `runtime`, `render`), `message` | the guard script, or the runtime's error boundary |
-| `overflow` | `width`, `frameWidth` | the runtime, when content is wider than the frame |
+| `overflow` | `width`, `frameWidth` | the runtime, when content becomes wider than the frame |
+| `fits` | — | the runtime, when content that overflowed fits again; the parent drops the overflow error |
 | `ask` | `id`, `prompt`, `schema` (an object) | `oculus/ask`'s `ask` |
 | `send` | `id`, `text` | `oculus/ask`'s `send` |
 
