@@ -318,7 +318,8 @@ Drive's rail section at `/drive/*` and the Files tab at
   Hovered and focused rows take the drop target's brand tint.
 - **Pictures** (`components/drive/thumbs/`) come from what already draws
   each kind: a PDF's, or an Office file's converted PDF's, first page through
-  the viewer's renderer (`openPdf`, `renderPage`); a recording's frame from
+  the viewer's renderer (`openPdf`, `renderPage`), tried again when a
+  missing converted PDF lands (`doc-pdf-ready`, `useDocPdfStore`); a recording's frame from
   `lecture_thumbnail`; an image itself. A notebook shows the first-page
   picture its editor writes for chat agents (`drive_notebook_cover`, PNG
   bytes from `.oculus/whiteboard-pages/<file id>/`), kept per notebook and read again
@@ -546,7 +547,8 @@ the old `oculus-canvas` type (a save writes the new one) and no other such
 row claims it, and leaves it otherwise. `import_uploads` gives a picked
 `.canvas` drawing the `.whiteboard` name as it lands. `reconcileOwnFiles`
 (`app/src/lib/drive/reconcile.ts`) kicks each new file's parse as an
-upload's is kicked, then brings notes and drawings in line
+upload's is kicked (an Office file's parse makes its missing PDF first,
+[parsing.md](./parsing.md#an-office-file-without-its-pdf-is-converted-first)), then brings notes and drawings in line
 (`reconcileDocuments`, `reconcileDrawings`, which also drop rows whose file
 is gone). `scheduleOwnReconcile` runs it when the browser opens a folder in
 a subject (the Files tab, or Drive below a subject), or the top level or a
@@ -732,8 +734,9 @@ and read errors are exposed; metadata read failures retain filename fallbacks.
   when `embedStage` is set, and only for a PDF-backed file (`embedsIn`). A
   spreadsheet's row (`isPipelineFile`) is two stages, its parse being the
   conversion to text: done reads "Converted to text", its steps say
-  "Converted", and it offers no Embed or Skip. A running cloud parse carries a `phase` —
-  `upload_wait` (its batch is in, another file uploads first), `uploading`
+  "Converted", and it offers no Embed or Skip. A running parse carries a `phase` —
+  `converting` ("Converting to PDF", an Office file's missing PDF), then for
+  the cloud `upload_wait` (its batch is in, another file uploads first), `uploading`
   with bytes, `processing` — which the row keeps with the first and latest
   upload samples; `uploadEta` gives a time left only after 10 s of them, and
   `fmtEta` rounds it coarser as it grows. Embed progress comes from page coverage

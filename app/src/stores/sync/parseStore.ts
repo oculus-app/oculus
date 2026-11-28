@@ -8,8 +8,8 @@ export interface ParseJob {
   relative_path: string;
   subject_id: number;
   status: string;
-  /** "running": a cloud parse's sub-step; absent means processing. */
-  phase?: "upload_wait" | "uploading" | "processing";
+  /** "running": the sub-step (`ParsePhase`); absent means processing. */
+  phase?: "converting" | "upload_wait" | "uploading" | "processing";
   /** "running": upload bytes, `bytes_total` from `upload_wait` on. */
   bytes_done?: number;
   bytes_total?: number;

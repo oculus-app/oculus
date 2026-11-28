@@ -80,7 +80,9 @@ export function PDFViewer(props: Props) {
 }
 
 function Viewer({ path, locate, markdownPath, link }: Props) {
-  const { sizes, loadError } = usePdfDocument(path);
+  /** Bumped by Try again: the document is opened afresh. */
+  const [openAttempt, setOpenAttempt] = useState(0);
+  const { sizes, loadError } = usePdfDocument(path, openAttempt);
   const [mode, setMode] = useStoredState<LayoutMode>(MODE_KEY, (stored) =>
     stored === "single" || stored === "spread" ? stored : "scroll",
   );
@@ -615,7 +617,7 @@ function Viewer({ path, locate, markdownPath, link }: Props) {
           </div>
         </div>
 
-        <PdfLoadState error={loadError} loading={!layout} />
+        <PdfLoadState path={path} error={loadError} loading={!layout} onRetry={() => setOpenAttempt((n) => n + 1)} />
       </div>
     </div>
   );

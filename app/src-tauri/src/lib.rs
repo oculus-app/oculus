@@ -77,6 +77,7 @@ pub fn run() {
             // Give the parse and embed seams a window to emit progress to;
             // headless (CLI) runs never bind, so their emits are no-ops.
             parse::events::bind(app.handle().clone());
+            sync::doc_pdf::bind(app.handle().clone());
             // A delete's Undo toast hears when the delete is final.
             library::drive::ops::delete::bind(app.handle().clone());
             embed::events::bind(app.handle().clone());
@@ -183,6 +184,7 @@ pub fn run() {
             sync::scrape::embeds::commands::echo360_embed_cancel,
             sources::oembed::web_video_info,
             sync::scrape::parse_file,
+            sync::doc_pdf::ensure_doc_pdf,
             sync::scrape::parse_skip,
             library::drive::commands::list_folder,
             library::drive::commands::drive_notebook_cover,

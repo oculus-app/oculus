@@ -156,8 +156,8 @@ impl fmt::Display for ParseError {
             ),
             ParseError::Document { code } if code == CONVERSION_FAILED => write!(
                 f,
-                "This file could not be converted to PDF, so there is nothing to parse. The \
-                 next sync tries the conversion again."
+                "This file could not be converted to PDF, so there is nothing to parse. \
+                 Retrying it, or opening it, tries the conversion again."
             ),
             ParseError::Document { code } if code == SHEET_UNREADABLE => write!(
                 f,

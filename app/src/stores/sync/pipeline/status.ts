@@ -61,6 +61,9 @@ export function statusOf(it: PipelineItem, embedStage = false, now = Date.now())
   if (it.parse === "skipped") {
     return { phase: "skipped", label: "Not parsed until you ask", percent: null };
   }
+  if (it.parse === "active" && it.parsePhase === "converting") {
+    return { phase: "active", label: "Converting to PDF", percent: null };
+  }
   if (it.parse === "active" && it.parsePhase === "upload_wait") {
     const label = it.prioritisedAt ? "Waiting for upload — prioritised" : "Waiting for upload";
     return { phase: "active", label, percent: null };

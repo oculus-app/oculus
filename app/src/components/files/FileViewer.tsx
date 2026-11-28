@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { File, FileText } from "@phosphor-icons/react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -6,7 +6,8 @@ import { FileChip } from "@/components/markdown/FileChip";
 import { ReferenceLink } from "@/components/markdown/ReferenceLink";
 import { MD_COMPONENTS } from "@/components/markdown/MdComponents";
 import { PDFViewer } from "@/components/files/pdf/PDFViewer";
-import { docPdfRelPath, isCodeFile, isPdfBacked, isPictureFile, isSheetFile, isVideoFile, parsedMdRelPath } from "@/lib/files/fileTypes";
+import { DocPdfGate } from "@/components/files/pdf/DocPdfGate";
+import { docPdfRelPath, isCodeFile, isOfficeFile, isPdfBacked, isPictureFile, isSheetFile, isVideoFile, parsedMdRelPath } from "@/lib/files/fileTypes";
 import { openLibraryPath, type FileLocate } from "@/lib/files/openFile";
 import { libraryImageSrc, libraryLinkTarget } from "@/lib/files/libraryLinks";
 import { useDataDir } from "@/hooks/backend/useDataDir";
@@ -174,18 +175,26 @@ export function FileViewer({
         {pdfViewMode === "markdown" && mdRelPath ? (
           markdown(mdRelPath, pdfLink)
         ) : (
-          <PDFViewer
-            path={pdfRelPath}
-            locate={locate}
-            markdownPath={mdRelPath ?? undefined}
-            link={mdRelPath ? pdfLink : undefined}
-          />
+          <PdfFace file={file}>
+            <PDFViewer
+              path={pdfRelPath}
+              locate={locate}
+              markdownPath={mdRelPath ?? undefined}
+              link={mdRelPath ? pdfLink : undefined}
+            />
+          </PdfFace>
         )}
       </div>
     );
   }
 
   return markdown(file.relative_path);
+}
+
+/** A PDF as it is; an Office file once its converted PDF is on disk. */
+function PdfFace({ file, children }: { file: DbFile; children: ReactNode }) {
+  if (!isOfficeFile(file.filename)) return <>{children}</>;
+  return <DocPdfGate path={file.relative_path}>{children}</DocPdfGate>;
 }
 
 /**

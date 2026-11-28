@@ -1,25 +1,25 @@
 import { CircleNotch } from "@phosphor-icons/react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { isOfficeFile } from "@/lib/files/fileTypes";
+import { PdfNotice } from "./PdfNotice";
 
-const ERRORS: Record<string, string> = {
-  encrypted: "This PDF is password-protected, so it can't be shown here.",
-};
-
-/** What covers the pages until there are some: the load error, or the
- *  spinner while the document opens. */
-export function PdfLoadState({ error, loading }: { error: string | null; loading: boolean }) {
+/** What covers the pages until there are some: why the document can't be
+ *  shown (`PdfNotice`), or the spinner while it opens. `path` is the PDF;
+ *  an Office file's converted copy is named for its original. */
+export function PdfLoadState({
+  path,
+  error,
+  loading,
+  onRetry,
+}: {
+  path: string;
+  error: string | null;
+  loading: boolean;
+  onRetry: () => void;
+}) {
   if (error) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center px-8 bg-card">
-        {ERRORS[error] ? (
-          <p className="text-sm text-muted-foreground text-center">{ERRORS[error]}</p>
-        ) : (
-          <Alert variant="destructive" className="w-auto">
-            <AlertDescription className="text-xs">Failed to load PDF: {error}</AlertDescription>
-          </Alert>
-        )}
-      </div>
-    );
+    const original = path.replace(/\.pdf$/i, "");
+    const office = isOfficeFile(original);
+    return <PdfNotice error={error} path={office ? original : path} office={office} onAction={onRetry} />;
   }
   if (!loading) return null;
   return (

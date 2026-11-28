@@ -109,6 +109,12 @@ fn convert_in(soffice: &Path, dir: &Path, bytes: &[u8], ext: &str) -> Result<Vec
     std::fs::read(dir.join("input.pdf")).map_err(|e| format!("no PDF produced: {e}"))
 }
 
+/// Whether `office_to_pdf` has a LibreOffice to run, so a viewer can say
+/// which of the two a failed conversion was.
+pub(crate) fn libreoffice_installed() -> bool {
+    find_soffice().is_some()
+}
+
 fn find_soffice() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("OCULUS_SOFFICE") {
         let p = PathBuf::from(p);

@@ -76,6 +76,7 @@ pub fn parse_pdf_reporting(
             subject_id,
             reparse_outdated,
             on_progress,
+            &super::office_to_pdf,
         )
     }))
     .unwrap_or_else(|_| {
@@ -100,12 +101,14 @@ pub fn parse_key(data_dir: &Path, rel_path: &str) -> PathBuf {
     data_dir.join(paths::doc_pdf_rel(rel_path).unwrap_or_else(|| rel_path.to_string()))
 }
 
-fn run_parse(
+/// `convert` makes an Office file's PDF when it is missing (`doc_pdf`).
+pub(super) fn run_parse(
     data_dir: &Path,
     rel_path: &str,
     subject_id: i64,
     reparse_outdated: bool,
     on_progress: &dyn Fn(parse::Progress),
+    convert: &super::doc_pdf::Convert<'_>,
 ) -> Result<ParseSummary, parse::ParseError> {
     // Local failures: `Io` is retryable, not latching, so a missing file never
     // stops the rest of the library parsing.
@@ -113,6 +116,13 @@ fn run_parse(
         parse::ParseError::Io(format!("{rel_path} has no PDF representation to parse"))
     })?;
     let pdf = data_dir.join(&pdf_rel);
+    // An Office file that arrived without its PDF is converted first; a skip
+    // stops that too. The record, if one survived, stands.
+    if super::doc_pdf::needs_conversion(data_dir, rel_path) {
+        parse::check_skipped(&pdf)?;
+        parse::events::converting(rel_path, subject_id);
+        super::doc_pdf::convert_missing(data_dir, rel_path, convert)?;
+    }
     if !pdf.is_file() {
         return Err(parse::ParseError::Io(format!(
             "not on disk: {}",

@@ -58,3 +58,10 @@ describe("spreadsheets", () => {
     expect(statusOf(pdf, false).label).toBe("Parsed");
   });
 });
+
+describe("Office files", () => {
+  test("say so while their missing PDF is made, before the parse proper", () => {
+    const doc = row("notes.docx", { parse: "active", parsePhase: "converting" });
+    expect(statusOf(doc, false)).toEqual({ phase: "active", label: "Converting to PDF", percent: null });
+  });
+});

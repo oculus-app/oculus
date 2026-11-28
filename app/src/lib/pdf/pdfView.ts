@@ -62,13 +62,19 @@ export function openPdf(path: string): { pages: Promise<PdfPageSize[]>; release:
     doc.closing = null;
   }
   if (!doc) {
-    doc = {
+    const opened: Doc = {
       refs: 0,
       pages: invoke<{ pages: PdfPageSize[] }>("pdf_open", { path }).then((r) => r.pages),
       text: new Map(),
       links: new Map(),
       closing: null,
     };
+    // A failed open is not kept: the next one asks Rust again (a PDF that
+    // has since landed, a Try again).
+    opened.pages.catch(() => {
+      if (docs.get(path) === opened) docs.delete(path);
+    });
+    doc = opened;
     docs.set(path, doc);
   }
   doc.refs += 1;

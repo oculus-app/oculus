@@ -9,6 +9,7 @@ library video in the media player, a video's transcript, and a web page.
 | Piece | Location |
 | --- | --- |
 | Markdown, maths, mermaid, lightbox, PDF | `app/src/components/markdown/`, `app/src/components/ui/lightbox/Lightbox.tsx`, `app/src/components/files/pdf/`, `app/src/lib/pdf/pdfView.ts`, `app/src/lib/pdf/pdfFind.ts` |
+| A PDF that can't be shown; an Office file's PDF made on open | `app/src/components/files/pdf/PdfNotice.tsx`, `app/src/lib/pdf/pdfNotice.ts`, `app/src/components/files/pdf/DocPdfGate.tsx`, `app/src/lib/pdf/docPdf.ts`, `app/src-tauri/src/sync/doc_pdf.rs` |
 | Inline file, web and planning references; hover metadata | `app/src/components/markdown/FileChip.tsx`, `app/src/components/markdown/ReferenceLink.tsx`, `app/src/components/markdown/ReferencePreview.tsx`, `app/src/components/markdown/referenceDetails.ts`, `app/src/lib/files/referenceAppearance.ts` |
 | The maths engine: loading, rendering, `rehypeMaths`, the visual field's edit model (`field.ts`) and the geometry of source-mapped maths (`geometry/`: where each caret stop is drawn, which stop a press lands on, a selection's bands); KaTeX's CSS and fonts | `app/src/lib/maths/`, `app/src/styles/katex/` |
 | Whiteboard and notebook files | `app/src/components/whiteboard/`, `app/src/lib/whiteboard/`; [drawing-whiteboard.md](./drawing-whiteboard.md) |
@@ -374,6 +375,28 @@ classes work even when there are no dollar delimiters.
     included. Errors are codes: `not-found`, `encrypted`, `invalid`,
     `outside-library`, `page-out-of-range`, `invalid-size`, `too-large`,
     `render-failed`.
+- **A PDF that can't be shown says why, calmly** (`PdfNotice`, copy in
+  `app/src/lib/pdf/pdfNotice.ts`): a warning glyph in `warning` on its soft
+  tint, a title and one plain reason, centred on the card, and at most one
+  outline button. A code is never the headline: `not-found` reads "This
+  file isn't on disk" (a synced file: the next sync downloads it again,
+  since no single-file download exists; an own file: it may have moved
+  outside Oculus), `encrypted` and `invalid` offer Show in Finder,
+  `outside-library` offers nothing, and anything else keeps its sentence
+  with Try again, which opens the document afresh (`pdfView` keeps no
+  failed open).
+- **An Office file opens once its converted PDF is on disk** (`DocPdfGate`,
+  `ensureDocPdf` in `app/src/lib/pdf/docPdf.ts`). `ensure_doc_pdf` resolves
+  at once when the PDF is there; when it is missing (a file dropped in with
+  Finder, written by a chat agent, carried by the library move) it converts
+  it, or waits on the parse already converting it, and says so on its
+  channel, so "Converting to PDF…" shows only while a conversion runs. It
+  converts without parsing, so a skipped file stays skipped. A failure is
+  the notice with Convert again: "This file couldn't be converted to PDF",
+  or "LibreOffice is needed to show this file" when there is no LibreOffice,
+  with Download LibreOffice opening its download page in the browser
+  (`LIBREOFFICE_DOWNLOAD`, `lib/pdf/pdfNotice.ts`)
+  ([parsing.md](./parsing.md#an-office-file-without-its-pdf-is-converted-first)).
 
 - **A parsed PDF has two faces, PDF | Markdown** (`PdfMdToggle` in the file
   page's header, state in `usePdfMd`). One shows at a time. A citation with

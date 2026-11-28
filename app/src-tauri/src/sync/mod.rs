@@ -8,6 +8,9 @@
 mod dates;
 #[cfg(test)]
 mod dates_tests;
+pub mod doc_pdf;
+#[cfg(test)]
+mod doc_pdf_tests;
 mod engine;
 mod office;
 mod parse;

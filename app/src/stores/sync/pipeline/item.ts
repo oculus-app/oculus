@@ -3,10 +3,11 @@ import { hasFailed } from "./status";
 /** `skipped` is the parse stage's alone. */
 export type StageState = "pending" | "queued" | "active" | "done" | "error" | "skipped";
 
-/** A running cloud parse's sub-step (`parse-status`'s `phase`): its batch is
- *  submitted and another file uploads first, its bytes are going up, or
- *  MinerU is extracting. The local engine only ever reports `processing`. */
-export type ParsePhase = "upload_wait" | "uploading" | "processing";
+/** A running parse's sub-step (`parse-status`'s `phase`): an Office file's
+ *  missing PDF is being made first; a cloud parse's batch is submitted and
+ *  another file uploads first, its bytes are going up, or MinerU is
+ *  extracting. The local engine only ever reports `processing`. */
+export type ParsePhase = "converting" | "upload_wait" | "uploading" | "processing";
 
 export interface PipelineItem {
   relativePath: string;

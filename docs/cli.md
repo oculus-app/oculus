@@ -109,7 +109,8 @@ which brings an existing database's schema up before rewriting its paths
   [calendar](./calendar.md), then processes files written during that scrape.
   It uses `index`'s PDF-backed file list, which excludes files marked skipped.
   It parses files serially, using the converted sibling PDF for Office
-  documents and keeping the Office file as the library row. `--no-embed`
+  documents (made first when it is missing) and keeping the Office file as
+  the library row. `--no-embed`
   leaves the parse step enabled. `--no-parse` ends the run after the scrape
   and calendar refresh.
 - Subject codes match on prefix (`MULT20015` finds `MULT20015_2026_SM2`),

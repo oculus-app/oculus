@@ -21,6 +21,7 @@ either. MinerU is ~100× faster than docling with formula enrichment, with 1% vs
 | Token bucket, semaphore, retry ladder (shared with Voyage) | `app/src-tauri/src/providers/ratelimit/` |
 | The `parse-status` event and shared wire payload | `app/src-tauri/src/parse/events.rs`, `app/src-tauri/src/runtime/pipeline_events.rs` |
 | Call site; one thread per PDF; LibreOffice conversion | `app/src-tauri/src/sync/parse.rs`, `app/src-tauri/src/sync/phases/output.rs`, `app/src-tauri/src/sync/office.rs` |
+| An Office file's missing PDF, made before its parse or on open (`ensure_doc_pdf`) | `app/src-tauri/src/sync/doc_pdf.rs` |
 | Spreadsheets to text: conversion, page rows, startup reconcile | `app/src-tauri/src/pages/sheets/` |
 | Skipping a file: the `parse_skip` command and its marks | `app/src-tauri/src/sync/scrape/mod.rs`, `app/src-tauri/src/parse/skips.rs` (`Skips`) |
 | Prioritising a waiting file: the `parse_prioritise` command, the ranks, the local engine's gate | `app/src-tauri/src/sync/scrape/mod.rs`, `app/src-tauri/src/parse/priority.rs` (`Priority`), `app/src-tauri/src/parse/mineru/local/gate.rs` |
@@ -88,7 +89,8 @@ must say so. `ParseError` keeps the answers distinguishable:
   instead of at its next 15-minute tick. The sweep's usual budget applies, so
   a large backlog drains a few files per sweep.
 - **An Office file LibreOffice could not convert is `Document`** with code
-  `parse::CONVERSION_FAILED`, whose sentence names the conversion, not MinerU;
+  `parse::CONVERSION_FAILED`, whose sentence names the conversion, not MinerU
+  ([below](#an-office-file-without-its-pdf-is-converted-first));
   an unreadable spreadsheet is `Document` with `parse::SHEET_UNREADABLE`.
 - **`NotReady` is retryable and non-latching on purpose**: a local server that
   is stopped or still loading must not mark any file permanently broken.
@@ -113,7 +115,8 @@ was still progressing.
 - **Progress is counted, never inferred**: cloud sums per-task page counts;
   local reports a page count and then a finish, with no estimated bar between.
 - **A running parse names its phase** (`parse::Phase`, the `phase` field of a
-  `running` event): `upload_wait` (its batch is submitted, another file is
+  `running` event): `converting` first, only for an Office file whose PDF
+  was missing (`parse::events::converting`), then `upload_wait` (its batch is submitted, another file is
   uploading first; carries `bytes_total`), `uploading` (`bytes_done` and
   `bytes_total`, at most two events a second plus the final 100%), then
   `processing`. A document over several tasks uploads its file once per task,
@@ -144,6 +147,36 @@ rasterises against, since `page_no` is the join key. It opens a PDF encrypted
 with an empty user password; a real password fails as `Document`
 `encrypted-pdf`. `parse_file` reports its own refusals (not a parseable file,
 not on disk) as `Io` too, so a sweep kick never vanishes.
+
+## An Office file without its PDF is converted first
+
+An import and a sync convert an Office file at once (`office_to_pdf`). One
+that arrives any other way — dropped in with Finder, written by a chat agent,
+carried by the library move — gets a row from `reconcile_own_files` but no
+`<name>.docx.pdf`. So `run_parse` converts a missing PDF itself
+(`sync::doc_pdf::convert_missing`), under the file's `InFlight` claim and
+after the Trash hold and the skip check, before anything else; every caller
+(the reconcile's kick, the sweep, Retry, `oculus index`) is covered.
+
+- **A failure is `CONVERSION_FAILED`**, the same `Document` failure a sync's
+  conversion ends in, and leaves no PDF. It is not retryable this session; a
+  failure from an earlier session is unknown, so the sweep tries it once a
+  launch. That is how rows stuck at `error` because the PDF was "not on
+  disk" are picked up: the sweep's query takes `error` rows, and `parse_file`
+  now accepts an Office original whose PDF is missing.
+- **The PDF lands whole**: written to a dot-named temp beside it and renamed,
+  so no viewer opens half a file and reconcile never rows the temp. It is
+  hidden from Drive like any converted PDF (`paths::parse_artifacts`), and
+  `doc-pdf-ready` tells the frontend, which redraws the file's Drive card.
+- **A record that outlived its PDF stands**: with a `quality` record on disk
+  the parse takes the already-parsed path after converting.
+- **The viewer converts without parsing** (`ensure_doc_pdf`): it tries the
+  same claim without waiting, and while a parse holds it, looks for the PDF
+  every 300 ms rather than wait minutes for the parse to end. Its refusals
+  are codes the viewer words: `not-found`, `no-libreoffice`,
+  `office-conversion` ([viewers.md](./viewers.md)).
+- `OFFICE_CONVERT_TIMEOUT` (180 s) bounds LibreOffice, and nothing else is
+  layered on it.
 
 ## A skip ends a parse without failing it
 

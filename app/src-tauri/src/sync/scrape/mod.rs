@@ -201,10 +201,13 @@ pub fn parse_file(
         });
         return Ok(());
     }
-    // For Office files this is the derived sibling PDF.
+    // For Office files this is the derived sibling PDF, which the parse makes
+    // first when only the original is on disk.
     let pdf_rel = crate::library::paths::doc_pdf_rel(&relative_path)
         .ok_or_else(|| refuse(format!("{relative_path}: not a parseable file")))?;
-    if !data_dir.join(&pdf_rel).is_file() {
+    if !data_dir.join(&pdf_rel).is_file()
+        && !crate::sync::doc_pdf::needs_conversion(&data_dir, &relative_path)
+    {
         return Err(refuse(format!("not on disk: {pdf_rel}")));
     }
     // Unused, but the frontend sends it.

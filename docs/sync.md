@@ -331,7 +331,9 @@ intact and LibreOffice headless writes `deck.pptx.pdf` beside them
 (`office_to_pdf`). The derived PDF never gets a `files` row; the original is
 the library row, and `library::paths::doc_pdf_rel` resolves it for every consumer. The
 student's own uploads go through the same conversion
-(`app/src-tauri/src/library/files/`).
+(`app/src-tauri/src/library/files/`), and a file that arrives with no PDF is
+converted by its parse or when it is opened
+([parsing.md](./parsing.md#an-office-file-without-its-pdf-is-converted-first)).
 
 Spreadsheets (`.xlsx/.xlsm/.xls/.ods/.csv`) are kept intact too, but become text,
 not a PDF: `marks.xlsx.md` beside them, written as they download

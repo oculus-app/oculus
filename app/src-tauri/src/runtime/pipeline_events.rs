@@ -42,8 +42,8 @@ pub(crate) struct Status {
     pages_done: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     total_pages: Option<u32>,
-    /// Parse only: `upload_wait` | `uploading` | `processing`. Absent means
-    /// processing.
+    /// Parse only: `converting` | `upload_wait` | `uploading` | `processing`.
+    /// Absent means processing.
     #[serde(skip_serializing_if = "Option::is_none")]
     phase: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]

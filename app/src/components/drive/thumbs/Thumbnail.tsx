@@ -3,6 +3,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Play } from "@phosphor-icons/react";
 import { useDataDir } from "@/hooks/backend/useDataDir";
 import { docPdfRelPath } from "@/lib/files/fileTypes";
+import { useDocPdfStore } from "@/lib/pdf/docPdf";
 import { kindOf } from "@/lib/drive/filters";
 import type { DriveItem } from "@/lib/drive/items";
 import { previewFormat, type PreviewFormat } from "@/lib/drive/textPreview";
@@ -28,8 +29,10 @@ import { useInView } from "./useInView";
 export function Thumbnail({ item, className }: { item: DriveItem; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const seen = useInView(ref);
-  // A failure is the file's as it was: once it changes, it is tried again.
-  const version = item.type === "file" ? `${item.key}:${item.entry.size}:${item.entry.modified}` : item.key;
+  // A failure is the file's as it was: once it changes, or an Office file's
+  // missing PDF lands, it is tried again.
+  const landed = useDocPdfStore((s) => s.landed[item.key] ?? 0);
+  const version = item.type === "file" ? `${item.key}:${item.entry.size}:${item.entry.modified}:${landed}` : item.key;
   const [failed, setFailed] = useState<string | null>(null);
   const source = failed === version ? null : sourceOf(item);
   const draw = source != null && (seen || isKept(source));

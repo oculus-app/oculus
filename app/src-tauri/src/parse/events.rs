@@ -19,6 +19,12 @@ pub fn queued(relative_path: &str, subject_id: i64) {
     CHANNEL.emit(Status::new(relative_path, subject_id, "queued"));
 }
 
+/// An Office file whose PDF was missing is being converted before its parse
+/// (`sync::doc_pdf`): `running` in phase `converting`.
+pub fn converting(relative_path: &str, subject_id: i64) {
+    CHANNEL.emit(Status::new(relative_path, subject_id, "running").phase("converting", None, None));
+}
+
 pub fn running(relative_path: &str, subject_id: i64, progress: Progress) {
     CHANNEL.emit(running_status(relative_path, subject_id, progress));
 }
