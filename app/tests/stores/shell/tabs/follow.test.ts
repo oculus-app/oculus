@@ -19,6 +19,14 @@ test("the reopen stack follows: main paths move or fall back, side paths move or
     { index: 1, path: "/folder", url: null, side: null },
     { index: 2, path: null, url: "https://x", side: null },
   ]);
+  // A side panel item closed on its own has no fallback to go to.
+  const items = [
+    { index: 1, path: "/gone", url: null, side: null, beside: 4 },
+    { index: 1, path: "/a", url: null, side: null, beside: 4 },
+  ];
+  expect(followClosed(items, follow)).toEqual([
+    { index: 1, path: "/b", url: null, side: null, beside: 4 },
+  ]);
   const same = [{ index: 0, path: "/x", url: null, side: ["/y"] }];
   expect(followClosed(same, follow)).toBe(same);
 });

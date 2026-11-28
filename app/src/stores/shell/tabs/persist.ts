@@ -21,18 +21,21 @@ const STORE_KEY = "oculus-tabs";
 export const CLOSED_LIMIT = 10;
 
 /**
- * A closed tab, kept for ⇧⌘T. A browser tab is remembered by **URL**: its
- * `/browse/<id>` path names a page Rust has destroyed. Which of `path`/`url`
- * is set says which kind it is.
+ * A closed tab or side panel item, kept for ⇧⌘T. A browser page is remembered
+ * by **URL**: its `/browse/<id>` path names a page Rust has destroyed. Which
+ * of `path`/`url` is set says which kind it is.
  */
 export interface ClosedTab {
   /** Strip index to reopen at; clamped on the way out. */
   index: number;
-  /** The route its main pane held, or null for a browser tab. */
+  /** The route its pane held, or null for a browser page. */
   path: string | null;
   url: string | null;
   /** The side panel's routes in list order. Browser items are dropped. */
   side: string[] | null;
+  /** A side panel item closed on its own: the tab it sat beside, where it
+   *  reopens. Once that tab has gone it reopens as a tab at `index`. */
+  beside?: number | null;
 }
 
 interface StoredPane {
@@ -85,16 +88,19 @@ export function restore(): {
     const saved = raw ? (JSON.parse(raw) as StoredStrip) : null;
     const r = saved?.sideRatio;
     if (typeof r === "number" && Number.isFinite(r)) sideRatio = clampRatio(r);
+    const tabs = (saved?.tabs ?? []).filter(validPane).map((t): AppTab => {
+      const side = restoreSide(t.side, t.split, t.id);
+      return { ...pane(t.id, t.path), side, focus: restoreFocus(t.focus, side) };
+    });
     closed = (saved?.closed ?? []).filter(validClosed).map((e) => ({
       index: e.index as number,
       path: typeof e.path === "string" ? e.path : null,
       url: typeof e.url === "string" ? e.url : null,
       side: restoreClosedSide(e.side, e.split),
+      // Pane ids restart above the restored tabs', so a host that is not
+      // among them could share its id with a later tab.
+      beside: tabs.some((t) => t.id === e.beside) ? (e.beside as number) : null,
     }));
-    const tabs = (saved?.tabs ?? []).filter(validPane).map((t): AppTab => {
-      const side = restoreSide(t.side, t.split, t.id);
-      return { ...pane(t.id, t.path), side, focus: restoreFocus(t.focus, side) };
-    });
     if (tabs.length > 0) {
       const activeId = tabs.some((t) => t.id === saved?.activeId)
         ? saved!.activeId

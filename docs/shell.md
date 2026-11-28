@@ -316,15 +316,24 @@ while Ctrl+Shift+Z is Redo.
 - **⌘1–⌘8 are strip positions** (a missing slot is a no-op), ⌘9 is the last
   tab, and ⇧⌘T pops `tabStore`'s `closed` stack back to the old index. A
   browser tab is remembered by URL, recorded by `TopTabBar` *before* Rust
-  destroys the page.
+  destroys the page. A side panel item closed on its own (`closeSide`) is on
+  the same stack with the tab it sat beside: ⇧⌘T brings that tab forward and
+  puts the item back in its panel, or opens it as a tab once that tab has
+  gone. An empty new-tab page is never remembered.
 - **⌥⌘T (Ctrl+Shift+Y on Windows) and the strip's far-right button toggle the side panel**
   (`toggleSide`). `AppTab extends PaneState`: the main pane carries the tab's
   id, and everything below a tab — router, playing lecture, Recent entry — is
   keyed by pane id. `tab.focus` (`"main"` / `"side"`) is set in the capture
   phase, so it has moved before the clicked thing reacts; `focusedPane` is
-  what every shell navigation resolves through. ⌃Tab / ⌃⇧Tab are menu items
-  that cycle the side panel's items, only while it has focus; ⌘1–9, ⌘W and
-  ⇧⌘T always act on the strip.
+  what every shell navigation resolves through. ⌘1–9 always act on the strip.
+- **⌘W closes what the keyboard is in**: the side panel's front item while
+  the panel has it, as that item's × does, and otherwise the tab. ⌃Tab /
+  ⌃⇧Tab are menu items that cycle the side panel's items, on the same
+  condition. Both ask `keyboardSide` (`app/src/stores/shell/tabs/panes.ts`),
+  not `tab.focus` alone: a click inside a native browser page never reaches
+  the DOM, so with the app's document unfocused and a browser page in only
+  one of the tab's two panes, that pane has the keyboard. With a browser
+  page in both, `tab.focus` decides.
 - **Strip tabs are fixed-width** (`TAB_W` down to `TAB_MIN_W`), and the column
   between them (`SEPARATOR_W`) always renders because the reorder maths counts it.
   `StripTab` reserves the same border and close-button inset in both states,
@@ -427,7 +436,8 @@ items with the same front item and width.
   × per item and a "New side tab" row that pushes `/new` — a rule, where the
   front item is, then expand and × pinned at the row's end. × removes only the
   front item and shows the most recently viewed item left; removing the last
-  item closes the panel.
+  item closes the panel. Every × here and ⌘W go through `closeSide`, so ⇧⌘T
+  brings the item back.
 - **The header's middle is the page's trail, and nothing else of the page.**
   A page builds its top row on `PaneHeaderRow`
   (`app/src/components/tabs/PaneHeader.tsx`) and says where it is with

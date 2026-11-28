@@ -6,13 +6,17 @@ import type { ClosedTab } from "./persist";
 export type RouteFollower = (route: string) => FollowedRoute;
 
 /** The reopen stack after a change, as open tabs follow it: a main path
- *  moves or falls back, a side path moves or is dropped. The same array when
- *  nothing changed. */
+ *  moves or falls back, a side path moves or is dropped, as is a side panel
+ *  item closed on its own. The same array when nothing changed. */
 export function followClosed(closed: ClosedTab[], follow: RouteFollower): ClosedTab[] {
   let changed = false;
-  const next = closed.map((entry) => {
+  const next = closed.flatMap((entry) => {
     if (entry.path == null) return entry;
     const main = follow(entry.path);
+    if (entry.beside != null && main.kind === "removed") {
+      changed = true;
+      return [];
+    }
     const path = main.kind === "moved" ? main.path : main.kind === "removed" ? main.fallback : entry.path;
     const side = entry.side?.flatMap((p) => {
       const item = follow(p);

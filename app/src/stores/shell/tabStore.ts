@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { browser, browseId } from "@/lib/browser";
 import { ownsPlayback, stopLecturePlayback } from "@/lib/lectures/playback";
-import { hasTabRouter, dropTabRouter, navigateInTab } from "@/lib/shell/tabRouters";
+import { hasTabRouter, dropTabRouter, navigateInTab, reopenPageBeside } from "@/lib/shell/tabRouters";
 import {
   clampRatio,
   frontItem,
@@ -12,6 +12,7 @@ import {
   sideFromPaths,
   swapItem,
 } from "@/lib/shell/sideStack";
+import { useBrowserStore } from "./browserStore";
 import { leaveFront, releaseItem } from "./tabs/lifecycle";
 import { panesOf, pane, withTab } from "./tabs/panes";
 import type { AppTab, PaneSide, PaneState } from "./tabs/panes";
@@ -19,7 +20,7 @@ import { CLOSED_LIMIT, restore, saveStrip, type ClosedTab } from "./tabs/persist
 import { followClosed, type RouteFollower } from "./tabs/follow";
 
 export type { AppTab, PaneSide, PaneState } from "./tabs/panes";
-export { focusedPane, panesOf, sideFront } from "./tabs/panes";
+export { focusedPane, keyboardSide, panesOf, sideFront } from "./tabs/panes";
 export { activePane, activeTab, useActivePaneId, useActivePath } from "./tabs/selectors";
 
 /**
@@ -59,7 +60,7 @@ let nextId =
 interface TabState {
   tabs: AppTab[];
   activeId: number;
-  /** Closed tabs, newest last — the stack ⇧⌘T pops. */
+  /** Closed tabs and side panel items, newest last — the stack ⇧⌘T pops. */
   closed: ClosedTab[];
   /** The ratio a new side panel opens at: the last drag of any tab's seam. */
   sideRatio: number;
@@ -76,7 +77,8 @@ interface TabState {
    *  before Rust destroys the page, since its URL is gone by the time the
    *  pane closes. */
   remember: (entry: ClosedTab) => void;
-  /** ⇧⌘T. A browser tab reopens by URL; `useBrowserTabs` adopts the page. */
+  /** ⇧⌘T. A browser tab reopens by URL; `useBrowserTabs` adopts the page. A
+   *  side panel item goes back beside its tab, which comes to the front. */
   reopenTab: () => void;
   /** Reveals and focuses the side panel, creating `/new` only when empty. */
   openSide: (tabId: number) => void;
@@ -94,6 +96,9 @@ interface TabState {
    *  page continues in another pane, so a lecture keeps playing and a browser
    *  page stays open. */
   removeSide: (tabId: number, itemId: number, opts?: { handover?: boolean }) => void;
+  /** The student closing one item (its ×, ⌘W): `removeSide`, remembered for
+   *  ⇧⌘T unless it is an empty new-tab page. */
+  closeSide: (tabId: number, itemId: number) => void;
   /** Expand's store half, after `swapPanes`: the item's page becomes the
    *  tab's and the page it replaces takes the item's place, hidden
    *  (`swapItem`). */
@@ -231,6 +236,20 @@ export const useTabStore = create<TabState>((set, get) => ({
     );
   },
 
+  closeSide: (tabId, itemId) => {
+    const index = get().tabs.findIndex((t) => t.id === tabId);
+    const item = get().tabs[index]?.side?.items.find((i) => i.id === itemId);
+    if (!item) return;
+    const page = browseId(item.path);
+    // Read before `removeSide` closes the page and Rust drops its URL.
+    const url =
+      page == null ? null : (useBrowserStore.getState().tabs.find((t) => t.id === page)?.url ?? null);
+    const path = page == null && item.path !== HOME ? item.path : null;
+    if (path != null || url != null)
+      get().remember({ index: index + 1, path, url, side: null, beside: tabId });
+    get().removeSide(tabId, itemId);
+  },
+
   swapSide: (tabId, itemId) => {
     const tab = get().tabs.find((t) => t.id === tabId);
     const item = tab?.side?.items.find((i) => i.id === itemId);
@@ -289,6 +308,13 @@ export const useTabStore = create<TabState>((set, get) => ({
     const entry = closed[closed.length - 1];
     if (!entry) return;
     set({ closed: closed.slice(0, -1) });
+    const host = entry.beside;
+    if (host != null && get().tabs.some((t) => t.id === host)) {
+      set({ activeId: host });
+      if (entry.url != null) void reopenPageBeside(host, entry.url);
+      else if (entry.path != null) get().pushSide(host, entry.path);
+      return;
+    }
     // Rust makes the page and `useBrowserTabs` adopts it in front; it cannot
     // go back to its old index since the strip only hears of it afterwards.
     if (entry.url != null) {

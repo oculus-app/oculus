@@ -281,8 +281,24 @@ export async function openLink(url: string, newTab = false): Promise<void> {
   }
   // A new tab: the one the reconcile makes is the answer.
   if (newTab) return;
+  placeBeside(pageId, front);
+}
+
+/** Puts a browser page in `tabId`'s side panel. Once that tab has gone, the
+ *  strip tab the reconcile makes for the page is the answer. */
+function placeBeside(pageId: number, tabId: number): void {
   const { tabs, pushSide } = useTabStore.getState();
-  if (!tabs.some((t) => t.id === front)) return;
-  pushSide(front, browsePath(pageId));
-  dropStrayTab(pageId, front);
+  if (!tabs.some((t) => t.id === tabId)) return;
+  pushSide(tabId, browsePath(pageId));
+  dropStrayTab(pageId, tabId);
+}
+
+/** ⇧⌘T for a browser page closed out of `tabId`'s side panel: a new page on
+ *  `url`, back beside that tab. */
+export async function reopenPageBeside(tabId: number, url: string): Promise<void> {
+  try {
+    placeBeside(await browser.open(url), tabId);
+  } catch (e) {
+    console.error(`[oculus] reopening ${url} failed`, e);
+  }
 }

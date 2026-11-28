@@ -11,7 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useStripReorder } from "@/hooks/gestures/usePointerDrag";
-import { focusedPane, panesOf, useTabStore } from "@/stores/shell/tabStore";
+import { focusedPane, keyboardSide, panesOf, sideFront, useTabStore } from "@/stores/shell/tabStore";
 import { useBrowserStore } from "@/stores/shell/browserStore";
 import { browser, browseId } from "@/lib/browser";
 import { useTabInfo } from "@/components/tabs/tabInfo";
@@ -180,7 +180,7 @@ export default function TopTabBar({
   // ⌃Tab / ⌃⇧Tab walk the side panel's list, only while it has focus: the
   // strip's own keys are ⌘-keys.
   const stepSide = (delta: 1 | -1) => {
-    if (!activeTab?.side || activeTab.side.hidden || activeTab.focus !== "side") return;
+    if (!activeTab?.side || keyboardSide(activeTab, document.hasFocus()) !== "side") return;
     frontSide(activeTab.id, stepItem(activeTab.side, delta));
   };
 
@@ -194,8 +194,16 @@ export default function TopTabBar({
     stepSide,
     closeActive: () => {
       const tab = tabs.find((t) => t.id === activeId);
+      if (!tab) return;
+      // ⌘W closes what the keyboard is in: the side panel's front item, as
+      // its × does, before the tab.
+      const item = keyboardSide(tab, document.hasFocus()) === "side" ? sideFront(tab) : null;
+      if (item) {
+        useTabStore.getState().closeSide(tab.id, item.id);
+        return;
+      }
       // Same rule as the ×: a sole app tab can't be closed.
-      if (!tab || (tabs.length === 1 && browseId(tab.path) == null)) return;
+      if (tabs.length === 1 && browseId(tab.path) == null) return;
       close(tab.id);
     },
   });

@@ -1,3 +1,4 @@
+import { browseId } from "@/lib/browser";
 import { frontOf, type SideItem, type SidePanel } from "@/lib/shell/sideStack";
 
 /** Which part of a tab: its main pane, or its side panel. */
@@ -42,6 +43,21 @@ export function sideFront(tab: AppTab): SideItem | null {
 
 export function focusedPane(tab: AppTab): PaneState {
   return (tab.focus === "side" && !tab.side?.hidden && sideFront(tab)) || tab;
+}
+
+/**
+ * The part of `tab` holding the keyboard, for ⌘W. A native browser page takes
+ * clicks the DOM never hears, so `tab.focus` can be stale while one has the
+ * keyboard: with the app's document unfocused and a browser page in only one
+ * of the two panes, that pane is it.
+ */
+export function keyboardSide(tab: AppTab, documentFocused: boolean): PaneSide {
+  const front = tab.side && !tab.side.hidden ? frontOf(tab.side) : null;
+  if (!front) return "main";
+  const inMain = browseId(tab.path) != null;
+  const inSide = browseId(front.path) != null;
+  if (!documentFocused && inMain !== inSide) return inSide ? "side" : "main";
+  return tab.focus;
 }
 
 /** The store update replacing tab `tabId` with `fn` of it. */

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { createMemoryRouter, type DataRouter } from "react-router-dom";
-import { browser, browsePath } from "@/lib/browser";
+import { browser, browsePath, type BrowserTab } from "@/lib/browser";
+import { useBrowserStore } from "@/stores/shell/browserStore";
 import { pane } from "@/stores/shell/tabs/panes";
 
 
@@ -221,5 +222,80 @@ describe("expanding a side item", () => {
     expect(tab().path).toBe("/chat/7");
     expect(tab().side?.hidden).toBeUndefined();
     expect(tab().side?.items.map((i) => i.path)).toEqual([file(2)]);
+  });
+});
+
+describe("closing a side item and reopening it", () => {
+  const hostId = 3000;
+  const noteId = 3001;
+  const otherId = 3002;
+  const note = "/subjects/1/file?path=note.md";
+  let nativeClose: ReturnType<typeof spyOn<typeof browser, "close">>;
+
+  function open(sidePath: string) {
+    useTabStore.setState({
+      tabs: [
+        { ...pane(hostId, "/chat/7"), focus: "side", side: {
+          items: [{ ...pane(noteId, sidePath), viewed: 1 }], front: noteId, ratio: 0.5,
+        } },
+        { ...pane(otherId, "/calendar"), focus: "main", side: null },
+      ],
+      activeId: hostId, closed: [],
+    });
+  }
+  const host = () => useTabStore.getState().tabs.find((t) => t.id === hostId);
+  beforeEach(() => {
+    nativeClose = spyOn(browser, "close").mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    nativeClose.mockRestore();
+    useBrowserStore.setState({ tabs: [], loaded: false });
+  });
+
+  test("the item leaves alone and ⇧⌘T puts it back beside its tab", () => {
+    open(note);
+    useTabStore.getState().closeSide(hostId, noteId);
+    expect(host()).toMatchObject({ path: "/chat/7", side: null, focus: "main" });
+    useTabStore.getState().setActive(otherId);
+    useTabStore.getState().reopenTab();
+    const state = useTabStore.getState();
+    expect(state.tabs).toHaveLength(2);
+    expect(state.activeId).toBe(hostId);
+    expect(host()?.focus).toBe("side");
+    expect(sideFront(host()!)?.path).toBe(note);
+    expect(state.closed).toEqual([]);
+  });
+
+  test("it reopens as a tab after its own once that tab has gone", () => {
+    open(note);
+    useTabStore.getState().closeSide(hostId, noteId);
+    useTabStore.setState((s) => ({
+      tabs: s.tabs.filter((t) => t.id !== hostId), activeId: otherId,
+    }));
+    useTabStore.getState().reopenTab();
+    const state = useTabStore.getState();
+    expect(state.tabs.map((t) => t.path)).toEqual(["/calendar", note]);
+    expect(state.tabs.find((t) => t.id === state.activeId)?.path).toBe(note);
+  });
+
+  test("an empty new-tab page is not remembered", () => {
+    open("/new");
+    useTabStore.getState().closeSide(hostId, noteId);
+    expect(host()?.side).toBeNull();
+    expect(useTabStore.getState().closed).toEqual([]);
+  });
+
+  test("a browser page is remembered by its address and reopens beside", async () => {
+    open(browsePath(pageId));
+    useBrowserStore.setState({ tabs: [{ id: pageId, url } as BrowserTab], loaded: true });
+    useTabStore.getState().closeSide(hostId, noteId);
+    expect(nativeClose).toHaveBeenCalledWith(pageId);
+    expect(useTabStore.getState().closed).toMatchObject([{ path: null, url, beside: hostId }]);
+    nativeOpen.mockResolvedValue(pageId + 1);
+    useTabStore.getState().reopenTab();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(nativeOpen).toHaveBeenCalledWith(url);
+    expect(useTabStore.getState().tabs).toHaveLength(2);
+    expect(sideFront(host()!)?.path).toBe(browsePath(pageId + 1));
   });
 });

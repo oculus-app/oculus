@@ -66,7 +66,7 @@ export function SidePanelHeader({
 function PanelActions({ tabId }: { tabId: number }) {
   const front = useTabStore((s) => s.tabs.find((t) => t.id === tabId)?.side?.front);
   const hidden = useTabStore((s) => s.tabs.find((t) => t.id === tabId)?.side?.hidden);
-  const removeSide = useTabStore((s) => s.removeSide);
+  const closeSide = useTabStore((s) => s.closeSide);
   if (hidden) return null;
   return (
     <div className="flex shrink-0 items-center gap-0.5">
@@ -93,7 +93,7 @@ function PanelActions({ tabId }: { tabId: number }) {
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={() => front != null && removeSide(tabId, front)}
+            onClick={() => front != null && closeSide(tabId, front)}
             aria-label="Close side tab"
             className="text-muted-foreground hover:text-foreground"
           >
@@ -120,7 +120,7 @@ function Switcher({
   tabInfo: ReturnType<typeof useTabInfo>;
 }) {
   const frontSide = useTabStore((s) => s.frontSide);
-  const removeSide = useTabStore((s) => s.removeSide);
+  const closeSide = useTabStore((s) => s.closeSide);
   const pushSide = useTabStore((s) => s.pushSide);
   const [open, setOpen] = useState(false);
 
@@ -198,7 +198,7 @@ function Switcher({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={() => removeSide(tabId, item.id)}
+                onClick={() => closeSide(tabId, item.id)}
                 aria-label={`Close ${title}`}
                 className="text-muted-foreground hover:text-foreground"
               >

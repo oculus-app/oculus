@@ -74,7 +74,9 @@ describe("a stored /music path is dropped on load", () => {
         { index: 0, path: "/chat", url: null, side: ["/music", "/sync"] },
       ],
     });
-    expect(restore().closed).toEqual([{ index: 0, path: "/chat", url: null, side: ["/sync"] }]);
+    expect(restore().closed).toEqual([
+      { index: 0, path: "/chat", url: null, side: ["/sync"], beside: null },
+    ]);
     expect(restoreClosedSide(undefined, "/music")).toBeNull();
   });
 
