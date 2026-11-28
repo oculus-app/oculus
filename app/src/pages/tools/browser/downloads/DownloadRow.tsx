@@ -1,39 +1,15 @@
 import { useState, type ReactNode } from "react";
-import { X } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { downloads } from "@/lib/browser/downloads/commands";
+import { mayDelete } from "@/lib/browser/downloads/deletable";
 import { sizeWords } from "@/lib/browser/downloads/describe";
 import { isSettled, isWaiting, type Download } from "@/lib/browser/downloads/types";
 import { fileIconFor } from "@/lib/files/fileTypes";
+import { usePendingDeleteStore } from "@/stores/drive/pendingDeleteStore";
+import { useBrowserDownloadsStore } from "@/stores/shell/browserDownloadsStore";
+import { DownloadMenu, type DownloadActions } from "./DownloadMenu";
 import { DownloadState } from "./DownloadState";
-import { openInOculus } from "./openInOculus";
+import { deleteSaved, openSaved, revealSaved, showInDrive } from "./savedFile";
 import { problem, REVEAL } from "./words";
-
-interface Action {
-  label: string;
-  run: () => Promise<unknown>;
-}
-
-/** What can be done with a download that is not waiting for a choice. One
- *  that failed or was refused offers nothing: its address is not kept (a
- *  signed link, a form post or a `blob:` cannot be fetched a second time),
- *  so it is started again from its page. */
-function actionsFor(d: Download): Action[] {
-  const saved = d.state === "saved" ? d.saved_to : null;
-  if (saved?.kind === "oculus") {
-    return [
-      { label: "Open in Oculus", run: () => openInOculus(saved) },
-      { label: REVEAL, run: () => downloads.reveal(d.id) },
-    ];
-  }
-  if (saved?.kind === "path") {
-    return [
-      { label: REVEAL, run: () => downloads.reveal(d.id) },
-      { label: "Open", run: () => downloads.open(d.id) },
-    ];
-  }
-  return [];
-}
 
 /** The icon and the text column every row shares. */
 function Details({ download, children }: { download: Download; children?: ReactNode }) {
@@ -60,12 +36,20 @@ function Details({ download, children }: { download: Download; children?: ReactN
 
 /**
  * One download in the toolbar's list: its name, where it came from, its size
- * and its state in words, with what can be done with it now. A row waiting
- * for a choice is itself the button that asks again.
+ * and its state in words, with one ⋮ menu once it is settled. A row waiting
+ * for a choice is itself the button that asks again. One that failed or was
+ * refused offers only Clear: its address is not kept (a signed link, a form
+ * post or a `blob:` cannot be fetched a second time), so it is started again
+ * from its page.
  */
 export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (id: number) => void }) {
+  const row = useBrowserDownloadsStore((s) => s.files[download.id]);
+  const unrecorded = useBrowserDownloadsStore((s) => s.unrecorded[download.id]);
   const [error, setError] = useState<string | null>(null);
+  // Its file in the Trash with the Undo toast up: back on Undo, cleared once final.
+  const hidden = usePendingDeleteStore((s) => s.current?.download === download.id && !s.current.final);
 
+  if (hidden) return null;
   if (isWaiting(download)) {
     return (
       <button
@@ -83,34 +67,33 @@ export function DownloadRow({ download, onAsk }: { download: Download; onAsk: (i
     setError(null);
     action().catch((e) => setError(problem(e)));
   };
-  const actions = actionsFor(download);
+  const clear = () => downloads.clear(download.id);
+  const saved = download.state === "saved" ? download.saved_to : null;
+  const actions: DownloadActions = !isSettled(download) ? {}
+    : saved?.kind === "drive" ? {
+      open: () => act(() => openSaved(download, row)),
+      showInDrive: () => act(() => showInDrive(download, row)),
+      reveal: { label: REVEAL, run: () => act(() => revealSaved(download, row)) },
+      clear: () => act(clear),
+      // A file moved or renamed since is found by its row and goes to the
+      // Trash, with the Undo toast; one gone just leaves the list.
+      delete: row != null && mayDelete(download, row)
+        ? () => act(() => deleteSaved(download.id, row))
+        : undefined,
+    }
+    : saved?.kind === "path" ? {
+      open: () => act(() => downloads.open(download.id)),
+      reveal: { label: REVEAL, run: () => act(() => downloads.reveal(download.id)) },
+      clear: () => act(clear),
+    }
+    : { clear: () => act(clear) };
 
   return (
     <div className="flex items-start gap-2.5 px-3 py-2">
       <Details download={download}>
-        {actions.length ? (
-          <span className="mt-1 flex flex-wrap gap-1">
-            {actions.map((a) => (
-              <Button key={a.label} variant="secondary" size="xs" onClick={() => act(a.run)}>
-                {a.label}
-              </Button>
-            ))}
-          </span>
-        ) : null}
-        {error ? <span role="alert" className="text-[11px] text-destructive">{error}</span> : null}
+        {error ?? unrecorded ? <span role="alert" className="text-[11px] text-destructive">{error ?? unrecorded}</span> : null}
       </Details>
-      {isSettled(download) ? (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Clear ${download.name} from the list`}
-          title="Clear from the list"
-          onClick={() => act(() => downloads.clear(download.id))}
-          className="-mr-1 shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <X aria-hidden />
-        </Button>
-      ) : null}
+      {isSettled(download) ? <DownloadMenu name={download.name} actions={actions} /> : null}
     </div>
   );
 }

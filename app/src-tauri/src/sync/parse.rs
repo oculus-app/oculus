@@ -62,6 +62,11 @@ pub fn parse_pdf_reporting(
     reparse_outdated: bool,
     on_progress: &dyn Fn(parse::Progress),
 ) -> Result<ParseSummary, parse::ParseError> {
+    // A file in the Trash with its Undo open: no parse, and no status on
+    // its row (an Office file's converted PDF is still on disk).
+    if crate::library::drive::ops::delete::held(&data_dir.join(rel_path)) {
+        return Err(parse::ParseError::Io(format!("{rel_path} is in the Trash")));
+    }
     let key = parse_key(data_dir, rel_path);
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _claim = parse::InFlight::shared().claim(&key);

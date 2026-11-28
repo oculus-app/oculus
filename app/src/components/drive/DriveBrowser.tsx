@@ -12,23 +12,23 @@ import { useElementWidth } from "@/hooks/drive/useElementWidth";
 import { useFolderListing } from "@/hooks/drive/useFolderListing";
 import { useReconcileParseStatus } from "@/hooks/sync/useReconcileParseStatus";
 import { useStoredSet, useStoredState } from "@/hooks/ui/useStoredState";
-import { copyToFolder, deleteAll, dropInto, DRIVE_PROBLEM_EVENT, importInto, moveToFolder, renameTo, subjectOf } from "@/lib/drive/actions";
+import { copyToFolder, deleteAll, dropInto, DRIVE_PROBLEM_EVENT, importInto, moveToFolder, renameTo } from "@/lib/drive/actions";
 import { READ_ONLY_TEXT } from "@/lib/drive/commands";
 import { startEntryDrag } from "@/lib/drive/drop";
 import { isFlat, NO_FILTERS, type DriveFilters } from "@/lib/drive/filters";
-import { itemEditable, itemZone, type DriveItem } from "@/lib/drive/items";
+import { homeOf, isSubjectsFolder } from "@/lib/drive/home";
+import { isFixedFolder, itemEditable, itemZone, type DriveItem } from "@/lib/drive/items";
 import { itemHref, openInNewTab, openItem, revealItem } from "@/lib/drive/open";
-import { baseName, subjectRelOf } from "@/lib/drive/paths";
+import { baseName, parentRel } from "@/lib/drive/paths";
 import { boxSelect, clickSelect, EMPTY_SELECTION, pruneSelection, selectAll, type Selection } from "@/lib/drive/selection";
 import { filePagePath } from "@/lib/files/openFile";
 import { scheduleOwnReconcile } from "@/lib/drive/reconcile";
 import { isMac } from "@/lib/platform";
 import { navigateActive } from "@/lib/shell/tabRouters";
+import { pickDriveFolder } from "@/stores/shell/drivePickerStore";
 import { DriveViewProvider, type DriveView } from "./DriveContext";
 import { DriveGrid } from "./content/DriveGrid";
 import { DriveList } from "./content/DriveList";
-import { DeleteDialog } from "./dialogs/DeleteDialog";
-import { FolderPickerDialog } from "./dialogs/FolderPickerDialog";
 import { DetailsPanel } from "./details/DetailsPanel";
 import { driveCrumbs } from "./header/crumbs";
 import { DriveHeader } from "./header/DriveHeader";
@@ -44,14 +44,15 @@ const NARROW = 560;
 const DETAILS = 900;
 
 export interface DriveBrowserProps {
-  /** Data-dir-relative folder the browser starts at: `""` for every subject
-   *  (Drive), `courses/<code>` for one (a subject's Files tab). */
+  /** Data-dir-relative folder the browser starts at: `""` for the data
+   *  folder's top level (Drive), `courses/<code>` for one subject (its Files
+   *  tab). */
   root: string;
   /** The folder on screen, at or below `root`; the route's path. */
   folder: string;
   /** The route that shows a folder, for crumbs, the tree and opening one. */
   folderHref: (rel: string) => string;
-  /** The first crumb: "My Drive" at the Drive root, "Files" in a subject. */
+  /** The first crumb: "My Drive" at Drive's top level, "Files" in a subject. */
   rootLabel?: string;
   /** Before the crumbs: the page's nav toggle. */
   leading?: ReactNode;
@@ -60,7 +61,8 @@ export interface DriveBrowserProps {
 /**
  * The folder browser of Drive and a subject's Files tab: one folder of the
  * library at a time (`list_folder`), with the `files` rows joined on for
- * parse state and recency. A header (trail, folder search, New), a toolbar
+ * parse state and recency. Drive's top level is the data folder: Subjects,
+ * then the student's own folders and files, whose rows hang off `TOP_LEVEL`. A header (trail, folder search, New), a toolbar
  * (Type / From / Modified, which switch to a flat list of everything below,
  * and grid or list, remembered per root), the entries, and a details panel
  * for one selected file in a wide pane. Entries select as in Finder, open on
@@ -77,20 +79,22 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
   const [filters, setFilters] = useState<DriveFilters>(NO_FILTERS);
   const flat = isFlat(filters);
   const { listing, error } = useFolderListing(folder, flat);
-  const subject = subjectOf(folder, subjects);
-  const rowSubjects = useMemo(() => {
-    if (subject) return [subject.id];
-    if (!flat || !listing) return [];
-    return listing.folders.flatMap((f) => subjectOf(f.relativePath, subjects)?.id ?? []);
-  }, [subject, flat, listing, subjects]);
-  const rows = useDriveRows(rowSubjects);
-  // Files an agent or Finder wrote get their rows (debounced per subject),
-  // and a parse an earlier session finished shows as parsed.
-  const subjectId = subject?.id;
-  const subjectCode = subject?.code;
+  // The subject the folder is in, or the top level; none in the folder of
+  // subjects itself.
+  const home = homeOf(folder, subjects);
+  const homeId = home?.id;
+  const homeCode = home?.code;
+  const rowHomes = useMemo(() => {
+    if (!flat || !listing) return homeId != null ? [homeId] : [];
+    // The flat list reaches into every home below the folder.
+    return listing.files.flatMap((f) => homeOf(f.relativePath, subjects)?.id ?? []);
+  }, [homeId, flat, listing, subjects]);
+  const rows = useDriveRows(rowHomes);
+  // Files an agent or Finder wrote get their rows (debounced per home), and
+  // a parse an earlier session finished shows as parsed.
   useEffect(() => {
-    if (subjectId != null && subjectCode) scheduleOwnReconcile({ id: subjectId, code: subjectCode });
-  }, [subjectId, subjectCode, folder]);
+    if (homeId != null && homeCode) scheduleOwnReconcile({ id: homeId, code: homeCode });
+  }, [homeId, homeCode, folder]);
   const listedRows = useMemo(
     () => listing?.files.flatMap((f) => rows.get(f.relativePath) ?? []) ?? [],
     [listing, rows],
@@ -120,8 +124,6 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
 
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<DriveItem[] | null>(null);
-  const [picker, setPicker] = useState<{ mode: "copy" | "move"; rels: string[]; subjectRel: string } | null>(null);
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -187,34 +189,52 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
       const picked = selection.keys.has(item.key) ? selectedItems() : [item];
       if (!selection.keys.has(item.key)) setSelection({ keys: new Set([item.key]), anchor: item.key });
       const entries = picked
-        .filter((i) => i.type !== "recording" && !(i.type === "folder" && i.subject))
+        .filter((i) => i.type !== "recording" && !isFixedFolder(i))
         .map((i) => ({ rel: i.key, zone: itemZone(i) }));
       startEntryDrag(e.dataTransfer, entries);
     },
     hover,
     targetsOf: (item) => (selection.keys.has(item.key) ? selectedItems() : [item]),
-    copyToMine: (items) => openPicker("copy", items),
-    moveTo: (items) => openPicker("move", items),
-    remove: (items) => items.length && items.every(itemEditable) && setDeleting(items),
+    copyToMine: (items) => void pickFolderFor("copy", items),
+    moveTo: (items) => void pickFolderFor("move", items),
+    remove: (items) => items.length && items.every(itemEditable) && void remove(items),
     reveal: (item) => void revealItem(item),
     writable,
     flat,
     root,
   };
 
-  function openPicker(mode: "copy" | "move", items: DriveItem[]) {
-    const subjectRel = items[0] ? subjectRelOf(items[0].key) : null;
-    if (subjectRel) setPicker({ mode, rels: items.map((i) => i.key), subjectRel });
+  // Straight to the Trash: the toast's Undo is the way back, so no dialog.
+  async function remove(items: DriveItem[]) {
+    if (await deleteAll(items.map((i) => i.key), subjects)) setSelection(EMPTY_SELECTION);
+  }
+
+  // The picker opens on the folder on screen (from a synced one, on the
+  // nearest folder of the student's above it) and reaches all of Drive.
+  async function pickFolderFor(mode: "copy" | "move", items: DriveItem[]) {
+    if (!items.length) return;
+    const rels = items.map((i) => i.key);
+    const pick = await pickDriveFolder({
+      title: mode === "copy" ? "Copy to my files" : "Move to",
+      action: mode === "copy" ? "Copy here" : "Move here",
+      start: folder,
+    });
+    rootRef.current?.focus();
+    if (!pick) return;
+    if (mode === "copy") return copyToFolder(rels, pick.targetDir, subjects);
+    // An entry already in the folder chosen stays as it is.
+    const moving = rels.filter((rel) => parentRel(rel) !== pick.targetDir);
+    if (moving.length) await moveToFolder(moving, pick.targetDir, subjects);
   }
 
   const startNew = (kind: NewKind) => {
-    if (!subject) return;
+    if (!home) return;
     // The new folder's name is edited where it lands, in the folder itself.
     if (kind === "folder" && flat) setFilters(NO_FILTERS);
     setAdding(kind === "files" || kind === "folders");
     void makeNew(kind, {
       folder,
-      subject,
+      home,
       subjects,
       taken: listing?.folders.map((f) => f.name).concat(listing.files.map((f) => f.name)) ?? [],
       renameFolder: (rel) => {
@@ -234,7 +254,7 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
     if (mod && !e.shiftKey && e.key.toLowerCase() === "a") {
       e.preventDefault();
       setSelection(selectAll(keys));
-    } else if (mod && e.shiftKey && e.key.toLowerCase() === "n" && writable && subject && !flat) {
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === "n" && writable && home && !flat) {
       e.preventDefault();
       startNew("folder");
     } else if (e.key === "Escape" && selection.keys.size) {
@@ -244,7 +264,7 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
       view.open(picked[0]);
     } else if ((e.key === "Delete" || (e.key === "Backspace" && mod)) && picked.length && picked.every(itemEditable)) {
       e.preventDefault();
-      setDeleting(picked);
+      void remove(picked);
     }
   };
 
@@ -257,11 +277,12 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
     rootIcon: root ? FolderSimple : Folder,
     subjects,
     folderHref,
-    locked: !!listing && !writable && folder !== "",
+    locked: !!listing && !writable && !isSubjectsFolder(folder),
   });
   // A subject's own folder is Oculus's but takes the student's files; what
-  // reads as synced is a folder they can't add to.
-  const synced = !!listing && !writable && folder !== "";
+  // reads as synced is a folder they can't add to. The folder of subjects is
+  // only a place to go through, and says nothing.
+  const synced = !!listing && !writable && !isSubjectsFolder(folder);
 
   const before = (
     <>
@@ -276,7 +297,7 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
           </AlertDescription>
         </Alert>
       )}
-      {listing && !writable && folder !== "" && (
+      {synced && (
         <div className="mt-2 mb-1 flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-[12px] text-muted-foreground">
           <LockSimple size={13} weight="fill" className="shrink-0" aria-hidden />
           Synced by Oculus, so it's read-only here. Copy a file to your own folders to change it.
@@ -294,17 +315,12 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
   ) : null;
 
   const overHere = hover && hover.rel === folder ? hover : null;
-  const pickerRequest = useMemo(() => picker && {
-    title: picker.mode === "copy" ? "Copy to my files" : "Move to",
-    action: picker.mode === "copy" ? "Copy here" : "Move here",
-    subjectRel: picker.subjectRel,
-    start: writable ? folder : null,
-  }, [picker, writable, folder]);
   return (
     <DriveViewProvider value={view}>
       <div
         ref={rootRef}
         tabIndex={-1}
+        data-undo-delete
         onKeyDown={onKeyDown}
         {...handlers}
         className="relative flex h-full min-h-0 flex-col outline-none"
@@ -315,7 +331,7 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
           query={filters.query}
           onQuery={(query) => setFilters((f) => ({ ...f, query }))}
           placeholder={folder === "" ? "Search Drive" : "Search this folder"}
-          action={writable && subject ? <NewMenu busy={adding} onPick={startNew} /> : undefined}
+          action={writable && home ? <NewMenu busy={adding} onPick={startNew} /> : undefined}
         />
         <DriveToolbar
           filters={filters}
@@ -350,32 +366,13 @@ export function DriveBrowser({ root, folder, folderHref, rootLabel, leading }: D
         />
       </div>
 
-      <DeleteDialog
-        items={deleting}
-        onCancel={() => setDeleting(null)}
-        onConfirm={async (items) => {
-          const done = await deleteAll(items.map((i) => i.key), subjects);
-          setDeleting(null);
-          if (done) setSelection(EMPTY_SELECTION);
-        }}
-      />
-      <FolderPickerDialog
-        request={pickerRequest}
-        onCancel={() => setPicker(null)}
-        onPick={(target) => {
-          const request = picker;
-          setPicker(null);
-          if (!request) return;
-          void (request.mode === "copy" ? copyToFolder : moveToFolder)(request.rels, target, subjects);
-        }}
-      />
-      {subject && (
+      {home && (
         <NotebookDialog
           open={notebookOpen}
           onOpenChange={setNotebookOpen}
-          subject={subject}
+          subject={home}
           targetDir={folder}
-          onCreated={(row) => navigateActive(filePagePath(subject.id, row.relative_path))}
+          onCreated={(row) => navigateActive(filePagePath(home.id, row.relative_path))}
         />
       )}
     </DriveViewProvider>

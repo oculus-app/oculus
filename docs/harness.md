@@ -3,7 +3,10 @@
 Chat is a coding agent the student already has — Claude Code, Codex, opencode
 or Antigravity (`agy`) — run as a subprocess from the library's `agents/`
 folder, writing there and in the student's own files, its output folded into
-one timeline. Claude Code, Codex and `agy` carry
+one timeline. That folder, `studio/` and the database are in the data dir's
+state folder, `.oculus/`
+([architecture.md](./architecture.md#the-apps-own-files-are-in-one-state-folder));
+on this page `agents/`, `studio/` and `oculus.db` name them there. Claude Code, Codex and `agy` carry
 the student's subscription; opencode carries whatever `opencode auth` holds and
 is the app's only API path. The shape is bb's (get-bb/bb) without plugins: one
 bridge per provider, one event stream, a timeline that only sees the stream.
@@ -59,6 +62,7 @@ bridge per provider, one event stream, a timeline that only sees the stream.
 | Send, queue, stop and resume controls shared by both composers, the rule that picks them, and the held-queue notice | `app/src/components/harness/composer/SendControls.tsx`, `app/src/lib/harness/runControls.ts`, `app/src/components/harness/composer/useRunControls.ts`, `app/src/components/harness/composer/ThreadBanners.tsx` |
 | Steer or queue into a running turn: the send mode, ⌘↩ and ⌘⇧↩, "Send now", the steer row, Settings → Chat | `app/src/pages/settings/integrations/ChatPage.tsx`, `app/src/lib/harness/sendMode.ts`, `app/src/components/harness/composer/useSendMode.ts`, `app/src/hooks/agents/useSteerKind.ts`, `app/src/components/harness/timeline/SteerRow.tsx`, `app/src/stores/chat/chatPrefsStore.ts`, `app/src/components/settings/chat/FollowUpSection.tsx` |
 | Files pasted or dropped into a composer: writing them, their chips, the shelf, their names, deleting them with their chat | `app/src-tauri/src/harness/attach.rs`, `app/src-tauri/src/harness/app/thread_files.rs`, `app/src/components/harness/threads/DeleteThreadDialog.tsx`, `app/src/hooks/agents/useAttachments.ts`, `app/src/hooks/gestures/useFileDrop.ts`, `app/src/components/markdown/AttachmentChip.tsx`, `app/src/components/harness/attachments/AttachmentStrip.tsx`, `app/src/stores/chat/attachmentNames.ts` |
+| Saving a chat output to Drive: what may be saved, the copy, the control and the saved-state link ([below](#saving-a-chat-output-to-drive)) | `app/src-tauri/src/harness/protected/savable.rs`, `app/src-tauri/src/harness/app/save_to_drive.rs`, `app/src/components/harness/save/`, `app/src/stores/chat/chatSaveStore.ts`, `app/src/lib/db/chatSaves.ts` |
 | Long pastes held as text cards: format, card, editor and viewer | `app/src/lib/harness/attachments.ts`, `app/src/components/harness/attachments/PastedText.tsx`, `app/src/components/harness/attachments/PastedTextEditor.tsx` |
 | Library paths and attachments in rows and prose (`splitLibraryPaths`); copy as markdown | `app/src/lib/files/libraryPaths.ts`, `app/src/lib/files/openFile.ts`, `app/src/lib/markdown/selection.ts` |
 | Timeline window, off-screen layout, scroll anchoring, the expand protocol | `app/src/components/harness/timeline/useRowWindow.ts`, `app/src/components/harness/timeline/rowWindow.ts`, `app/src/components/harness/timeline/useRowVisibility.ts`, `app/src/components/harness/timeline/RetainedRow.tsx`, `app/src/hooks/ui/useStickToBottom.ts`, `app/src/lib/ui/followTimeline.ts`, `app/src/lib/ui/scrollAnchor.ts`, `app/src/lib/ui/expandable.ts` |
@@ -157,25 +161,59 @@ display policy: no thinking flags or summary setting, with
 ## Every thread runs from `agents/`; it writes there and in the student's own files
 
 A thread rooted at the library would write straight into every subject's
-`Course/` under `acceptEdits`. So every thread runs from `agents/`, and each
+`Course/` under `acceptEdits`. So every thread runs from `agents/`
+(`<data>/.oculus/agents`, from where a subject is `../../courses/<code>/`;
+`agents::from_workspace` spells it), and each
 CLI is given, its own way, what else it may write: the database's three files
 and `studio/` (below), and the **own zone** — every subject's files and
-folders beside its `Course/` and `.oculus/` (`layout::Zone::Own`), written
-without a request. Antigravity's native Auto approves its own writes, so on
+folders beside its `Course/` and `.oculus/`, and the student's own folders
+and files at the data dir's top beside `courses/` and the dot-names
+(`layout::agent_own`: `Zone::Own`, less a name that folds to a dot-name or a
+reserved one and the old state folders' names, `layout::OLD_STATE_NAMES`),
+written without a request. The rule is read when the write happens, not
+from a list made at the thread's start, so a top-level folder the student
+makes in Drive mid-chat, or one the agent makes because it was asked to, is
+writable in the same chat on every CLI (each row below says when). `HARNESS.template.md` tells
+agents those top-level folders are the student's and theirs to write in when
+asked, and that a file the student asks to keep goes there or in the
+subject's folder, not `outputs/`. Antigravity's native Auto approves its own writes, so on
 macOS a folder guard refuses them on the protected paths
 ([below](#antigravity-asks-over-acp)).
 The protected paths are listed in `protected.rs`: each
 subject's `Course/` and `.oculus/` (`subject_dirs`, the layout's
 `reserved_names`), the subjects' folder itself and anything in it outside a
-subject, the `canvas-session/` folder (`library_dirs`), the root files
-by pattern (including the vault and its lock and temp files) and the workspace folders.
+subject, the launch moves' `.library-move/` and the state folder's
+`canvas-session/`, `bin/` (keyd's installed helper, which launchd runs)
+and `derived/` (the top level's parse records, as each subject's `.oculus/`
+holds its own) (`library_dirs`), its files by pattern (`state_file_globs`, including the
+vault and its lock and temp files) and the workspace folders
+(`workspace_dir_rels`), and at the top every dot-name but `.assets/` and
+the old state folders' names (`top_level_denies`). Rust's request check
+(`requests/policy.rs`) is one rule outside the state folder: anything not in
+the own zone is protected, so every dot-name at the top is. It reads the
+real path: `..` worked out and every symlink followed, a dangling one to the
+target a write through it would create, so a link at the top to `~/.ssh`,
+`.oculus/` or a subject's `Course/` is judged as what it points at, never
+as the student's folder. The state folder is
+never protected whole: the database's files, `agents/` and `studio/` are in
+it, so its rules name folders and one-segment file patterns, and a Claude
+`Edit` deny on the folder would cancel `allowWrite` for all three.
 
 | CLI | The own zone | `Course/` and `.oculus/` |
 | --- | --- | --- |
-| Claude | `<data>/courses` in `sandbox.filesystem.allowWrite`; `--add-dir` and `acceptEdits` take its edits unasked | `Edit(//<data>/courses/*/Course)` and `…/Course/**`, the same for `.oculus` (`*` is one segment, so a subject synced mid-thread is covered), plus `Edit(//<data>/courses/<code>/Course)` and `…/.oculus` named for each subject on disk at spawn, which makes the sandbox refuse moving that subject's folder; the CLI merges `Edit` denies into `denyWrite` |
-| Codex | Each subject's top-level own entries on disk at the thread's start (`layout::own_top_level`), one writable root each: `workspace-write`'s roots cannot leave out a folder beneath them, so a subject's folder is never a root. A new file or folder at a subject's top level is a request | Never a writable root |
-| opencode | `"{{LIBRARY}}/courses/*/*": "allow"` after the root-file denies (opencode's `*` crosses `/`, and `{{LIBRARY}}/*.json` would refuse a student's `.json`) | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
-| Antigravity | Rust allows requests naming only own files. Native Auto can make the edit itself. | Rust refuses requests naming these folders, and the folder guard (`acp/guard.rs`) has macOS refuse the write itself, whoever approved it |
+| Claude | `<data>/courses` and the student's own entries at the top in `sandbox.filesystem.allowWrite`, their folders, `courses/` and Studio as `--add-dir` (from one read of the top level at launch, so the three agree); never the data dir itself, which holds `.oculus/` (the CLI grants an added folder's writes, not only its reads, measured on 2.1.332), so the library is read through a `Read(//<data>/**)` allow instead. A top-level entry made later is added with an `apply_flag_settings` control request before each send and after each tool result (`providers/claude/grants.rs`), so the next command in the same turn can write it; the file tools' write to a new top-level folder comes to Rust as a prompt and is allowed unseen. The CLI keeps a grant for the session and does not follow one that later became a symlink (measured). the folders `library_dirs` names (`.library-move/**`, `.oculus/canvas-session/**`, `.oculus/bin/**`, `.oculus/derived/**`) are `Edit` denies | `Edit(//<data>/courses/*/Course)` and `…/Course/**`, the same for `.oculus` (`*` is one segment, so a subject synced mid-thread is covered), plus `Edit(//<data>/courses/<code>/Course)` and `…/.oculus` named for each subject on disk at spawn, which makes the sandbox refuse moving that subject's folder; the CLI merges `Edit` denies into `denyWrite` |
+| Codex | The own entries on disk at the top of each subject and of the data dir (`layout::own_top_level`, no symlinks), one writable root each, read again for every `turn/start`'s `sandboxPolicy`: the app-server takes a sandbox policy per turn and no other way (`turn/settings/update` has no sandbox field), so an entry made mid-turn is a root from the next turn. Within the turn, its file tool's change and a `request_permissions` grant naming only own files are allowed unseen by Rust. In "Don't ask" Codex sends no approval callbacks, so there it cannot make a new folder at the top at all, by shell or file tool: the student makes it in Drive, and it is a root from the next turn. `workspace-write`'s roots cannot leave out a folder beneath them, so neither a subject's folder nor the data dir is ever a root, and a shell `mkdir` at the top is refused. A root cannot be swapped for a symlink to widen the grant (measured on 0.170 with `command/exec` and the turn's `sandboxPolicy`, no model): the sandbox refuses removing or renaming a folder root, and a file root swapped for a link is refused as written, after which Codex refuses every command while a root is a symlink ("symlinked writable roots are not supported"), so it checks its roots for each command and fails closed. A `grantRoot` an approved file change adds is a root like any other | Never a writable root |
+| opencode | `"*": "allow"` covers the top level, matched when the edit is made, so a new folder there is writable at once; `{{LIBRARY}}/.*` and each old state folder's name are denied after it, `.assets` re-allowed; `"{{LIBRARY}}/courses/*/*": "allow"` after the denies (opencode's `*` crosses `/`); the state folder's file denies are `{{LIBRARY}}/.oculus/*.json` and the like, which a file in the cwd, matched by its relative path, never meets. `{{LIBRARY}}/.library-move/**` and `…/.oculus/bin/**` are denied | `"{{LIBRARY}}/courses/*/Course"` and `…/Course/*`, the same for `.oculus`, all `deny`, after it; `{{LIBRARY}}/courses/**` denies the rest of `courses/` first. A crossing `*` also refuses a folder named `Course` deeper in the student's own files |
+| Antigravity | Rust allows requests naming only own files, at the top as in a subject, judged when agy asks. Native Auto can make the edit itself; the folder guard also refuses `.library-move/`, `.oculus/bin/`, any other dot-name at the top but `.oculus/` and `.assets/`, and the old state folders' names. | Rust refuses requests naming these folders, and the folder guard (`acp/guard.rs`) has macOS refuse the write itself, whoever approved it |
+
+**`courses/` itself is not held the same way everywhere.** The request
+policy refuses a loose file in `courses/` and a new folder there on every
+CLI, and Codex (no root there) and Antigravity's guard (`courses(/[^/]+)?$`)
+refuse the write too. Claude's sandbox and `--add-dir` grant `courses/`
+whole, less each subject's `Course/` and `.oculus/`, so its shell and file
+tools can write `courses/loose.pdf` or make `courses/New/` without asking; a
+deny on `courses/*` would cancel the grant on every subject. opencode refuses
+a loose file (`courses/**`) but allows `courses/New/x` (`courses/*/*`).
 
 Codex 0.169's permission profiles (`[permissions.<name>.filesystem]`, with a
 `deny` mode) might express the subtree less two folders, but the app-server
@@ -183,14 +221,17 @@ refuses a profile its legacy `sandboxPolicy` cannot represent, and the
 schema is unmeasured; the bridge keeps the measured legacy policy.
 
 Folder names compare without case on the student's disk. Rust's checks
-(`zone_of`, `policy.rs`) ignore case; Claude's sandbox matches its patterns
-without case where the volume does; opencode's rule match is by spelling, so
-`courses/x/course/…` gets past it.
+(`zone_of`, `policy.rs`) ignore case, and `agent_own` also folds each name
+(NFKC, trimmed), so `．oculus` or ` courses` is not the student's; Claude's
+sandbox matches its patterns without case where the volume does; opencode's
+rule match is by spelling, so `courses/x/course/…` or `Agents/` gets past
+it.
 
 - **Claude**: its sandbox with the cwd, the own zone and the two holes below
-  as write roots, `--add-dir` for reads (without it `ls ../courses` is
-  refused), and `Edit` denies on protected paths so `--add-dir` doesn't pull
-  them into `acceptEdits`. What that leaves undecided comes to the host as a
+  as write roots, a `Read` allow on the library for reads (`ls`, `cat` and
+  the Read tool then need no prompt), the own zone's folders as `--add-dir`
+  so its file tools edit them unasked, and `Edit` denies on protected paths
+  so `--add-dir` doesn't pull them into `acceptEdits`. What that leaves undecided comes to the host as a
   permission prompt and is asked of the student by the chat's mode
   ([Claude asks over its control channel](#claude-asks-over-its-control-channel));
   a one-off turn runs `--permission-prompts none`, since nobody is there to
@@ -212,7 +253,11 @@ without case where the volume does; opencode's rule match is by spelling, so
 
 Tests for each bridge's path rules cover an own file in two subjects (a `.json`
 among them) writable, `Course/` and `.oculus/` refused in every subject,
-including one that did not exist at spawn where the rule is a glob.
+including one that did not exist at spawn where the rule is a glob, and a
+folder made at the top after the thread started writable while a dot-name,
+an old state folder's name, a folded name and a symlink at the top are not
+(`requests/policy.rs`, `claude/grants.rs`, `codex/tests.rs`,
+`protected.rs` for opencode's template, `acp/guard.rs` and `acp/tests.rs`).
 
 **A file an agent writes in the own zone is on disk, not yet in the index.**
 Drive lists the disk, so it shows at once. Its `files` row comes when the
@@ -234,7 +279,8 @@ not the folder — it holds keyd's vault.
 component and theme libraries live there ([studio.md](./studio.md#videos-live-in-the-data-directory)),
 and it holds no secrets. `library::paths::agent_write_dirs` names it once;
 the manager creates it before a spawn, and each CLI renders it: `allowWrite`
-for Claude; a writable root for Codex (`codex::writable_roots`, which keeps
+and `--add-dir` for Claude, so its file tools edit a scene unasked as its
+shell does; a writable root for Codex (`codex::writable_roots`, which keeps
 only paths that exist, the database's absent sidecars included);
 `"{{LIBRARY}}/studio/**": "allow"` in opencode's template, after every
 library deny, since opencode's `*` crosses `/` and the last matching rule
@@ -276,8 +322,9 @@ shared server inherits it at spawn for its shell children.
 and the other keyed commands connect to keyd's Unix socket from inside the
 agent's sandbox
 ([architecture.md](./architecture.md#oculus-keyd-is-the-only-process-meant-to-read-its-key)).
-The socket is `keyd_core::paths::socket(library)`, `keyd.sock` in the data
-dir: the path `Client::at` dials and keyd's launchd registration binds, and
+The socket is `keyd_core::paths::socket(library)`, `.oculus/keyd.sock` in
+the data dir (`.keyd.sock` at its top when that would not fit a socket
+path): the path `Client::at` dials and keyd's launchd registration binds, and
 the harness takes its library from the same `paths::data_dir()` as the CLI.
 No deny list covers it. What each CLI needs was measured on the CLI itself:
 
@@ -332,7 +379,10 @@ read instruction also covers sessions without native loading.
 `HARNESS.template.md` holds app context, sandbox rules and output: rendered
 fence placement, maths, citations, attachments, visual selection and the
 ` ```ui ` fence grammar (inline so the agent needs no skill read before writing
-a block). Skills hold domain workflows and syntax: `oculus-ui` owns OpenUI
+a block). Its `{{MOVED}}` line is filled only for a library the state move
+moved (`state::moved_here`: its journal lists moves), with how a path an
+older turn wrote reads now; a new install's brief has none of it. Skills
+hold domain workflows and syntax: `oculus-ui` owns OpenUI
 signatures, `oculus-plan` owns planning and amendments, `oculus-revision` owns
 study content and filing, and `oculus-widgets` owns TSX widgets and validation.
 `TASTE.template.md` owns standing preference promotion. A skill references
@@ -562,17 +612,31 @@ still update the picker.
   of replies alone keeps its own label.
 - **A Read of a picture expands to the picture** (`ReadPicture` in
   `WorkRow.tsx`), click for the lightbox. It loads over the asset protocol, so
-  the scope includes notebook snapshots in `whiteboard-pages/` alongside
-  `courses/`, `agents/` and `studio/videos/`. A Read naming the data dir’s
-  `canvas-pages/` subtree loads the corresponding `whiteboard-pages/` image.
+  the scope includes notebook snapshots in `.oculus/whiteboard-pages/` alongside
+  the library, `.oculus/agents/` and `.oculus/studio/videos/`
+  ([architecture.md](./architecture.md#the-data-directory)). A stored Read
+  names a path as it was written, so `readPicture.ts` resolves a state folder
+  spelled at the data dir's top, and `canvas-pages/`, to where the picture is
+  (`stateRel` in `app/src/lib/files/statePaths.ts`).
   A missing image leaves the recorded arguments and tool output visible.
 - **A citation opens the file at the cited spot.** One grammar
   (`app/src/lib/citations/`) reads an inline code span, a link's href or a
-  bare path in prose: `courses/…`, `../courses/…`, `agents/…`, absolute,
-  agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`. It is
+  bare path in prose: `courses/…`, up to two leading `../` onto it
+  (`../../courses/…` from the cwd), the workspace as `.oculus/agents/…` or,
+  as older rows spell it, `agents/…`, absolute, agent-cwd `./x`, plus `:97-120` / `#L97-L120` / `#page=12`.
+  A student's own file at the data dir's top is `../../<folder>/…` from the
+  cwd or absolute under the data dir (never a dot-name, nor a name an older
+  row spells at the top for the app's: `agents`, `studio`,
+  `whiteboard-pages`, `canvas-pages`, and the old recordings root `lectures`,
+  `namesOldStateFolder`), and in a composer mention (`topLevel`,
+  `splitLibraryPaths`) its plain data-dir-relative path when it holds a `/`
+  or ends in a document's extension. It is
   shape-only and decodes first (the data dir has a space); a course-relative
-  path into a synced folder (`Course/Files/…`) or a bare filename is a *tail*, rendered as code until one cached
-  `LIKE '%/<tail>'` finds a unique row. A line of a parsed `.md` maps to its
+  path into a synced folder (`Course/Files/…`), a bare filename or a file in
+  folders (`Receipts/march.pdf`) is a *tail*, rendered as code until one cached
+  lookup (`LIKE '%/<tail>'`, or the path itself for a top-level row) finds a
+  unique row, so a code path stays code. `openCitation` opens a top-level file
+  in the app like a subject's (`isLibraryPath`). A line of a parsed `.md` maps to its
   PDF page because the `.md` is the `.pages.json` pages joined with `\n\n`;
   `openCitation` opens the file there in the side panel and `PDFViewer` marks
   the line's text in the text layer (`citation-hit`). Unmatched schemeless
@@ -1023,7 +1087,8 @@ folder (`Course/Recordings/<date>-<slug>/`, `recordingOf`) is that lecture,
 looked up by `lectures.folder_rel`. Read keeps to `courses/`,
 `agents/attachments/` and `agents/outputs/`, so the agent's own
 instructions, skills and memories are not listed; a file the thread made is
-listed under Made only. A Studio file
+listed under Made only. A file Made in the workspace offers Save to Drive…
+([below](#saving-a-chat-output-to-drive)). A Studio file
 opens its video, component or theme page. A failed or refused call counts for
 neither; a running one does. An `oculus read` of a fragment rather than a
 full path is not listed, since naming it takes a lookup.
@@ -2081,13 +2146,19 @@ CLI is told no, and the request is never shown, when:
 - it names a protected path, or a folder that holds the library or a
   subject's `Course/`, since a grant there reaches every protected folder
   inside (`requests/policy.rs` against `protected.rs`; relative paths are
-  read against `agents/`). A path in a subject's own files is not protected:
-  where a CLI's sandbox could not grant it (a new top-level file under
-  Codex), the student is asked. A
+  read against `agents/`). A
   shell command cannot be
   checked this way, so its payload says it runs outside the sandbox; the
   name denies and `OCULUS_AGENT` keep refusing inside an approved command;
 - its session has ended (the event arrives stale), or it cannot be saved.
+
+The CLI is told yes, and the request is never shown or saved, in every mode,
+when it is a file change, or a grant of file access with no network in it,
+whose every path an agent writes by design, on its real path
+(`policy::agent_writes`: the chat's folder, Studio or the own zone, which
+Antigravity's policy uses too; `policy::own_grant`; Codex's `grantRoot` is
+one of its paths): those are the agent's to write, and a folder made at the
+top since the thread started is in the own zone.
 
 **An answer is a command.** `Respond { request_id, option_id, feedback, answers }`
 (`harness_respond`) is decided against the saved request: refused when it
@@ -2472,9 +2543,11 @@ a change restarts the session at the next send.
   the reason, `outsideSandbox` only when it sets `dangerouslyDisableSandbox`);
   a file tool (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) writing outside
   the allowed folders, as a file change judged by the file it writes: its
-  `paths` are the file and the prompt's `blocked_path`. The folder the CLI's
-  `addDirectories` suggestion names is never granted, so it is not checked,
-  and an unprotected file at the library's root is asked; and
+  `paths` are the file and the prompt's `blocked_path` (the real file, when
+  the path runs through a symlink). The folder the CLI's
+  `addDirectories` suggestion names is never granted, so it is not checked;
+  a file in the own zone, at the library's top or in a folder made there
+  mid-chat, is allowed unseen, and one outside the library is asked; and
   `SandboxNetworkAccess`, a new host for a sandboxed command (payload
   `host`; its call id is not the command's). Any other tool is a `tool`
   request with the tool's `name` and a `kind`: `read` (`Read`, `Glob`,
@@ -2493,7 +2566,7 @@ a change restarts the session at the next send.
 - **What reaches a prompt.** No rule in the launch refuses a read, a web
   call or an MCP tool first: the deny rules are `Edit(…)` for the protected
   paths and `Bash(sqlite3:*)`. Reads inside `agents/` and the library
-  (`--add-dir`) never prompt; the rest come to Rust in Ask and Don't ask
+  (the `Read` allow) never prompt; the rest come to Rust in Ask and Don't ask
   (which declines them unseen), and in Auto only what the classifier leaves.
   A chat does not pass `--strict-mcp-config`, so the student's own MCP
   servers load and their calls come as requests; a one-off turn has no
@@ -2557,7 +2630,13 @@ update it. `testkit/agy_requests.rs` replays the 1.5.9 default-mode and
   up that binding, starts `session/new`, and sends the same budgeted full
   transcript handoff a provider switch sends, with the student's message.
   Earlier runs retain their old binding; this run and later sends use the
-  new session id. A timeline note says Antigravity started a new session.
+  new session id. A timeline note says the provider started a new session.
+  The recovery is the send's, not Antigravity's (`SendError::ResumeFailed`
+  in `app/send.rs`): any provider that reports a saved session it cannot
+  load gets it, once per send. opencode reports one when it has no such
+  session for the folder (`AttachError::Missing` in
+  `providers/opencode/session.rs`: a 404, or an answer that is not that
+  session); any other failure to attach fails the send.
   Stop/delete wins over recovery, setup failures fail the send, and a prompt
   write with uncertain delivery is never retried.
 - **A turn** is one `session/prompt`; its reply ends it (`end_turn`,
@@ -2628,10 +2707,12 @@ profile allows everything and denies `file-write*` on the paths
 the `library_dirs`, each subject's `Course/` and `.oculus/` (any subject,
 so one synced mid-chat is covered), the subjects folder and any entry
 directly in it (a subject cannot be created, deleted or renamed), the root
-files by pattern and the app-owned folders in `agents/`. Never
-`oculus.db*`, keyd's socket, `studio/` or an own-zone file. Seatbelt has no
+state folder's files by pattern, the app-owned folders in `agents/`, every
+other dot-name at the top but `.assets/` and `.keyd.sock` (a `require-not`
+pair, as Seatbelt has no lookahead) and the old state folders' names. Never
+the state folder itself, `oculus.db*`, keyd's socket, `studio/` or an own-zone file. Seatbelt has no
 case flag, so each letter is a class (`[Cc][Oo]…`). A second rule denies
-unlinking `agents/`, the library and its ancestors, which the regexes are
+unlinking `agents/`, the state folder, the library and its ancestors, which the regexes are
 anchored to. agy and everything it starts inherit the profile: its file
 tool, a redirect, `rm`, `mv` and a script it runs all get "Operation not
 permitted" (measured 2026-11-25 on agy 1.5.16, macOS 26.3).
@@ -2661,7 +2742,7 @@ In every mode, `acp/policy.rs` applies `judge` to each request agy sends.
 | --- | --- |
 | a write (ACP kind `edit`, `delete`, `move`, or a writing tool) naming a protected path (`requests/policy.rs` over `protected.rs`), a folder that holds the library, or the database (`oculus.db*` at the library root) | Deny, unseen |
 | a write that names no path | Deny, unseen: it cannot be checked |
-| a write whose every path (its `locations`, which agy resolves through symlinks, its diffs' and its input's) is under `agents/`, `studio/` or in a subject's own files; a relative path is read from both the library root and `agents/`, and both readings must pass | Allow, unseen |
+| a write whose every path (its `locations`, which agy resolves through symlinks, its diffs' and its input's) is under `agents/`, `studio/` or in the own zone, in a subject or at the top (a folder made there mid-chat included), on its real path; a relative path is read from both the library root and `agents/`, and both readings must pass | Allow, unseen |
 | a plain `oculus …` (including `BypassSandbox`), or `ls …` inside the sandbox; neither may contain `;`, `&`, `|`, redirects, substitution or escapes | Allow, unseen |
 | any other write, command, read, fetch or tool | a request: `file_change` with the diffs, `command` (with `outsideSandbox` when it sets `BypassSandbox`), or `tool` (`read`, `fetch`, `other`) |
 
@@ -3440,9 +3521,11 @@ timestamp and the cap is 20 MB. Anything else is refused: "Only pictures,
 PDFs and text files can be attached — use @ for a course file." A note's
 pictures go through `write_image`, which takes pictures only.
 `agents/attachments/` must itself be a folder there once links are resolved,
-or nothing is written; `harness_attachments_exist` reads only inside it,
+or nothing is written; `harness_attachments_exist` reads only inside it
+(a path is `.oculus/agents/attachments/<name>`, or `agents/attachments/<name>`
+as older rows spell it),
 refusing an absolute path, a `..` and a link that leads out. `assetProtocol.scope` in
-`app/src-tauri/tauri.conf.json` must name `agents/` or every picture (and
+`app/src-tauri/tauri.conf.json` must name `.oculus/agents/` or every picture (and
 every page an agent made) draws broken; a dropped file is scoped by Tauri on
 delivery.
 
@@ -3499,6 +3582,84 @@ name a file at `./attachments/…` where the sentence refers to it, and the
 agent reads it with its own file tools. How each CLI reads a PDF is its own
 and no recorded turn under `fixtures/harness/` shows any of the four doing
 it yet, so the brief says nothing per bridge.
+
+## Saving a chat output to Drive
+
+A picture, page or file an agent made in its workspace, or a file the
+student attached, can be kept: **Save to Drive…** opens the Drive picker
+(`pickDriveFolder`) on the chat's subject folder, or the top level for a
+chat with none, with the file's name to edit; the copy lands there with a
+row, and the control then reads **Open in Drive**, which opens the copy as
+Drive does (`openFileSmart`; a picture beside the chat,
+[viewers.md](./viewers.md)). The control changing is the confirmation: no
+toast. Saving is only ever an option, so a refused or failed copy leaves
+the control as it was, **Save to Drive…** in its normal look, to try again;
+the last failure's reason is its tooltip (`saveWords`), and nothing turns
+red.
+
+**What may be saved is one Rust predicate, `protected::savable`**, beside the
+lists of the workspace's own files: anything in the workspace but a dot-name
+at any depth (the CLIs' folders), the folders of `WORKSPACE_DIRS` (skills
+and the links to them) and `AGENT_DIRS` (`memories/`, `threads/`), and the
+files of `WORKSPACE_FILES` at its top (the generated docs, `TASTE.md`,
+`OCULUS.md`, opencode's config, `CLAUDE.md`, `GEMINI.md`), all matched
+without case. A path in a reply is model output, so `savable` takes only a
+`.oculus/agents/…` path of plain segments (no `..`, `.` or empty step),
+opens it from the data dir one step at a time, each with `openat` and
+`O_NOFOLLOW` (`open_unlinked`), so no link at any step is followed, wants a
+regular file with one hard link, then canonicalises it and checks the result
+again inside the canonical workspace. `drive_save_copy` first refuses a
+folder whose home has no row (`known_home`: a folder in `courses/` of no
+subject Oculus knows would take a copy that never gets one), then asks `savable`
+itself, never trusting an earlier answer or the frontend, and reads the
+bytes through a handle reached the same way that must be the inode `savable`
+saw, never a fresh lookup of the path (`Savable::read`), so a file or a
+folder above it swapped for a link after the check reads nothing. A file over
+512 MB (`MAX_SAVE_BYTES`) is refused before it is read, since the copy is
+made in memory; the bytes go in through `import_bytes_as`, under the import
+lock. The tests in `protected/savable/tests.rs` hold a memory, `TASTE.md`,
+`AGENTS.md`, a skill, a thread log and a CLI config folder refused directly,
+in another case, through `..`, through a symlink in `outputs/` and through a
+folder swapped for a link after the check, and the database, the vault and
+anything outside the workspace refused.
+
+**The agent's own files show no control at all**, no disabled button and no
+hint: `drive_savable` answers null for them and the control renders nothing.
+A file already in the library needs no save and shows nothing new; its link
+opens it as before. An old chat's path (`agents/outputs/…`, or the absolute
+path before the state folder) reads as the same `.oculus/agents/…` path
+(`fullCitation`), so its picture offers the same control.
+
+**One control, `SaveToDriveAction`, in four places**, only inside a chat
+(`ChatSaveScope`, around the timeline and Thread info's Made):
+
+| Where | Look |
+| --- | --- |
+| Under a picture in a reply (`EmbedImage`) | a 28px line from the first draw, the alt on the left, the action fading in on hover at the right; nothing covers the picture and the reply never shifts |
+| The picture's lightbox | leads the toolbar, before the zoom |
+| A page in a reply (`EmbedPage`) | an icon in its header |
+| A Write or Edit row (`ToolRow`), a file chip's hover card, Made | at the row's end on hover; an icon over Made's `New` |
+| A question's hover row | an icon for one attachment, a menu naming each for several; the bubble's lightbox has it too |
+
+**What is saved is remembered by source path** in `chat_saves` (migration
+70): the copy's `files.id` and the source's size and modification time when
+it was copied. A save stands for the file only while the source still has
+that stamp, since agents reuse names in `outputs/`. Every view asks through
+`useChatSaves`, which gathers the paths that mount in one tick into one
+`drive_savable` call and one query (the timeline mounts its newest rows and
+pages older ones in, so a thread asks in a few batches, never per row), and
+when a turn ends or Drive changes asks again about the paths a mounted row
+shows (`showSave`), forgetting the rest, so it holds no more states than
+there are rows on screen. The
+query joins `files`: a copy deleted from Drive drops out and the source
+offers Save to Drive… again; a copy moved in Drive keeps its id and is still
+found.
+
+**An agent asked to keep a file writes it there itself**: no CLI verb.
+`HARNESS.template.md` says a file the student asks to keep goes straight into
+the subject's folder or a top-level folder, and `outputs/` is for what a
+reply shows; the turn-end reconcile gives it its row
+([frontend.md](./frontend.md#own-files-written-outside-the-app-get-rows)).
 
 ### Pasted text is a card, sent inline
 

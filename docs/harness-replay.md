@@ -211,16 +211,18 @@ write recording: no read, web or MCP prompt has been recorded), a new host, two
 prompts answered out of order, Stop with one pending, a subagent's prompt
 labelled by its `task_started`, a background subagent asking with no turn
 open, Auto's classifier and a deny rule on the call's row, Don't ask saved
-mid-turn, a protected path (in the file or its `blocked_path`) declined
-unseen while an unprotected file at the library's root is asked though the
-CLI suggests granting the library, a pipe dying mid-reply, a restart with one
+mid-turn, a protected path (in the file or its `blocked_path`), a dot-name
+or an old state folder's name at the top declined unseen while an own file at
+the library's top, in a folder made mid-chat or loose, is allowed unseen
+though the CLI suggests granting the library, a pipe dying mid-reply, a restart with one
 pending, a mode change restarting the session, and, as a mutation, a prompt
 inside a turn the CLI started itself. A test that declines unseen rewrites
 the manifest's expected deny to Oculus's unseen message.
 `testkit/agy_requests.rs` replays Antigravity over ACP (`agy` 1.5.9,
 `fixtures/harness/antigravity-acp-*`: the stage 5 probe's agent frames from
 the prompt on, the probe's workspace as `$LIBRARY/agents`, which the
-bridge's replay reads as the scratch library, and the Oculus bridge's
+bridge's replay reads as the scratch library's workspace
+(`agents::agents_dir`), and the Oculus bridge's
 writes as the expected outbound). A recorded session starts open, its requests other than `session/prompt` are answered from the
 manifest as they are written, and its ids continue from the manifest's.
 `antigravity-acp-ls` (an `ls` Rust allows unseen, then the answer) was

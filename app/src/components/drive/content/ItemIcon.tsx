@@ -1,4 +1,4 @@
-import { FolderSimple, LockSimple, MonitorPlay } from "@phosphor-icons/react";
+import { BookOpen, FolderSimple, LockSimple, MonitorPlay } from "@phosphor-icons/react";
 import { SubjectIcon } from "@/components/subjects/SubjectIcon";
 import { categoryIconFor, fileIconFor } from "@/lib/files/fileTypes";
 import { kindOf, type DriveKind } from "@/lib/drive/filters";
@@ -29,13 +29,15 @@ export function fileKindTone(name: string, category?: string | null): string {
 }
 
 /** True for a folder at the edge of the synced files: one the student can't
- *  add to, inside one they can (where it is the odd one out). */
+ *  add to, inside one they can (where it is the odd one out). The folder of
+ *  subjects is a place to go through, and carries no lock. */
 export function isLockedFolder(item: DriveItem, parentWritable: boolean): boolean {
-  return item.type === "folder" && parentWritable && !item.entry.writable;
+  return item.type === "folder" && !item.subjects && parentWritable && !item.entry.writable;
 }
 
-/** An entry's glyph: a subject's own icon at the Drive root, a lock on a
- *  `locked` folder, a recording's screen, a file's kind. */
+/** An entry's glyph: the rail's book for the folder of subjects, a subject's
+ *  own icon, a lock on a `locked` folder, a recording's screen, a file's
+ *  kind. */
 export function ItemIcon({ item, size = 15, locked = false, className }: {
   item: DriveItem;
   size?: number;
@@ -44,6 +46,7 @@ export function ItemIcon({ item, size = 15, locked = false, className }: {
 }) {
   const tone = cn("shrink-0", kindTone(item), className);
   if (item.type === "folder") {
+    if (item.subjects) return <BookOpen size={size} className={tone} aria-hidden />;
     if (item.subject) return <SubjectIcon code={item.subject.code} size={size} className={className} />;
     const Icon = locked ? LockSimple : FolderSimple;
     return <Icon size={size} weight={locked ? "regular" : "fill"} className={tone} aria-hidden />;

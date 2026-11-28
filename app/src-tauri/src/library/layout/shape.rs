@@ -22,6 +22,9 @@ pub struct Shape {
     pub own_kind_by_folder: bool,
     /// Folders at a subject's root that hold app state, not library files.
     pub hidden: &'static [&'static str],
+    /// Whether the data dir's top level beside `courses/` is the student's
+    /// (every name there that does not start with a dot) or app state.
+    pub top_level_own: bool,
     /// The subject's agent workspace, under its root.
     pub agents: &'static str,
     /// Where a PDF's parse record and page vectors go, under the subject
@@ -47,7 +50,8 @@ pub enum Recordings {
 pub(super) const CURRENT: &Shape = &TARGET;
 
 /// The Drive tree: `Course/` holds everything synced, the student's own files
-/// sit beside it at any depth, and `.oculus/` is app state.
+/// sit beside it at any depth, and `.oculus/` is app state. The data dir's
+/// top level is the student's too, beside `courses/` and the dot-names.
 pub(super) const TARGET: Shape = Shape {
     synced_root: Some("Course"),
     synced_dirs: &[
@@ -73,7 +77,10 @@ pub(super) const TARGET: Shape = Shape {
         (OwnKind::Notebook, ""),
     ],
     own_kind_by_folder: false,
-    hidden: &[".oculus"],
+    // The data dir's state folder's name, so a subject's and the top's agree;
+    // `agents` and `derived` below spell it too, held by a test.
+    hidden: &[crate::library::paths::STATE_DIR],
+    top_level_own: true,
     agents: ".oculus/agents",
     derived: Some(".oculus/derived"),
     note_assets: ".assets",
@@ -110,6 +117,7 @@ pub const LEGACY: Shape = Shape {
     ],
     own_kind_by_folder: true,
     hidden: &["agents"],
+    top_level_own: false,
     agents: "agents",
     derived: None,
     note_assets: "assets",

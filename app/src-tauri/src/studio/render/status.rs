@@ -88,6 +88,6 @@ fn planned(
             .map(|s| format!("{}.mp4", s.key))
             .collect(),
         track,
-        out: Some(preset.default_out(dir).to_string_lossy().into_owned()),
+        out: Some(cache::recorded_out(dir, &preset.default_out(dir))),
     })
 }

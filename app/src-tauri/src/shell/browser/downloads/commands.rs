@@ -16,7 +16,7 @@ pub fn browser_downloads(app: AppHandle) -> Snapshot {
 #[tauri::command]
 pub fn browser_download_choose(app: AppHandle, id: u32, dest: Dest) -> Result<(), String> {
     let kind = match &dest {
-        Dest::Oculus { .. } => "Oculus",
+        Dest::Drive { .. } => "Drive",
         Dest::Path { .. } => "a path",
         Dest::Discard => "discard",
     };

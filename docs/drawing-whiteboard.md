@@ -334,7 +334,7 @@ only those to `whiteboard_write_page_snapshots`. A whiteboard gets none of this.
   the screen does, clipped, without ink from the next page. Writes run one at a
   time and the last scheduled document wins; a failed write is shown in the
   editor and tried again on the next change.
-- **Storage** is `whiteboard-pages/<file id>/` under the library: `page-NNN.png`
+- **Storage** is `whiteboard-pages/<file id>/` in the state folder: `page-NNN.png`
   per page (2 pixels a point, about 1190 × 1680 for A4) and `pages.json`, the
   notebook's path, page count and, for each page, its id, picture and the Unix
   time it was last redrawn (`library::paths::notebook`). It is keyed by the

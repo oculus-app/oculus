@@ -136,7 +136,7 @@ Both are in `skills/oculus-studio/` under your working directory.
 
 ## Where things are
 
-From your working directory (`agents/`):
+From your working directory (`.oculus/agents/`):
 
 ```
 ../studio/videos/<slug>/      one video
@@ -240,7 +240,9 @@ oculus studio render binary-search-twenty-guesses
 writes a fast 540p `renders/draft.mp4` and prints its path. Tell the
 student the path: the app plays the draft in the conversation. The draft is the hand-back. A
 full-size final is the student's to make with Export on the video's page;
-never render one yourself.
+never render one yourself unless the student asks you to. A final goes
+into their Drive: tell them where, from the `saved to Drive:` line it
+prints.
 
 ## The plan
 

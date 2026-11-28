@@ -1,10 +1,10 @@
 import { fullCitation, ROOTS } from "./parse";
 
-/** A full-shape library path sitting bare in prose: `courses/…`,
- *  `../courses/…`, or absolute (which may cross "Application Support").
- *  It must end in a file extension, plus an optional line suffix. */
+/** A full-shape library path bare in prose: `courses/…`, `../../courses/…`
+ *  (`../courses/…` in older chats), or absolute (which may cross "Application
+ *  Support"). It must end in a file extension, plus an optional line suffix. */
 const PROSE_PATH = new RegExp(
-  "(?<![\\w/.`])(?:(?:\\.\\.\\/)?courses\\/[^\\s`]+|\\/(?:[^\\s/`]+\\/|Application Support\\/)+?" +
+  "(?<![\\w/.`])(?:(?:\\.\\.\\/){0,2}courses\\/[^\\s`]+|\\/(?:[^\\s/`]+\\/|Application Support\\/)+?" +
     `${ROOTS}\\/[^\\s\`]+)`,
   "g",
 );

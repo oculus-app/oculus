@@ -234,7 +234,9 @@ impl Download {
                 files: &files,
                 captions_url: captions.as_deref(),
                 ffmpeg,
-                scratch: &self.data_dir.join("tmp").join("echo-embeds").join(link_id),
+                scratch: &crate::library::paths::scratch_dir(&self.data_dir)
+                    .join("echo-embeds")
+                    .join(link_id),
                 dest: &dest,
             },
             &|pct| emit(app, link_id, pct, "downloading"),

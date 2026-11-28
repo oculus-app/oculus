@@ -16,6 +16,16 @@ export interface PdfPipelineRow {
   embedded_at: string | null;
 }
 
+/** PDF-backed files the parse sweep may re-request: in a selected subject or
+ *  at the top level (the reserved row, never selected), not parsed and not
+ *  skipped, newest first (`useQualitySweep`). */
+export const UNPARSED_FILES_SQL = `SELECT f.subject_id, f.relative_path, s.code
+     FROM files f JOIN subjects s ON s.id = f.subject_id
+     WHERE (s.selected = 1 OR s.kind = 'top')
+       AND lower(f.file_type) IN ${PDF_BACKED_SQL_LIST}
+       AND (f.parse_status IS NULL OR f.parse_status NOT IN ('quality', 'skipped'))
+     ORDER BY f.scraped_at DESC`;
+
 async function pipelineRows(types: string): Promise<PdfPipelineRow[]> {
   const db = await getDb();
   return db.select<PdfPipelineRow[]>(

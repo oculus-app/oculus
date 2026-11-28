@@ -60,7 +60,9 @@ classes work even when there are no dollar delimiters.
   through this pipeline and KaTeX and lists the formulas that fail and the TeX
   left as prose; each rule above came from a run of it. An inline `<code>` holding only a citation (`app/src/lib/citations/`)
   renders as `FileChip`. `![alt](path)` naming a library picture or HTML
-  page renders it in place (`OutputEmbed.tsx`). In replies, `outputs/x.svg`
+  page renders it in place (`OutputEmbed.tsx`); in a chat, a picture from the
+  agent's workspace keeps a 28px line under it for its alt and Save to Drive…,
+  and a page has the action in its header. In replies, `outputs/x.svg`
   and `./outputs/x.svg` both name a file under the agent’s `outputs/` folder.
   A query such as `?v=2` stays on the image URL, outside the encoded disk
   path. PDF page and lecture time fragments locate the cited passage; any other `#` or `?` is part of the file name.
@@ -278,7 +280,17 @@ classes work even when there are no dollar delimiters.
     and arrowheads by id.
 - **`Lightbox.tsx` pans with its container's scroll and zooms with a
   `transform`**; every input moves a target the painted scale eases toward, so
-  bursts compose.
+  bursts compose. Its toolbar may lead with one action for what it shows
+  (`actions`, `LightboxToolbar`'s `lead`, drawn with its divider only once it
+  renders a button): a chat picture's Save to Drive…
+  ([harness.md](./harness.md#saving-a-chat-output-to-drive)).
+- **A picture opens on its file page as an `<img>`**: a synced image, and a
+  picture of the student's own (`isPictureFile`: PNG, JPEG, GIF, WebP, AVIF,
+  SVG), so a chat picture saved to Drive opens beside the page like a PDF
+  rather than in the system viewer (`openFileSmart`). An SVG is active
+  content: it is only ever an `<img>`, never inlined. An HTML page of the
+  student's still opens in the system browser, as a reply's page does from
+  its Open externally; in the app it runs only in a reply's sandboxed frame.
 - **`PDFViewer` is ours, over Rust's `pdf_*` commands**
   (`app/src/components/files/pdf/`, invoke wrappers and caches in
   `app/src/lib/pdf/pdfView.ts`). It opens a file by its library-relative path;
@@ -344,7 +356,8 @@ classes work even when there are no dollar delimiters.
   - **Rust's half is `app/src-tauri/src/library/pdf_view/`, on the pure-Rust
     renderer hayro**, opened and rendered through
     `app/src-tauri/src/library/pdf_render/`, which the embedder shares. A path
-    must sit under `courses/` or `agents/` in the data directory.
+    must sit under `courses/` or the workspace, `.oculus/agents/`, in the data
+    directory (`agents::readable`).
     The four most recent documents stay open, keyed by path and modification
     time. Renders and text extraction share half the cores, each on its own
     big-stack thread so a deeply nested page cannot overflow a stack and abort
@@ -511,7 +524,10 @@ bar. Every video streams from Rust's media server via `mediaSrc()`
   system viewer), where `VideoFileViewer` renders its own `<video>`. Its
   captions are the sibling `<video>.vtt`, and one that exists but won't read
   is an error, never a Transcribe offer. The element pauses when its tab goes
-  to the back, since nothing parks it, and keeps no position.
+  to the back, since nothing parks it, and keeps no position. A
+  `drive-changed` naming the file in `added` (a Studio re-render replacing
+  it) reloads the element on a fresh URL; one naming its `.vtt` re-reads the
+  captions.
 - **A Studio render uses it two ways** (`VideoPlayer`, see
   [studio-page.md](./studio-page.md)): on a video's detail page with a dock
   (Script and Scenes in a `MediaDock`, sharing the dock size and open state
@@ -1092,26 +1108,40 @@ without a dark theme retain their own colours.
 ### Downloads wait for a destination while their bytes arrive
 
 Every accepted browser download goes to
-`downloads/.incoming/<pid>-<id>/<name>` in the data directory, never the user's
+`.oculus/downloads/.incoming/<pid>-<id>/<name>` in the data directory, never the user's
 Downloads folder (`app/src-tauri/src/shell/browser/downloads/stage.rs`). The
 hook must name its destination synchronously and WebKit starts writing at
 once, so the Save dialog asks while bytes arrive. Delivery waits for both the
 last byte and a choice, whichever comes second (`Downloads`):
 
-- **In Oculus** imports into a subject through `import_into` in
+- **In Drive** imports into any folder of Drive's a file can land in
+  (`drive_target`: the top level, a subject's root, or a folder of the
+  student's in either) through `import_file_as` / `import_into` in
   `app/src-tauri/src/library/files/uploads.rs`, the same path as picked
-  uploads: into `Dest`'s optional `target_dir` (a folder of the student's in
-  that subject, checked by `own_target`), else the subject's root. The Save
-  dialog picks it under the subject select: the subject's folder tree
-  (`DriveTree` with `onPick`), where synced folders can't be picked, on the
-  subject's root until the student picks another; its hint names where the
-  file lands. `useBrowserDownloads` calls `recordUploads` in
-  `app/src/lib/files/uploads.ts` through `createSavedRecorder` in
-  `app/src/lib/browser/downloads/recordSaved.ts`: it claims each
-  download once, skips an existing `files` row (including after a frontend
-  reload), and starts the parse for pipeline files whose import has no
-  conversion error. An Office conversion failure still leaves the upload
-  saved, with its warning.
+  uploads, so a taken name with other bytes steps aside to ` (2)` and the
+  same bytes keep their name and parse. `Dest` is
+  `{ kind: "drive", target_dir, name? }`, `name` only when the student
+  edited the file's; the row then shows the name it landed under. The
+  dialog opens with a folder already chosen, drawn as a `Trail` from My
+  Drive: the subject of the tab's Canvas course page, else the last folder
+  any Drive picker confirmed (`drive_picker_last_destination`), else the top
+  level (`app/src/lib/browser/downloads/destination.ts`), stepped up to the
+  nearest folder that takes files when it is gone or synced. Save lands it
+  there; **Change…** opens the Drive picker over the dialog with the name to
+  edit, and the picker's Save is the save (a cancel leaves the dialog as it
+  was). `useBrowserDownloads` writes the row through `recordUploads` in
+  `app/src/lib/files/uploads.ts` via `createSavedRecorder` in
+  `app/src/lib/browser/downloads/recordSaved.ts`, under the subject or the
+  top level the saved path is in (`homeOf`): it claims each download once,
+  skips an existing `files` row (including after a frontend reload), and
+  starts the parse for pipeline files whose import has no conversion error.
+  The row's id goes to `useBrowserDownloadsStore`'s `files`, so the list
+  acts on the file after a move or rename in Drive. An Office conversion
+  failure still leaves the upload saved, with its warning. A folder in a
+  subject Oculus doesn't know has no home, so Save refuses it before choosing
+  (`landingProblem` in `destination.ts`); a saved download no home holds
+  says so once on its row (`unrecorded` in the store) and is not retried,
+  while any other failure to record is tried again on the next list.
 - **On this Mac/PC** opens the native save panel, initially in Downloads with
   the safe name suggested.
   `app/src-tauri/src/shell/browser/downloads/deliver.rs` moves the file,
@@ -1121,8 +1151,8 @@ last byte and a choice, whichever comes second (`Downloads`):
   discarded and deletes only at `Finished`; it cannot cancel the transfer.
 
 Every save needs an explicit choice: `useBrowserPrefsStore` remembers only
-the preselected destination and subject. A Canvas course URL in the credited
-tab preselects that course's subject ahead of the remembered one
+which answer, In Drive or On this Mac, to preselect. A Canvas course URL in
+the credited tab names its subject
 (`app/src/lib/browser/downloads/subjectGuess.ts`), checking the institution's
 Canvas host when known. `app/src-tauri/src/shell/browser/downloads/sweep.rs`
 clears staging at startup except folders whose PID belongs to another live
@@ -1195,7 +1225,24 @@ rule (also when its tab has closed).
 `DownloadsButton` appears after the first download this session and stays
 after clearing the list. Its one dot is brand-coloured while a choice waits,
 otherwise destructive-coloured for an unseen failed or refused download;
-opening the list acknowledges problems. A waiting row opens the dialog.
+opening the list acknowledges problems. A waiting row opens the dialog. A
+saved row says where it went as a `Trail`, from its subject when it is in
+one, and every settled row has one ⋮ menu (`DownloadMenu`). Saved to Drive:
+Open, Show in Drive (a new tab on its folder), Show in Finder, Clear from
+list and Delete, which asks nothing: it sends the file to the Trash through
+Drive's `delete_entries`, with the toast's Undo
+([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes));
+the row hides while the delete is pending, comes back on Undo and clears
+once the delete is final. Each finds the file by its row id
+(`app/src/pages/tools/browser/downloads/savedFile.ts`), and a file gone
+since just leaves the list. Delete is offered only for a file the download
+wrote, once its row id is known (`mayDelete` in
+`app/src/lib/browser/downloads/deletable.ts`): a download whose bytes were
+already in the folder (`ImportOutcome.existed`) landed on the student's own
+copy. A file whose size on disk no longer matches its row (`stillRowFile`) is
+another file now, so Delete only clears the list. Saved on the Mac: Open,
+Show in Finder, Clear from list. Failed, refused or discarded: Clear from
+list.
 
 `useBrowserDownloads`, mounted once in `AppLayout`, mirrors the whole list
 from `browser-downloads` into `useBrowserDownloadsStore`. States are `receiving`,

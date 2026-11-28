@@ -33,7 +33,7 @@ describe('libraryLayout', () => {
 
   test('paths inside a subject lose the subject prefix, others are kept', () => {
     expect(courseRelOf('courses/X/Course/Files/a.pdf')).toBe('Course/Files/a.pdf');
-    expect(courseRelOf('agents/outputs/a.md')).toBe('agents/outputs/a.md');
+    expect(courseRelOf('.oculus/agents/outputs/a.md')).toBe('.oculus/agents/outputs/a.md');
     expect(inFolder('courses/X/Course/Lessons/1-l.md', LESSONS_DIR)).toBe(true);
     expect(inFolder('courses/X/Lessons/Course/Files/a.pdf', FILES_DIR)).toBe(false);
   });
@@ -44,7 +44,14 @@ describe('libraryLayout', () => {
     expect(isOwnPath('courses/X/Course/Files/a.pdf')).toBe(false);
     expect(isOwnPath('courses/X/course/home.md')).toBe(false);
     expect(isOwnPath('courses/X/.oculus/agents/x.md')).toBe(false);
-    expect(isOwnPath('agents/outputs/a.md')).toBe(false);
+    // The top level beside `courses/` is the student's; a dot-name is the app's.
+    expect(isOwnPath('Videos/talk.mp4')).toBe(true);
+    expect(isOwnPath('timetable.png')).toBe(true);
+    expect(isOwnPath('.oculus/agents/outputs/a.md')).toBe(false);
+    expect(isOwnPath('.library-move/done')).toBe(false);
+    expect(isOwnPath('courses')).toBe(false);
+    expect(isOwnPath('courses/loose.pdf')).toBe(false);
+    expect(isOwnPath('')).toBe(false);
   });
 
   test('a path in a recording names its folder', () => {
@@ -59,6 +66,9 @@ describe('libraryLayout', () => {
   test("a parse record sits under the subject's .oculus/derived, as Rust's layout::derived puts it", () => {
     expect(pagesRecordOf('courses/X/Course/Files/week 1.md')).toBe('courses/X/.oculus/derived/Course/Files/week 1.pages.json');
     expect(pagesRecordOf('courses/X/scan.md')).toBe('courses/X/.oculus/derived/scan.pages.json');
-    expect(pagesRecordOf('agents/outputs/a.md')).toBe('agents/outputs/a.pages.json');
+    expect(pagesRecordOf('Videos/Raw/talk.md')).toBe('.oculus/derived/Videos/Raw/talk.pages.json');
+    expect(pagesRecordOf('scan.md')).toBe('.oculus/derived/scan.pages.json');
+    expect(pagesRecordOf('.oculus/agents/outputs/a.md')).toBe('.oculus/agents/outputs/a.pages.json');
+    expect(pagesRecordOf('courses/loose.md')).toBe('courses/loose.pages.json');
   });
 });

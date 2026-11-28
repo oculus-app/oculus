@@ -22,6 +22,7 @@ import { AssistantSend } from "@/components/markdown/openui/assistant";
 import { useHarnessStore } from "@/stores/chat/harnessStore";
 import { useThreadViewed } from "@/hooks/agents/useThreadViewed";
 import { useThreadVideoSlug } from "@/hooks/studio/useThreadVideo";
+import { ChatSaveScope } from "../save/ChatSaveScope";
 
 /** A committed row: an anchor for `useStickToBottom`, with off-screen layout
  *  skipped by `useRowVisibility`. Padding on all edges preserves focus rings. */
@@ -115,9 +116,11 @@ export const Timeline = memo(function Timeline({
   const { start, rootRef, sentinelRef } = useRowWindow(rows, threadId, waitingRow);
   useRowVisibility(rootRef, threadId);
   const shown = start ? rows.slice(start) : rows;
+  const subjectId = useHarnessStore((s) => s.threads.find((t) => t.id === threadId)?.subject_id ?? null);
   return (
     <AssistantSend.Provider value={running ? null : questions?.followUp ?? null}>
       <ModelNamesProvider threadId={threadId}>
+      <ChatSaveScope subjectId={subjectId} running={running}>
       <div
         ref={rootRef}
         {...{ [EXPANDABLE]: "" }}
@@ -192,6 +195,7 @@ export const Timeline = memo(function Timeline({
           />
         )}
       </div>
+      </ChatSaveScope>
       </ModelNamesProvider>
     </AssistantSend.Provider>
   );

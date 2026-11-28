@@ -44,7 +44,5 @@ pub const PACK: Pack = Pack {
 
 /// Where the files are kept.
 pub fn dir() -> PathBuf {
-    crate::library::paths::data_dir()
-        .join("models")
-        .join("s1-mini")
+    crate::library::paths::models_dir(&crate::library::paths::data_dir()).join("s1-mini")
 }

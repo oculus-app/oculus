@@ -4,11 +4,12 @@ import { create } from "zustand";
 
 import { presentLibraryPaths } from "@/lib/db/files";
 import { splitLibraryPaths } from "@/lib/files/libraryPaths";
-import { isCoursePath } from "@/lib/files/libraryLayout";
+import { isLibraryPath } from "@/lib/files/libraryLayout";
+import { ATTACHMENTS_DIR } from "@/lib/files/statePaths";
 
 /** The two lookups a check makes, passed in so tests need no backend. */
 export interface ReferenceLookups {
-  /** Whether each `agents/attachments/…` file is on disk, in order. */
+  /** Whether each `.oculus/agents/attachments/…` file is on disk, in order. */
   attachmentsExist: (paths: string[]) => Promise<boolean[]>;
   /** Which `courses/…` paths the files table still holds. */
   libraryPresent: (paths: string[]) => Promise<Set<string>>;
@@ -21,12 +22,12 @@ const BACKEND: ReferenceLookups = {
 
 /** The references a message or draft makes that can go missing: its
  *  attachments and its `@` library paths, data-directory-relative. A path
- *  outside `courses/` (a lecture, an agent's output) is never checked. */
+ *  outside the library (an agent's output) is never checked. */
 export function checkablePaths(text: string): string[] {
   const out = new Set<string>();
   for (const p of splitLibraryPaths(text)) {
     if (p.kind === "image" || p.kind === "attachment") out.add(p.path);
-    else if (p.kind === "path" && isCoursePath(p.path)) out.add(p.path);
+    else if (p.kind === "path" && isLibraryPath(p.path)) out.add(p.path);
   }
   return [...out];
 }
@@ -35,8 +36,8 @@ export function checkablePaths(text: string): string[] {
  *  fails marks nothing: a reference is shown unresolved only when known gone. */
 export async function missingReferences(paths: readonly string[], lookups: ReferenceLookups = BACKEND): Promise<Map<string, boolean>> {
   const result = new Map<string, boolean>();
-  const attachments = paths.filter((p) => p.startsWith("agents/attachments/"));
-  const library = paths.filter(isCoursePath);
+  const attachments = paths.filter((p) => p.startsWith(`${ATTACHMENTS_DIR}/`));
+  const library = paths.filter(isLibraryPath);
   const [exist, present] = await Promise.all([
     attachments.length ? lookups.attachmentsExist(attachments).catch(() => null) : [],
     library.length ? lookups.libraryPresent(library).catch(() => null) : new Set<string>(),

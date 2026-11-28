@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use crate::harness::protected::{self, ROOT_FILE_GLOBS, WORKSPACE_DIRS};
+use crate::harness::protected;
 use crate::runtime::platform;
 
 pub(super) const PROGRAM: &str = "/usr/bin/sandbox-exec";
@@ -51,21 +51,46 @@ fn deny_patterns(library: &str) -> Vec<String> {
         rules.push(format!("^{root}/{}{suffix}", pattern(glob, true)));
     };
     for dir in protected::library_dirs() {
-        add(dir, "(/|$)");
+        add(&dir, "(/|$)");
     }
     for dir in protected::subject_dir_globs() {
         add(&dir, "(/|$)");
     }
     let subjects = protected::subjects_dir(Path::new(""));
     add(subjects.to_str().unwrap(), "(/[^/]+)?$");
-    for glob in ROOT_FILE_GLOBS {
-        add(glob, "$");
+    for glob in protected::state_file_globs() {
+        add(&glob, "$");
     }
-    for dir in WORKSPACE_DIRS {
-        add(&format!("{}/{dir}", crate::agents::AGENTS_DIR), "(/|$)");
+    for dir in protected::workspace_dir_rels() {
+        add(&dir, "(/|$)");
+    }
+    for name in protected::top_level_denies().iter().filter(|n| *n != ".*") {
+        add(name, "(/|$)");
     }
     rules
 }
+
+/// Every dot-name at the top, and the ones a write may still reach: the
+/// state folder (whose own rules are above), the top-level notes' pictures
+/// folder and keyd's fallback socket. Seatbelt has no lookahead, so the
+/// profile pairs them with `require-not`.
+fn dot_names(library: &str) -> (String, Vec<String>) {
+    let root = pattern(library.trim_end_matches('/'), false);
+    let kept = [
+        crate::library::paths::STATE_DIR,
+        crate::library::layout::note_assets_dir(),
+    ]
+    .map(|name| format!("^{root}/{}(/|$)", pattern(name, false)));
+    let socket = format!("^{root}/{}$", pattern(KEYD_FALLBACK_SOCKET, false));
+    (
+        format!("^{root}/\\."),
+        kept.into_iter().chain([socket]).collect(),
+    )
+}
+
+/// keyd's socket at the top of the data dir, when `.oculus/keyd.sock`
+/// would not fit a socket path (`keyd_core::paths::socket`).
+const KEYD_FALLBACK_SOCKET: &str = ".keyd.sock";
 
 fn quoted(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
@@ -81,9 +106,21 @@ fn profile(library: &Path) -> Result<String, String> {
     for re in deny_patterns(root) {
         out.push_str(&format!("\n  (regex {})", quoted(&re)));
     }
-    out.push_str(")\n(deny file-write-unlink");
+    let (dots, kept) = dot_names(root);
+    out.push_str(&format!(
+        ")\n(deny file-write*\n  (require-all (regex {})",
+        quoted(&dots)
+    ));
+    for re in kept {
+        out.push_str(&format!("\n    (require-not (regex {}))", quoted(&re)));
+    }
+    out.push_str("))\n(deny file-write-unlink");
     let agents = crate::agents::agents_dir(library);
-    for dir in std::iter::once(agents.as_path()).chain(library.ancestors()) {
+    let state = crate::library::paths::state_dir(library);
+    for dir in [agents.as_path(), state.as_path()]
+        .into_iter()
+        .chain(library.ancestors())
+    {
         out.push_str(&format!("\n  (literal {})", quoted(dir.to_str().unwrap())));
     }
     out.push(')');
@@ -113,10 +150,22 @@ mod tests {
         let library = scratch.join("library.[1]");
         std::fs::create_dir_all(library.join("courses/X/Course")).unwrap();
         let slash = |p: &Path| crate::library::paths::slash_path(p);
-        let rules = regex::RegexSet::new(deny_patterns(&slash(&library))).unwrap();
+        let set = regex::RegexSet::new(deny_patterns(&slash(&library))).unwrap();
+        let (dots, kept) = dot_names(&slash(&library));
+        let (dots, kept) = (
+            regex::Regex::new(&dots).unwrap(),
+            regex::RegexSet::new(kept).unwrap(),
+        );
+        struct Rules(regex::RegexSet, regex::Regex, regex::RegexSet);
+        impl Rules {
+            fn is_match(&self, path: &str) -> bool {
+                self.0.is_match(path) || (self.1.is_match(path) && !self.2.is_match(path))
+            }
+        }
+        let rules = Rules(set, dots, kept);
         for rel in [
-            "canvas-session",
-            "canvas-session/old",
+            ".oculus/canvas-session",
+            ".oculus/canvas-session/old",
             "courses",
             "courses/new",
             "courses/X/Course",
@@ -124,15 +173,31 @@ mod tests {
             "courses/Future/course",
             "COURSES/Future/CouRse/a.pdf",
             "courses/X/.OCULUS/derived/a",
-            "settings.JSON",
-            "session.cookie",
-            "auth.token",
-            "app.log",
-            "vault.bin.lock",
-            ".vault.bin.42.tmp",
-            "agents/skills/a/SKILL.md",
-            "agents/.claude/x",
-            "agents/.agents",
+            ".oculus/settings.JSON",
+            ".oculus/session.cookie",
+            ".oculus/auth.token",
+            ".oculus/app.log",
+            ".oculus/vault.bin.lock",
+            ".oculus/.vault.bin.42.tmp",
+            ".Oculus/Vault.bin",
+            ".oculus/agents/skills/a/SKILL.md",
+            ".oculus/agents/.claude/x",
+            ".oculus/agents/.agents",
+            ".oculus/bin/Oculus Helper.app",
+            ".library-move",
+            ".library-move/done",
+            ".Library-Move/journal.json",
+            "courses/loose.pdf",
+            ".hidden",
+            ".hidden/x.md",
+            ".DS_Store",
+            ".oculus2/x",
+            "agents",
+            "Agents/notes.md",
+            "STUDIO/v.json",
+            "lectures/a.mp4",
+            "whiteboard-pages/p",
+            "canvas-pages",
         ] {
             assert!(rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -140,11 +205,21 @@ mod tests {
             "courses/X/notes.json",
             "courses/Y/notes/Course/file",
             "courses/Y/Coursework/a",
-            "oculus.db",
-            "oculus.db-wal",
-            "oculus.db-shm",
-            "studio/video.json",
-            "agents/scratch.json",
+            ".oculus",
+            ".oculus/oculus.db",
+            ".oculus/oculus.db-wal",
+            ".oculus/oculus.db-shm",
+            ".oculus/studio/video.json",
+            ".oculus/agents/scratch.json",
+            ".keyd.sock",
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            ".assets/p.png",
+            ".Oculus/agents/notes.md",
+            "New folder/notes.md",
+            "Receipts/agents/a.md",
+            "Receipts/.hidden",
         ] {
             assert!(!rules.is_match(&slash(&library.join(rel))), "{rel}");
         }
@@ -195,5 +270,33 @@ mod tests {
         let own = library.join("courses/X/notes.md");
         let allowed = touch(&own);
         assert!(allowed.status.success() && own.is_file(), "{allowed:?}");
+        std::fs::create_dir_all(library.join("Receipts")).unwrap();
+        let top = library.join("Receipts/march.pdf");
+        let allowed = touch(&top);
+        assert!(allowed.status.success() && top.is_file(), "{allowed:?}");
+        std::fs::create_dir_all(library.join(".library-move")).unwrap();
+        let record = library.join(".library-move/done");
+        let denied = touch(&record);
+        assert!(!denied.status.success() && !record.exists(), "{denied:?}");
+        // A folder made at the top under the guard is writable at once; a
+        // dot-name or an old state folder's name is not.
+        let mkdir = |path: &Path| {
+            platform::command(PROGRAM)
+                .args(["-p", &profile, "/bin/mkdir"])
+                .arg(path)
+                .output()
+                .unwrap()
+        };
+        let made = library.join("New folder");
+        assert!(mkdir(&made).status.success() && made.is_dir());
+        let inside = made.join("notes.md");
+        assert!(touch(&inside).status.success() && inside.is_file());
+        for name in [".hidden", "agents", "Lectures"] {
+            let path = library.join(name);
+            assert!(!mkdir(&path).status.success() && !path.exists(), "{name}");
+        }
+        std::fs::create_dir_all(library.join(".oculus/studio")).unwrap();
+        let studio = library.join(".oculus/studio/video.json");
+        assert!(touch(&studio).status.success() && studio.is_file());
     }
 }

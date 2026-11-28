@@ -168,9 +168,10 @@ mod tests {
         decision
     }
 
-    /// Every subject's own files are allowed, `*.json` among them, while its
-    /// `Course/` and `.oculus/`, the subjects' folder itself and anything in
-    /// it outside a subject stay denied.
+    /// Every subject's own files and the student's own at the top are
+    /// allowed, `*.json` among them, while a subject's `Course/` and
+    /// `.oculus/`, the subjects' folder itself, anything in it outside a
+    /// subject and the launch moves' records stay denied.
     #[test]
     fn the_own_zone_is_allowed_and_course_and_oculus_are_denied() {
         let lib = "/Users/x/Library/Application Support/com.tchan.oculus";
@@ -188,10 +189,20 @@ mod tests {
             "courses/A/Exam prep/deep/summary.md",
             "courses/B/data.json",
             "courses/A/board.whiteboard",
-            "studio/videos/v/video.json",
+            ".oculus/studio/videos/v/video.json",
+            "Receipts/march.pdf",
+            "timetable.png",
+            "notes.json",
+            "New folder/a.md",
         ] {
             let path = format!("{lib}/{inner}");
             assert_eq!(edit_decision(&rendered, &path), "allow", "{inner}");
+        }
+        // A file in the cwd is matched by its relative path, which no rule
+        // naming the library reaches: the state folder's `*.json` deny does
+        // not take the workspace's own files with it.
+        for inside in ["notes.md", "outputs/data.json", "attachments/a.png"] {
+            assert_eq!(edit_decision(&rendered, inside), "allow", "{inside}");
         }
         for inner in [
             "courses/A/Course/Files/a.pdf",
@@ -200,9 +211,17 @@ mod tests {
             "courses/A/.oculus/agents/INSTRUCTIONS.md",
             "courses/A",
             "courses/loose.pdf",
-            "canvas-session/x",
-            "oculus.db",
-            "settings.json",
+            ".oculus/canvas-session/x",
+            ".oculus/derived/Receipts/order/order.md",
+            ".oculus/oculus.db",
+            ".oculus/oculus.db-wal",
+            ".oculus/settings.json",
+            ".oculus/vault.bin",
+            ".oculus/.vault.bin.42.tmp",
+            ".oculus/okta-sign-in.log",
+            ".oculus/bin/Oculus Helper.app/Contents/MacOS/oculus-keyd",
+            ".library-move/done",
+            ".library-move/journal.json",
         ] {
             let path = format!("{lib}/{inner}");
             assert_eq!(edit_decision(&rendered, &path), "deny", "{inner}");
@@ -233,10 +252,10 @@ mod tests {
             "courses/**",
             "courses/*/Course/*",
             "courses/*/.oculus/*",
-            "canvas-session/**",
-            "oculus.db*",
-            "vault.bin*",
-            ".vault.bin.*",
+            ".oculus/canvas-session/**",
+            ".oculus/oculus.db*",
+            ".oculus/vault.bin*",
+            ".oculus/.vault.bin.*",
         ] {
             let key = format!("/Users/x/Library/Application Support/oculus/{sib}");
             assert_eq!(edit[&key], "deny", "{sib}");

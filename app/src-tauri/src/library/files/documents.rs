@@ -187,9 +187,7 @@ pub async fn write_document(relative_path: String, content: String) -> Result<u6
 pub fn rename_document(relative_path: String, title: String) -> Result<ImportedFile, String> {
     let path = document_path(&relative_path)?;
     let size = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
-    let (dir_rel, current) = relative_path
-        .rsplit_once('/')
-        .ok_or_else(|| format!("{relative_path} has no filename"))?;
+    let (dir_rel, current) = layout::folder_and_name(&relative_path);
     let wanted = document_name(&title);
     if wanted == current {
         return Ok(document_file(relative_path, size));
@@ -203,7 +201,7 @@ pub fn rename_document(relative_path: String, title: String) -> Result<ImportedF
         step_aside(dir, &wanted, |_| false)
     };
     std::fs::rename(&path, dir.join(&name)).map_err(|e| e.to_string())?;
-    Ok(document_file(format!("{dir_rel}/{name}"), size))
+    Ok(document_file(layout::child_rel(dir_rel, &name), size))
 }
 
 /// Every note among a subject's own files at any depth, for

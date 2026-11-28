@@ -171,6 +171,21 @@ real x64 Windows laptop on the university network before Store submission.
 ## Gotchas
 
 - `%APPDATA%` is not the library root; all processes call the shared path helper.
+- Not fixed: the frontend's database URL (`sqlite:.oculus/oculus.db`) is
+  resolved by `tauri-plugin-sql` against `%APPDATA%\com.tchan.oculus`, while
+  Rust uses `%USERPROFILE%\Oculus`, so on Windows `Database.load` fails (no
+  `.oculus\` folder there) rather than creating a stray database.
+- A file named `vault.bin` at the data folder's top, with no vault in
+  `.oculus\`, makes keyd refuse every vault op ("has not moved into … yet"),
+  as it reads as a vault from before the state folder (`ops.rs`, `vault`).
+- The app's own files are in `%USERPROFILE%\Oculus\.oculus`, which
+  `keyd_core::paths::ensure_state_dir` creates with the hidden attribute
+  (`platform/windows/files.rs`, `hide`); the DPAPI key file and the broker's
+  record and lifecycle lock (`.oculus\bin\`) are in it, and the launch move
+  stops the resident broker before it moves them
+  ([library-move.md](./library-move.md#the-apps-own-files-move-into-the-state-folder)).
+  These Windows paths of the move were written without a Windows build: check
+  them in the acceptance run above.
 - A release broker needs MSIX package identity; an unsigned NSIS tree fails closed.
 - DPAPI user scope does not isolate secrets from another process running as that user.
 - Cookie readback on WebView2's event-loop thread can deadlock.

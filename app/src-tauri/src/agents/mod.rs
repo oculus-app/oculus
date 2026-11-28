@@ -34,21 +34,53 @@ pub const AGENTS_DOC_NAME: &str = "AGENTS.md";
 pub const CLI_DOC_NAME: &str = "OCULUS-CLI.md";
 const SKILLS_DIR: &str = "skills";
 const SKILL_DOC_NAME: &str = "SKILL.md";
-const TASTE_DOC_NAME: &str = "TASTE.md";
+pub const TASTE_DOC_NAME: &str = "TASTE.md";
+/// The stub the student's own notes to every agent live in.
+pub const OCULUS_DOC_NAME: &str = "OCULUS.md";
+/// Every chat's raw provider lines (`harness::manager::raw_log`).
+pub const THREADS_DIR: &str = "threads";
 /// The index beside the memories, in both buckets.
 const MEMORY_INDEX_NAME: &str = "MEMORY.md";
 pub const MEMORIES_DIR: &str = "memories";
 /// opencode's config, which `harness::write_opencode_config` renders here.
 pub const OPENCODE_CONFIG_NAME: &str = "opencode.json";
 
-/// From a course folder to the one central copy; relative so the library can move.
-const AGENTS_DOC_REL: &str = "../../agents/AGENTS.md";
+/// What a course folder's root `AGENTS.md` link pointed at before the state
+/// folder; `links` removes a link that still does.
+const RETIRED_AGENTS_DOC_REL: &str = "../../agents/AGENTS.md";
 
-/// The agents' workspace, at the data dir's top: every thread's cwd.
+/// The agents' workspace, in the state folder: every thread's cwd.
 pub const AGENTS_DIR: &str = "agents";
 
 pub fn agents_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join(AGENTS_DIR)
+    crate::library::paths::state_dir(data_dir).join(AGENTS_DIR)
+}
+
+/// `.oculus/agents`, the workspace as a data-dir-relative path spells it.
+pub fn agents_rel() -> String {
+    crate::library::paths::state_rel(AGENTS_DIR)
+}
+
+/// A data-dir-relative path as a thread spells it from its cwd, the
+/// workspace: `courses/X` is `../../courses/X` from `.oculus/agents`.
+pub fn from_workspace(rel: &str) -> String {
+    let up = agents_rel().split('/').count();
+    format!("{}{rel}", "../".repeat(up))
+}
+
+/// Whether a data-dir-relative path is one the viewers may read: in the
+/// library (`layout::in_library`: `courses/` and the student's own top-level
+/// folders) or the workspace. Plain segments only, so never a dot-name at the
+/// top but the workspace.
+pub fn readable(relative: &Path) -> bool {
+    use std::path::Component;
+    let plain = relative
+        .components()
+        .all(|part| matches!(part, Component::Normal(_)));
+    let in_library = relative
+        .to_str()
+        .is_some_and(crate::library::layout::in_library);
+    plain && (in_library || relative.starts_with(agents_rel()))
 }
 
 /// The one copy of the skills. Everything else about them is a route to here.

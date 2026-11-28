@@ -13,7 +13,8 @@ use crate::harness::event::{Bound, HarnessEvent, Provider, Turns};
 use crate::harness::requests::PermissionMode;
 use crate::harness::Sink;
 
-use super::settings::settings_json;
+use super::grants::{self, Grants};
+use super::settings::{settings_document, SandboxOpts};
 use super::translate::{Steering, Translator};
 use super::ClaudeSpawn;
 
@@ -90,6 +91,9 @@ pub struct ClaudeSession {
     /// Whether a turn of ours is open, and the steers written into it,
     /// shared with the reader ([`Steering`]).
     pub(super) steering: Arc<Mutex<Steering>>,
+    /// The sandbox a chat runs under, widened as the student's own entries
+    /// appear at the data dir's top; a one-off turn has none.
+    pub(super) grants: Option<Mutex<Grants>>,
 }
 
 impl ClaudeSession {
@@ -131,7 +135,15 @@ impl ClaudeSession {
                 .arg("--strict-mcp-config")
                 .arg("--no-session-persistence");
         }
-        cmd.args(["--add-dir", &base.library.display().to_string()]);
+        // The top level is read once, so `--add-dir`, the settings and the
+        // live grants agree on what the launch granted.
+        let top = grants::top_level(&base.library);
+        // The own zone's and Studio's folders, for the file tools to edit
+        // unasked; the rest of the library is read through the `Read` allow.
+        let dirs = grants::add_dirs(&base.library, &top);
+        if !dirs.is_empty() {
+            cmd.arg("--add-dir").args(dirs);
+        }
         // The TTS server, so `oculus studio narrate` can reach it; a one-off
         // turn has no tools to use it with.
         let hosts: Vec<String> = if cfg.one_off {
@@ -142,15 +154,22 @@ impl ClaudeSession {
                 .into_iter()
                 .collect()
         };
+        let sandbox = SandboxOpts {
+            library: base.library.clone(),
+            cwd: base.cwd.clone(),
+            hosts: hosts.clone(),
+            unsandboxed: unsandboxed_commands(cfg.one_off, cfg.mode),
+        };
         cmd.args([
             "--settings",
-            &settings_json(
+            &settings_document(
                 &base.library,
                 &base.cwd,
                 cfg.oculus.as_deref(),
                 &hosts,
-                unsandboxed_commands(cfg.one_off, cfg.mode),
+                sandbox.unsandboxed,
                 !cfg.one_off,
+                &top,
             ),
         ]);
         cmd.current_dir(&base.cwd)
@@ -177,6 +196,7 @@ impl ClaudeSession {
             one_off: cfg.one_off,
             callbacks: Mutex::new(HashSet::new()),
             steering: steering.clone(),
+            grants: (!cfg.one_off).then(|| Mutex::new(Grants::new(sandbox, top))),
         });
 
         let reader_session = session.clone();
@@ -203,6 +223,14 @@ impl ClaudeSession {
     pub(super) fn line(self: &Arc<Self>, v: &Value, state: &mut Translator, sink: &Sink) {
         match v.get("type").and_then(|t| t.as_str()) {
             Some("control_response") => self.settle(v),
+            // A tool result: what the tool did may have made a folder at the
+            // top, which the next command should be able to write.
+            Some("user") => {
+                self.refresh_grants();
+                for ev in state.translate(v) {
+                    sink(ev);
+                }
+            }
             Some("control_request") => self.control_request(v, &state.agents, sink),
             Some("control_cancel_request") => self.control_cancelled(v, sink),
             _ => {
@@ -247,6 +275,7 @@ impl ClaudeSession {
     /// `TurnFinished` and a correction goes through [`Self::steer`]. `bound`
     /// hears the turn's ordinal before the CLI hears the message.
     pub fn send(&self, text: &str, bound: &Bound) -> Result<(), String> {
+        self.refresh_grants();
         bound(self.turns.reserve());
         self.expecting.store(true, Ordering::SeqCst);
         self.proc.write_line(&serde_json::json!({
@@ -301,13 +330,45 @@ impl ClaudeSession {
         }))
     }
 
-    /// Hand a `control_response` to its waiter; unawaited ones are dropped.
+    /// Hand a `control_response` to its waiter; unawaited ones are dropped,
+    /// a refusal with a log line.
     fn settle(&self, v: &Value) {
         let Some(id) = v.pointer("/response/request_id").and_then(|s| s.as_str()) else {
             return;
         };
-        if let Some(tx) = self.pending.lock().unwrap().remove(id) {
-            let _ = tx.send(v.clone());
+        match self.pending.lock().unwrap().remove(id) {
+            Some(tx) => {
+                let _ = tx.send(v.clone());
+            }
+            None if v.pointer("/response/subtype").and_then(|s| s.as_str()) == Some("error") => {
+                let why = v.pointer("/response/error").and_then(|e| e.as_str());
+                elog!(
+                    "[oculus] claude refused control request {id}: {}",
+                    why.unwrap_or("?")
+                );
+            }
+            None => {}
+        }
+    }
+
+    /// Grant the sandbox any own entry that has appeared at the data dir's
+    /// top (`grants.rs`). The CLI applies the settings between tool calls,
+    /// so a command started after the write is answered can use them.
+    pub(super) fn refresh_grants(&self) {
+        let Some(grants) = &self.grants else {
+            return;
+        };
+        let Some(settings) = grants.lock().unwrap().refresh() else {
+            return;
+        };
+        let id = self.request_ids.fetch_add(1, Ordering::SeqCst);
+        let sent = self.proc.write_line(&serde_json::json!({
+            "type": "control_request",
+            "request_id": format!("oculus-{id}"),
+            "request": { "subtype": "apply_flag_settings", "settings": settings },
+        }));
+        if let Err(e) = sent {
+            elog!("[oculus] claude: the sandbox could not be widened: {e}");
         }
     }
 

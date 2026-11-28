@@ -13,7 +13,7 @@ pub(super) fn snapshot(d: &Path) -> Vec<String> {
     let encoded = crate::library::paths::slash_path(d).replace('/', "%2F");
     let mut out = Vec::new();
     walk(d, d, &mut out);
-    out.retain(|line| !line.starts_with(".library-move") && !line.starts_with("oculus.db"));
+    out.retain(|line| !line.starts_with(".library-move") && !line.starts_with(".oculus/oculus.db"));
     out.iter_mut()
         .for_each(|l| *l = l.replace(&home, "<data>").replace(&encoded, "<data>"));
     block(async {
@@ -87,8 +87,8 @@ fn a_run_stopped_mid_move_resumes_to_the_same_end() {
         },
     );
     assert_eq!(stopped.unwrap_err(), STOPPED);
-    assert!(exists(&cut, ".library-move/journal.json"));
-    assert!(!exists(&cut, ".library-move/done"));
+    assert!(exists(&cut, ".library-move/journal.drive.json"));
+    assert!(!exists(&cut, ".library-move/drive"));
     let Outcome::Moved(summary) = run(&cut, &Hooks::default()).unwrap() else {
         panic!("expected the move to finish");
     };
@@ -151,7 +151,7 @@ fn a_rename_across_volumes_stops_the_move_without_copying() {
     )
     .unwrap_err();
     assert!(err.contains("different volumes"), "{err}");
-    assert!(!exists(&d, ".library-move/done"));
+    assert!(!exists(&d, ".library-move/drive"));
     // The database is untouched until every rename has landed.
     block(async {
         let pool = pool(&d).await;
@@ -172,5 +172,5 @@ fn a_rename_across_volumes_stops_the_move_without_copying() {
         run(&d, &Hooks::default()).unwrap(),
         Outcome::Moved(_)
     ));
-    assert!(exists(&d, ".library-move/done"));
+    assert!(exists(&d, ".library-move/drive"));
 }

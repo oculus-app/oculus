@@ -1,16 +1,16 @@
-import { COURSES_DIR } from "@/lib/files/libraryLayout";
-
 /**
  * The two routes that show a library folder, and their parsers. Drive's
- * splat is the path under `courses/` (`/drive/<code>/Course/Files`); a
- * subject's Files tab's splat is the path inside that subject
- * (`/subjects/<id>/files/Course/Files`). Each segment is URL-encoded on its
- * own, so a folder name may hold spaces, `#` or `?`. Drive's Recent list is
- * `/drive/recent`, a name no course code takes.
+ * splat is the data-dir-relative path (`/drive` is the top level,
+ * `/drive/courses/<code>/Course/Files` a subject's folder, `/drive/Videos`
+ * one of the student's); a subject's Files tab's splat is the path inside
+ * that subject (`/subjects/<id>/files/Course/Files`). Each segment is
+ * URL-encoded on its own, so a folder name may hold spaces, `#` or `?`.
+ * Drive's own pages are dot-names (`/drive/.recent`, `/drive/.file`), which
+ * no folder Drive shows can take.
  */
 
 export const DRIVE_HREF = "/drive";
-export const DRIVE_RECENT_HREF = "/drive/recent";
+export const DRIVE_RECENT_HREF = "/drive/.recent";
 
 const encode = (path: string): string =>
   path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
@@ -29,11 +29,9 @@ function decode(splat: string): string {
     .join("/");
 }
 
-/** Drive's route for a data-dir-relative folder: `""` (or `courses`) is the
- *  Drive root. */
+/** Drive's route for a data-dir-relative folder: `""` is the top level. */
 export function driveFolderHref(rel: string): string {
-  const under = rel === COURSES_DIR ? "" : rel.startsWith(`${COURSES_DIR}/`) ? rel.slice(COURSES_DIR.length + 1) : "";
-  const splat = encode(under);
+  const splat = encode(rel);
   return splat ? `${DRIVE_HREF}/${splat}` : DRIVE_HREF;
 }
 
@@ -43,13 +41,14 @@ export function filesFolderHref(subjectId: number, subjectRel: string): string {
   return splat ? `/subjects/${subjectId}/files/${splat}` : `/subjects/${subjectId}/files`;
 }
 
-/** The data-dir-relative folder a Drive route shows (`""` at the root), or
- *  null for any other route. Takes a pathname or a full path with a query. */
+/** The data-dir-relative folder a Drive route shows (`""` at the top level),
+ *  or null for any other route, Drive's own dot-named pages included. Takes
+ *  a pathname or a full path with a query. */
 export function parseDriveRoute(pathname: string): string | null {
   const m = /^\/drive(?:\/([^?#]*))?(?:[?#].*)?$/.exec(pathname);
-  if (!m || m[1] === "recent") return null;
-  const under = decode(m[1] ?? "");
-  return under ? `${COURSES_DIR}/${under}` : "";
+  if (!m) return null;
+  const rel = decode(m[1] ?? "");
+  return rel.startsWith(".") ? null : rel;
 }
 
 /** The subject and the folder inside it (`""` at its root) a Files route

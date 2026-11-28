@@ -260,7 +260,7 @@ impl CodexServer {
             "shell_environment_policy.set": {"OCULUS_AGENT":"1"},
             // `thread/start` takes a mode, not a policy, so the writable files
             // go in as config here and as `sandboxPolicy` on `turn/start`.
-            "sandbox_workspace_write.writable_roots": opts.writable_roots,
+            "sandbox_workspace_write.writable_roots": opts.roots(),
             "sandbox_workspace_write.network_access": true,
         });
         if let Some(e) = &opts.reasoning_effort {
@@ -351,7 +351,7 @@ impl CodexServer {
         approvals(&mut p, opts.mode);
         p["sandboxPolicy"] = json!({
                 "type": "workspaceWrite",
-                "writableRoots": opts.writable_roots,
+                "writableRoots": opts.roots(),
                 "networkAccess": true,
                 "excludeTmpdirEnvVar": false,
                 "excludeSlashTmp": false,

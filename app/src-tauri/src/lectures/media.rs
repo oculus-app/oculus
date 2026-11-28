@@ -2,9 +2,9 @@
 //! custom-scheme sources (`asset://` fails with MEDIA_ERR_SRC_NOT_SUPPORTED on
 //! macOS 26; cf. tauri-apps/tauri#3725), so lecture video is served over HTTP.
 //!
-//! Scope: files under the library's roots (`layout::library_roots`, which
-//! hold the lecture recordings) and `studio/videos/` (rendered videos and
-//! their stills), and only with the
+//! Scope: files in the library (`layout::in_library`: the subjects, which
+//! hold the lecture recordings, and the student's top-level folders) and
+//! `studio/videos/` (rendered videos and their stills), and only with the
 //! per-launch token in the path — any local process can reach the port.
 //!
 //! One route needs no token: `/widget-kit/**`, the code and fonts chat
@@ -100,13 +100,15 @@ fn handle(request: tiny_http::Request, data_dir: &Path, token: &str, kit: &Kit) 
     let Ok(path) = crate::runtime::platform::canonicalize(path) else {
         return respond_status(request, 404);
     };
-    let in_scope = crate::library::layout::library_roots()
-        .into_iter()
-        .map(|root| data_dir.join(root))
-        .chain([crate::library::paths::studio_dir(data_dir).join("videos")])
-        .any(|dir| {
-            crate::runtime::platform::canonicalize(dir).is_ok_and(|scope| path.starts_with(scope))
-        });
+    let canonical = |dir: &Path| crate::runtime::platform::canonicalize(dir);
+    let in_library = canonical(data_dir).is_ok_and(|root| {
+        path.strip_prefix(root).is_ok_and(|rel| {
+            crate::library::layout::in_library(&crate::library::paths::slash_path(rel))
+        })
+    });
+    let in_scope = in_library
+        || canonical(&crate::library::paths::studio_dir(data_dir).join("videos"))
+            .is_ok_and(|scope| path.starts_with(scope));
     if !in_scope {
         return respond_status(request, 403);
     }

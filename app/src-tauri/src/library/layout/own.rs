@@ -3,9 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-use super::roots::{course_rel, course_root};
+use super::home::{child_rel, own_root, own_root_rel, TOP_LEVEL_CODE};
+use super::roots::COURSES_DIR;
 use super::shape::{Shape, CURRENT};
-use super::zone::{same_name, segments, zone_of, Zone};
+use super::zone::{same_name, segments, zone_of, Zone, OLD_STATE_NAMES};
 
 /// A file the student made or brought in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,11 +47,6 @@ impl OwnKind {
     }
 }
 
-/// Where the student's files live in a subject.
-pub fn own_root(data_dir: &Path, code: &str) -> PathBuf {
-    course_root(data_dir, code)
-}
-
 /// The folder a new file of `kind` lands in, on disk.
 pub fn own_dir(data_dir: &Path, code: &str, kind: OwnKind) -> PathBuf {
     match CURRENT.own_dir(kind) {
@@ -59,12 +55,13 @@ pub fn own_dir(data_dir: &Path, code: &str, kind: OwnKind) -> PathBuf {
     }
 }
 
-/// Every file in a subject's own zone at any depth, as data-dir-relative
+/// Every file in a subject's own zone at any depth (for `TOP_LEVEL_CODE`,
+/// the top level's: everything beside `courses/`), as data-dir-relative
 /// paths `own_path_ok` accepts, with their metadata. The synced and hidden
 /// folders, dot-names and symlinks (a subject's `AGENTS.md`) are not walked.
 pub fn own_files(data_dir: &Path, code: &str) -> Vec<(String, std::fs::Metadata)> {
     let mut out = Vec::new();
-    let mut pending = vec![(own_root(data_dir, code), course_rel(code))];
+    let mut pending = vec![(own_root(data_dir, code), own_root_rel(code))];
     while let Some((dir, rel)) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
@@ -74,7 +71,7 @@ pub fn own_files(data_dir: &Path, code: &str) -> Vec<(String, std::fs::Metadata)
                 continue;
             };
             let Ok(meta) = entry.metadata() else { continue };
-            let child = format!("{rel}/{name}");
+            let child = child_rel(&rel, &name);
             if name.starts_with('.')
                 || zone_of(&child) != Zone::Own
                 || entry.file_type().is_ok_and(|t| t.is_symlink())
@@ -92,36 +89,68 @@ pub fn own_files(data_dir: &Path, code: &str) -> Vec<(String, std::fs::Metadata)
     out
 }
 
-/// Each subject's top-level own entries on disk, files and folders: what
-/// sits beside `Course/` and `.oculus/`, less symlinks (a subject's
-/// `AGENTS.md`). A sandbox that cannot carve those two out of a subject's
-/// folder grants these one by one (`harness::providers::codex`).
+/// The own entries on disk at the top of each subject and of the data dir
+/// (`own_entries`). A sandbox that cannot carve the rest out of the folder
+/// that holds them grants these one by one (`harness::providers`).
 pub fn own_top_level(data_dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    for code in super::subjects_on_disk(data_dir) {
-        let Ok(entries) = std::fs::read_dir(own_root(data_dir, &code)) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Ok(name) = entry.file_name().into_string() else {
-                continue;
-            };
-            let rel = format!("{}/{name}", course_rel(&code));
-            if zone_of(&rel) != Zone::Own || entry.file_type().is_ok_and(|t| t.is_symlink()) {
-                continue;
-            }
-            out.push(entry.path());
-        }
-    }
+    let codes = super::subjects_on_disk(data_dir);
+    let mut out: Vec<PathBuf> = codes
+        .iter()
+        .map(String::as_str)
+        .chain([TOP_LEVEL_CODE])
+        .flat_map(|code| own_entries(data_dir, code))
+        .collect();
     out.sort();
     out
+}
+
+/// The own entries directly in a subject's folder (for `TOP_LEVEL_CODE`, the
+/// data dir's), files and folders, that an agent may write (`agent_own`):
+/// what sits beside `Course/` and `.oculus/`, or beside `courses/` and the
+/// dot-names, less symlinks (a subject's `AGENTS.md`) and the old state
+/// folders' names. Sorted.
+pub fn own_entries(data_dir: &Path, code: &str) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(own_root(data_dir, code)) else {
+        return Vec::new();
+    };
+    let mut out: Vec<PathBuf> = entries
+        .flatten()
+        .filter(|entry| {
+            let Ok(name) = entry.file_name().into_string() else {
+                return false;
+            };
+            agent_own(&child_rel(&own_root_rel(code), &name))
+                && !entry.file_type().is_ok_and(|t| t.is_symlink())
+        })
+        .map(|entry| entry.path())
+        .collect();
+    out.sort();
+    out
+}
+
+/// True when an agent may write `rel` without asking: in the own zone as
+/// spelt and again with each name compatibility-folded and trimmed (so
+/// `．oculus` or ` courses` is not taken for the student's), and not under
+/// an old state folder's name at the top (`OLD_STATE_NAMES`). By spelling
+/// alone: a caller holding a real path resolves its symlinks first.
+pub fn agent_own(rel: &str) -> bool {
+    use unicode_normalization::UnicodeNormalization;
+    let Some(parts) = segments(rel).filter(|_| zone_of(rel) == Zone::Own) else {
+        return false;
+    };
+    let folded: Vec<String> = parts
+        .iter()
+        .map(|p| p.nfkc().collect::<String>().trim().to_string())
+        .collect();
+    zone_of(&folded.join("/")) == Zone::Own
+        && !OLD_STATE_NAMES.iter().any(|old| same_name(&folded[0], old))
 }
 
 /// The same folder, data-dir-relative.
 pub fn own_dir_rel(code: &str, kind: OwnKind) -> String {
     match CURRENT.own_dir(kind) {
-        "" => course_rel(code),
-        dir => format!("{}/{dir}", course_rel(code)),
+        "" => own_root_rel(code),
+        dir => child_rel(&own_root_rel(code), dir),
     }
 }
 
@@ -153,12 +182,18 @@ pub fn own_file_ok(rel: &str, kind: OwnKind) -> bool {
 }
 
 impl Shape {
-    /// The path inside its subject, when `rel` is in the own zone.
+    /// The path inside its subject (at the top level, the whole path), when
+    /// `rel` is in the own zone.
     fn own_inner<'a>(&self, rel: &'a str) -> Option<Vec<&'a str>> {
         if self.zone_of(rel) != Zone::Own {
             return None;
         }
-        Some(segments(rel)?.split_off(2))
+        let mut parts = segments(rel)?;
+        Some(if same_name(parts[0], COURSES_DIR) {
+            parts.split_off(2)
+        } else {
+            parts
+        })
     }
 
     pub fn own_path_ok(&self, rel: &str) -> bool {

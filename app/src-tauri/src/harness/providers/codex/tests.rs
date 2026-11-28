@@ -58,13 +58,18 @@ fn a_failed_request_write_does_not_leave_a_pending_reply() {
 #[test]
 fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd() {
     let library = crate::test_support::Scratch::new("codex-roots");
+    crate::library::paths::ensure_state_dir(&library).unwrap();
     let db = crate::library::paths::db_path(&library);
     std::fs::write(&db, "").unwrap();
     // The WAL sidecars do not exist yet, so they are left out; studio/ is.
-    std::fs::create_dir_all(library.join("studio")).unwrap();
+    let studio = crate::library::paths::studio_dir(&library);
+    std::fs::create_dir_all(&studio).unwrap();
+    // The vault beside them is never a root, nor is the folder they share.
+    std::fs::write(keyd_core::paths::vault(&library), "sealed").unwrap();
+    let cwd = crate::agents::agents_dir(&library);
     let opts = CodexThreadOpts {
-        cwd: library.join("agents"),
-        writable_roots: super::writable_roots(&library),
+        cwd: cwd.clone(),
+        writes_library: true,
         model: Some("gpt-5.3-codex".into()),
         reasoning_effort: Some("high".into()),
         instructions: String::new(),
@@ -72,10 +77,25 @@ fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd()
         mode: PermissionMode::Quiet,
         library: library.to_path_buf(),
     };
-    let want = serde_json::json!([db, library.join("studio")]);
+    let want = serde_json::json!([db, studio]);
+    assert_eq!(
+        want,
+        serde_json::json!([
+            library.join(".oculus/oculus.db"),
+            library.join(".oculus/studio")
+        ])
+    );
     for dir in crate::library::paths::agent_write_dirs(&library) {
-        assert!(opts.writable_roots.contains(&dir), "{dir:?}");
+        assert!(opts.roots().contains(&dir), "{dir:?}");
     }
+    let state = crate::library::paths::state_dir(&library);
+    assert!(
+        !opts
+            .roots()
+            .iter()
+            .any(|root| *root == state || keyd_core::paths::vault(&library).starts_with(root)),
+        "no root reaches the vault"
+    );
 
     let thread = CodexServer::thread_params(&opts);
     assert_eq!(thread["sandbox"], "workspace-write");
@@ -83,10 +103,7 @@ fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd()
         thread["config"]["shell_environment_policy.set"]["OCULUS_AGENT"],
         "1"
     );
-    assert_eq!(
-        thread["cwd"],
-        library.join("agents").to_string_lossy().as_ref()
-    );
+    assert_eq!(thread["cwd"], cwd.to_string_lossy().as_ref());
     assert_eq!(
         thread["config"]["sandbox_workspace_write.writable_roots"],
         want
@@ -101,11 +118,12 @@ fn a_thread_may_write_the_database_and_studio_and_nothing_else_outside_its_cwd()
     );
 }
 
-/// A writable root cannot leave out a folder beneath it, so a subject's own
-/// files and folders are each a root, and its `Course/`, `.oculus/` and the
-/// subject's folder itself never are.
+/// A writable root cannot leave out a folder beneath it, so the student's
+/// own files and folders, in each subject and at the top, are each a root,
+/// and a subject's `Course/` and `.oculus/`, the subject's folder, `courses/`
+/// and the data dir itself never are.
 #[test]
-fn a_thread_may_write_every_subjects_own_files_and_not_course_or_oculus() {
+fn a_thread_may_write_the_students_own_files_and_not_course_or_oculus() {
     let library = crate::test_support::Scratch::new("codex-own-zone");
     for rel in [
         "courses/A/notes.md",
@@ -113,6 +131,12 @@ fn a_thread_may_write_every_subjects_own_files_and_not_course_or_oculus() {
         "courses/A/Course/Files/a.pdf",
         "courses/A/.oculus/agents/INSTRUCTIONS.md",
         "courses/B/board.whiteboard",
+        "courses/loose.pdf",
+        "Receipts/march.pdf",
+        "timetable.png",
+        ".library-move/done",
+        ".oculus/canvas-session/authenticated",
+        ".oculus/derived/Receipts/order/order.md",
     ] {
         let path = library.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -123,19 +147,101 @@ fn a_thread_may_write_every_subjects_own_files_and_not_course_or_oculus() {
         "courses/A/notes.md",
         "courses/A/Exam prep",
         "courses/B/board.whiteboard",
+        "Receipts",
+        "timetable.png",
     ] {
         assert!(roots.contains(&library.join(rel)), "{rel} in {roots:?}");
     }
     for root in &roots {
         let rel = crate::library::paths::slash_path(root.strip_prefix(&*library).unwrap());
-        for held in ["courses", "courses/A", "courses/B"] {
-            assert_ne!(rel, held, "a subject's folder holds its Course/");
+        for held in ["", "courses", "courses/A", "courses/B", "courses/loose.pdf"] {
+            assert_ne!(rel, held, "{held:?} holds what no agent writes");
         }
+        assert!(
+            !rel.starts_with(".library-move")
+                && !rel.starts_with(".oculus/canvas-session")
+                && !rel.starts_with(".oculus/derived"),
+            "{rel} is protected"
+        );
         assert!(
             !rel.contains("/Course") && !rel.contains("/.oculus"),
             "{rel} is protected"
         );
     }
+}
+
+/// Each turn reads the roots from disk: a folder or file made at the top
+/// after the thread started is a root from the next turn, while a symlink,
+/// a dot-name, an old state folder's name and `courses/` never are.
+#[cfg(unix)]
+#[test]
+fn a_turn_writes_what_the_top_level_holds_when_it_starts() {
+    let library = crate::test_support::Scratch::new("codex-turn-roots");
+    let outside = library.join("../codex-turn-roots-outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::create_dir_all(library.join("courses/A/Course")).unwrap();
+    std::fs::create_dir_all(library.join(".oculus/agents")).unwrap();
+    let opts = CodexThreadOpts {
+        cwd: crate::agents::agents_dir(&library),
+        writes_library: true,
+        model: None,
+        reasoning_effort: None,
+        instructions: String::new(),
+        ephemeral: false,
+        mode: PermissionMode::Ask,
+        library: library.to_path_buf(),
+    };
+    let roots = |turn: &serde_json::Value| -> Vec<String> {
+        turn["sandboxPolicy"]["writableRoots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r.as_str().unwrap().to_string())
+            .collect()
+    };
+    let at = |rel: &str| library.join(rel).display().to_string();
+    let first = CodexServer::turn_params("t", "one", &opts);
+    assert!(!roots(&first).contains(&at("Receipts")));
+
+    std::fs::create_dir_all(library.join("Receipts")).unwrap();
+    std::fs::write(library.join("budget.xlsx"), "x").unwrap();
+    for made in [".hidden", "agents", "Studio", "\u{FF0E}oculus"] {
+        std::fs::create_dir_all(library.join(made)).unwrap();
+    }
+    std::os::unix::fs::symlink(&outside, library.join("away")).unwrap();
+    std::os::unix::fs::symlink(".oculus", library.join("state")).unwrap();
+    std::os::unix::fs::symlink("courses/A/Course", library.join("synced")).unwrap();
+    std::fs::write(library.join("courses/loose.pdf"), "x").unwrap();
+    let next = roots(&CodexServer::turn_params("t", "two", &opts));
+    for rel in ["Receipts", "budget.xlsx"] {
+        assert!(next.contains(&at(rel)), "{rel} in {next:?}");
+    }
+    for rel in [
+        "",
+        ".hidden",
+        "agents",
+        "Studio",
+        "\u{FF0E}oculus",
+        "away",
+        "state",
+        "synced",
+        "courses",
+        "courses/A",
+        "courses/A/Course",
+        "courses/loose.pdf",
+        ".oculus",
+    ] {
+        assert!(!next.contains(&at(rel)), "{rel:?} is not a root");
+    }
+    assert!(roots(&CodexServer::turn_params(
+        "t",
+        "x",
+        &CodexThreadOpts {
+            writes_library: false,
+            ..opts
+        }
+    ))
+    .is_empty());
 }
 
 /// `oculus` reaches keyd's Unix socket from inside Codex's sandbox only
@@ -149,7 +255,7 @@ fn every_thread_and_turn_keeps_the_sandbox_network_open() {
     ] {
         let opts = CodexThreadOpts {
             cwd: "/lib/agents".into(),
-            writable_roots: Vec::new(),
+            writes_library: false,
             model: model.map(String::from),
             reasoning_effort: effort.map(String::from),
             instructions: instructions.into(),
@@ -509,7 +615,7 @@ fn a_childs_request_reaches_its_parents_chat_with_its_agent_path() {
 fn each_mode_is_sent_on_every_turn_and_one_off_turns_never_ask() {
     let opts = |mode| CodexThreadOpts {
         cwd: "/lib/agents".into(),
-        writable_roots: Vec::new(),
+        writes_library: false,
         model: None,
         reasoning_effort: None,
         instructions: String::new(),
@@ -673,7 +779,7 @@ fn question_feature_is_on_for_chats_only_in_every_permission_mode() {
     ] {
         let mut opts = CodexThreadOpts {
             cwd: "/scratch".into(),
-            writable_roots: vec![],
+            writes_library: false,
             model: None,
             reasoning_effort: None,
             instructions: String::new(),

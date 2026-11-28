@@ -1,6 +1,6 @@
 use crate::library::layout::{
-    own_dir_rel, own_file_ok, own_files, own_kind_of, own_path_ok, own_top_level, subjects_on_disk,
-    OwnKind,
+    agent_own, category_of_path, own_dir_rel, own_file_ok, own_files, own_kind_of, own_path_ok,
+    own_root, own_root_rel, own_top_level, subjects_on_disk, OwnKind, TOP_LEVEL_CODE,
 };
 use crate::test_support::Scratch;
 
@@ -15,6 +15,11 @@ fn own_files_sit_beside_course_at_any_depth() {
         "courses/X/Courses/a.pdf",
         "courses/X/U\u{308}bung.pdf",
         "courses/数学/笔记.md",
+        // The data dir's top level, beside the folder of subjects.
+        "Videos",
+        "Videos/Raw/talk.mp4",
+        "timetable.png",
+        "lectures/abc/source1.mp4",
     ] {
         assert!(own_path_ok(rel), "{rel}");
     }
@@ -26,10 +31,14 @@ fn own_files_sit_beside_course_at_any_depth() {
         "courses/X/Course/Files/lecture.pdf",
         "courses/X/course/home.md",
         "courses/X/Course/Recordings/2026-08-04-x/source1.mp4",
-        // App state.
+        // App state, and the folder of subjects itself.
         "courses/X/.oculus/agents/INSTRUCTIONS.md",
-        "lectures/abc/source1.mp4",
-        "agents/memories/x.md",
+        ".oculus/agents/memories/x.md",
+        ".oculus/oculus.db",
+        ".library-move/done",
+        "courses",
+        "Videos/.hidden/a.pdf",
+        "Videos/C:x",
         // Traversal, however it is spelled.
         "courses/../oculus.db",
         "courses/X/Exam prep/../../../oculus.db",
@@ -76,7 +85,10 @@ fn a_kinds_files_carry_its_extension() {
     assert!(!own_file_ok("courses/X/.md", doc));
     assert!(!own_file_ok("courses/X/.assets/x.md", doc));
     assert!(!own_file_ok("courses/X/Course/Pages/x.md", doc));
-    assert!(!own_file_ok("lectures/abc/x.md", doc));
+    assert!(own_file_ok("Notes/abc/x.md", doc));
+    assert!(own_file_ok("x.md", doc));
+    assert!(!own_file_ok(".oculus/agents/x.md", doc));
+    assert!(!own_file_ok(".assets/x.md", doc));
 
     let whiteboard = OwnKind::Whiteboard;
     assert!(own_file_ok("courses/X/Week 3.whiteboard", whiteboard));
@@ -131,7 +143,7 @@ fn the_walk_lists_own_files_only() {
 }
 
 #[test]
-fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
+fn the_top_level_own_entries_leave_out_course_oculus_courses_and_dot_names() {
     let dir = Scratch::new("layout-own-top");
     for rel in [
         "courses/X/a.md",
@@ -140,6 +152,14 @@ fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
         "courses/X/.oculus/agents/INSTRUCTIONS.md",
         "courses/X/.assets/p.png",
         "courses/Y/c.whiteboard",
+        "Receipts/march.pdf",
+        "timetable.png",
+        ".assets/p.png",
+        ".oculus/oculus.db",
+        ".library-move/done",
+        ".DS_Store",
+        "agents/old.md",
+        "Studio/v.json",
     ] {
         let path = dir.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -149,6 +169,8 @@ fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
     std::fs::write(dir.join("courses/loose.pdf"), "x").unwrap();
     #[cfg(unix)]
     std::os::unix::fs::symlink("../../agents/AGENTS.md", dir.join("courses/X/AGENTS.md")).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(".oculus", dir.join("linked")).unwrap();
 
     assert_eq!(subjects_on_disk(&dir), ["X", "Y"]);
     let found: Vec<String> = own_top_level(&dir)
@@ -158,10 +180,126 @@ fn the_top_level_own_entries_of_every_subject_leave_out_course_and_oculus() {
     assert_eq!(
         found,
         [
+            ".assets",
+            "Receipts",
             "courses/X/.assets",
             "courses/X/Exam prep",
             "courses/X/a.md",
             "courses/Y/c.whiteboard",
+            "timetable.png",
         ]
     );
+}
+
+#[test]
+fn the_top_level_walk_lists_the_students_files_beside_the_subjects() {
+    let dir = Scratch::new("layout-own-top-level");
+    for rel in [
+        "timetable.png",
+        "Videos/talk.mp4",
+        "Videos/Raw/board.whiteboard",
+        "Videos/.assets/p.png",
+        ".assets/p.png",
+        "courses/X/a.md",
+        "courses/loose.pdf",
+        ".oculus/oculus.db",
+        ".oculus/agents/outputs/x.pdf",
+        ".library-move/done",
+        ".DS_Store",
+    ] {
+        let path = dir.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "x").unwrap();
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(".oculus/agents", dir.join("linked")).unwrap();
+    let found: Vec<String> = own_files(&dir, TOP_LEVEL_CODE)
+        .into_iter()
+        .map(|(rel, _)| rel)
+        .collect();
+    assert_eq!(
+        found,
+        [
+            "Videos/Raw/board.whiteboard",
+            "Videos/talk.mp4",
+            "timetable.png"
+        ]
+    );
+    assert_eq!(own_root_rel(TOP_LEVEL_CODE), "");
+    assert_eq!(own_root(&dir, TOP_LEVEL_CODE), dir.to_path_buf());
+    for kind in [OwnKind::Upload, OwnKind::Document, OwnKind::Whiteboard] {
+        assert_eq!(own_dir_rel(TOP_LEVEL_CODE, kind), "");
+    }
+}
+
+#[test]
+fn a_top_level_file_takes_its_kind_from_its_extension_alone() {
+    let cases = [
+        ("timetable.png", "upload"),
+        ("Videos/talk.mp4", "upload"),
+        ("notes.md", "document"),
+        ("Plans/board.whiteboard", "whiteboard"),
+        ("Plans/book.notebook", "notebook"),
+        // A folder of the student's named as a subject's synced one is still theirs.
+        ("Course/Files/a.pdf", "upload"),
+        ("Course/home.md", "document"),
+        ("courses/X/Course/Files/a.pdf", "file"),
+        ("courses/X/notes.md", "document"),
+        (".oculus/agents/x.md", "other"),
+        ("courses", "other"),
+    ];
+    for (rel, category) in cases {
+        assert_eq!(category_of_path(rel), category, "{rel}");
+    }
+}
+
+/// What an agent writes unasked: the own zone, read again after folding, and
+/// never a name the layout keeps at the top.
+#[test]
+fn an_agent_writes_the_own_zone_but_no_folded_dot_name_or_old_state_folder() {
+    for rel in [
+        "Receipts",
+        "Receipts/march.pdf",
+        "timetable.png",
+        ".assets/p.png",
+        "courses/X/notes.md",
+        "courses/X/agents/a.md",
+        "Receipts/agents/a.md",
+        "courses/X/U\u{308}bung.pdf",
+        "数学/笔记.md",
+    ] {
+        assert!(agent_own(rel), "{rel}");
+    }
+    for rel in [
+        "",
+        "courses",
+        "courses/loose.pdf",
+        "courses/X",
+        "courses/X/Course/a.pdf",
+        "courses/X/.oculus/x",
+        ".oculus/oculus.db",
+        ".library-move/done",
+        ".Oculus/x",
+        ".anything/x",
+        "Courses/loose.pdf",
+        "Receipts/../.oculus/vault.bin",
+        "./Receipts",
+        // Names that fold or trim to a dot-name or a reserved name.
+        "\u{FF0E}oculus/x",
+        " .oculus/x",
+        "\u{FF43}ourses/loose.pdf",
+        " courses/loose.pdf",
+        "courses/X/\u{FF23}ourse/a.pdf",
+        "\u{3000}",
+        // The old state folders' names, in any case or width.
+        "agents",
+        "agents/notes.md",
+        "Studio/v.json",
+        "WHITEBOARD-PAGES/x",
+        "canvas-pages",
+        "lectures/a.mp4",
+        "\u{FF41}gents/x",
+    ] {
+        assert!(!agent_own(rel), "{rel:?}");
+    }
 }

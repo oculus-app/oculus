@@ -6,17 +6,21 @@
 use sqlx::{Row, SqliteConnection, SqlitePool};
 
 use super::error::{DriveError, DriveResult};
-use crate::library::layout;
+use crate::library::layout::{self, Home};
 use crate::library::paths::{fold_code, safe_dir};
 
-fn db(e: sqlx::Error) -> DriveError {
+pub(super) fn db(e: sqlx::Error) -> DriveError {
     DriveError::io(format!("the database refused it — {e}"))
 }
 
-/// The subject whose folder is `folder` (`courses/<folder>`).
-pub async fn subject_id(pool: &SqlitePool, folder: &str) -> DriveResult<Option<i64>> {
+/// The `subjects` row a home's files hang off: the subject whose folder is
+/// `courses/<folder>`, or the reserved row for the top level.
+pub async fn home_id(pool: &SqlitePool, home: Home<'_>) -> DriveResult<Option<i64>> {
+    let Home::Subject(folder) = home else {
+        return crate::db::store::top_level_id(pool).await.map_err(db);
+    };
     let wanted = fold_code(folder);
-    let rows = sqlx::query("SELECT id, code FROM subjects")
+    let rows = sqlx::query("SELECT id, code FROM subjects WHERE kind = 'subject'")
         .fetch_all(pool)
         .await
         .map_err(db)?;
@@ -26,11 +30,21 @@ pub async fn subject_id(pool: &SqlitePool, folder: &str) -> DriveResult<Option<i
     }))
 }
 
-/// The subjects whose folders are `folders`, skipping any without a row.
-pub async fn subject_ids(pool: &SqlitePool, folders: &[String]) -> Vec<i64> {
+/// `home_id` for the code a command was given (`layout::TOP_LEVEL_CODE` is
+/// the top level).
+pub async fn code_id(pool: &SqlitePool, code: &str) -> DriveResult<Option<i64>> {
+    if layout::is_top_level_code(code) {
+        home_id(pool, Home::TopLevel).await
+    } else {
+        home_id(pool, Home::Subject(&safe_dir(code))).await
+    }
+}
+
+/// The rows of the homes `paths` are in, skipping any without one.
+pub async fn home_ids(pool: &SqlitePool, paths: &[String]) -> Vec<i64> {
     let mut ids = Vec::new();
-    for folder in folders {
-        if let Ok(Some(id)) = subject_id(pool, folder).await {
+    for home in paths.iter().filter_map(|p| layout::home_of(p)) {
+        if let Ok(Some(id)) = home_id(pool, home).await {
             if !ids.contains(&id) {
                 ids.push(id);
             }
@@ -85,14 +99,17 @@ async fn rows_at(
         .collect())
 }
 
-/// A row and everything hung off its id. Children are deleted explicitly:
-/// `ON DELETE CASCADE` fires only on a connection with `foreign_keys` on.
-async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()> {
+/// A row and everything hung off its id, each child by hand beside the
+/// cascade (docs/architecture.md, "The database has one schema owner and two
+/// writers").
+pub(super) async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()> {
     for id in ids {
         for sql in [
             "DELETE FROM pages WHERE file_id = ?1",
             "DELETE FROM document_versions WHERE file_id = ?1",
+            "DELETE FROM chat_saves WHERE file_id = ?1",
             "DELETE FROM task_files WHERE file_id = ?1",
+            "DELETE FROM studio_exports WHERE file_id = ?1",
             "DELETE FROM files WHERE id = ?1",
         ] {
             sqlx::query(sql)
@@ -103,6 +120,16 @@ async fn delete_ids(conn: &mut SqliteConnection, ids: &[i64]) -> DriveResult<()>
         }
     }
     Ok(())
+}
+
+/// The ids of the rows at or below `rel`.
+pub async fn ids_at(pool: &SqlitePool, rel: &str, dir: bool) -> DriveResult<Vec<i64>> {
+    let mut conn = pool.acquire().await.map_err(db)?;
+    Ok(rows_at(&mut conn, rel, dir)
+        .await?
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect())
 }
 
 /// A row left at `rel` by a file that is gone (the disk was checked free):
@@ -117,13 +144,13 @@ async fn clear_stale(conn: &mut SqliteConnection, rel: &str, keep: i64) -> Drive
     delete_ids(conn, &stale).await
 }
 
-pub(super) fn file_type(name: &str) -> String {
+pub(crate) fn file_type(name: &str) -> String {
     name.rsplit_once('.')
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default()
 }
 
-pub(super) fn name_of(rel: &str) -> &str {
+pub(crate) fn name_of(rel: &str) -> &str {
     rel.rsplit('/').next().unwrap_or(rel)
 }
 
@@ -153,7 +180,7 @@ pub async fn apply_moves(
             .bind(name_of(&to))
             .bind(renamed)
             .bind(file_type(name_of(&to)))
-            .bind(layout::category_of(layout::within_course(&to)))
+            .bind(layout::category_of_path(&to))
             .bind(id)
             .execute(&mut *tx)
             .await
@@ -232,7 +259,7 @@ pub async fn insert_copies(pool: &SqlitePool, subject: i64, rows: &[NewRow]) -> 
         .bind(&row.rel)
         .bind(file_type(name))
         .bind(row.size as i64)
-        .bind(layout::category_of(layout::within_course(&row.rel)))
+        .bind(layout::category_of_path(&row.rel))
         .execute(&mut *tx)
         .await
         .map_err(db)?;

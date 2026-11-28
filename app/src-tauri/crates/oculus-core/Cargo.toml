@@ -69,12 +69,20 @@ trash.workspace = true
 # the store is an opt-in feature in keyring 3.
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { workspace = true, features = ["apple-native"] }
+# The Trash, through `NSFileManager`, which says where an item went
+# (`src/runtime/trash.rs`).
+objc2.workspace = true
+objc2-foundation.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 keyring = { workspace = true, features = ["windows-native"] }
 dunce.workspace = true
 junction.workspace = true
 windows-sys.workspace = true
+
+[dev-dependencies]
+# The asset scope's test matches tauri.conf.json's patterns as Tauri does.
+glob = "0.3.3"
 
 [target.'cfg(windows)'.dev-dependencies]
 # Enables explicitly registered in-process fake brokers in Windows release tests.

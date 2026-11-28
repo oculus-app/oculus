@@ -18,7 +18,8 @@ impl Consumer {
     /// A bridge's CLI is waiting on the student. Declined at once, and
     /// never shown, when no turn is open to show it in, when the chat is
     /// saved as "Don't ask" now (whatever its turn started under), when it
-    /// names a protected path, or when it cannot be saved.
+    /// names a protected path, or when it cannot be saved. Allowed at once,
+    /// in every mode, when it only writes the student's own files.
     pub(super) fn request_asked(
         &mut self,
         thread_id: i64,
@@ -50,6 +51,13 @@ impl Consumer {
             self.runs.declined(thread_id, Refusal::ProtectedPath);
             let why = format!("it names the protected path {path}");
             return decline(thread_id, &request, &why, route, io);
+        }
+        if let Some(option) = policy::own_grant(&library, &cwd, &request) {
+            elog!(
+                "[oculus] harness thread {thread_id}: allowed a {} request in the own zone",
+                request.action.as_str()
+            );
+            return io.perform(Effect::Grant { route, option });
         }
         let Some(pool) = self.pool.clone() else {
             return io.perform(Effect::Withdraw {

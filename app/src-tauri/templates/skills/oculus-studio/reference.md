@@ -1109,6 +1109,13 @@ narrates: stale narration stops it, naming the scene. Report the path it
 prints. The draft is your hand-back: the full-size final and the other
 presets are the student's, from Export on the video's page.
 
+When the student asks you for one, `--final` (or `--preset small`) also
+saves it into their Drive: over the file it went to last time, else into
+`Videos` in the video's subject, or `--to <folder>` when they name one.
+The last line is `saved to Drive: <path>` or `replaced in Drive: <path>`;
+tell the student where the video is. `-o` writes a file of yours, not the
+student's export.
+
 ## Slides
 
 When the lecture's own figure is the point, show it, cropped from the

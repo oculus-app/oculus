@@ -242,7 +242,7 @@ impl Engine {
     /// Add one entry to `file-manifest.json` as it is on disk now: a download
     /// runs for minutes, and a sync may have saved the manifest meanwhile.
     pub(in crate::sync) fn record_manifest(&self, file_id: i64, entry: (String, u64)) {
-        let path = self.data_dir.join("file-manifest.json");
+        let path = crate::library::paths::file_manifest_path(&self.data_dir);
         let mut on_disk: HashMap<String, (String, u64)> = std::fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())

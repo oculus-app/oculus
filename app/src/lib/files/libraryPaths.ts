@@ -3,7 +3,7 @@ import { attachmentPath, isImagePath } from "@/lib/harness/attachments";
 
 /** Prose, a fenced library path, or an attachment: a picture (`image`) or a
  *  PDF or text file (`attachment`). Their `path` is data-directory-relative
- *  (`agents/attachments/…`, `<img>`-loadable through `attachmentSrc`); `raw`
+ *  (`.oculus/agents/attachments/…`, `<img>`-loadable through `attachmentSrc`); `raw`
  *  is the message's own spelling. See `app/src/lib/harness/attachments.ts`. */
 export type TextPart =
   | { kind: "text"; text: string }
@@ -15,13 +15,15 @@ const FENCED = /`([^`\n]+)`/g;
 
 /** Splits text into prose, backtick-fenced library paths and attachments —
  *  the one rule composer, bubble and copy share. Only a fence that is
- *  *wholly* a path counts; any other fence stays prose, backticks and all. */
+ *  *wholly* a path counts; any other fence stays prose, backticks and all.
+ *  A plain relative path is a student's file at the data dir's top, as a
+ *  mention of one spells it. */
 export function splitLibraryPaths(text: string): TextPart[] {
   const parts: TextPart[] = [];
   let at = 0;
   for (const m of text.matchAll(FENCED)) {
     const attached = attachmentPath(m[1]);
-    const cite = attached ? null : fullCitation(m[1]);
+    const cite = attached ? null : fullCitation(m[1], { topLevel: true });
     const i = m.index ?? 0;
     if (!attached && !cite) continue;
     if (i > at) parts.push({ kind: "text", text: text.slice(at, i) });

@@ -177,9 +177,10 @@ pub async fn library_exists() -> Result<bool, String> {
         return Ok(false);
     }
     let pool = crate::db::store::open_pool().await?;
-    let n: Result<i64, sqlx::Error> = sqlx::query_scalar("SELECT COUNT(*) FROM subjects")
-        .fetch_one(&pool)
-        .await;
+    let n: Result<i64, sqlx::Error> =
+        sqlx::query_scalar("SELECT COUNT(*) FROM subjects WHERE kind = 'subject'")
+            .fetch_one(&pool)
+            .await;
     match n {
         Ok(n) => Ok(n > 0),
         // Before the first migration there is no table, and so no library.

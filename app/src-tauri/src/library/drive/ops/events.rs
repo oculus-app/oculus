@@ -10,7 +10,8 @@ pub const EVENT: &str = "drive-changed";
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriveChange {
-    /// Every subject a path below was in, before or after.
+    /// Every subject a path below was in, before or after; the reserved
+    /// top-level row's id stands for the top level.
     pub subject_ids: Vec<i64>,
     /// `{ from, to }` for each entry moved or renamed; a folder's files
     /// moved with it under the same prefix.

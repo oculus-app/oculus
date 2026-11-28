@@ -5,10 +5,18 @@
  *
  *  A subject is `courses/<code>/`: `Course/` holds everything the sync writes
  *  (recordings included), the student's own files sit beside it at any depth
- *  and take their kind from their extension, and `.oculus/` is app state. */
+ *  and take their kind from their extension, and `.oculus/` is app state.
+ *  Beside `courses/`, every top-level name that does not start with a dot is
+ *  the student's too. */
 
 /** The data-dir folder holding one folder per subject. */
 export const COURSES_DIR = "courses";
+
+/** The reserved `subjects` row the rows of top-level files hang off, and the
+ *  code a command takes for "no subject" (`TOP_LEVEL_SUBJECT_ID` and
+ *  `TOP_LEVEL_CODE` in Rust; `app/tests/fixtures/library/top_level.json`
+ *  holds both sides to it). It is no subject: `getSubjects` never returns it. */
+export const TOP_LEVEL = { id: -100, code: "My Drive" } as const;
 
 /** The folder at a subject's root holding everything synced. */
 export const COURSE_DIR = "Course";
@@ -99,14 +107,35 @@ export function categoryOf(inner: string): string {
   return OWN_EXTENSIONS.find(([ext]) => inner.endsWith(ext))?.[1] ?? "upload";
 }
 
+/** True for a data-dir-relative path among the student's own files at the
+ *  top level: its first segment is neither `courses` nor a dot-name. */
+export function isTopLevelPath(path: string): boolean {
+  const first = path.split("/")[0];
+  return first !== "" && !first.startsWith(".") && !sameName(first, COURSES_DIR);
+}
+
+/** True for a data-dir-relative path in the library the student browses:
+ *  under `courses/`, or among their own at the top (`layout::in_library` in
+ *  Rust). Not the agents' workspace or anything else in `.oculus/`. */
+export const isLibraryPath = (path: string): boolean => isCoursePath(path) || isTopLevelPath(path);
+
+/** `files.category` of a data-dir-relative path (`category_of_path` in
+ *  Rust): `categoryOf` inside a subject, and at the top level by extension
+ *  alone, so a student's own `Course/` folder there holds uploads. */
+export function categoryOfPath(path: string): string {
+  if (COURSE_PREFIX.test(path)) return categoryOf(courseRelOf(path));
+  if (!isTopLevelPath(path)) return "other";
+  return OWN_EXTENSIONS.find(([ext]) => path.endsWith(ext))?.[1] ?? "upload";
+}
+
 /** True when a path inside a subject sits in `folder` (a subject-relative
  *  synced folder: `LESSONS_DIR`, `FILES_DIR`…). */
 export const inFolder = (path: string, folder: string): boolean => courseRelOf(path).startsWith(`${folder}/`);
 
-/** True for a data-dir-relative path among a subject's own files: inside a
- *  subject, outside `Course/` and `.oculus/`. */
+/** True for a data-dir-relative path among the student's own files: inside a
+ *  subject, outside `Course/` and `.oculus/`, or at the top level. */
 export function isOwnPath(path: string): boolean {
-  if (!COURSE_PREFIX.test(path)) return false;
+  if (!COURSE_PREFIX.test(path)) return isTopLevelPath(path);
   const first = courseRelOf(path).split("/")[0];
   return !sameName(first, COURSE_DIR) && !sameName(first, HIDDEN_DIR);
 }
@@ -119,13 +148,15 @@ export function recordingOf(path: string): string | null {
   return m && !m[1].split("/").pop()!.startsWith(".") ? m[1] : null;
 }
 
-/** A PDF's parse record (`<stem>.pages.json` under the subject's
- *  `.oculus/derived/`), from its parsed markdown (`<stem>.md`, beside the
- *  PDF); `layout::derived` in Rust. Outside a subject it sits beside. */
+/** A PDF's parse record (`<stem>.pages.json` under the `.oculus/derived/` of
+ *  its subject, or of the top level for a top-level file), from its parsed
+ *  markdown (`<stem>.md`, beside the PDF); `layout::derived` in Rust. Under a
+ *  dot-name, or loose among the subjects, it sits beside. */
 export function pagesRecordOf(mdPath: string): string {
   const record = mdPath.replace(/\.md$/i, ".pages.json");
   const m = new RegExp(`^(${COURSES_DIR}/[^/]+)/(.+)$`).exec(record);
-  return m ? `${m[1]}/${DERIVED_DIR}/${m[2]}` : record;
+  if (m) return `${m[1]}/${DERIVED_DIR}/${m[2]}`;
+  return isTopLevelPath(record) ? `${DERIVED_DIR}/${record}` : record;
 }
 
 /** A PDF's parsed markdown (`<stem>.md`), from the PDF's path. */

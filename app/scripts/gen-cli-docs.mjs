@@ -22,8 +22,9 @@ function stagedCli() {
   return sidecar;
 }
 
-// `--stdout` renders and returns before touching the data directory, so this
-// works on a machine where the app has never run and no database exists.
+// `--stdout` renders and returns before the launch move (`writes_nothing` in
+// the CLI's main.rs), touching nothing in the data directory, so this works
+// where the app has never run and on a library not yet moved.
 const rendered = execFileSync(binary, ["docs", "--stdout"], {
   encoding: "utf8",
   maxBuffer: 32 * 1024 * 1024,

@@ -7,6 +7,93 @@ fn identifier_matches_tauri_conf() {
     assert_eq!(conf["identifier"], IDENTIFIER);
 }
 
+/// The webview's asset scope (`tauri.conf.json`, and Windows' copy) loads
+/// the library and three folders of the state folder, never the rest of it:
+/// the database, the vault, the sessions. Matched as Tauri's `FsScope` does
+/// (`require_literal_separator`, and the file's leading-dot setting).
+#[test]
+fn the_asset_scope_reaches_the_library_and_never_the_rest_of_the_state_folder() {
+    let confs = [
+        (
+            include_str!("../../../tauri.conf.json"),
+            "/scope/allow",
+            "$APPDATA",
+        ),
+        (
+            include_str!("../../../tauri.windows.conf.json"),
+            "/scope",
+            "$HOME/Oculus",
+        ),
+    ];
+    for (raw, scope, base) in confs {
+        let conf: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let protocol = &conf["app"]["security"]["assetProtocol"];
+        let dot = protocol["scope"]["requireLiteralLeadingDot"]
+            .as_bool()
+            .unwrap_or(false);
+        let options = glob::MatchOptions {
+            require_literal_separator: true,
+            require_literal_leading_dot: dot,
+            ..Default::default()
+        };
+        let patterns: Vec<glob::Pattern> = protocol
+            .pointer(scope)
+            .and_then(|s| s.as_array())
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap().replace(base, "/d"))
+            .map(|p| glob::Pattern::new(&p).unwrap())
+            .collect();
+        let allowed = |rel: &str| {
+            patterns
+                .iter()
+                .any(|p| p.matches_with(&format!("/d/{rel}"), options))
+        };
+        for rel in [
+            "courses/X/Course/Files/a.pdf",
+            "courses/X/.assets/p.png",
+            "courses/X/.oculus/derived/a.pages.json",
+            "timetable.png",
+            "Receipts/march.pdf",
+            "Videos/Raw/.assets/p.png",
+            ".assets/p.png",
+            ".oculus/agents/outputs/a.png",
+        ] {
+            assert!(allowed(rel), "{base}: {rel} is in the scope");
+        }
+        let lib = std::path::Path::new("/d");
+        let state: Vec<String> = [
+            db_path(lib),
+            keyd_core::paths::vault(lib),
+            keyd_core::paths::cookie(lib),
+            keyd_core::paths::ed_token(lib),
+            keyd_core::paths::authenticated(lib),
+            keyd_core::paths::sign_in_record(lib),
+            keyd_core::paths::socket(lib),
+            keyd_core::paths::installed_helper(lib),
+            models_dir(lib).join("m.bin"),
+            file_manifest_path(lib),
+        ]
+        .iter()
+        .map(|p| slash_path(p.strip_prefix(lib).unwrap()))
+        .chain(
+            [
+                ".oculus",
+                ".oculus/oculus.db-wal",
+                ".oculus/institution.json",
+                ".library-move/journal.json",
+                ".DS_Store",
+                ".env",
+            ]
+            .map(String::from),
+        )
+        .collect();
+        for rel in state {
+            assert!(!allowed(&rel), "{base}: {rel} is outside the scope");
+        }
+    }
+}
+
 #[test]
 fn timestamps_match_the_shell_agent_they_replaced() {
     // `date -u +%Y-%m-%dT%H:%M:%SZ` at these instants.

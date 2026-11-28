@@ -1,3 +1,5 @@
+import { TOP_LEVEL_FILE_ROUTE } from "@/lib/files/labels";
+import { TOP_LEVEL } from "@/lib/files/libraryLayout";
 import { create } from "zustand";
 import { browseId } from "@/lib/browser";
 import { isGoneRoute } from "@/lib/shell/goneRoutes";
@@ -56,6 +58,10 @@ export function recentKey(path: string): string | null {
   }
 
   if (pathname.startsWith("/settings")) return "settings";
+  // A top-level file is its own row, as a subject's file is.
+  if (pathname === TOP_LEVEL_FILE_ROUTE) {
+    return `file:${TOP_LEVEL.id}:${new URLSearchParams(search).get("path") ?? ""}`;
+  }
   // Drive's folders and Recent are one place, as a subject's tabs are.
   if (pathname === "/drive" || pathname.startsWith("/drive/")) return "drive";
   return pathname;

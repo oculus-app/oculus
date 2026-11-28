@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use super::error::{DriveError, DriveResult};
-use crate::library::layout::{self, Zone};
+use crate::library::layout::{self, Home, Zone};
 use crate::library::paths::{fold_code, safe_dir};
 
 /// An existing file or folder of the student's.
@@ -16,8 +16,8 @@ pub struct Entry {
     pub dir: bool,
 }
 
-/// A folder new entries may land in: a subject's root or one of the
-/// student's folders.
+/// A folder new entries may land in: a subject's root, the top level (`""`)
+/// or one of the student's folders in either.
 #[derive(Clone, Debug)]
 pub struct Target {
     pub rel: String,
@@ -25,36 +25,32 @@ pub struct Target {
 }
 
 impl Target {
-    /// The subject folder this target is in (`courses/<folder>`'s folder).
-    pub fn subject_folder(&self) -> &str {
-        subject_folder(&self.rel).unwrap_or_default()
+    /// The subject this target is in, or the top level.
+    pub fn home(&self) -> Home<'_> {
+        layout::home_of(&self.rel).unwrap_or(Home::TopLevel)
     }
 
     pub fn child_rel(&self, name: &str) -> String {
-        format!("{}/{name}", self.rel)
+        layout::child_rel(&self.rel, name)
     }
 
-    /// True for the subject's root, where reserved names are refused.
-    pub fn is_subject_root(&self) -> bool {
-        is_subject_root(&self.rel)
+    /// True when `name` is one the layout keeps for itself in this folder:
+    /// `Course` and `.oculus` at a subject's root, `courses` at the top level.
+    pub fn keeps_name(&self, name: &str) -> bool {
+        keeps_name(&self.rel, name)
     }
 }
 
-/// The subject folder a path is in, or the path's own name when it is one;
-/// `None` for a spelling that could leave the library (an empty, `.` or `..`
-/// segment: `layout::zone_of`'s `Outside`) and for a dot-name subject.
-pub fn subject_folder(rel: &str) -> Option<&str> {
-    if layout::zone_of(rel) == Zone::Outside {
-        return None;
+/// `Target::keeps_name` for the folder at `dir`.
+pub fn keeps_name(dir: &str, name: &str) -> bool {
+    if !layout::is_home_root(dir) {
+        return false;
     }
-    let rest = rel.strip_prefix(layout::COURSES_DIR)?.strip_prefix('/')?;
-    let folder = rest.split('/').next()?;
-    (!folder.is_empty() && !folder.starts_with('.')).then_some(folder)
-}
-
-/// `courses/<folder>` itself.
-pub fn is_subject_root(rel: &str) -> bool {
-    subject_folder(rel).is_some() && rel.matches('/').count() == 1
+    match layout::home_of(dir) {
+        Some(Home::Subject(_)) => layout::reserved_name(name),
+        Some(Home::TopLevel) => layout::reserved_top_name(name),
+        None => false,
+    }
 }
 
 pub fn parent_rel(rel: &str) -> &str {
@@ -72,9 +68,9 @@ fn refusal(rel: &str) -> DriveError {
 
 /// True when some folder on the way to `rel` (or `rel` itself) is a symlink:
 /// Drive never follows one.
-fn through_symlink(data_dir: &Path, rel: &str) -> bool {
+pub(super) fn through_symlink(data_dir: &Path, rel: &str) -> bool {
     let mut walked = data_dir.to_path_buf();
-    rel.split('/').any(|part| {
+    rel.split('/').filter(|part| !part.is_empty()).any(|part| {
         walked.push(part);
         std::fs::symlink_metadata(&walked).is_ok_and(|m| m.file_type().is_symlink())
     })
@@ -82,30 +78,30 @@ fn through_symlink(data_dir: &Path, rel: &str) -> bool {
 
 /// `rel` as an existing entry the student may rename, move or delete.
 pub fn own_entry(data_dir: &Path, rel: &str) -> DriveResult<Entry> {
-    if subject_folder(rel).is_none() || !layout::own_path_ok(rel) {
+    if layout::home_of(rel).is_none() || !layout::own_path_ok(rel) {
         return Err(refusal(rel));
     }
-    if through_symlink(data_dir, rel) {
-        return Err(DriveError::read_only(rel));
-    }
-    let path = data_dir.join(rel);
-    let meta = std::fs::symlink_metadata(&path).map_err(|_| DriveError::not_found(rel))?;
-    Ok(Entry {
-        rel: rel.to_string(),
-        path,
-        dir: meta.is_dir(),
-    })
+    existing(data_dir, rel)
 }
 
 /// `rel` as an existing entry a copy may read: anything Drive lists, synced
-/// or own, but not app state or the subject folders themselves.
+/// or own, but not app state, the folder of subjects or a subject's folder.
 pub fn readable_entry(data_dir: &Path, rel: &str) -> DriveResult<Entry> {
-    let listed = layout::split_course(rel).is_some()
+    let inside = match layout::home_of(rel) {
+        Some(Home::Subject(_)) => layout::split_course(rel).is_some(),
+        Some(Home::TopLevel) => !rel.is_empty(),
+        None => false,
+    };
+    let listed = inside
         && matches!(layout::zone_of(rel), Zone::Synced | Zone::Own)
         && !rel.split('/').any(|part| part.starts_with('.'));
-    if !listed || is_subject_root(rel) {
+    if !listed {
         return Err(refusal(rel));
     }
+    existing(data_dir, rel)
+}
+
+fn existing(data_dir: &Path, rel: &str) -> DriveResult<Entry> {
     if through_symlink(data_dir, rel) {
         return Err(DriveError::read_only(rel));
     }
@@ -118,11 +114,12 @@ pub fn readable_entry(data_dir: &Path, rel: &str) -> DriveResult<Entry> {
     })
 }
 
-/// `rel` as a folder new entries may land in: a subject's root, or an
-/// existing folder of the student's.
-/// The subject folder must exist: it is never made here.
-pub fn target_folder(data_dir: &Path, rel: &str) -> DriveResult<Target> {
-    if subject_folder(rel).is_none() || (!is_subject_root(rel) && !layout::own_path_ok(rel)) {
+/// `rel` as a folder new entries may land in: a subject's root, the top
+/// level (`""`), or an existing folder of the student's in either; its
+/// subject, or none, is `Target::home`. A subject's folder must exist: it is
+/// never made here. The folder of subjects itself is `read_only`.
+pub fn drive_target(data_dir: &Path, rel: &str) -> DriveResult<Target> {
+    if layout::home_of(rel).is_none() || (!layout::is_home_root(rel) && !layout::own_path_ok(rel)) {
         return Err(refusal(rel));
     }
     if through_symlink(data_dir, rel) {
@@ -143,16 +140,25 @@ pub fn target_folder(data_dir: &Path, rel: &str) -> DriveResult<Target> {
 }
 
 /// Where a creator for subject `code` writes: `target_dir` when given (it
-/// must be in that subject), else the subject's root, made if missing.
+/// must be in that subject), else the subject's root, made if missing. For
+/// `layout::TOP_LEVEL_CODE` the same at the top level.
 pub fn own_target(data_dir: &Path, code: &str, target_dir: Option<&str>) -> DriveResult<Target> {
     let Some(rel) = target_dir else {
-        let rel = layout::course_rel(code);
-        let path = layout::course_root(data_dir, code);
+        let path = layout::own_root(data_dir, code);
         std::fs::create_dir_all(&path)?;
-        return Ok(Target { rel, path });
+        return Ok(Target {
+            rel: layout::own_root_rel(code),
+            path,
+        });
     };
-    let target = target_folder(data_dir, rel)?;
-    if fold_code(target.subject_folder()) != fold_code(&safe_dir(code)) {
+    let target = drive_target(data_dir, rel)?;
+    let same = match target.home() {
+        Home::TopLevel => layout::is_top_level_code(code),
+        Home::Subject(folder) => {
+            !layout::is_top_level_code(code) && fold_code(folder) == fold_code(&safe_dir(code))
+        }
+    };
+    if !same {
         return Err(DriveError::io(format!("{rel} is not in {code}")));
     }
     Ok(target)

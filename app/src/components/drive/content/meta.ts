@@ -25,6 +25,7 @@ export function entryMeta(item: DriveItem, view: DriveView): string {
   if (item.type === "recording") return recordingDay(item.entry.date);
   if (item.type === "folder") {
     if (item.subject) return `${displayName(item.subject.name, item.subject.code)} · ${plural(item.entry.childCount, "item")}`;
+    if (item.subjects) return plural(item.entry.childCount, "item");
     if (isLockedFolder(item, view.writable)) return "Synced by Oculus";
     if (view.flat) return folderOf(item.key, view.root) || plural(item.entry.childCount, "item");
     return item.entry.childCount ? plural(item.entry.childCount, "item") : "Empty";

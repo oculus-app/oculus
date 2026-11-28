@@ -149,12 +149,12 @@ pub fn run(
 
         let course_dir = code
             .as_deref()
-            .map(|c| format!("../{}", crate::library::layout::course_rel(c)));
+            .map(|c| crate::agents::from_workspace(&crate::library::layout::course_rel(c)));
 
         let text = prompt(&Job {
             title,
             duration_secs: duration,
-            lecture_dir: &format!("../{folder}"),
+            lecture_dir: &crate::agents::from_workspace(&folder),
             course_dir: course_dir.as_deref(),
             detected: found.len(),
             has_transcript: !cues.is_empty(),

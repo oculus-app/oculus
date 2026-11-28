@@ -211,8 +211,11 @@ pub(super) fn create_in(
         } else {
             format!("{}-{index}{ext}", wanted.trim_end_matches(ext))
         };
-        let rel = format!("{prefix}/{candidate}");
+        let rel = layout::child_rel(prefix, &candidate);
         let path = checked(root, &rel, true)?;
+        if crate::library::drive::ops::delete::held(&path) {
+            continue;
+        }
         match std::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
@@ -307,14 +310,14 @@ pub(super) fn rename_at(root: &Path, rel: &str, title: &str) -> Result<ImportedF
     let kind = DrawingKind::of(rel).ok_or(EXPECTED)?;
     let path = checked(root, rel, false)?;
     let size = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
-    let (prefix, current) = rel.rsplit_once('/').ok_or("Missing filename")?;
+    let (prefix, current) = layout::folder_and_name(rel);
     let wanted = name(kind, title);
     if wanted == current {
         return Ok(file(kind, rel.into(), size));
     }
     let destination =
         super::uploads::step_aside(path.parent().ok_or("Missing parent")?, &wanted, |_| false);
-    let moved = format!("{prefix}/{destination}");
+    let moved = layout::child_rel(prefix, &destination);
     if DrawingKind::of(&moved) != Some(kind) {
         return Err(kind_changed());
     }

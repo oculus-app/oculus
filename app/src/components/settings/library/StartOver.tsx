@@ -92,7 +92,7 @@ export function StartOver() {
         onCancel={() => setConfirming(false)}
         onConfirm={startOver}
         title="Start over?"
-        description="This deletes every synced file and lecture, your notes, uploads, projects and chats, signs you out and forgets your Canvas address. Oculus then restarts empty. It can't be undone."
+        description="This deletes every synced file and lecture, everything in My Drive (your notes, uploads and folders), your projects and chats, signs you out and forgets your Canvas address. Oculus then restarts empty. It can't be undone."
         confirmLabel="Delete and restart"
         busyLabel="Restarting…"
         busy={busy}

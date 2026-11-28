@@ -88,14 +88,19 @@ export const routes: RouteObject[] = [
           { path: "uploads", element: <LegacyFilesRedirect tab="uploads" /> },
         ],
       },
+      // A top-level file as a whole page: it has no subject. A dot-name, as
+      // Recent is, so no folder Drive shows can take the route.
+      { path: "drive/.file", lazy: page(() => import("@/pages/subject/files/FilePage")) },
       {
-        // Every subject's folders: the nav column (My Drive, Recent, the
-        // tree) beside the browser; the splat is the folder under `courses/`.
+        // The data folder: the nav column (My Drive, Recent, the tree)
+        // beside the browser; the splat is the data-dir-relative folder
+        // (`app/src/lib/drive/routes.ts`). Routes saved before that
+        // (`drive/<code>/…`, `drive/recent`) are redirected by the page.
         path: "drive",
         element: <DriveLayout />,
         children: [
           { index: true, lazy: page(() => import("@/pages/drive/DriveFolderPage")) },
-          { path: "recent", caseSensitive: true, lazy: page(() => import("@/pages/drive/DriveRecentPage")) },
+          { path: ".recent", lazy: page(() => import("@/pages/drive/DriveRecentPage")) },
           { path: "*", lazy: page(() => import("@/pages/drive/DriveFolderPage")) },
         ],
       },

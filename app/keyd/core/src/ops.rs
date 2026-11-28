@@ -233,11 +233,23 @@ impl State {
         Ok(key)
     }
 
+    /// The vault, refused while one from before the state folder is still
+    /// at the data dir's top: a missing file reads as an empty vault, and
+    /// the first write would start a second one beside the student's.
     fn vault(&self) -> Result<Vault, OpError> {
-        Ok(Vault::new(
-            crate::paths::vault(&self.data_dir),
-            self.master()?,
-        ))
+        let path = crate::paths::vault(&self.data_dir);
+        let unmoved = crate::paths::unmoved_vault(&self.data_dir);
+        if !path.exists() && unmoved.exists() {
+            return Err(OpError::new(
+                "vault",
+                format!(
+                    "{} has not moved into {} yet; open Oculus to finish the update",
+                    unmoved.display(),
+                    crate::paths::state_dir(&self.data_dir).display()
+                ),
+            ));
+        }
+        Ok(Vault::new(path, self.master()?))
     }
 
     /// One request. `body` is the raw bytes after the header line; only

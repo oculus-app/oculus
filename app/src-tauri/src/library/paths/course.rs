@@ -173,7 +173,7 @@ pub fn artifact_slots(
     data_dir: &std::path::Path,
     library_rel: &str,
 ) -> Vec<(ArtifactSlot, std::path::PathBuf)> {
-    use crate::library::layout::{derived, zone_of, DerivedKind, Zone};
+    use crate::library::layout::{derived_at, zone_of, DerivedKind, Zone};
     let zone = zone_of(library_rel);
     if zone == Zone::Outside {
         return Vec::new();
@@ -182,8 +182,9 @@ pub fn artifact_slots(
     let Some(pdf_rel) = parsed_pdf_rel(library_rel) else {
         return Vec::new();
     };
-    let pdf = data_dir.join(&pdf_rel);
-    let parsers_md = zone == Zone::Synced || sheet || derived(&pdf, DerivedKind::Pages).is_file();
+    let parsers_md = zone == Zone::Synced
+        || sheet
+        || derived_at(data_dir, &pdf_rel, DerivedKind::Pages).is_file();
     let mut slots: Vec<ArtifactSlot> = DerivedKind::ALL
         .into_iter()
         .filter(|kind| *kind != DerivedKind::Markdown || parsers_md)
@@ -208,14 +209,14 @@ pub fn artifact_at(
     library_rel: &str,
     slot: ArtifactSlot,
 ) -> Option<std::path::PathBuf> {
-    use crate::library::layout::derived;
+    use crate::library::layout::derived_at;
     let sheet = is_sheet(library_rel);
     match slot {
         ArtifactSlot::Converted => doc_pdf_rel(library_rel)
             .filter(|pdf| pdf != library_rel)
             .map(|pdf| data_dir.join(pdf)),
         ArtifactSlot::Derived(kind) => {
-            parsed_pdf_rel(library_rel).map(|pdf| derived(&data_dir.join(pdf), kind))
+            parsed_pdf_rel(library_rel).map(|pdf| derived_at(data_dir, &pdf, kind))
         }
         ArtifactSlot::SheetPdf => sheet.then(|| data_dir.join(format!("{library_rel}.pdf"))),
     }

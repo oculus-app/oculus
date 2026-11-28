@@ -51,6 +51,7 @@ fn rigged(one_off: bool) -> Rigged {
         one_off,
         callbacks: Mutex::new(HashSet::new()),
         steering: Arc::default(),
+        grants: None,
     });
     let translator = Translator {
         interrupting: session.interrupting.clone(),

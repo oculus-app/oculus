@@ -579,7 +579,7 @@ is built to give the same bytes for the same source:
   leaves keyd alone, while an edit to the helper's Info.plist or icon changes
   its signature and costs one keychain prompt like a keyd update.
 - **A dev and a bundled keyd on one Mac** share the LaunchAgent label and the
-  socket. Dev's program is inside `<data_dir>/bin/Oculus Helper.app`, the
+  socket. Dev's program is inside `<data_dir>/.oculus/bin/Oculus Helper.app`, the
   bundle's inside the `.app`, so whichever installed last owns it, and
   `oculus keyd status` says which. Their code hashes differ, so switching
   costs a prompt.
@@ -591,7 +591,7 @@ is built to give the same bytes for the same source:
   core's sources and manifests, keyd's `Cargo.lock`, its cargo config, and
   the helper's Info.plist and icon;
   `oculus-keyd source-hash` prints it and `oculus keyd install` writes it to
-  `bin/oculus-keyd.stamp` in the data dir. The script installs only from the
+  `.oculus/bin/oculus-keyd.stamp` in the data dir. The script installs only from the
   main checkout (`git rev-parse --git-dir` equals `--git-common-dir`), so a
   worktree build never takes over the LaunchAgent, and then through `oculus
   keyd install --if-changed`, which does nothing when the stamp already
@@ -663,6 +663,69 @@ and it goes with that fallback.
 - **Adding an OS** is a `platform/<os>.rs` written to the contract, its
   build step in `keyd-build.mjs`, and a CI row. If anything outside
   `platform/` has to change, the seam is wrong: fix it in core first.
+
+## Only the installed app moves a library on its own
+
+Every checkout, the main one and each worktree, runs against the one data
+directory. The launch move that puts the app's own files into `.oculus/`
+([library-move.md](./library-move.md#the-apps-own-files-move-into-the-state-folder))
+changes that folder for good, so it runs untold only in the installed app: a
+binary whose real path sits in an app bundle (an MSIX package on Windows).
+Every other binary, the app or the CLI, debug or release, `target/release/oculus`
+and the `~/.local/bin/oculus` link to it, moves a library not yet moved only
+when `OCULUS_STATE_MOVE=1` is set. Without it the binary changes nothing and
+refuses to start, saying why. A new install has nothing to move and needs no
+variable.
+
+What the scripts run, on a library not yet moved:
+
+- `bun run tauri dev` (`predev.mjs`): `oculus --version` (clap answers before
+  the move), then in the main checkout only, with the variable set, `oculus
+  keyd install --if-changed` (which moves it), `oculus docs --stdout` and
+  `oculus docs`. In a worktree, `oculus docs` refuses, the preflight carries
+  on, and the app then refuses in a dialog.
+- `bun run docs:cli` and `bun run tauri build` (its `beforeBuildCommand`
+  runs `stage-cli`, which runs nothing, and `docs:cli --staged`): only
+  `oculus docs --stdout`, which reads and writes nothing in the data folder.
+- `bun run cli:install`: `oculus docs` from the release build, which
+  refuses, having changed nothing.
+- `bun run cli:dev`, `stage-keyd`: build only (`stage-keyd` asks the keyd
+  it built for its `source-hash`).
+
+`app/scripts/predev.mjs` sets the variable when the checkout is the main one
+(`isMainCheckout` in `app/scripts/keyd-build.mjs`: `git rev-parse --git-dir`
+equals `--git-common-dir`, the test the keyd install uses). The preflight's
+own CLI calls (`oculus keyd install --if-changed`, `oculus docs`) then make
+the move before the app starts, since every command runs it first. In a
+worktree the preflight's `oculus docs` is refused and the preflight carries
+on; the app then refuses in a dialog.
+
+## Rust run against a scratch home, never the live data directory
+
+`data_dir()` has no override: on macOS it is `dirs::data_dir()`, which reads
+`$HOME`. Tests use `test_support::Scratch`, but non-test helpers they reach
+(`UsageLedger::shared`, the model `dir()`s) call the real `data_dir()`, and a
+built `oculus` always does. So anything built from a branch that changes
+paths or adds a launch move is built with the real `HOME` and run with it
+redirected:
+
+```sh
+cargo test --no-run                      # build, real HOME
+HOME=/Users/<you>/.scratch-home <test binary or target/debug/oculus> …
+```
+
+- Check first, on an empty scratch home, that `oculus status` prints that
+  folder on its `library` line.
+- Keep the scratch home's path short: past about 40 bytes
+  `.oculus/keyd.sock` no longer fits a unix socket path and the socket falls
+  back to `.keyd.sock` at the top; past 47 neither fits.
+- Never run `oculus keyd install` or `uninstall` there, nor anything else
+  that reaches `launchctl`, a state move with `OCULUS_STATE_MOVE=1` included:
+  `launchctl` acts on the user's GUI domain by label, not on `HOME`, and
+  would unload the live agent. The move's broker step is a trait
+  (`library::migrate::state::Broker`) so its tests never touch launchd.
+- A copy of a library must keep its `.library-move/` folder, or a build
+  takes it for one from before the Drive move.
 
 ## Template edits reach the library only through `oculus docs`
 

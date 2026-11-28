@@ -25,6 +25,9 @@ export interface ImportOutcome {
   source: string;
   file: ImportedFile | null;
   error: string | null;
+  /** These very bytes were already at the name, so nothing was written:
+   *  the file there is not this import's. */
+  existed: boolean;
 }
 
 /** Fired after uploads land, so open lists refresh. */

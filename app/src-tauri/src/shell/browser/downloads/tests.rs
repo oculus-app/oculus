@@ -77,10 +77,10 @@ fn state(d: &Downloads, id: u32) -> State {
         .state
 }
 
-fn oculus() -> Dest {
-    Dest::Oculus {
-        subject_code: "COMP30027".into(),
-        target_dir: None,
+fn drive() -> Dest {
+    Dest::Drive {
+        target_dir: "courses/COMP30027".into(),
+        name: None,
     }
 }
 
@@ -108,12 +108,9 @@ fn each_download_is_staged_in_its_own_folder() {
 #[test]
 fn a_choice_before_the_finish_delivers_once_at_the_finish() {
     let (mut d, id, staged) = started();
-    assert!(
-        d.choose(id, oculus()).unwrap().is_empty(),
-        "still receiving"
-    );
+    assert!(d.choose(id, drive()).unwrap().is_empty(), "still receiving");
     assert_eq!(state(&d, id), State::Receiving);
-    assert_eq!(d.snapshot().downloads[0].choice, Some(oculus()));
+    assert_eq!(d.snapshot().downloads[0].choice, Some(drive()));
 
     let settled = finish(&mut d, &staged, true);
     assert_eq!(
@@ -125,9 +122,9 @@ fn a_choice_before_the_finish_delivers_once_at_the_finish() {
             effects: vec![Effect::Deliver {
                 id,
                 staged: staged.clone(),
-                to: Target::Oculus {
-                    subject_code: "COMP30027".into(),
-                    target_dir: None,
+                to: Target::Drive {
+                    target_dir: "courses/COMP30027".into(),
+                    name: None,
                 }
             }]
         }]
@@ -135,7 +132,7 @@ fn a_choice_before_the_finish_delivers_once_at_the_finish() {
     assert_eq!(state(&d, id), State::Delivering);
     assert_eq!(d.snapshot().downloads[0].received, 42, "the final size");
 
-    assert!(d.choose(id, oculus()).is_err(), "no second delivery");
+    assert!(d.choose(id, drive()).is_err(), "no second delivery");
     assert!(
         finish(&mut d, &staged, true).is_empty(),
         "a second finish matches nothing"
@@ -162,7 +159,7 @@ fn a_finish_before_the_choice_waits_then_delivers_once() {
             }
         }]
     );
-    assert!(d.choose(id, oculus()).is_err());
+    assert!(d.choose(id, drive()).is_err());
     assert!(d.choose(id, Dest::Discard).is_err());
 }
 
@@ -215,13 +212,13 @@ fn either_order_delivers_exactly_once_across_every_interleaving() {
         let (mut d, id, staged) = started();
         let mut all = vec![];
         if choose_first {
-            all.extend(d.choose(id, oculus()).unwrap());
+            all.extend(d.choose(id, drive()).unwrap());
             all.extend(effects(finish(&mut d, &staged, true)));
         } else {
             all.extend(effects(finish(&mut d, &staged, true)));
-            all.extend(d.choose(id, oculus()).unwrap());
+            all.extend(d.choose(id, drive()).unwrap());
         }
-        let _ = d.choose(id, oculus());
+        let _ = d.choose(id, drive());
         assert!(finish(&mut d, &staged, true).is_empty());
         assert_eq!(deliveries(&all), 1, "choose first: {choose_first}");
     }
@@ -230,7 +227,7 @@ fn either_order_delivers_exactly_once_across_every_interleaving() {
 #[test]
 fn a_choice_can_change_while_bytes_arrive() {
     let (mut d, id, staged) = started();
-    d.choose(id, oculus()).unwrap();
+    d.choose(id, drive()).unwrap();
     d.choose(
         id,
         Dest::Path {
@@ -269,7 +266,7 @@ fn clearing_a_discarded_download_still_arriving_keeps_its_page_until_the_end() {
     d.clear(id).unwrap();
     assert!(d.snapshot().downloads.is_empty(), "gone from the list");
     assert!(d.unfinished_in(7), "but its end is still to come");
-    assert!(d.choose(id, oculus()).is_err());
+    assert!(d.choose(id, drive()).is_err());
 
     let settled = finish(&mut d, &staged, true);
     assert_eq!(settled[0].page, 7, "the page to let go");
@@ -294,7 +291,7 @@ fn discarding_a_ready_download_deletes_at_once() {
 fn a_failed_download_keeps_no_bytes_and_takes_no_choice() {
     // `fail-drop`: the partial file stays on disk until it is removed.
     let (mut d, id, staged) = started();
-    d.choose(id, oculus()).unwrap();
+    d.choose(id, drive()).unwrap();
     assert_eq!(
         effects(finish(&mut d, &staged, false)),
         [Effect::Remove(staged)],
@@ -308,7 +305,7 @@ fn a_failed_download_keeps_no_bytes_and_takes_no_choice() {
         .as_deref()
         .unwrap()
         .contains("again from the page"));
-    assert!(d.choose(id, oculus()).is_err());
+    assert!(d.choose(id, drive()).is_err());
     assert!(!d.unfinished_in(7));
     d.clear(id).unwrap();
 }
@@ -317,13 +314,13 @@ fn a_failed_download_keeps_no_bytes_and_takes_no_choice() {
 fn a_delivery_that_does_not_land_is_ready_for_another_choice() {
     let (mut d, id, staged) = started();
     finish(&mut d, &staged, true);
-    d.choose(id, oculus()).unwrap();
+    d.choose(id, drive()).unwrap();
     d.delivered(id, Err("disk full".into()));
     let row = &d.snapshot().downloads[0];
     assert_eq!(row.state, State::Ready);
     assert_eq!(row.error.as_deref(), Some("disk full"));
     assert_eq!(row.choice, None);
-    assert_eq!(deliveries(&d.choose(id, oculus()).unwrap()), 1);
+    assert_eq!(deliveries(&d.choose(id, drive()).unwrap()), 1);
 
     d.delivered(
         id,
@@ -342,7 +339,7 @@ fn a_delivery_that_does_not_land_is_ready_for_another_choice() {
 fn a_saved_upload_resolves_to_the_library_file() {
     let (mut d, id, staged) = started();
     finish(&mut d, &staged, true);
-    d.choose(id, oculus()).unwrap();
+    d.choose(id, drive()).unwrap();
     assert!(
         d.saved_path(id, Path::new("/data")).is_err(),
         "not saved yet"
@@ -350,24 +347,65 @@ fn a_saved_upload_resolves_to_the_library_file() {
     let outcome = ImportOutcome {
         source: "notes.pdf".into(),
         file: Some(crate::library::files::ImportedFile {
-            filename: "notes.pdf".into(),
-            relative_path: "courses/COMP30027/notes.pdf".into(),
+            filename: "notes (2).pdf".into(),
+            relative_path: "courses/COMP30027/notes (2).pdf".into(),
             file_type: "pdf".into(),
             size_bytes: 42,
             category: "upload".into(),
         }),
         error: None,
+        existed: false,
     };
-    d.delivered(
-        id,
-        Ok(SavedTo::Oculus {
-            subject_code: "COMP30027".into(),
-            outcome,
-        }),
-    );
+    d.delivered(id, Ok(SavedTo::Drive { outcome }));
     assert_eq!(
         d.saved_path(id, Path::new("/data")).unwrap(),
-        Path::new("/data/courses/COMP30027/notes.pdf")
+        Path::new("/data/courses/COMP30027/notes (2).pdf")
+    );
+    assert_eq!(
+        d.snapshot().downloads[0].name,
+        "notes (2).pdf",
+        "the row shows the name it landed under"
+    );
+}
+
+fn renamed() -> Dest {
+    Dest::Drive {
+        target_dir: "Receipts".into(),
+        name: Some("Lab kit.pdf".into()),
+    }
+}
+
+fn renamed_target() -> Target {
+    Target::Drive {
+        target_dir: "Receipts".into(),
+        name: Some("Lab kit.pdf".into()),
+    }
+}
+
+#[test]
+fn a_drive_choice_made_while_receiving_reaches_delivery_unchanged() {
+    let (mut d, id, staged) = started();
+    assert!(d.choose(id, renamed()).unwrap().is_empty());
+    assert_eq!(d.snapshot().downloads[0].choice, Some(renamed()));
+    assert_eq!(
+        effects(finish(&mut d, &staged, true)),
+        [Effect::Deliver {
+            id,
+            staged,
+            to: renamed_target()
+        }]
+    );
+
+    // A `Finished` with no path, matched by its URL group.
+    let (mut d, id, staged) = started();
+    d.choose(id, renamed()).unwrap();
+    assert_eq!(
+        effects(pathless(&mut d, 7, URL, true, WINDOWS)),
+        [Effect::Deliver {
+            id,
+            staged,
+            to: renamed_target()
+        }]
     );
 }
 
@@ -377,7 +415,7 @@ fn one_url_downloading_twice_finishes_each_by_its_own_path() {
     let mut d = Downloads::default();
     let (first, first_staged) = request(&mut d, 7, "same.zip");
     let (second, second_staged) = request(&mut d, 7, "same.zip");
-    d.choose(first, oculus()).unwrap();
+    d.choose(first, drive()).unwrap();
 
     let settled = finish(&mut d, &second_staged, true);
     assert_eq!(settled.len(), 1);
@@ -447,7 +485,7 @@ fn a_streaming_playlist_is_a_row_that_was_never_staged() {
     assert_eq!(row.received, 0);
     assert!(!d.unfinished_in(7), "no end to wait for: its page can go");
     assert!(d.poll().is_none(), "nothing to measure");
-    assert!(d.choose(id, oculus()).is_err());
+    assert!(d.choose(id, drive()).is_err());
     // The cancelled download's own `Finished`: path `None`, on either engine.
     assert!(pathless(&mut d, 7, hls, false, MAC).is_empty());
     assert!(pathless(&mut d, 7, hls, false, WINDOWS).is_empty());
@@ -470,17 +508,21 @@ fn a_download_with_nowhere_to_arrive_fails_from_the_start() {
 }
 
 #[test]
-fn a_choice_needs_a_subject_or_a_full_path() {
+fn a_choice_needs_a_name_drive_takes_or_a_full_path() {
     let (mut d, id, _) = started();
-    assert!(d
-        .choose(
-            id,
-            Dest::Oculus {
-                subject_code: " ".into(),
-                target_dir: None,
-            }
-        )
-        .is_err());
+    for name in ["", "a/b.pdf", ".hidden.pdf", " notes.pdf", "Course"] {
+        let renamed = Dest::Drive {
+            target_dir: "courses/COMP30027".into(),
+            name: Some(name.into()),
+        };
+        assert!(d.choose(id, renamed).is_err(), "{name:?}");
+    }
+    assert_eq!(state(&d, id), State::Receiving);
+    assert_eq!(
+        d.snapshot().downloads[0].choice,
+        None,
+        "a refusal keeps nothing"
+    );
     assert!(d
         .choose(
             id,
@@ -489,7 +531,7 @@ fn a_choice_needs_a_subject_or_a_full_path() {
             }
         )
         .is_err());
-    assert!(d.choose(99, oculus()).is_err());
+    assert!(d.choose(99, drive()).is_err());
 }
 
 #[test]
@@ -573,7 +615,7 @@ fn the_host_and_the_logged_origin_never_carry_the_rest_of_the_url() {
 #[test]
 fn the_payload_carries_no_url_and_keeps_the_wire_names() {
     let (mut d, id, _) = started();
-    d.choose(id, oculus()).unwrap();
+    d.choose(id, drive()).unwrap();
     d.refuse(source(7, 7, URL), "master.m3u8".into(), "a playlist");
     let json = serde_json::to_value(d.snapshot()).unwrap();
     let text = json.to_string();
@@ -595,7 +637,7 @@ fn the_payload_carries_no_url_and_keeps_the_wire_names() {
     assert_eq!(row["state"], "receiving");
     assert_eq!(
         row["choice"],
-        serde_json::json!({"kind": "oculus", "subject_code": "COMP30027"})
+        serde_json::json!({"kind": "drive", "target_dir": "courses/COMP30027"})
     );
     assert_eq!(json["downloads"][1]["state"], "refused");
     for (wire, dest) in [
@@ -606,7 +648,26 @@ fn the_payload_carries_no_url_and_keeps_the_wire_names() {
             },
         ),
         (serde_json::json!({"kind": "discard"}), Dest::Discard),
+        (
+            serde_json::json!({"kind": "drive", "target_dir": ""}),
+            Dest::Drive {
+                target_dir: String::new(),
+                name: None,
+            },
+        ),
+        (
+            serde_json::json!({"kind": "drive", "target_dir": "Receipts", "name": "Lab kit.pdf"}),
+            Dest::Drive {
+                target_dir: "Receipts".into(),
+                name: Some("Lab kit.pdf".into()),
+            },
+        ),
     ] {
         assert_eq!(serde_json::from_value::<Dest>(wire).unwrap(), dest);
     }
+    let old = serde_json::json!({"kind": "oculus", "subject_code": "COMP30027"});
+    assert!(
+        serde_json::from_value::<Dest>(old).is_err(),
+        "the subject-only shape is gone"
+    );
 }

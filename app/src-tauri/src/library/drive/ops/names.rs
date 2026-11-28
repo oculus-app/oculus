@@ -4,7 +4,6 @@
 use std::path::Path;
 
 use super::error::{DriveError, DriveResult};
-use crate::library::layout;
 
 /// Longest name most filesystems take, in bytes.
 const MAX_NAME: usize = 255;
@@ -12,8 +11,9 @@ const MAX_NAME: usize = 255;
 /// Refuses a name the student may not give: empty, `.`/`..`, a dot-name
 /// (hidden, and the own-file guard refuses it), a separator, NUL, `:` (a
 /// drive or stream on Windows), a control character, a leading or trailing
-/// space, and at a subject's root a name the layout keeps (`Course`).
-pub fn check_name(name: &str, at_subject_root: bool) -> DriveResult<()> {
+/// space, and a name the layout keeps in the folder `dir` (`Course` at a
+/// subject's root, `courses` at the top level).
+pub fn check_name(name: &str, dir: &str) -> DriveResult<()> {
     let refuse = |why: &str| Err(DriveError::invalid_name(why));
     if name.is_empty() {
         return refuse("A name can't be empty");
@@ -33,7 +33,7 @@ pub fn check_name(name: &str, at_subject_root: bool) -> DriveResult<()> {
     if name.len() > MAX_NAME {
         return refuse("That name is too long");
     }
-    if at_subject_root && layout::reserved_name(name) {
+    if super::guard::keeps_name(dir, name) {
         return Err(DriveError::invalid_name(format!(
             "{name} is a name Oculus keeps for itself"
         )));
@@ -84,14 +84,20 @@ fn truncate(name: &str) -> String {
 }
 
 /// `name`, else `stem (2).ext`, `stem (3).ext`… (a folder: `name (2)`) — the
-/// first that nothing in `dir` holds, or that `ours` says already is this
-/// entry. Existence is the disk's, so a case-only clash counts on a
-/// case-insensitive volume.
+/// first that nothing in `dir` holds and no pending delete holds
+/// (`taken_by_disk`), or that `ours` says already is this entry. Existence
+/// is the disk's, so a case-only clash counts on a case-insensitive volume.
 pub fn free_name(dir: &Path, name: &str, folder: bool, ours: impl Fn(&Path) -> bool) -> String {
     free_name_where(name, folder, |candidate| {
         let path = dir.join(candidate);
-        std::fs::symlink_metadata(&path).is_err() || ours(&path)
+        !is_taken(&path) || ours(&path)
     })
+}
+
+/// True when something is at `path`, or a pending delete holds the name until
+/// its Undo is over (`delete::held`). Every Drive name chooser asks this.
+pub fn is_taken(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok() || super::delete::held(path)
 }
 
 /// The same steps, taking the first candidate `free` accepts: for a name

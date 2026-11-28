@@ -6,11 +6,12 @@
  *
  * A folder's entries move or go with it, matched by prefix at a `/`
  * boundary, so `a/b` covers `a/b/c` but not `a/bc`. A file route on a
- * deleted file falls back to the Files tab on the folder that held it; a
- * folder route on a deleted folder moves up to the folder that held it.
+ * deleted file falls back to the Files tab on the folder that held it
+ * (Drive, for a top-level file); a folder route on a deleted folder moves up
+ * to the folder that held it.
  */
-import { COURSES_DIR } from "@/lib/files/libraryLayout";
-import { filePagePath } from "@/lib/files/labels";
+import { COURSES_DIR, isTopLevelPath, TOP_LEVEL } from "@/lib/files/libraryLayout";
+import { filePagePath, fileRouteSubject } from "@/lib/files/labels";
 import { driveFolderHref, filesFolderHref, parseDriveRoute, parseFilesRoute } from "@/lib/drive/routes";
 
 export interface PathChange {
@@ -74,12 +75,11 @@ function folderRoute(rel: string, fallbackId: number | undefined, idOf: SubjectI
 export function followRoute(route: string, change: PathChange, idOf: SubjectIdOf): FollowedRoute {
   const [pathname, search = ""] = splitQuery(route);
 
-  const file = /^\/subjects\/(\d+)\/file$/.exec(pathname);
-  if (file) {
+  const subjectId = fileRouteSubject(pathname);
+  if (subjectId != null) {
     const params = new URLSearchParams(search);
     const rel = params.get("path");
     if (!rel) return SAME;
-    const subjectId = Number(file[1]);
     const next = followPath(rel, change);
     if (next.kind === "same") return SAME;
     if (next.kind === "removed") {
@@ -88,7 +88,10 @@ export function followRoute(route: string, change: PathChange, idOf: SubjectIdOf
     const from = splitSubject(rel);
     const to = splitSubject(next.path);
     const sameSubject = from && to && from.folder === to.folder;
-    const id = sameSubject ? subjectId : ((to && idOf(to.folder)) ?? subjectId);
+    // A file that left its subject for the top level, or came from it,
+    // takes the home its new path names.
+    const moved = isTopLevelPath(next.path) ? TOP_LEVEL.id : to ? idOf(to.folder) : undefined;
+    const id = sameSubject ? subjectId : (moved ?? subjectId);
     params.delete("path");
     const rest = params.toString();
     return { kind: "moved", path: filePagePath(id, next.path) + (rest ? `&${rest}` : "") };

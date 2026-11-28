@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::harness::antigravity::{AcpSession, AcpSpawn};
 use crate::harness::child::ThreadSpawn;
 use crate::harness::claude::{ClaudeSession, ClaudeSpawn};
-use crate::harness::codex::{self, CodexThreadOpts};
+use crate::harness::codex::CodexThreadOpts;
 use crate::harness::discover;
 use crate::harness::event::Bound;
 use crate::harness::opencode::{self, OpencodeSessionOpts};
@@ -33,7 +33,8 @@ pub enum SendError {
     /// The write to the provider failed, so whether it has the message is
     /// not known.
     Unknown(String),
-    /// Antigravity could not load the saved session. No prompt was sent.
+    /// The provider could not load the saved session. No prompt was sent,
+    /// so the send may start a new session and hand the conversation over.
     ResumeFailed(String),
 }
 
@@ -278,7 +279,7 @@ impl Harness {
                 let server = self.codex_server()?;
                 let topts = CodexThreadOpts {
                     cwd,
-                    writable_roots: codex::writable_roots(&self.data_dir),
+                    writes_library: true,
                     model: opts.model.clone(),
                     reasoning_effort: opts.reasoning_effort.clone(),
                     instructions: instructions(
@@ -315,7 +316,12 @@ impl Harness {
                 };
                 let ses = match resume {
                     Some(id) => {
-                        server.attach_session(id, &sopts, sink)?;
+                        server
+                            .attach_session(id, &sopts, sink)
+                            .map_err(|e| match e {
+                                opencode::AttachError::Missing(e) => SendError::ResumeFailed(e),
+                                opencode::AttachError::Failed(e) => SendError::Unsent(e),
+                            })?;
                         id.to_string()
                     }
                     None => server.start_session(&sopts, sink)?,

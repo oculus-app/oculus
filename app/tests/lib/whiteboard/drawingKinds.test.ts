@@ -14,7 +14,10 @@ describe('drawing kinds', () => {
   test('the extension names the kind anywhere in the own files, never the contents', () => {
     expect(drawingKindOfPath('courses/X/Week 3.notebook')).toBe('notebook');
     expect(drawingKindOfPath('courses/X/Exam prep/Old notebook.whiteboard')).toBe('whiteboard');
-    for (const path of ['courses/X/Course/Files/a.notebook', 'courses/X/.oculus/a.whiteboard', 'courses/X/.notebook', 'courses/X/.drafts/a.whiteboard', 'courses/X/a.md', 'notebooks/a.notebook']) {
+    // The data folder's top level is the student's too.
+    expect(drawingKindOfPath('Plans/Week 3.notebook')).toBe('notebook');
+    expect(drawingKindOfPath('board.whiteboard')).toBe('whiteboard');
+    for (const path of ['courses/X/Course/Files/a.notebook', 'courses/X/.oculus/a.whiteboard', 'courses/X/.notebook', 'courses/X/.drafts/a.whiteboard', 'courses/X/a.md', '.oculus/agents/a.notebook', 'courses/a.notebook']) {
       expect(drawingKindOfPath(path)).toBeNull();
     }
     expect(drawingKindOf({ category: 'notebook' })).toBe('notebook');

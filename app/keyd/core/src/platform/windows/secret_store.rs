@@ -7,9 +7,19 @@ pub(crate) struct Dpapi;
 impl KeySource for Dpapi {
     fn get_or_create(&self) -> Result<MasterKey, KeyError> {
         let load = || -> Result<MasterKey, String> {
-            let directory = crate::paths::data_dir();
-            std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+            let directory = crate::paths::ensure_state_dir(&crate::paths::data_dir())
+                .map_err(|e| e.to_string())?;
             let path = directory.join("master-key.dpapi");
+            // A key not yet moved under the state folder: a new one made
+            // here could never open the student's vault.
+            let unmoved = crate::paths::data_dir().join("master-key.dpapi");
+            if !path.exists() && unmoved.exists() {
+                return Err(format!(
+                    "{} has not moved into {} yet; open Oculus to finish the update",
+                    unmoved.display(),
+                    directory.display()
+                ));
+            }
             let _lock = super::files::lock(&directory.join("master-key.dpapi.lock"))
                 .map_err(|e| e.to_string())?;
             match std::fs::read(&path) {

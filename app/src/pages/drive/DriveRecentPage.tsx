@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Folder } from "@phosphor-icons/react";
 
 import { fileKindTone } from "@/components/drive/content/ItemIcon";
 import { RecencyDot } from "@/components/files/FileRecency";
@@ -15,10 +16,11 @@ import { relativeTime } from "@/lib/activity/recents";
 import { getRecentDriveFiles, type RecentDriveFile } from "@/lib/db";
 import { parentRel } from "@/lib/drive/paths";
 import { categoryIconFor } from "@/lib/files/fileTypes";
-import { courseRelOf } from "@/lib/files/libraryLayout";
+import { courseRelOf, TOP_LEVEL } from "@/lib/files/libraryLayout";
 import { FILE_ACCESSED_EVENT, filePagePath, fileTitle, openFileSmart } from "@/lib/files/openFile";
 import { displayCode, fmtSize, sqliteUtcToMs } from "@/lib/format/format";
 import { cn } from "@/lib/utils";
+import { usePendingDeleteStore, withinRemoved } from "@/stores/drive/pendingDeleteStore";
 
 const COLS = "grid grid-cols-[minmax(0,1fr)_minmax(0,220px)_120px_72px] items-center gap-3 px-5";
 const NARROW_COLS = "grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3 px-5";
@@ -29,7 +31,7 @@ const SETTLE_MS = 300;
 
 /**
  * Drive's Recent: the files the student opened, and their own files they
- * made or changed, across every subject, newest first
+ * made or changed, across every subject and the top level, newest first
  * (`getRecentDriveFiles`). A row opens its file as Drive does
  * (`openFileSmart`), beside the page.
  */
@@ -38,13 +40,19 @@ export default function DriveRecentPage() {
   const ref = useRef<HTMLDivElement>(null);
   const width = useElementWidth(ref);
   const narrow = width > 0 && width < NARROW;
-  const [files, setFiles] = useState<RecentDriveFile[] | null>(null);
+  const [loaded, setLoaded] = useState<RecentDriveFile[] | null>(null);
+  // A file in the Trash with its Undo still open is left out.
+  const removed = usePendingDeleteStore((s) => s.current?.removed);
+  const files = useMemo(
+    () => loaded?.filter((f) => !withinRemoved(f.relative_path, removed ?? [])) ?? null,
+    [loaded, removed],
+  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     getRecentDriveFiles()
       .then((rows) => {
-        setFiles(rows);
+        setLoaded(rows);
         setError(null);
       })
       .catch((e) => setError(String(e)));
@@ -107,8 +115,17 @@ function RecentRow({ file, cols, narrow }: { file: RecentDriveFile; cols: string
       </div>
       {!narrow && (
         <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <SubjectIcon code={file.subject_code} size={12} />
-          <span className="shrink-0">{displayCode(file.subject_code)}</span>
+          {file.subject_id === TOP_LEVEL.id ? (
+            <>
+              <Folder size={12} className="shrink-0" aria-hidden />
+              <span className="shrink-0">My Drive</span>
+            </>
+          ) : (
+            <>
+              <SubjectIcon code={file.subject_code} size={12} />
+              <span className="shrink-0">{displayCode(file.subject_code)}</span>
+            </>
+          )}
           {folder && <span className="min-w-0 truncate">· {folder}</span>}
         </div>
       )}

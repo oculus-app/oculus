@@ -1,6 +1,8 @@
 //! Every path shape in the library, in one place.
 //!
-//! The library is `courses/<code>/…`. Inside a subject, Oculus's sync writes
+//! The library is the data dir: `courses/<code>/…` holds the subjects, and
+//! the student owns everything else at the top whose name does not start
+//! with a dot (`Home`). Inside a subject, Oculus's sync writes
 //! `Course/` (the synced kinds, `SyncedKind`, with `home.md`, `syllabus.md`
 //! and the lecture recordings), the student owns everything beside it at any
 //! depth (`OwnKind`, by extension), and app state sits in `.oculus/`.
@@ -13,6 +15,7 @@
 mod category;
 mod derived;
 mod hidden;
+mod home;
 mod moves;
 mod own;
 mod recordings;
@@ -27,6 +30,7 @@ mod tests;
 pub use category::*;
 pub use derived::*;
 pub use hidden::*;
+pub use home::*;
 pub use moves::*;
 pub use own::*;
 pub use recordings::*;

@@ -22,7 +22,7 @@ pub use workbook::{document, sections};
 
 use std::path::Path;
 
-use crate::library::layout::{derived, derived_rel, DerivedKind};
+use crate::library::layout::{derived_at, derived_rel, DerivedKind};
 
 /// `{rel}.md`: where a spreadsheet's text lives — the Markdown its PDF
 /// route's `{rel}.pdf` would have.
@@ -39,15 +39,15 @@ fn pdf_route(rel: &str) -> String {
 /// record, images or vectors. Text derived from a PDF is not this module's,
 /// so their presence means the sheet is converted again.
 fn pdf_route_files(data_dir: &Path, rel: &str) -> bool {
-    let pdf = data_dir.join(pdf_route(rel));
-    pdf.exists()
+    let pdf = pdf_route(rel);
+    data_dir.join(&pdf).exists()
         || [
             DerivedKind::Pages,
             DerivedKind::Embeddings,
             DerivedKind::Images,
         ]
         .into_iter()
-        .any(|kind| derived(&pdf, kind).exists())
+        .any(|kind| derived_at(data_dir, &pdf, kind).exists())
 }
 
 /// True when `rel`'s text is missing or sits beside PDF-route files.

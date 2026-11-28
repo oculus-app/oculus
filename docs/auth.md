@@ -90,11 +90,14 @@ each other's writes.
 - **The address cannot change under a library.** Subject rows are keyed by
   Canvas course id, which another Canvas reuses, so a new address is refused
   while `subjects` has rows. Start over (Settings → Storage) signs out,
-  forgets the Okta credentials, leaves a `start-over` marker and restarts; the
-  next launch empties the data dir before any thread or database handle
-  exists, keeping the two cloud usage files, the downloaded models
-  (`models/`), keyd's vault, socket and `bin/`, and the lock a running keyd
-  may hold on the sign-in attempt record (`canvas-session/sign-in.json.lock`).
+  forgets the Okta credentials, leaves a `start-over` marker in the state
+  folder and restarts; the next launch empties the data dir before any thread
+  or database handle exists, the student's own folders and files at its top
+  (My Drive) included, keeping (all in `.oculus/`) the two cloud usage
+  files, the downloaded models (`models/`), keyd's vault, socket and `bin/`,
+  and the lock a running keyd may hold on the sign-in attempt record
+  (`canvas-session/sign-in.json.lock`), and beside it `.library-move/`, the
+  record of which layout the folder is in.
   The marker is written only once sign-out and forgetting the Okta
   credentials have succeeded, so a failed Start over deletes nothing. The frontend clears its library-scoped
   `localStorage` keys first and puts them back if the command fails.
@@ -451,7 +454,7 @@ rotation, and read by `forward`, `session_get` and `session_status`.
 - **A generation counter** in keyd's memory counts every put, clear and
   absorbed change (`State::session_generation`); `session_status` reports it,
   and it restarts at 0 when keyd exits idle.
-- **Keyd owns the two markers**, in `canvas-session/`: `authenticated` ("a
+- **Keyd owns the two markers**, in the state folder's `canvas-session/`: `authenticated` ("a
   session Canvas accepted is held"; the startup probe reads it) and
   `signed-out` (every automatic sign-in stands down). Every sign-in keyd runs
   sets the first and, if it was manual, lifts the second. `session_mark

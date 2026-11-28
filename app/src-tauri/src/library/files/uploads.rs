@@ -1,6 +1,7 @@
 //! Files and folders brought in from outside the library: copied into one of
-//! the student's folders (`targetDir`, else the subject's root), a folder
-//! with everything inside it. The rest of the pipeline keys off the path.
+//! the student's folders (`targetDir`, else the subject's root, or the top
+//! level for `layout::TOP_LEVEL_CODE`), a folder with everything inside it.
+//! The rest of the pipeline keys off the path.
 
 use std::path::Path;
 
@@ -31,7 +32,7 @@ impl ImportedFile {
                 .next()
                 .unwrap_or_default()
                 .to_string(),
-            category: layout::category_of(layout::within_course(&relative_path)).to_string(),
+            category: layout::category_of_path(&relative_path).to_string(),
             relative_path,
             file_type: file_type.to_string(),
             size_bytes,
@@ -48,10 +49,22 @@ pub struct ImportOutcome {
     pub source: String,
     pub file: Option<ImportedFile>,
     pub error: Option<String>,
+    /// These very bytes were already at the name, so nothing was written:
+    /// the file there is not this import's to delete.
+    pub existed: bool,
+}
+
+/// What `store_bytes` did: the file, a conversion warning, and whether the
+/// bytes were already there.
+struct Stored {
+    file: ImportedFile,
+    warning: Option<String>,
+    existed: bool,
 }
 
 /// Copy picked files and folders into `target_dir` (data-dir-relative, in
-/// the subject), or its root; one outcome per file, and one failure does not
+/// the subject or, for the top-level code, at the top level), or its root;
+/// one outcome per file, and one failure does not
 /// fail the rest. A target that is not the student's is the whole command's
 /// typed error (`DriveError`).
 #[tauri::command]
@@ -77,13 +90,9 @@ fn picked_name(src: &Path) -> String {
 
 /// Stores each of `paths` in `target`, the one way files enter the student's
 /// folders from outside (picked files and folders, Finder drops, browser
-/// downloads). Imports share name allocation, so one lock keeps simultaneous
-/// batches from choosing the same unused name while conversion runs.
+/// downloads).
 pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<ImportOutcome> {
-    static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = IMPORT_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = import_lock();
     let mut out = Vec::new();
     for src in paths {
         let source = picked_name(src);
@@ -96,17 +105,56 @@ pub fn import_into(data_dir: &Path, target: &Target, paths: &[&Path]) -> Vec<Imp
     out
 }
 
+/// `import_into` for one file, stored under `name` (a browser download the
+/// student renamed) rather than its own; a clash still steps aside as
+/// `upload_free_name` decides.
+pub fn import_file_as(data_dir: &Path, target: &Target, src: &Path, name: &str) -> ImportOutcome {
+    let read = std::fs::read(src).map_err(|e| format!("could not read it — {e}"));
+    match read {
+        Ok(bytes) => import_bytes_as(data_dir, target, name, bytes),
+        Err(e) => outcome(name.to_string(), Err(e)),
+    }
+}
+
+/// `import_into` for bytes already read, stored under `name`: a chat output
+/// the student saves (`harness::app::save_to_drive`), read through the
+/// handle its check opened so no second read can see another file.
+pub fn import_bytes_as(
+    data_dir: &Path,
+    target: &Target,
+    name: &str,
+    bytes: Vec<u8>,
+) -> ImportOutcome {
+    let _guard = import_lock();
+    outcome(name.to_string(), store_bytes(data_dir, target, name, bytes))
+}
+
+/// Imports share name allocation: one lock keeps simultaneous batches from
+/// choosing the same unused name while conversion runs.
+fn import_lock() -> std::sync::MutexGuard<'static, ()> {
+    static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    IMPORT_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 fn import_one(data_dir: &Path, target: &Target, src: &Path, source: String) -> ImportOutcome {
-    match store_upload(data_dir, target, src) {
-        Ok((file, error)) => ImportOutcome {
+    outcome(source, store_upload(data_dir, target, src))
+}
+
+fn outcome(source: String, stored: Result<Stored, String>) -> ImportOutcome {
+    match stored {
+        Ok(stored) => ImportOutcome {
             source,
-            file: Some(file),
-            error,
+            file: Some(stored.file),
+            error: stored.warning,
+            existed: stored.existed,
         },
         Err(e) => ImportOutcome {
             source,
             file: None,
             error: Some(e),
+            existed: false,
         },
     }
 }
@@ -131,6 +179,7 @@ fn import_folder(
             source: source.to_string(),
             file: None,
             error: Some(format!("could not make the folder — {e}")),
+            existed: false,
         });
         return;
     }
@@ -156,26 +205,31 @@ fn import_folder(
     }
 }
 
-/// A picked folder's name; at a subject's root never one the layout keeps.
+/// A picked folder's name; never one the layout keeps where it lands.
 fn folder_name(target: &Target, src: &Path) -> String {
     let name = entry_name(&picked_name(src));
-    if target.is_subject_root() && layout::reserved_name(&name) {
+    if target.keeps_name(&name) {
         format!("{name} (2)")
     } else {
         name
     }
 }
 
-fn store_upload(
-    data_dir: &Path,
-    target: &Target,
-    src: &Path,
-) -> Result<(ImportedFile, Option<String>), String> {
+fn store_upload(data_dir: &Path, target: &Target, src: &Path) -> Result<Stored, String> {
     let picked = src
         .file_name()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "that file has no name".to_string())?;
     let bytes = std::fs::read(src).map_err(|e| format!("could not read it — {e}"))?;
+    store_bytes(data_dir, target, picked, bytes)
+}
+
+fn store_bytes(
+    data_dir: &Path,
+    target: &Target,
+    picked: &str,
+    bytes: Vec<u8>,
+) -> Result<Stored, String> {
     let picked = legacy_drawing_name(picked, &bytes);
 
     let name = upload_free_name(data_dir, target, &upload_name(target, &picked), &bytes);
@@ -209,10 +263,11 @@ fn store_upload(
         .rsplit_once('.')
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default();
-    Ok((
-        ImportedFile::new(rel, &file_type, bytes.len() as u64),
+    Ok(Stored {
+        file: ImportedFile::new(rel, &file_type, bytes.len() as u64),
         warning,
-    ))
+        existed: unchanged,
+    })
 }
 
 /// A drawing picked under its old `.canvas` name lands as a whiteboard
@@ -236,7 +291,7 @@ fn upload_free_name(data_dir: &Path, target: &Target, name: &str, bytes: &[u8]) 
         if std::fs::read(&path).is_ok_and(|b| b == bytes) {
             return true;
         }
-        let taken = |path: &Path| std::fs::symlink_metadata(path).is_ok();
+        let taken = crate::library::drive::ops::names::is_taken;
         let rel = target.child_rel(candidate);
         !taken(&path)
             && crate::library::paths::artifact_at(
@@ -249,11 +304,11 @@ fn upload_free_name(data_dir: &Path, target: &Target, name: &str, bytes: &[u8]) 
 }
 
 /// A picked file's name in the library (`entry_name`: never a dot-name,
-/// which the own-file guard refuses, so it could never be deleted); at a
-/// subject's root never a name the layout keeps.
+/// which the own-file guard refuses, so it could never be deleted); never a
+/// name the layout keeps where it lands.
 fn upload_name(target: &Target, picked: &str) -> String {
     let name = entry_name(picked);
-    if target.is_subject_root() && layout::reserved_name(&name) {
+    if target.keeps_name(&name) {
         format!("{name} (2)")
     } else {
         name
@@ -273,6 +328,9 @@ pub(super) fn step_aside(dir: &Path, name: &str, ours: impl Fn(&[u8]) -> bool) -
         } else {
             format!("{stem}-{n}{ext}")
         };
+        if crate::library::drive::ops::delete::held(&dir.join(&candidate)) {
+            continue;
+        }
         match std::fs::read(dir.join(&candidate)) {
             Err(_) => return candidate,
             Ok(existing) if ours(&existing) => return candidate,

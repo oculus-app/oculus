@@ -1,7 +1,9 @@
 //! A recorded `agy acp` session, opened already: the replay starts at the
 //! first prompt. A request of ours other than `session/prompt` is answered
 //! with its manifest response as it is written; a prompt's reply is in the
-//! recording. `$LIBRARY` in a recorded frame is the replay's library.
+//! recording. `$LIBRARY` in a recorded frame is the replay's library, and
+//! `$LIBRARY/agents`, the chat's folder when the recordings were made, is
+//! the chat's folder now (`agents::agents_dir`).
 
 use std::path::Path;
 use std::sync::{Arc, Weak};
@@ -19,7 +21,13 @@ use super::session::AcpSession;
 /// `frame` with `$LIBRARY` in its strings replaced by `root`.
 pub(in crate::harness) fn place(frame: &Value, root: &Path) -> Value {
     match frame {
-        Value::String(s) => Value::String(s.replace("$LIBRARY", &root.display().to_string())),
+        Value::String(s) => Value::String(
+            s.replace(
+                "$LIBRARY/agents",
+                &crate::agents::agents_dir(root).display().to_string(),
+            )
+            .replace("$LIBRARY", &root.display().to_string()),
+        ),
         Value::Array(a) => a.iter().map(|v| place(v, root)).collect(),
         Value::Object(o) => o.iter().map(|(k, v)| (k.clone(), place(v, root))).collect(),
         v => v.clone(),
@@ -38,7 +46,7 @@ pub(in crate::harness) fn session(
     let first_id = outbound.next_rpc_id().unwrap_or(1);
     let base = ThreadSpawn {
         bin: "agy".into(),
-        cwd: root.join("agents"),
+        cwd: crate::agents::agents_dir(root),
         library: root.to_path_buf(),
         resume: Some(native_session.to_string()),
         model: None,
@@ -116,6 +124,7 @@ fn open_session_with_options(
 ) -> Result<Arc<AcpSession>, super::OpenError> {
     let base = ThreadSpawn {
         bin: "agy".into(),
+        // The recordings' manifests name the old folder in `session/new`.
         cwd: root.join("agents"),
         library: root.into(),
         resume: resume.map(String::from),

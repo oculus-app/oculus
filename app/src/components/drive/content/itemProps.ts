@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from "react";
-import type { DriveItem } from "@/lib/drive/items";
+import { isFixedFolder, type DriveItem } from "@/lib/drive/items";
 import type { DriveView } from "../DriveContext";
 
 /** How a card or row stands relative to the drag in progress. */
@@ -26,7 +26,7 @@ export function itemProps(item: DriveItem, view: DriveView): HTMLAttributes<HTML
     "data-drive-item": item.key,
     "data-drop-rel": item.type === "folder" ? item.key : undefined,
     "data-drop-writable": item.type === "folder" ? String(item.entry.writable) : undefined,
-    draggable: item.type !== "recording" && !(item.type === "folder" && item.subject) && !renaming,
+    draggable: item.type !== "recording" && !isFixedFolder(item) && !renaming,
     onClick: (e) => view.click(item, e),
     onDoubleClick: () => view.open(item),
     onContextMenu: (e) => {

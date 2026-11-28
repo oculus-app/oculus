@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { getDb } from "@/lib/db";
-import { PDF_BACKED_SQL_LIST } from "@/lib/files/fileTypes";
+import { UNPARSED_FILES_SQL } from "@/lib/db/pipeline";
 import { useParseStore } from "@/stores/sync/parseStore";
 import { usePipelineStore } from "@/stores/sync/pipelineStore";
 import { parseFile } from "@/lib/files/courseFiles";
@@ -8,9 +8,9 @@ import { parseFile } from "@/lib/files/courseFiles";
 /**
  * Background parse sweep: the recovery path for files that missed their parse
  * (app closed mid-queue, a parse died, a sync ran while parsing was down).
- * Periodically re-requests a few PDF-backed files in selected subjects that
- * are not at `quality` (the DB's name for a finished parse) and that the user
- * has not skipped; Rust skips what already exists.
+ * Periodically re-requests a few PDF-backed files in selected subjects and
+ * at the top level that are not at `quality` (the DB's name for a finished
+ * parse) and that the user has not skipped; Rust skips what already exists.
  *
  * A parse is never free — a metered cloud call, or minutes of this machine's
  * CPU on a local MinerU — and nothing catches a failure (docs/parsing.md), so two
@@ -51,14 +51,7 @@ async function sweep(): Promise<void> {
   const db = await getDb();
   const rows = await db.select<
     { subject_id: number; relative_path: string; code: string }[]
-  >(
-    `SELECT f.subject_id, f.relative_path, s.code
-     FROM files f JOIN subjects s ON s.id = f.subject_id
-     WHERE s.selected = 1
-       AND lower(f.file_type) IN ${PDF_BACKED_SQL_LIST}
-       AND (f.parse_status IS NULL OR f.parse_status NOT IN ('quality', 'skipped'))
-     ORDER BY f.scraped_at DESC`,
-  );
+  >(UNPARSED_FILES_SQL);
   if (rows.length === 0) return;
 
   const outstanding = rows.filter((r) => {

@@ -38,6 +38,8 @@ export async function upsertSubjects(courses: CanvasCourseRaw[]): Promise<void> 
   }
 }
 
+/** Every subject. The reserved row top-level Drive files hang off
+ *  (`TOP_LEVEL` in `@/lib/drive/topLevel`) is never one of them. */
 export async function getSubjects(): Promise<Subject[]> {
   const db = await getDb();
   // `last_synced_at` is derived: the latest completed run that targeted the subject.
@@ -50,6 +52,7 @@ export async function getSubjects(): Promise<Subject[]> {
      )
      SELECT s.*, ls.finished_at AS last_synced_at
      FROM subjects s LEFT JOIN last_sync ls ON ls.code = s.code
+     WHERE s.kind = 'subject'
      ORDER BY s.term_sort IS NULL, s.term_sort DESC, s.name ASC`
   );
 

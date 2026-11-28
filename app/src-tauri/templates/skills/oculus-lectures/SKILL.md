@@ -34,7 +34,7 @@ If the subject is not known yet, `oculus list -l` with no code lists them all.
 
 ## 2. Read `outline.md`, not the `.vtt`
 
-From the chat's working directory the folder is `../` and that path:
+From the chat's working directory the folder is `../../` and that path:
 
 ```
 outline.md      the transcript and the slide changes merged, in play order
@@ -66,7 +66,7 @@ loading the whole recording into context.
 Find the span, then read it:
 
 ```bash
-grep -n "superposition" ../courses/MULT20015_2026_SM2/Course/Recordings/2026-09-08-mo-l105/outline.md
+grep -n "superposition" ../../courses/MULT20015_2026_SM2/Course/Recordings/2026-09-08-mo-l105/outline.md
 ```
 
 ```
@@ -78,7 +78,7 @@ own first column, which is **seconds** into the recording (`725`). `sed -n`
 takes line numbers, so read around `412`, not `725`:
 
 ```bash
-sed -n '390,450p' ../courses/MULT20015_2026_SM2/Course/Recordings/2026-09-08-mo-l105/outline.md
+sed -n '390,450p' ../../courses/MULT20015_2026_SM2/Course/Recordings/2026-09-08-mo-l105/outline.md
 ```
 
 Two calls, each a single command. Widen with a second `sed -n` rather than

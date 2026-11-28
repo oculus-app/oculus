@@ -57,6 +57,7 @@ export function DownloadsButton({ className }: { className: string }) {
       <PopoverContent
         align="end"
         className="flex w-80 flex-col p-0"
+        data-undo-delete
         onCloseAutoFocus={(e) => {
           if (asking.current) e.preventDefault();
           asking.current = false;

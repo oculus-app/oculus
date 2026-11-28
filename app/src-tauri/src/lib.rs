@@ -33,12 +33,11 @@ pub fn bind_layers() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     bind_layers();
-    // Before anything opens a file in the data dir (`storage::storage_start_over`).
-    library::storage::finish_start_over(&library::paths::data_dir());
-    // An old library moves into the Drive tree before any window, job or
-    // watcher can touch it (docs/library-move.md); a failure is said in
+    // Before anything opens a file in the data dir: the app's own files move
+    // into the state folder, Start over finishes, and an old library moves
+    // into the Drive tree (docs/library-move.md). A failure is said in
     // `setup` and the app closes.
-    let library_move = library::migrate::at_startup(&library::paths::data_dir());
+    let library_move = library::at_launch(&library::paths::data_dir());
     if let Err(e) = &library_move {
         elog!("[oculus] library move failed: {e}");
     }
@@ -78,6 +77,8 @@ pub fn run() {
             // Give the parse and embed seams a window to emit progress to;
             // headless (CLI) runs never bind, so their emits are no-ops.
             parse::events::bind(app.handle().clone());
+            // A delete's Undo toast hears when the delete is final.
+            library::drive::ops::delete::bind(app.handle().clone());
             embed::events::bind(app.handle().clone());
 
             // WebKit won't play <video> from the asset protocol (see lectures/media.rs).
@@ -145,7 +146,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_sql::Builder::new()
-                .add_migrations("sqlite:oculus.db", db::migrations::all())
+                .add_migrations(library::paths::DB_URL, db::migrations::all())
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
@@ -188,8 +189,9 @@ pub fn run() {
             library::drive::ops::commands::create_folder,
             library::drive::ops::commands::rename_entry,
             library::drive::ops::commands::move_entries,
-            library::drive::ops::commands::delete_entries,
-            library::drive::ops::commands::delete_preview,
+            library::drive::ops::delete::commands::delete_entries,
+            library::drive::ops::delete::commands::drive_delete_finish,
+            library::drive::ops::delete::commands::drive_delete_undo,
             library::drive::ops::commands::copy_to_own,
             library::drive::ops::reconcile::reconcile_own_files,
             sync::scrape::parse_prioritise,
@@ -198,6 +200,8 @@ pub fn run() {
             library::files::commands::open_course_file,
             library::files::commands::scan_parsed_files,
             library::files::uploads::import_uploads,
+            harness::app::save_to_drive::drive_savable,
+            harness::app::save_to_drive::drive_save_copy,
             library::files::whiteboards::export::export_whiteboard_image,
             library::files::whiteboards::imports::whiteboard_open_library_pdf,
             library::files::whiteboards::images::whiteboard_read_dropped_image,
@@ -291,6 +295,7 @@ pub fn run() {
             studio::commands::pronunciations::studio_pronunciation_wrong,
             studio::commands::pronunciations::studio_pronunciation_sample,
             studio::commands::render::studio_render,
+            studio::commands::render::studio_export_suggestion,
             studio::commands::render::studio_render_cancel,
             studio::commands::render::studio_exports,
             studio::commands::videos::studio_set_captions,
@@ -448,6 +453,8 @@ pub fn run() {
                 companion::commands::shutdown(app_handle);
                 transcribe::cleanup::commands::shutdown();
                 library::files::whiteboards::authority::global().close_all();
+                // A delete whose Undo toast was still up is final.
+                library::drive::ops::delete::commands::finish_all_at_exit();
             }
         });
 }

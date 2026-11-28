@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isPendingDelete } from "@/stores/drive/pendingDeleteStore";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import { base64, IMAGE_EXTENSIONS } from "@/lib/harness/attachments";
@@ -120,7 +121,7 @@ export async function renameDocument(file: DbFile, title: string): Promise<strin
 
 /**
  * Write a pasted picture beside the note, returning `.assets/<stamp>.png`
- * relative to it. Beside the note, not in `agents/attachments/`, so the
+ * relative to it. Beside the note, not in `.oculus/agents/attachments/`, so the
  * relative link resolves for anything handed the folder. Written on arrival,
  * since a link cannot point at a file not yet written.
  */
@@ -182,7 +183,8 @@ export async function reconcileDocuments(
     }
   }
   for (const row of byPath.values()) {
-    if (seen.has(row.relative_path)) continue;
+    // A note in the Trash with its Undo still open keeps its row.
+    if (seen.has(row.relative_path) || isPendingDelete(row.relative_path)) continue;
     await deleteFileRow(row.id);
     changed = true;
   }

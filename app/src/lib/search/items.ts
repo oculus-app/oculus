@@ -25,6 +25,7 @@ import { categoryIconFor, isLessonAsset, isPipelineFile } from "@/lib/files/file
 import { displayCode, displayName } from "@/lib/format/format";
 import { fmtLectureDate, lecturePagePath } from "@/lib/lectures";
 import { filePagePath, fileTitle } from "@/lib/files/openFile";
+import { DRIVE_RECENT_HREF } from "@/lib/drive/routes";
 import { FILTER_KEYS, filterId, kindOf, type SearchFilter } from "./filters";
 import type { IconSpec, SearchItem, SnippetPart } from "./types";
 
@@ -33,7 +34,7 @@ export const PLACES: { label: string; path: string; icon: PhosphorIcon }[] = [
   { label: "Chat", path: "/chat", icon: Chat },
   { label: "Calendar", path: "/calendar", icon: CalendarBlank },
   { label: "Drive", path: "/drive", icon: Folder },
-  { label: "Drive · Recent", path: "/drive/recent", icon: Folder },
+  { label: "Drive · Recent", path: DRIVE_RECENT_HREF, icon: Folder },
   { label: "Projects", path: "/projects", icon: Kanban },
   { label: "Tasks", path: "/tasks", icon: ListChecks },
   { label: "Sync", path: "/sync", icon: ArrowsClockwise },

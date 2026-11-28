@@ -10,9 +10,9 @@ use crate::library::paths::{notebook_pages_dir, read_notebook_pages};
 
 const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
 
-/// One folder of the library, data-dir-relative (`""` is the Drive root, the
-/// subjects). `recursive` lists everything below it, flat: the browser's
-/// filtered and searched view.
+/// One folder of the library, data-dir-relative (`""` is the top level).
+/// `recursive` lists everything below it, flat: the browser's filtered and
+/// searched view.
 #[tauri::command]
 pub async fn list_folder(rel: String, recursive: Option<bool>) -> Result<FolderListing, String> {
     let data_dir = crate::library::paths::data_dir();
@@ -30,7 +30,7 @@ pub async fn list_folder(rel: String, recursive: Option<bool>) -> Result<FolderL
 /// is still right about everything else, so a database error is logged, not
 /// returned.
 async fn recordings_for(data_dir: &Path, rel: &str) -> Vec<Recording> {
-    let probe = format!("{rel}/x");
+    let probe = layout::child_rel(rel, "x");
     let Some((folder, _)) = layout::split_course(&probe) else {
         return Vec::new();
     };

@@ -71,6 +71,15 @@ pub(super) struct SessionState {
     pub(super) awaiting_step: Option<Instant>,
 }
 
+/// Why a saved session was not taken up.
+#[derive(Debug)]
+pub enum AttachError {
+    /// opencode has no such session to load.
+    Missing(String),
+    /// Anything else: the server could not be asked, or answered badly.
+    Failed(String),
+}
+
 impl OpencodeServer {
     pub(super) fn route(&self, session: &str, route: SessionRoute) {
         self.routes
@@ -120,16 +129,23 @@ impl OpencodeServer {
     }
 
     /// Take up a session from an earlier run. The brief is already in its
-    /// history; the model asked for wins over the stored one.
+    /// history; the model asked for wins over the stored one. A session
+    /// opencode does not have for this folder (its store keeps each one's
+    /// folder) is `AttachError::Missing`: nothing was sent, and the caller
+    /// may start a new one.
     pub fn attach_session(
         &self,
         session: &str,
         opts: &OpencodeSessionOpts,
         sink: Sink,
-    ) -> Result<(), String> {
-        let d = self.get(&format!("/session/{session}?{}", self.directory_query()))?;
+    ) -> Result<(), AttachError> {
+        let missing = || AttachError::Missing(format!("opencode has no session {session}"));
+        let d = self
+            .get_found(&format!("/session/{session}?{}", self.directory_query()))
+            .map_err(AttachError::Failed)?
+            .ok_or_else(missing)?;
         if d["id"].as_str() != Some(session) {
-            return Err(format!("opencode has no session {session}"));
+            return Err(missing());
         }
         let stored = d["model"]["providerID"]
             .as_str()

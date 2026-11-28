@@ -60,9 +60,8 @@ impl Ctx {
                 "created": docs.created,
                 "refreshed": docs.refreshed,
                 "diverged": docs.diverged,
-                "linked": links.linked,
-                "already_linked": links.current,
-                "skipped": links.skipped,
+                "old_links_removed": links.linked,
+                "course_folders_current": links.current,
                 "memories_indexed": indexed,
             }))
         } else {
@@ -82,16 +81,10 @@ impl Ctx {
             println!("{indexed} memories indexed");
             let n = links.linked.len();
             println!(
-                "{n} course folder{} linked ({} already current)",
+                "{} course folders' memories linked ({n} old AGENTS.md link{} removed)",
+                links.current + n,
                 if n == 1 { "" } else { "s" },
-                links.current
             );
-            for path in &links.skipped {
-                eprintln!(
-                    "{} {path}/AGENTS.md is a real file, left alone",
-                    paint("warning:", YELLOW)
-                );
-            }
             Ok(())
         }
     }

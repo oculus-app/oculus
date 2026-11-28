@@ -2,8 +2,8 @@
 //! live is one function's decision. The parsed text and its pictures sit
 //! beside the PDF, named off its stem, so the Markdown's image links stay
 //! relative to it; the parse record and the page vectors are machine records
-//! kept in the subject's hidden `.oculus/derived/`, under the PDF's own
-//! folder path.
+//! kept in the hidden `.oculus/derived/` of the PDF's home (its subject, or
+//! the data dir for a top-level file), under the PDF's own folder path.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -31,9 +31,17 @@ impl DerivedKind {
 
 /// Where `kind` lives for the PDF at `pdf` (absolute, or data-dir-relative).
 /// A spreadsheet's text is `<name>.md`, the Markdown of its `<name>.pdf`. A
-/// PDF outside any subject keeps every artifact beside it.
+/// PDF outside the library (under a dot-name, loose in `courses/`, or outside
+/// the data dir) keeps every artifact beside it.
 pub fn derived(pdf: &Path, kind: DerivedKind) -> PathBuf {
     CURRENT.derived(pdf, kind)
+}
+
+/// `derived` for the data-dir-relative `pdf_rel`, on disk under `data_dir`:
+/// the spelling a caller holding both uses, since an absolute path is only
+/// read against the app's own data dir.
+pub fn derived_at(data_dir: &Path, pdf_rel: &str, kind: DerivedKind) -> PathBuf {
+    data_dir.join(derived(Path::new(pdf_rel), kind))
 }
 
 impl Shape {
@@ -55,7 +63,12 @@ impl Shape {
         else {
             return beside;
         };
-        let (Some((root, folder)), Some(name)) = (subject_split(pdf), beside.file_name()) else {
+        let home = if self.top_level_own {
+            home_split(pdf)
+        } else {
+            subject_split(pdf)
+        };
+        let (Some((root, folder)), Some(name)) = (home, beside.file_name()) else {
             return beside;
         };
         root.join(hidden).join(folder).join(name)
@@ -65,6 +78,35 @@ impl Shape {
 /// `derived` for a data-dir-relative path, with `/` separators.
 pub fn derived_rel(pdf_rel: &str, kind: DerivedKind) -> String {
     crate::library::paths::slash_path(derived(Path::new(pdf_rel), kind))
+}
+
+/// The home `path` is in (a subject's folder, or the data dir for a
+/// top-level file) and the folder inside it that holds `path`. An absolute
+/// path is read against the data dir; outside it (a test's scratch library)
+/// only a subject can be told, by the first `courses/<code>/` in the path.
+fn home_split(path: &Path) -> Option<(PathBuf, PathBuf)> {
+    if !path.is_absolute() {
+        return rel_split(path);
+    }
+    let data_dir = crate::library::paths::data_dir();
+    match path.strip_prefix(&data_dir) {
+        Ok(rel) => rel_split(rel).map(|(root, folder)| (data_dir.join(root), folder)),
+        Err(_) => subject_split(path),
+    }
+}
+
+/// `home_split` for a data-dir-relative path; the top level's root is `""`.
+fn rel_split(rel: &Path) -> Option<(PathBuf, PathBuf)> {
+    let first = rel.components().next()?;
+    if is_courses(&first) {
+        return split_at_courses(rel, 0);
+    }
+    let visible =
+        |c: Component| matches!(c, Component::Normal(n) if !n.to_string_lossy().starts_with('.'));
+    if !visible(first) || !rel.components().all(|c| matches!(c, Component::Normal(_))) {
+        return None;
+    }
+    Some((PathBuf::new(), rel.parent()?.to_path_buf()))
 }
 
 /// The subject folder `path` is in, and the folder inside it that holds
@@ -112,8 +154,7 @@ pub fn is_derived_text(data_dir: &Path, md_rel: &str) -> bool {
     if crate::library::paths::is_sheet(stem) && data_dir.join(stem).is_file() {
         return true;
     }
-    [".pdf", ".PDF"].iter().any(|ext| {
-        let pdf = data_dir.join(format!("{stem}{ext}"));
-        derived(&pdf, DerivedKind::Pages).is_file()
-    })
+    [".pdf", ".PDF"]
+        .iter()
+        .any(|ext| derived_at(data_dir, &format!("{stem}{ext}"), DerivedKind::Pages).is_file())
 }

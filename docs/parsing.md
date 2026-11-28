@@ -202,8 +202,10 @@ assume the cloud. Where each artifact lives is `library::layout::derived`'s
   retrieval rests on** ([retrieval.md](./retrieval.md)). `blocks` is below.
   It is a machine record, so it sits in the subject's hidden
   `.oculus/derived/`, at the PDF's own folder path
-  (`courses/<code>/.oculus/derived/Course/Files/<stem>.pages.json`); a PDF
-  outside any subject keeps it beside itself.
+  (`courses/<code>/.oculus/derived/Course/Files/<stem>.pages.json`); a
+  top-level PDF's sits in the data folder's own
+  (`.oculus/derived/Videos/<stem>.pages.json`), and a PDF under a dot-name
+  keeps it beside itself.
 - `<stem>_images/` — beside the PDF; its *name* is the link prefix written
   into the markdown, so both are computed in `parse/record.rs`, never by a
   backend.

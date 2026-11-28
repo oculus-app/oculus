@@ -47,7 +47,7 @@ pub(in crate::harness) fn bridge(outbound: Outbound, sink: Sink, id: &str, root:
     );
     let opts = Arc::new(CodexThreadOpts {
         cwd: root.join("agents"),
-        writable_roots: Vec::new(),
+        writes_library: false,
         model,
         reasoning_effort: None,
         instructions: String::new(),

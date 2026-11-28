@@ -1,7 +1,8 @@
 //! Desktop recovery records are separate from the saved whiteboard, keyed by file ID.
 use std::path::{Path, PathBuf};
 
-/// The folder, data-dir-relative, that holds one `<file id>.json` per draft.
+/// The folder, inside the state folder, that holds one `<file id>.json` per
+/// draft.
 pub(crate) const DIR: &str = "recovery/whiteboards";
 
 fn path_at(root: &Path, file_id: i64, create: bool) -> Result<Option<PathBuf>, String> {
@@ -9,7 +10,7 @@ fn path_at(root: &Path, file_id: i64, create: bool) -> Result<Option<PathBuf>, S
         return Err("Invalid drawing file ID".into());
     }
     let mut path = root.to_path_buf();
-    for part in DIR.split('/') {
+    for part in crate::library::paths::state_rel(DIR).split('/') {
         path.push(part);
         match std::fs::symlink_metadata(&path) {
             Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
@@ -114,7 +115,12 @@ mod tests {
     fn recovery_paths_refuse_symlinks() {
         let root = Scratch::new("whiteboard-draft-scope");
         let outside = Scratch::new("whiteboard-draft-outside");
-        std::os::unix::fs::symlink(&*outside, root.join("recovery")).unwrap();
+        std::fs::create_dir_all(crate::library::paths::state_dir(&root)).unwrap();
+        std::os::unix::fs::symlink(
+            &*outside,
+            crate::library::paths::state_dir(&root).join("recovery"),
+        )
+        .unwrap();
         assert!(write_at(&root, 1, "draft").is_err());
         assert!(read_at(&root, 1).is_err());
         assert!(remove_at(&root, 1).is_err());

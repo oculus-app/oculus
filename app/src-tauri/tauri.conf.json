@@ -31,10 +31,12 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$APPDATA/courses/**",
-            "$APPDATA/agents/**",
-            "$APPDATA/whiteboard-pages/**",
-            "$APPDATA/studio/videos/**"
+            "$APPDATA/[!.]*",
+            "$APPDATA/[!.]*/**",
+            "$APPDATA/.assets/**",
+            "$APPDATA/.oculus/agents/**",
+            "$APPDATA/.oculus/whiteboard-pages/**",
+            "$APPDATA/.oculus/studio/videos/**"
           ],
           "requireLiteralLeadingDot": false
         }

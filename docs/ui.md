@@ -18,6 +18,7 @@ Read this before any UI work.
 | Persisted view state and collapsed groups | `app/src/hooks/ui/useStoredState.ts` |
 | Subject page width, loading rows and empty views | `app/src/components/subjects/SubjectPage.tsx`, `app/src/components/ui/layout/PageParts.tsx` |
 | Page headers, titles and breadcrumb parent popovers | `app/src/components/tabs/PaneHeader.tsx` (`PageHeader`, `PaneTitle`, `PaneTrail`), `app/src/components/ui/Breadcrumb.tsx` |
+| A path on one line that glides when it doesn't fit | `app/src/components/ui/Trail.tsx`, `app/src/hooks/ui/useTrailGlide.ts`, `app/src/lib/ui/trailGlide.ts` |
 | Page navigation and its responsive shell | `app/src/components/ui/layout/SideNav.tsx`, `app/src/components/ui/layout/SideNavShell.tsx`, `app/src/hooks/ui/useSideNavPanel.ts` |
 | Settings pane layout and stacking rows | `app/src/styles/settings.css`, `app/src/layouts/SettingsLayout.tsx`, `app/src/components/settings/SettingsNav.tsx` |
 | Drag gestures | `app/src/hooks/gestures/usePointerDrag.ts`, `app/src/hooks/gestures/useCardDrag.ts`, `app/src/hooks/gestures/useFileDrop.ts` |
@@ -452,6 +453,21 @@ themes are opt-in and keep the same structure.
   skip style writes. Set `--scroll-fade` for a ramp other than 24px, and keep
   the scroller flush against what it sits on — padding between them leaves a
   visible gap under the fade.
+- **A path that must stay on one line is a `Trail`**
+  (`app/src/components/ui/Trail.tsx`): crumbs (a `label`, an optional `icon`,
+  an optional `onClick` that makes the crumb a button) between `CaretRight`s,
+  never wrapped and never folded into a "…". One that doesn't fit is a
+  sideways scroller with no scrollbar, resting on its end so the place it
+  leads to is in view, the cut edge faded by `useScrollFade`.
+  `useTrailGlide` glides it to its start while the pointer is over it and
+  back on leave: 700 ms across the whole overflow whatever the path's
+  length, and the same share of that from part-way. A crumb focused from the
+  keyboard is glided into view, so a clipped button can be reached, and a
+  sideways wheel stops the glide and scrolls. Under reduced motion nothing
+  glides: the trail scrolls, jumps to a focused crumb and returns to its end
+  at rest. The text size is the caller's `className`; `quiet` leaves the last
+  crumb in the line's colour and weight, and `data-current` marks it. The
+  header's `Breadcrumb` is the other shape: it folds parents into a popover.
 - **Tables are full-bleed in `GridTable`**, header outside the scroller (or the
   bar runs down it). Alternate views are sibling `ViewTabs`/`PillTabs`, not a
   dropdown, over a fixed-height toolbar so switching never jolts the rows.
@@ -529,7 +545,18 @@ themes are opt-in and keep the same structure.
 - **Toasts are allowed for short notices that need nothing back**: top
   centre, dismissed by themselves after a few seconds (paused while hovered),
   with a × ringed by the countdown. A failure or anything that asks for a decision stays inline where
-  it happened. **No bottom progress bars** — background jobs surface in the
+  it happened. The one toast with an action is the delete's: "Moved to
+  Trash" with **Undo** (and ⌘Z where the delete was made), in place of an
+  "are you sure" dialog, since the delete only becomes final when the toast
+  closes. It never stays past 30 s however long it is hovered, a failed
+  Undo says why inside it, and it closes when Rust makes the delete final
+  another way
+  ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)).
+  The one failure not said inline, the owner's choice: a failed **Save to
+  Drive…** in chat leaves the offer as it was, with the reason only in its
+  tooltip, on a control some rows show only on hover, since saving is only
+  ever an option ([harness.md](./harness.md#saving-a-chat-output-to-drive)).
+  **No bottom progress bars** — background jobs surface in the
   sidebar, as a dot on their rail item (brand and pulsing while work runs)
   ([shell.md](./shell.md#the-sidebar-is-an-icon-rail)); browser downloads use
   their [toolbar list and Save dialog](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive).
@@ -542,8 +569,8 @@ themes are opt-in and keep the same structure.
   the top centre, below the tab strip and the page's 48px header row, so it
   never moves layout or covers a title: a
   `popover` card with a hairline border, `rounded-xl` and `shadow-lg`, 21rem
-  wide at most unless the caller's `className` reshapes it (Groq's is a
-  content-wide pill). It springs in and out from its top edge
+  wide at most unless the caller's `className` reshapes it (Groq's and the
+  delete's `DeleteToast` are content-wide pills). It springs in and out from its top edge
   (`popup-motion`, below), is `role="status"` with `aria-live="polite"`, closes
   after 6 s with the timer paused while hovered or focused, on Escape or
   its `ToastClose`, and only the newest stays open. `ToastClose` is the ×
@@ -599,6 +626,15 @@ glyph; subject and project crumbs retain their custom identity icons.
   `webkitUserSelect`. The `select-*` utilities already emit both.
 - **Page zoom, never CSS `zoom`** — in a CSS-zoomed subtree WebKit mixes visual
   pointer coords with layout rects, breaking popups and drags.
+- **`cqw` in a registered custom property is wrong under page zoom** —
+  WKWebView resolves it to zoom times its size inside an `@property`
+  `<length-percentage>`, so a `transform` built from it lands short: in a
+  260px box a strip moved by `calc(100% - 100cqw)` had its end cut off by 39px
+  at zoom 1.15 and 78px at 1.3. Position a clipped strip by scrolling it, in
+  the scroller's own numbers (`scrollLeft`, `scrollWidth`, `offsetLeft`), as
+  `Trail` does. A scroll offset is a whole pixel and zoomed content is not:
+  reach the end by writing `scrollWidth` and letting the engine clamp, and
+  leave a pixel of padding after the last item.
 - **No native colour inputs** — `<input type="color">` opens the OS panel
   and has no alpha; use `ColorField` (`app/src/components/ui/color/`), whose
   pad and strips measure the pointer as a fraction of their own box, so page

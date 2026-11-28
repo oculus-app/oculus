@@ -9,7 +9,7 @@ use std::time::UNIX_EPOCH;
 use super::entries::{zone_name, FileEntry, FolderEntry, FolderListing, RecordingEntry};
 use super::recordings::Recording;
 use crate::library::layout::{self, Zone};
-use crate::library::paths::{doc_pdf_rel, parse_artifacts, slash_path};
+use crate::library::paths::{doc_pdf_rel, parse_artifacts};
 
 /// A recursive listing stops this many folders down.
 const MAX_DEPTH: usize = 32;
@@ -18,41 +18,22 @@ const MAX_DEPTH: usize = 32;
 /// would be the student's own.
 const PROBE: &str = "probe";
 
-/// `rel`'s contents: the Drive root (`""`, whose folders are the subjects),
-/// a subject's folder or any folder inside one. `recursive` lists every
-/// folder and file below it instead, flat, with no recordings (at the root,
-/// every subject's). Refuses a
-/// path outside the subjects, in hidden app state, under a dot-name or
-/// through a symlink.
+/// `rel`'s contents: the top level (`""`: the folder of subjects first, then
+/// the student's own folders and files), the folder of subjects (the subject
+/// folders alone), a subject's folder or any folder of the library.
+/// `recursive` lists every folder and file below it instead, flat, with no
+/// recordings. Refuses a path under a dot-name (app state) or through a
+/// symlink.
 pub fn list_folder_at(
     data_dir: &Path,
     rel: &str,
     recursive: bool,
     recordings: &[Recording],
 ) -> Result<FolderListing, String> {
-    if rel.is_empty() {
-        let mut listing = root_listing(data_dir);
-        if recursive {
-            let subjects: Vec<String> = listing
-                .folders
-                .iter()
-                .map(|f| f.relative_path.clone())
-                .collect();
-            for subject in subjects {
-                walk(data_dir, &subject, 0, &mut listing);
-            }
-            listing
-                .folders
-                .sort_by(|a, b| natural_cmp(&a.name, &b.name));
-            listing.files.sort_by(|a, b| natural_cmp(&a.name, &b.name));
-        }
-        return Ok(listing);
-    }
     check_folder(data_dir, rel)?;
-    let zone = layout::zone_of(rel);
     let mut listing = FolderListing {
         rel: rel.to_string(),
-        zone: zone_name(zone),
+        zone: zone_name(folder_zone(rel)),
         writable: writable(rel),
         folders: Vec::new(),
         files: Vec::new(),
@@ -84,45 +65,43 @@ pub fn list_folder_at(
             .collect();
         listing.recordings.sort_by(|a, b| a.date.cmp(&b.date));
     }
-    listing
-        .folders
-        .sort_by(|a, b| natural_cmp(&a.name, &b.name));
+    listing.folders.sort_by(|a, b| {
+        let subjects = |f: &FolderEntry| !is_subjects_folder(&f.relative_path);
+        subjects(a)
+            .cmp(&subjects(b))
+            .then_with(|| natural_cmp(&a.name, &b.name))
+    });
     listing.files.sort_by(|a, b| natural_cmp(&a.name, &b.name));
     Ok(listing)
 }
 
-/// The folder holding every subject, data-dir-relative.
-fn subjects_rel() -> String {
-    slash_path(layout::courses_dir(Path::new("")))
+/// The folder holding every subject, which lists first at the top level and
+/// shows its subject folders alone: a loose file there belongs to no subject.
+fn is_subjects_folder(rel: &str) -> bool {
+    rel.eq_ignore_ascii_case(layout::COURSES_DIR)
 }
 
-/// Every subject folder; loose files beside them belong to no subject.
-fn root_listing(data_dir: &Path) -> FolderListing {
-    let mut listing = FolderListing {
-        rel: String::new(),
-        zone: zone_name(Zone::Synced),
-        writable: false,
-        folders: Vec::new(),
-        files: Vec::new(),
-        recordings: Vec::new(),
-    };
-    for child in visible_children(data_dir, &subjects_rel()) {
-        if child.dir {
-            push_child(data_dir, child, &mut listing, true);
-        }
+/// The zone a listing of `rel` reports; the top level is the student's.
+fn folder_zone(rel: &str) -> Zone {
+    if rel.is_empty() {
+        Zone::Own
+    } else {
+        layout::zone_of(rel)
     }
-    listing
-        .folders
-        .sort_by(|a, b| natural_cmp(&a.name, &b.name));
-    listing
 }
 
-/// A subject's folder or a folder inside one, with no dot-name on the way,
-/// in a zone the student sees, and no symlink leading out of the data dir.
+/// The top level or a folder below it, with no dot-name on the way, in a
+/// zone the student sees, and no symlink leading out of the data dir.
 fn check_folder(data_dir: &Path, rel: &str) -> Result<(), String> {
     let refuse = || format!("{rel} is not a folder Drive shows");
-    if layout::split_course(&format!("{rel}/{PROBE}")).is_none()
-        || rel.split('/').any(|part| part.starts_with('.'))
+    if rel.is_empty() {
+        return if data_dir.is_dir() {
+            Ok(())
+        } else {
+            Err("the library folder is missing".into())
+        };
+    }
+    if rel.split('/').any(|part| part.starts_with('.'))
         || !matches!(layout::zone_of(rel), Zone::Synced | Zone::Own)
     {
         return Err(refuse());
@@ -145,7 +124,7 @@ fn check_folder(data_dir: &Path, rel: &str) -> Result<(), String> {
 
 /// A file or folder made at `rel/<name>` would be the student's own.
 fn writable(rel: &str) -> bool {
-    !rel.is_empty() && layout::own_path_ok(&format!("{rel}/{PROBE}"))
+    layout::own_path_ok(&layout::child_rel(rel, PROBE))
 }
 
 fn parent_rel(rel: &str) -> &str {
@@ -160,13 +139,14 @@ struct Child {
 }
 
 /// The entries of `rel` a listing shows: no dot-names, no symlinks, nothing
-/// outside the student's view, and no file's parse artifacts or converted
-/// PDF.
+/// outside the student's view, no file's parse artifacts or converted PDF,
+/// and in the folder of subjects, folders alone.
 fn visible_children(data_dir: &Path, rel: &str) -> Vec<Child> {
     let dir = data_dir.join(rel);
     let Ok(read) = std::fs::read_dir(&dir) else {
         return Vec::new();
     };
+    let subjects = is_subjects_folder(rel);
     let children: Vec<Child> = read
         .flatten()
         .filter_map(|entry| {
@@ -175,11 +155,15 @@ fn visible_children(data_dir: &Path, rel: &str) -> Vec<Child> {
                 return None;
             }
             let meta = entry.path().symlink_metadata().ok()?;
-            if meta.file_type().is_symlink() {
+            // A pending delete's text or converted PDF, its file in the Trash.
+            if meta.file_type().is_symlink() || super::ops::delete::hides(&entry.path()) {
                 return None;
             }
-            let rel = format!("{rel}/{name}");
+            let rel = layout::child_rel(rel, &name);
             if !matches!(layout::zone_of(&rel), Zone::Synced | Zone::Own) {
+                return None;
+            }
+            if subjects && !meta.is_dir() {
                 return None;
             }
             Some(Child {
@@ -249,7 +233,8 @@ fn push_child(data_dir: &Path, child: Child, listing: &mut FolderListing, count:
 }
 
 /// Every folder and file below `rel`, each folder counted as it is read;
-/// returns how many entries `rel` itself holds.
+/// returns how many entries `rel` itself holds. The folder of subjects is
+/// walked but not listed: a flat list is of the student's and the subjects'.
 fn walk(data_dir: &Path, rel: &str, depth: usize, listing: &mut FolderListing) -> u32 {
     let children = visible_children(data_dir, rel);
     let count = children.len() as u32;
@@ -257,7 +242,9 @@ fn walk(data_dir: &Path, rel: &str, depth: usize, listing: &mut FolderListing) -
         return count;
     }
     for child in children {
-        if child.dir {
+        if child.dir && is_subjects_folder(&child.rel) {
+            walk(data_dir, &child.rel, depth + 1, listing);
+        } else if child.dir {
             let below = child.rel.clone();
             let at = listing.folders.len();
             push_child(data_dir, child, listing, false);

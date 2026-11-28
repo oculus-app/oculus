@@ -15,15 +15,12 @@ use launchd::{bootout, gui_domain, is_loaded, launchctl};
 
 const LABEL: &str = "com.tchan.oculus.keyd";
 
-/// `sun_path` holds 104 bytes, NUL included.
-const SUN_PATH: usize = 104;
-
 pub(crate) struct Launchd;
 
 impl Registrar for Launchd {
     fn check(&self, data_dir: &Path) -> Result<(), String> {
         let socket = paths::socket(data_dir);
-        if socket.as_os_str().len() >= SUN_PATH {
+        if socket.as_os_str().len() >= paths::SUN_PATH {
             return Err(format!(
                 "the socket path is too long for a unix socket: {}",
                 socket.display()
@@ -201,13 +198,13 @@ mod tests {
     fn the_agent_is_socket_activated_and_not_kept_alive() {
         let body = plist_body(
             Path::new("/d/bin/oculus-keyd"),
-            Path::new("/d/keyd.sock"),
+            Path::new("/d/.oculus/keyd.sock"),
             Path::new("/l.log"),
         );
         assert!(
             body.contains("<string>/d/bin/oculus-keyd</string>\n        <string>serve</string>")
         );
-        assert!(body.contains("<key>Listeners</key>\n        <dict>\n            <key>SockPathName</key>\n            <string>/d/keyd.sock</string>"));
+        assert!(body.contains("<key>Listeners</key>\n        <dict>\n            <key>SockPathName</key>\n            <string>/d/.oculus/keyd.sock</string>"));
         assert!(body.contains("<integer>384</integer>"));
         assert!(body.contains(&format!("<string>{LABEL}</string>")));
         assert!(!body.contains("KeepAlive"));
@@ -257,7 +254,7 @@ mod tests {
                 "/Users/x/Library/Application Support/com.tchan.oculus"
             ))
             .is_ok());
-        let deep = PathBuf::from("/").join("d".repeat(SUN_PATH));
+        let deep = PathBuf::from("/").join("d".repeat(paths::SUN_PATH));
         assert!(Launchd.check(&deep).unwrap_err().contains("too long"));
     }
 }

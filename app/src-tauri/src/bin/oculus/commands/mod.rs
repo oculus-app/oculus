@@ -3,7 +3,7 @@
 //! `args/`.
 
 mod auth;
-mod docs;
+pub(crate) mod docs;
 mod keyd;
 mod lecture;
 mod library;

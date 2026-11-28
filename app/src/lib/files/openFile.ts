@@ -1,14 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useTabStore } from "@/stores/shell/tabStore";
 import { openBeside, openLink } from "@/lib/shell/tabRouters";
-import { isLessonAsset, isPdfBacked, isSheetFile, isVideoFile, parsedMdRelPath, parsedMdSource } from "@/lib/files/fileTypes";
+import { isLessonAsset, isPdfBacked, isPictureFile, isSheetFile, isVideoFile, parsedMdRelPath, parsedMdSource } from "@/lib/files/fileTypes";
 import { getFileByRelativePath, getLectureByFolder, markFileAccessed, type DbFile } from "@/lib/db";
 import { isWebUrl } from "@/lib/browser";
 import { libraryLinkTarget } from "@/lib/files/libraryLinks";
 import { readCourseFile } from "@/lib/files/courseFiles";
 import { lecturePagePath } from "@/lib/lectures";
 import { citedPage, fullCitation, quoteFromLines, type Citation } from "@/lib/citations";
-import { isCoursePath, recordingOf } from "@/lib/files/libraryLayout";
+import { isLibraryPath, recordingOf } from "@/lib/files/libraryLayout";
 import { resolveMoved } from "@/lib/files/pathMoves";
 import { filePagePath } from "./labels";
 export { filePagePath, fileTitle, folderTitle } from "./labels";
@@ -64,10 +64,10 @@ export function routeParseDetails(state: unknown): number | undefined {
 }
 
 /** A binary the app has no viewer for: it opens in the system viewer. PDFs,
- *  Office documents (via their converted PDF), spreadsheets (as their text)
- *  and videos render in-app. */
+ *  Office documents (via their converted PDF), spreadsheets (as their text),
+ *  videos and pictures render in-app. */
 function systemOnly(file: DbFile): boolean {
-  return !isPdfBacked(file.filename) && !isSheetFile(file.filename) && !isVideoFile(file.filename);
+  return !isPdfBacked(file.filename) && !isSheetFile(file.filename) && !isVideoFile(file.filename) && !isPictureFile(file.filename);
 }
 
 /** How any list row opens a file: anything renderable as its page in the
@@ -130,11 +130,12 @@ export function openNoteLink(href: string, files: DbFile[]): void {
 let locateSeq = 0;
 
 /**
- * Opens a citation. A course file opens in the side panel at the cited spot
- * (`citationLocate`); a path with no row, an `agents/` file, or a binary goes
+ * Opens a citation. A library file (in a subject or the student's own at the
+ * top) opens in the side panel at the cited spot
+ * (`citationLocate`); a path with no row, an `.oculus/agents/` file, or a binary goes
  * to the system viewer; a path in a lecture's recording folder opens the lecture. `newTab` is the
  * ⌘-click, answered here rather than through `data-tab-href` because the
- * route is a database lookup away. Pictures under `agents/` are the caller's
+ * route is a database lookup away. Pictures under `.oculus/agents/` are the caller's
  * to show (the lightbox in `components/markdown/Citation.tsx`). A path
  * written before the library move opens where the move put it.
  */
@@ -153,7 +154,7 @@ async function openCitationAsync(cited: Citation, newTab: boolean): Promise<void
     else openBeside(lecturePagePath(lecture, cite.at));
     return;
   }
-  if (!isCoursePath(cite.path)) return system();
+  if (!isLibraryPath(cite.path)) return system();
   const file = await resolveLibraryFile(cite.path);
   if (!file) return system();
   const locate = await citationLocate(cite, file);

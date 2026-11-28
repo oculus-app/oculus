@@ -532,7 +532,7 @@ fn a_request_naming_a_protected_path_never_reaches_the_student() {
     let library = bench.library();
     let protected = library.join("courses/maths/Course/home.md");
     let (fake, asked) = ask(&bench, json!(0), &[protected.to_str().unwrap()]);
-    let outside = library.join("agents/scratch.md");
+    let outside = crate::agents::agents_dir(&library).join("scratch.md");
     let (allowed, fine) = ask(&bench, json!(1), &[outside.to_str().unwrap()]);
     // A subject's own file is the student's to grant where a sandbox could not.
     let own = library.join("courses/maths/new-summary.md");
@@ -681,5 +681,105 @@ fn secret_questions_are_declined_before_storage_and_ordinary_questions_ignore_ap
             }
             assert_eq!(fake.replies(), ["answer"]);
         }
+    }
+}
+
+/// A file change as a bridge raises it, naming `paths`.
+fn change(native: Value, action: Action, payload: Value, paths: &[String]) -> NewRequest {
+    NewRequest {
+        action,
+        payload,
+        options: vec![
+            option("accept", Decision::Accept),
+            option("decline", Decision::Decline),
+        ],
+        native_ref: native.to_string(),
+        paths: paths.to_vec(),
+    }
+}
+
+fn raise(bench: &Bench, request: NewRequest) -> (Arc<Fake>, BusMsg) {
+    let fake = Arc::new(Fake::default());
+    let asked = HarnessEvent::RequestAsked {
+        request,
+        route: Some(LiveRoute(fake.clone())),
+    };
+    (fake, bench.session(asked))
+}
+
+/// The own zone is the agent's in every mode: a write there, at the top in a
+/// folder made after the thread started, is allowed unseen and never saved.
+/// A dot-name, an old state folder's name, a symlink out and a request that
+/// also asks for the network are not.
+#[cfg(unix)]
+#[test]
+fn a_write_in_the_students_own_files_is_allowed_unseen_in_every_mode() {
+    for mode in [
+        PermissionMode::Ask,
+        PermissionMode::Auto,
+        PermissionMode::Quiet,
+    ] {
+        let mut bench = turn_open(&format!("request-own-{}", mode.as_str()));
+        bench.allow_handoff();
+        let (msg, got) = bench.command("mode", Kind::SetPermissionMode { mode });
+        bench.play(vec![msg]);
+        bench.got(got).unwrap();
+        let library = bench.library();
+        let outside = library
+            .parent()
+            .unwrap()
+            .join(format!("away-{}", mode.as_str()));
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::create_dir_all(library.join("Receipts")).unwrap();
+        std::os::unix::fs::symlink(&outside, library.join("away")).unwrap();
+        let at = |rel: &str| library.join(rel).display().to_string();
+        let file = |rel: &str| change(json!(rel), Action::FileChange, json!({}), &[at(rel)]);
+        let grant = |rel: &str, network: Value| {
+            let asked = json!({ "permissions": {
+                "fileSystem": { "write": [at(rel)] }, "network": network } });
+            change(json!(rel), Action::Permissions, asked, &[at(rel)])
+        };
+        let cases = [
+            (file("Receipts/march.pdf"), "grant"),
+            (file("New folder/notes.md"), "grant"),
+            (file("courses/maths/summary.md"), "grant"),
+            (grant("Receipts", Value::Null), "grant"),
+            (file(".oculus/vault.bin"), "refused"),
+            (file(".hidden/x.md"), "refused"),
+            (file("agents/x.md"), "refused"),
+            (file("courses/loose.pdf"), "refused"),
+            (file("away/key"), "asked"),
+            (grant("Receipts", json!({ "enabled": true })), "asked"),
+        ];
+        let mut fakes = Vec::new();
+        for (request, want) in cases {
+            let rel = request.native_ref.clone();
+            let (fake, asked) = raise(&bench, request);
+            bench.play(vec![asked]);
+            fakes.push((rel, fake, want));
+        }
+        for (rel, fake, want) in &fakes {
+            let got = match (fake.replies().as_slice(), fake.withdrawn()) {
+                ([accept], 0) if accept == "accept" => "grant",
+                ([], 1) => "refused",
+                ([], 0) => "asked",
+                other => panic!("{rel}: {other:?}"),
+            };
+            // Don't ask declines unseen what it would have shown.
+            let want = match (*want, mode) {
+                ("asked", PermissionMode::Quiet) => "refused",
+                (want, _) => want,
+            };
+            assert_eq!(got, want, "{rel} in {}", mode.as_str());
+        }
+        let shown = fakes
+            .iter()
+            .filter(|(_, f, _)| f.replies().is_empty() && f.withdrawn() == 0)
+            .count();
+        assert_eq!(
+            requests(&bench).len(),
+            shown,
+            "only what was asked is saved"
+        );
     }
 }

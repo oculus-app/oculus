@@ -1,8 +1,9 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { blobToBase64 as base64 } from "@/lib/encoding/base64";
+import { AGENTS_PATTERN, ATTACHMENTS_DIR } from "@/lib/files/statePaths";
 
 /**
- * A file on its way into `agents/attachments/`, where a CLI agent can read it
+ * A file on its way into `.oculus/agents/attachments/`, where a CLI agent can read it
  * (see `docs/harness.md`). The chat composer writes it the moment it is
  * attached, so its chip holds a real path from the start; a task body or a
  * revision field writes a picture on arrival too.
@@ -73,7 +74,7 @@ export function releaseAttachment(a: PendingAttachment): void {
 export { base64 };
 
 /** Write one pending file, returning `./attachments/<name>` — relative to
- *  `agents/`, every thread's working directory. A picture, PDF or text file;
+ *  `.oculus/agents/`, every thread's working directory. A picture, PDF or text file;
  *  the name only lets Rust keep a text file's extension. */
 export async function writeAttachment(a: PendingAttachment): Promise<string> {
   if (a.source.kind === "path") {
@@ -82,15 +83,19 @@ export async function writeAttachment(a: PendingAttachment): Promise<string> {
   return invoke<string>("harness_attach_image", { data: await base64(a.source.file), name: a.name });
 }
 
-/** An attachment path in either spelling agents write (agent- or
- *  data-dir-relative); not a `courses/` path, so not part of `libraryPath`.
- *  The name never starts with a dot, so `attachments/..` is not one. */
-const ATTACHMENT_PATH = /^(?:\.\/)?(?:\.\.\/)?(?:agents\/)?attachments\/([A-Za-z0-9_-][A-Za-z0-9._-]*)$/;
+/** An attachment path in any spelling agents write: agent-relative, or
+ *  data-dir-relative with the agents' folder spelled either way
+ *  (`lib/files/statePaths.ts`); not a `courses/` path, so not part of
+ *  `libraryPath`. The name never starts with a dot, so `attachments/..` is not one. */
+const ATTACHMENT_PATH = new RegExp(
+  `^(?:\\.\\/)?(?:\\.\\.\\/){0,2}(?:${AGENTS_PATTERN}\\/)?attachments\\/([A-Za-z0-9_-][A-Za-z0-9._-]*)$`,
+);
 
-/** The data-directory-relative path a fenced attachment stands for, or null. */
+/** The data-directory-relative path a fenced attachment stands for, where the
+ *  file is, or null. */
 export function attachmentPath(raw: string): string | null {
   const m = ATTACHMENT_PATH.exec(raw.trim());
-  return m ? `agents/attachments/${m[1]}` : null;
+  return m ? `${ATTACHMENTS_DIR}/${m[1]}` : null;
 }
 
 /** What an `<img>` in a bubble loads; empty until `useDataDir` resolves. */

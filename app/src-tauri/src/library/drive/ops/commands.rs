@@ -1,4 +1,5 @@
-//! The folder commands the browser calls (`app/src/lib/drive/commands.ts`).
+//! The folder commands the browser calls (`app/src/lib/drive/commands.ts`);
+//! deletes are `delete::commands`.
 //! Each refuses with a JSON-serialised `DriveError`, and announces what it
 //! did on `drive-changed`.
 
@@ -7,29 +8,17 @@ use tauri::AppHandle;
 
 use super::copy::copy_to_own_at;
 use super::create::create_folder_at;
-use super::delete::{delete_entries_at, delete_preview_at};
 use super::error::{DriveError, DriveResult};
 use super::events::{emit, DriveChange, Moved};
-use super::guard::subject_folder;
 use super::moves::{blocking, move_entries_at, rename_entry_at, Moves};
-use super::rows::subject_ids;
+use super::rows::home_ids;
 
-async fn pool() -> DriveResult<SqlitePool> {
+pub(super) async fn pool() -> DriveResult<SqlitePool> {
     crate::db::store::open_pool().await.map_err(DriveError::io)
 }
 
-/// Every subject folder `paths` are in.
-fn folders<'a>(paths: impl IntoIterator<Item = &'a String>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for folder in paths.into_iter().filter_map(|p| subject_folder(p)) {
-        if !out.iter().any(|f| f == folder) {
-            out.push(folder.to_string());
-        }
-    }
-    out
-}
-
-async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
+/// Emit `change` on `drive-changed` with the homes its paths are in.
+pub async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
     let paths: Vec<String> = change
         .moved
         .iter()
@@ -37,7 +26,7 @@ async fn announce(app: &AppHandle, pool: &SqlitePool, mut change: DriveChange) {
         .chain(change.removed.iter().cloned())
         .chain(change.added.iter().cloned())
         .collect();
-    change.subject_ids = subject_ids(pool, &folders(&paths)).await;
+    change.subject_ids = home_ids(pool, &paths).await;
     emit(app, &change);
 }
 
@@ -52,7 +41,7 @@ fn moved(moves: &Moves) -> Vec<Moved> {
         .collect()
 }
 
-fn data_dir() -> std::path::PathBuf {
+pub(super) fn data_dir() -> std::path::PathBuf {
     crate::library::paths::data_dir()
 }
 
@@ -102,26 +91,6 @@ pub async fn move_entries(
     }
     pool.close().await;
     Ok(result?.into_iter().map(|(_, to)| to).collect())
-}
-
-#[tauri::command]
-pub async fn delete_entries(app: AppHandle, rels: Vec<String>) -> Result<(), String> {
-    let pool = pool().await?;
-    let result = delete_entries_at(&data_dir(), &pool, &rels).await;
-    if result.is_ok() {
-        let change = DriveChange {
-            removed: rels,
-            ..DriveChange::default()
-        };
-        announce(&app, &pool, change).await;
-    }
-    pool.close().await;
-    Ok(result?)
-}
-
-#[tauri::command]
-pub async fn delete_preview(rels: Vec<String>) -> Result<Vec<String>, String> {
-    Ok(blocking(move || delete_preview_at(&data_dir(), &rels)).await?)
 }
 
 #[tauri::command]

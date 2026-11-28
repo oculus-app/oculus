@@ -70,13 +70,16 @@ export async function resetFilePipeline(
   );
 }
 
-/** Drop a file's row with its indexed pages and a note's versions. Those are
- *  deleted explicitly rather than trusting `ON DELETE CASCADE`, which only
- *  fires on a connection with `foreign_keys` on. */
+/** Drop a file's row with its indexed pages, a note's versions, a Studio
+ *  render's link and a chat output's save (`chatSaves.ts`), each by hand
+ *  beside the cascade (docs/architecture.md, "The database has one schema
+ *  owner and two writers"). */
 export async function deleteFileRow(id: number): Promise<void> {
   const db = await getDb();
   await db.execute(`DELETE FROM pages WHERE file_id = $1`, [id]);
   await db.execute(`DELETE FROM document_versions WHERE file_id = $1`, [id]);
+  await db.execute(`DELETE FROM studio_exports WHERE file_id = $1`, [id]);
+  await db.execute(`DELETE FROM chat_saves WHERE file_id = $1`, [id]);
   await db.execute(`DELETE FROM files WHERE id = $1`, [id]);
 }
 
@@ -134,6 +137,13 @@ export async function getFileByRelativePath(
   return rows[0] ?? null;
 }
 
+/** One file by its row id, which a Drive move or rename keeps. */
+export async function getFileById(id: number): Promise<DbFile | null> {
+  const db = await getDb();
+  const rows = await db.select<DbFile[]>(`SELECT * FROM files WHERE id = $1 LIMIT 1`, [id]);
+  return rows[0] ?? null;
+}
+
 /** A subject's file by its Canvas file id: a `<canvas-video>` card's
  *  downloaded video. */
 export async function getFileByCanvasId(
@@ -148,14 +158,15 @@ export async function getFileByCanvasId(
   return rows[0] ?? null;
 }
 
-/** Files whose library path ends in `/<tail>` — a course-relative path or a
- *  bare filename an agent cited. At most two, so a caller can tell a unique
+/** Files whose library path ends in `/<tail>`, or is `tail` (a student's
+ *  file at the data dir's top) — a course-relative path or a bare filename
+ *  an agent cited. At most two, so a caller can tell a unique
  *  hit from an ambiguous one. */
 export async function findFilesByTail(tail: string): Promise<DbFile[]> {
   const db = await getDb();
   return db.select<DbFile[]>(
-    `SELECT * FROM files WHERE relative_path LIKE $1 ESCAPE '\\' LIMIT 2`,
-    [`%/${likeEscape(tail)}`],
+    `SELECT * FROM files WHERE relative_path LIKE $1 ESCAPE '\\' OR relative_path = $2 LIMIT 2`,
+    [`%/${likeEscape(tail)}`, tail],
   );
 }
 

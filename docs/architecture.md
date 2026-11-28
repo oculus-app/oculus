@@ -112,7 +112,7 @@ with the app's icon.
   the server loop and the client never name an OS
   ([development.md](./development.md#keyds-os-code-lives-in-one-adapter)).
 - **Started by the OS, not the app.** On macOS the LaunchAgent
-  `com.tchan.oculus.keyd` owns `keyd.sock` (mode 0600) and starts keyd on the
+  `com.tchan.oculus.keyd` owns `.oculus/keyd.sock` (mode 0600) and starts keyd on the
   first connect. Its `AssociatedBundleIdentifiers` names `com.tchan.oculus`,
   so Login Items and the background-activity notice list it under Oculus
   (`app/keyd/core/src/platform/macos/registrar.rs`). One thread accepts and decides to exit
@@ -132,7 +132,10 @@ with the app's icon.
 - **`vault.bin`** holds the secrets as one ChaCha20-Poly1305-sealed JSON map
   (`app/keyd/core/src/vault.rs`): a fresh nonce per write, replaced by rename,
   read-modify-write under an exclusive lock. A file that fails to decrypt is never
-  overwritten.
+  overwritten. A missing file is an empty vault, so while a vault from before
+  the state folder is still at the data dir's top and none is in `.oculus/`,
+  every op that needs the vault is refused (`State::vault` in
+  `app/keyd/core/src/ops.rs`) rather than start a second one beside it.
 - **The wire format** is one JSON line, then `body_len` raw bytes if the
   header names them; replies have the same shape. One module writes and reads
   it for keyd and every client (`app/keyd/core/src/framing.rs`). Ops: `ping` (version, source
@@ -303,7 +306,7 @@ fetches but the media element fails with error code 4 (macOS 26). So
 `app/src-tauri/src/lectures/media.rs` serves lecture video on an ephemeral localhost
 port with a per-launch token and Range support, scoped to the library's
 folders (`library_roots` in `app/src-tauri/src/library/layout/roots.rs`) and
-`studio/videos/` (rendered videos), and serving PNG, JPEG and
+the state folder's `studio/videos/` (rendered videos), and serving PNG, JPEG and
 WebP as images. The frontend gets URLs from `mediaSrc()` in `app/src/lib/lectures/media/src.ts`.
 
 The same server answers `GET|HEAD /widget-kit/<path>` with no token: the
@@ -320,9 +323,11 @@ Tauri embeds with the frontend. Paths are plain segments only
 `library::paths::data_dir()` computes the directory Tauri would
 (`~/Library/Application Support/com.tchan.oculus`) with no `AppHandle`, and is
 the only way Rust reaches it — so the CLI and the app cannot disagree. Windows
-uses the shared profile folder described in [windows.md](./windows.md). Inside:
+uses the shared profile folder described in [windows.md](./windows.md).
 
-- `oculus.db` — SQLite, everything structured.
+Its top level is the library, plus two folders of the app's own whose names
+start with a dot:
+
 - `courses/<code>/…` — one folder per subject: `Course/` (what the sync
   writes, lecture recordings included), the student's own files beside it,
   and the hidden `.oculus/` (the subject's agent folder and derived
@@ -330,17 +335,52 @@ uses the shared profile folder described in [windows.md](./windows.md). Inside:
   ([below](#one-module-owns-every-path-shape-in-the-library)). The parser's
   `.md` and `<stem>_images/` sit beside each PDF; its `.pages.json` and the
   embedder's `.emb.json` sit in `.oculus/derived/`.
+- The student's own folders and files, beside `courses/`: every top-level
+  name that does not start with a dot. Drive lists them with the subjects
+  ([frontend.md](./frontend.md#drive-is-one-folder-browser-over-the-disk)).
+  Their PDFs' `.pages.json` and `.emb.json` sit in the top level's
+  `.oculus/derived/`.
 - `courses/<code>/Course/Recordings/<date>-<slug>/` — one Echo360 lecture:
   `source1.mp4`, optionally `source2.mp4`, and `transcript.vtt`, plus
   regenerable `frames/`, `outline.md` and `thumb.jpg` from the chapter jobs.
   Which source is the slides is measured, not assumed — see
   [chapters.md](./chapters.md).
-- `downloads/.incoming/` — browser download staging ([viewers.md](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive)).
+- `.oculus/` — the state folder: everything of the app's own
+  ([below](#the-apps-own-files-are-in-one-state-folder)).
+- `.library-move/` — the launch moves' journals, lock and markers
+  ([library-move.md](./library-move.md)). It stays at the top because every
+  build reads it there before anything else, which is what stops a build
+  from before the state folder opening this library.
+
+Nothing else at the top is the app's. A folder or file there that the app
+did not make is left alone by every move and by the path helpers.
+
+### The app's own files are in one state folder
+
+`library::paths::state_dir` (`keyd_core::paths::STATE_DIR`, `.oculus`) is the
+one definition, shared with `oculus-keyd`; every helper in
+`app/src-tauri/src/library/paths/` and `app/keyd/core/src/paths.rs` builds
+from it, and `state_rel` spells a state path the way rows and rules do
+(`.oculus/agents`). The folder is created at the start of every launch
+(`library::at_launch`), a new install included, and is hidden from Explorer
+on Windows. Inside:
+
+- `oculus.db` — SQLite, everything structured. `DB_URL`
+  (`library/paths/db.rs`) is the string `tauri-plugin-sql` keys its
+  migrations by, and `app/src/lib/db/connection.ts` loads the same one
+  (`app/tests/repo/dbUrl.test.ts`).
 - `agents/` — the docs, skills and memory layer a coding agent reads and
   writes ([cli.md](./cli.md#oculus-docs-writes-the-agents-folder)); the
   working directory of every chat thread, which writes there and in the
   subjects' own files, with raw provider output in
-  `agents/threads/<id>.ndjson` ([harness.md](./harness.md)).
+  `agents/threads/<id>.ndjson` ([harness.md](./harness.md)). From there a
+  subject is `../../courses/<code>/` (`agents::from_workspace`).
+- `studio/` — Studio's videos, series and libraries ([studio.md](./studio.md)).
+- `whiteboard-pages/<file id>/` — a notebook's page pictures, and
+  `recovery/whiteboards/` — unsaved drawings' drafts
+  ([drawing-whiteboard.md](./drawing-whiteboard.md)).
+- `downloads/.incoming/` — browser download staging ([viewers.md](./viewers.md#downloads-wait-for-a-destination-while-their-bytes-arrive)),
+  and `tmp/` — scratch for downloads muxed before they land.
 - `models/` — downloaded local models, never bundled: `whisper/` for local
   transcription ([viewers.md](./viewers.md#local-whisper-whispercpp-with-a-downloaded-model)), `align/` for Studio's
   narration aligner ([studio.md](./studio.md#narration-timing-is-forced-alignment-on-the-cpu))
@@ -353,18 +393,38 @@ uses the shared profile folder described in [windows.md](./windows.md). Inside:
 - `institution.json` — which university: its Canvas address, how it signs
   in, and what launches learned ([auth.md](./auth.md#one-institution-profile-says-which-university)).
 - `ed-courses.json` — the Ed course each Canvas course's LTI launch named
-  ([sync.md](./sync.md#ed-content-is-a-custom-xml-dialect)).
+  ([sync.md](./sync.md#ed-content-is-a-custom-xml-dialect)), and
+  `file-manifest.json` — what each synced Canvas file was when it was last
+  downloaded.
 - `canvas-session/`: the authenticated flag, the signed-out marker and the
   sign-in attempt record, with `okta-sign-in.log` beside it
   ([auth.md](./auth.md)). The sessions themselves are in the vault.
 - `vault.bin` and its `vault.bin.lock`, `keyd.sock` (launchd's), and `bin/`
   with a dev-installed `Oculus Helper.app` and keyd's `oculus-keyd.stamp`
-  ([above](#oculus-keyd-is-the-only-process-meant-to-read-its-key)).
-- `.library-move/` — the library move's journal, lock and `done` marker
-  ([library-move.md](./library-move.md)).
+  ([above](#oculus-keyd-is-the-only-process-meant-to-read-its-key)). A data
+  dir too deep for `.oculus/keyd.sock` to fit a unix socket path (104 bytes)
+  has its socket at the top as `.keyd.sock` instead; `keyd_core::paths::socket`
+  decides, for keyd, the registrar and the client alike.
 - `start-over` — present only between Start over and the next launch, which
-  empties the directory but for the two usage files, `models/` and keyd's
-  own ([auth.md](./auth.md#one-institution-profile-says-which-university)).
+  empties the data directory but for the two usage files, `models/`, keyd's
+  own (on Windows the DPAPI key that opens the vault, and its lock, included)
+  and `.library-move/`
+  ([auth.md](./auth.md#one-institution-profile-says-which-university)).
+
+The asset protocol's scope (`tauri.conf.json`, and `tauri.windows.conf.json`'s
+copy) names the library by its first character: `[!.]*` and `[!.]*/**` reach
+`courses/` and the student's own at the top but no dot-name there, then the
+top-level notes' `.assets/**` and, in the state folder, `agents/**`,
+`whiteboard-pages/**` and `studio/videos/**`. Never a `**` from the data
+dir's top: with `requireLiteralLeadingDot: false` it would match the
+database, the vault and the sessions in `.oculus/`.
+`the_asset_scope_reaches_the_library_and_never_the_rest_of_the_state_folder`
+(`app/src-tauri/src/library/paths/tests.rs`) matches the patterns as Tauri
+does and holds that boundary. The
+frontend builds an asset URL from a data-dir-relative path, so it resolves
+the spellings stored chats hold to where a file is
+(`app/src/lib/files/statePaths.ts`,
+[frontend.md](./frontend.md)).
 
 ## One module owns every path shape in the library
 
@@ -374,16 +434,22 @@ the build if one does. Its folder names are a table (`shape.rs`), so a new
 layout changes the table, not the callers.
 
 ```
-courses/<code>/
-  Course/                       synced, read-only to the student and agents
-    Files/ Media/ Lessons/ Discussion/ Pages/ Assignments/ Quizzes/
-    Announcements/ Modules/ Images/   SyncedKind (Media: module videos and Echo360 page embeds)
-    home.md  syllabus.md        SyncedFile
-    Recordings/<date>-<slug>/   one lecture recording (lectures.folder_rel)
+<data dir>/
+  courses/                      synced: the folder of subjects, shown as Subjects
+    <code>/
+      Course/                   synced, read-only to the student and agents
+        Files/ Media/ Lessons/ Discussion/ Pages/ Assignments/ Quizzes/
+        Announcements/ Modules/ Images/   SyncedKind (Media: module videos and Echo360 page embeds)
+        home.md  syllabus.md    SyncedFile
+        Recordings/<date>-<slug>/   one lecture recording (lectures.folder_rel)
+      <the student's files and folders, any depth>   own: OwnKind by extension
+      .oculus/                  hidden: app state
+        agents/                 the subject's agent folder
+        derived/<folder>/<stem>.pages.json, .emb.json   a PDF's records
   <the student's files and folders, any depth>   own: OwnKind by extension
-  .oculus/                      hidden: app state
-    agents/                     the subject's agent folder
-    derived/<folder>/<stem>.pages.json, .emb.json   a PDF's records
+  .assets/                      own: the top-level notes' pictures
+  .<any other dot-name>         hidden: app state
+    .oculus/derived/<folder>/<stem>.pages.json, .emb.json   a top-level PDF's records
 ```
 
 `LEGACY` in `shape.rs` is the layout before this one (synced folders at the
@@ -397,14 +463,39 @@ folder with its new place; [library-move.md](./library-move.md)).
   or `Outside` (absolute, `..`, a backslash, a drive, an empty segment). Folder
   names compare ignoring ASCII case, as macOS and Windows volumes do.
   `Course` and `.oculus` are reserved at a subject's root (`reserved_name`).
-- **The student's files are everything else in a subject, at any depth.**
+- **The top level's rule is one line.** A name that starts with a dot is
+  `Hidden` but the top-level notes' pictures folder (`.assets/`, `Own` as in
+  any folder), `courses` (and a subject's folder) is `Synced`, anything else
+  is `Own`. Nothing is hidden by a list of names, so the app keeps its own
+  files under dot-names; the layout's hidden folder is the state folder's
+  name (`paths::STATE_DIR`), which a test holds its spellings to. A new entry
+  there may not take `courses` or one of `OLD_STATE_NAMES`, the old app
+  folder names cited paths are read through (`reserved_top_name`); one
+  already there is `Own` like any other, but no agent writes it unasked
+  (`agent_own`, which also folds each name so one that becomes a dot-name
+  or a reserved name under NFKC is not the student's).
+- **A path's home is a subject or the top level** (`home_of`, `Home`):
+  `courses/<folder>/…` is the subject's, any other own path the top level's,
+  whose own folder is `""`. `in_library` is what the PDF viewer, the media
+  server and a whiteboard's PDF import may read: `courses/` and the own top
+  level.
+- **Top-level files hang off one reserved `subjects` row**
+  ([below](#the-database-has-one-schema-owner-and-two-writers)), whose code is
+  `TOP_LEVEL_CODE`. A command that takes a subject code takes that code for
+  "no subject": `own_root`, `own_files` and `own_target` then work at the top
+  level.
+- **The student's files are everything else in a subject or at the top
+  level, at any depth.**
   Their kind is their extension: `.md` a note, `.whiteboard`, `.notebook`, else an
   upload. Every creator (imports, notes, whiteboards, notebooks, browser
   downloads) takes a target folder, checked by `own_target`
-  (`app/src-tauri/src/library/drive/ops/guard.rs`): the subject's root or an
-  existing folder of the student's in that subject; with none it lands at the
-  root. `own_files` walks them all for the Documents and drawing listings,
-  skipping `Course/`, `.oculus/`, dot-names and symlinks.
+  (`app/src-tauri/src/library/drive/ops/guard.rs`): the code's root or an
+  existing folder of the student's in that subject (for `TOP_LEVEL_CODE`, at
+  the top level); with none it lands at the root. `drive_target` is the same
+  check with no code: any folder new entries may land in, the top level
+  (`""`) included, with its subject or none as `Target::home`. `own_files`
+  walks them all for the Documents and drawing listings, skipping `Course/`,
+  `.oculus/`, `courses/`, dot-names and symlinks.
 - **The sync writes only into `Course/`.** Its one writer (`write_synced` in
   `app/src-tauri/src/sync/phases/output.rs`) refuses any path outside the
   synced zone, whatever a phase computes; `the_sync_writes_only_into_course`
@@ -421,14 +512,19 @@ folder with its new place; [library-move.md](./library-move.md)).
   is refused, and so is a path whose symlinks lead out of the data dir.
 - **`category_of` sets `files.category`** from the path inside the subject:
   inside `Course/` by its folder (`Media/` is `file`, like `Files/`), beside
-  it by extension. `app/src/lib/files/libraryLayout.ts` is the frontend's
+  it by extension. `category_of_path` takes a data-dir-relative path, and at
+  the top level goes by extension alone, so a student's own `Course/` folder
+  there holds uploads. `app/src/lib/files/libraryLayout.ts` is the frontend's
   copy for paths with no row (citations, chips); both are held to
   `app/tests/fixtures/library/categories.json`.
 - **`derived(pdf, kind)` names a PDF's parse and embed artifacts**: the
   `.md` and `<stem>_images/` beside the PDF (the markdown's image links stay
-  relative to it), the `.pages.json` and `.emb.json` under the subject's
-  `.oculus/derived/`, at the PDF's own folder path. Parse, embed, the sheet
-  converter and the purge all ask it. Beside a student's PDF a parsed `.md`
+  relative to it), the `.pages.json` and `.emb.json` under the
+  `.oculus/derived/` of the PDF's home (its subject, or the data dir for a
+  top-level file), at the PDF's own folder path. A PDF under a dot-name keeps
+  them beside it. Parse, embed, the sheet converter and the purge all ask it;
+  a caller holding the data dir and a relative path asks `derived_at`, since
+  an absolute path is read against the app's own data dir. Beside a student's PDF a parsed `.md`
   looks like a note, so the note listing asks `is_derived_text` and leaves
   it out.
 - **The purge spares the student's notes.** `parse_artifacts` names what a
@@ -441,8 +537,9 @@ folder with its new place; [library-move.md](./library-move.md)).
 - **A file moves with everything derived from it.** Drive's move and rename
   (`app/src-tauri/src/library/drive/ops/`) take each artifact to its slot for
   the new path: the text, pictures and converted PDF beside it, the records
-  to the derived folder mirroring the new folder (another subject's, across
-  subjects). The `files` row is updated in place by id, so `pages`,
+  to the derived folder mirroring the new folder (another subject's across
+  subjects, the top level's from a subject to the top level, and back). The
+  `files` row is updated in place by id, `subject_id` included, so `pages`,
   `document_versions` and `task_files` stay, and the file needs no re-parse.
   A rename that changes the stem relinks the `<stem>_images/` links in the
   text, the record (its block offsets shifted) and the `pages` rows; a new
@@ -485,6 +582,22 @@ never creates the database, so a fresh machine opens the app once first. The
 library move applies the app's own migrations to an existing database before
 it rewrites paths, in either process ([library-move.md](./library-move.md)).
 
+- **Cascades hold on every connection the app opens.** sqlx turns
+  `foreign_keys` on by default, and every connection goes through it: the
+  Rust pools (`db::store::pool`), the CLI (`store::open`) and the frontend's
+  SQL plugin. A client outside the app (a `sqlite3` shell) has it off, so the
+  places that delete `files` rows (`deleteFileRow`, `store::files::delete_file_row`,
+  Drive's `delete_ids`) also delete the child rows by hand: `pages`,
+  `document_versions`, `studio_exports` and `chat_saves` in each, and
+  `task_files` in Drive's.
+- `subjects.kind` is `subject` for every course and `top` for one reserved
+  row (`db::store::TOP_LEVEL_SUBJECT_ID`, a negative id no Canvas course has)
+  that the rows of top-level files hang off, since `files.subject_id` is
+  `NOT NULL`. It is no subject: `db::store::subjects` and `getSubjects` leave
+  it out, a sync never returns its id, it gets no revision topic, and a
+  trigger refuses its delete, which would cascade to its files.
+  `app/tests/repo/subjectLists.test.ts` fails on a `FROM subjects` outside the
+  files it lists.
 - `files.source_created_at` / `source_updated_at` are nullable UTC source
   dates, independent of the local write and first-seen clocks. Both scrape
   writers backfill them on unchanged items; category semantics live in

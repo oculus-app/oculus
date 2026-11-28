@@ -24,7 +24,8 @@ pub struct ThreadSpawn {
     pub bin: PathBuf,
     /// The library's `agents/` folder: the cwd and the writable root.
     pub cwd: PathBuf,
-    /// The library root, opened for reads with `--add-dir`.
+    /// The library root, which every thread reads (each CLI is given it its
+    /// own way: `providers/claude/grants.rs`, `antigravity/acp/session.rs`).
     pub library: PathBuf,
     /// Resume this session rather than starting one.
     pub resume: Option<String>,

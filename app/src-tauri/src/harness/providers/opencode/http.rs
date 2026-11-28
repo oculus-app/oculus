@@ -16,6 +16,19 @@ impl OpencodeServer {
         self.finish(self.api.get(&format!("{}{path}", self.base)).call(), path)
     }
 
+    /// [`Self::get`], with a 404 as `None`: the thing asked for is not there,
+    /// which a caller may recover from where any other failure it may not.
+    pub(super) fn get_found(&self, path: &str) -> Result<Option<Value>, String> {
+        #[cfg(test)]
+        if let Some(replay) = &self.replay {
+            return Ok(Some(replay("GET", path, Value::Null)));
+        }
+        match self.api.get(&format!("{}{path}", self.base)).call() {
+            Err(ureq::Error::Status(404, _)) => Ok(None),
+            answer => self.finish(answer, path).map(Some),
+        }
+    }
+
     /// `send_string`: ureq's `json` feature is off in this crate.
     pub(super) fn post(&self, path: &str, body: Value) -> Result<Value, String> {
         #[cfg(test)]

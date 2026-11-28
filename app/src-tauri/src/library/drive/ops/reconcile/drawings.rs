@@ -75,9 +75,9 @@ pub fn convert(
         }
         let new_name = legacy::whiteboard_name(name, |candidate| {
             std::fs::symlink_metadata(data_dir.join(dir).join(candidate)).is_ok()
-                || index.holds(&format!("{dir}/{candidate}"))
+                || index.holds(&layout::child_rel(dir, candidate))
         });
-        let to = format!("{dir}/{new_name}");
+        let to = layout::child_rel(dir, &new_name);
         match journal.rename(&data_dir.join(&rel), &data_dir.join(&to)) {
             Ok(()) => pass.converted.push(Converted {
                 row: index.find(&rel),

@@ -169,7 +169,7 @@ fn a_write_replaces_the_file_by_rename() {
     );
     assert_eq!(v.get(names::VOYAGE).unwrap().as_deref(), Some("new"));
 
-    let mut leftovers: Vec<String> = std::fs::read_dir(&dir.0)
+    let mut leftovers: Vec<String> = std::fs::read_dir(path.parent().unwrap())
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();

@@ -181,6 +181,58 @@ async fn the_subject_filter_still_applies_within_the_space() {
     assert_eq!(hits[0].subject_id, 20);
 }
 
+/// A top-level file's row hangs off the reserved row, which no subject list
+/// holds: a search of everything still ranks its pages.
+#[tokio::test]
+async fn a_top_level_files_pages_are_ranked_with_every_subjects() {
+    let top = crate::db::store::TOP_LEVEL_SUBJECT_ID;
+    let scratch = Scratch::new("retrieval-top-level");
+    let db = fixture(&scratch.join("oculus.db")).await;
+    add_file(&db, 1, 10, "lecture.pdf").await;
+    add_file(&db, 2, top, "receipt.pdf").await;
+    let mut lukewarm = axis(0);
+    lukewarm[1] = 1.0;
+    add_page(
+        &db,
+        1,
+        1,
+        &lukewarm,
+        embed::EMBED_MODEL,
+        embed::EMBED_DIM as i64,
+    )
+    .await;
+    add_page(
+        &db,
+        2,
+        1,
+        &axis(0),
+        embed::EMBED_MODEL,
+        embed::EMBED_DIM as i64,
+    )
+    .await;
+    db.close().await;
+
+    let search = |ids: &'static [i64]| {
+        let db = scratch.join("oculus.db");
+        async move {
+            rank(
+                &db,
+                &axis(0),
+                embed::EMBED_MODEL,
+                embed::EMBED_DIM as i64,
+                5,
+                ids,
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let all = search(&[]).await;
+    assert_eq!(all.len(), 2);
+    assert_eq!((all[0].file_id, all[0].subject_id), (2, top));
+    assert!(search(&[10]).await.iter().all(|h| h.file_id == 1));
+}
+
 #[tokio::test]
 async fn a_current_artifact_ingests_without_a_backend_and_preserves_existing_text() {
     let scratch = Scratch::new("retrieval-cached");

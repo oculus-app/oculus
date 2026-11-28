@@ -106,6 +106,7 @@ impl ConsumerIo for Io {
             Effect::Forget { provider, .. } => format!("forget {}", provider.as_str()),
             Effect::Reply(reply) => format!("reply {}", reply.option.id),
             Effect::Withdraw { routes } => format!("withdraw {}", routes.len()),
+            Effect::Grant { option, .. } => format!("grant {}", option.id),
         });
         match effect {
             Effect::Rewind { command, ask } => {
@@ -132,6 +133,9 @@ impl ConsumerIo for Io {
                 });
             }
             Effect::Withdraw { routes } => routes.iter().for_each(|r| r.0.withdraw()),
+            Effect::Grant { route, option } => {
+                route.0.reply(&option);
+            }
             _ => {}
         }
     }

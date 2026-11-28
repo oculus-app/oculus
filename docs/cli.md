@@ -49,7 +49,7 @@ reports it and carries on. How chat uses the registry is in
 | `run`, `index`, `auth` | Copies of what the university has | A bad run is repaired by running it again |
 | `search`, `grep`, `read`, `files`, `calendar`, `list`, `status` | Nothing | Safe for any caller |
 | `project`, `task`, `tag` | The student's own plans | No upstream copy: unknown columns are refused, batches are one transaction, `task rm` and `tag rm` say in `--help` there is no undo |
-| `memory` | Agents' notes in `agents/memories/` | A bucket keeps 12 pages. `write` protects existing text, and `append` and `fold` let agents work within the cap ([harness.md](./harness.md#memory)) |
+| `memory` | Agents' notes in `.oculus/agents/memories/` | A bucket keeps 12 pages. `write` protects existing text, and `append` and `fold` let agents work within the cap ([harness.md](./harness.md#memory)) |
 | `lecture chapters`, `lecture end` | Derived rows, regenerable from the recording | They spend model quota, so an existing result is kept unless `--force` |
 | `transcribe` | `<video>.vtt` beside a library video, nothing in the database | Tries the engines in the order set in Settings → Transcription (Groq, local Whisper, on-device speech by default); Groq spends the free-tier audio allowance, the other two run on this Mac. An existing `.vtt` is kept unless `--force` ([viewers.md](./viewers.md#videos-without-captions-are-transcribed)) |
 | `studio new` | A video folder, `<app data>/studio/videos/<slug>/` | Takes `--theme NAME`, otherwise the subject default; refuses an existing slug, or unconfigured narration unless `--scratch` (a scratch video, never linked to a chat) ([studio.md](./studio.md#videos-live-in-the-data-directory)) |
@@ -58,7 +58,7 @@ reports it and carries on. How chat uses the registry is in
 | `studio frame`, `studio strip`, `studio gallery` | PNGs, in the video folder's `out/` unless `-o`/`--out` says elsewhere | Read the video and the libraries: no database, no network ([studio.md](./studio.md)) |
 | `studio lint`, `studio brief`, `studio beats`, `studio components list`, `studio components show` | Nothing in the video folder | `lint` renders and lays out every scene (or `--scene`'s) in memory and exits 1 on any error, never on a warning or note |
 | `studio components promote`, `studio themes promote`, `studio components seed` | A file in the global or a subject's library under `<app data>/studio/` | The library's previous text goes to its `.history/` first; nothing prunes it ([studio.md](./studio.md#libraries-cascade-project-subject-global)) |
-| `studio render` | `renders/<preset>.mp4` in the video folder unless `-o` says elsewhere (the `.vtt` captions beside it, when the video is narrated), and segments, the narration track and `renders.json` under its `.cache/` | Asks ffmpeg for its encoders, decoders and demuxers, runs it once per segment it renders and once to join; no network; deletes cache files no preset's last render uses ([studio.md](./studio.md#rendering-a-video)) |
+| `studio render` | `renders/<preset>.mp4` in the video folder unless `-o` says elsewhere (the `.vtt` captions beside it, when the video is narrated), and segments, the narration track and `renders.json` under its `.cache/`; a final or small render of a Studio video (no `-o`) also into Drive: over its linked file, else in `--to` or `Videos` in its subject (made if missing), with its `files` rows and the `studio_exports` link | Asks ffmpeg for its encoders, decoders and demuxers, runs it once per segment it renders and once to join; no network; deletes cache files no preset's last render uses ([studio.md](./studio.md#rendering-a-video)) |
 | `studio narrate` | `narration/manifest.json` and `narration/<key>.wav` in the video folder; reads the `voice` settings row | Runs Kokoro or calls the TTS server for each scene whose text, voice or phonemes changed, and saves the manifest after each; deletes clips nothing names ([studio.md](./studio.md#narration-makes-clips-and-word-times)) |
 | `studio tts` | One WAV, `tts.wav` unless `-o` says elsewhere | One clip; nothing else |
 | `studio slide` | `assets/slides/<name>.png`, `<name>.page.png` and `<name>.json` in the video folder | Reads the database for FILE, the PDF and its parse record; renders with hayro ([studio.md](./studio.md#slides-crop-a-library-pdf-page)) |
@@ -70,7 +70,7 @@ reports it and carries on. How chat uses the registry is in
 | `studio aligner download`, `studio aligner delete` | The aligner model in `<app data>/models/align/` (378 MB) | Checked against its pinned sha256 before it gets its name; `status` writes nothing |
 | `widget check` | Nothing | Reads one TSX file or stdin; exits 1 on any finding ([widgets.md](./widgets.md#checking-a-widget-before-it-is-sent)) |
 | `library migrate` | Moves an old library into the Drive tree and rewrites its paths; `--dry-run` writes nothing | Every command that reads or writes the library runs the same move first when it finds the old layout (not `keyd` or `docs`), and exits 1 if it fails ([library-move.md](./library-move.md)) |
-| `docs` | The library's `agents/` folder | [Below](#oculus-docs-writes-the-agents-folder) |
+| `docs` | The library's `.oculus/agents/` folder | [Below](#oculus-docs-writes-the-agents-folder) |
 | `keyd install`, `keyd uninstall` | macOS: the LaunchAgent, copied helper app and stamp; Windows: uninstall stops the verified resident broker and removes its registration and stamp, while CLI install cannot start it | Keeps the vault and its master key ([below](#keyd-lifetime-follows-the-platform)) |
 | `keyd status` | Nothing | Pings keyd; macOS launchd can activate it, while Windows only checks an existing broker. Prints no secret |
 | `agent` | Nothing recorded | One turn through the app's own bridges; `--subject` appends the picker's scope ([harness.md](./harness.md)) |
@@ -125,7 +125,7 @@ which brings an existing database's schema up before rewriting its paths
 
 On macOS, `keyd install` registers a LaunchAgent. A keyd whose signed helper
 app is nested in Oculus runs in place; any other has its whole helper app
-copied to `bin/Oculus Helper.app` in the data dir and swapped in with one
+copied to `.oculus/bin/Oculus Helper.app` in the data dir and swapped in with one
 rename. `--from` takes the helper app or the keyd inside it, and refuses a
 keyd outside a helper app. Without `--from` it takes the keyd in the CLI's
 bundle, or in a debug CLI the output of `bun run keyd` in its checkout
@@ -198,7 +198,7 @@ rewriting itself in place is how a long run is told from a stuck one.
   sheets, and with no rows yet `read` prints its `.md` from disk.
 - `read` on a notebook (a `notebook` row) prints page-picture paths, not text:
   `commands/query/notebook.rs` reads the manifest the app writes under
-  `whiteboard-pages/<file id>/` (`library::paths::notebook`) and lists each page's
+  `.oculus/whiteboard-pages/<file id>/` (`library::paths::notebook`) and lists each page's
   PNG with its age. A page whose picture is missing from disk is left out; with
   none left, or none ever written, it fails and says how to get them. A
   `whiteboard` row is not text and has no pictures, and `read` says so.
@@ -319,12 +319,14 @@ The JSON error contains `error`, `code: "invalid_existing_memory"`, and
 
 ## `oculus docs` writes the agents folder
 
-It fills `agents/` in the data directory so an agent in a course folder needs
-no explanation of Oculus. Everything but the CLI reference is written by
+It fills `.oculus/agents/` in the data directory, the workspace every chat
+thread runs in and where a terminal agent starts, so an agent there needs
+no explanation of Oculus. Like every command it runs the launch moves first
+([library-move.md](./library-move.md#they-run-before-anything-touches-the-data-dir)). Everything but the CLI reference is written by
 `app/src-tauri/src/agents/`, which every sync also calls ([sync.md](./sync.md)).
 
 ```
-<data>/agents/
+<data>/.oculus/agents/
   AGENTS.md  OCULUS-CLI.md  OCULUS.md  TASTE.md
   memories/MEMORY.md             cross-subject bucket
   memories/<code>/MEMORY.md      one subject's bucket
@@ -332,9 +334,8 @@ no explanation of Oculus. Everything but the CLI reference is written by
   .claude/skills/<name> → ../../skills/<name>
   .agents/skills/<name> → ../../skills/<name>
 <data>/courses/<code>/
-  AGENTS.md → ../../agents/AGENTS.md
   .oculus/agents/INSTRUCTIONS.md hand-written; nothing writes it
-  .oculus/agents/memories → ../../../../agents/memories/<code>
+  .oculus/agents/memories → ../../../../.oculus/agents/memories/<code>
 ```
 
 Each file has one of four lifetimes:
@@ -349,17 +350,20 @@ Each file has one of four lifetimes:
   memories beside it. Prose under a heading, or missing headings, is reported
   and left alone rather than guessed at.
 - **Linked, never clobbered**: Unix links are relative, so the library can
-  move. Windows copies `AGENTS.md` and skills with a content-hash sidecar: a
+  move. Windows copies skills with a content-hash sidecar: a
   managed copy refreshes with the generated source, while a user edit is
-  preserved. Subject memory directories use Windows junctions. A wrong Unix
-  target is relinked; a real file is left with a warning. A real
+  preserved. Subject memory directories use Windows junctions. A memories
+  link that aims elsewhere is relinked. A real
   `agents/memories/` folder in a course has its files moved into the bucket
-  before it becomes a link.
+  before it becomes a link. A subject's root holds no `AGENTS.md` of the
+  app's: every thread starts in the workspace, and the sweep removes a link
+  (or Windows managed copy) an earlier layout left there, never a file or
+  link of the student's.
 
 Skills are one directory reached three ways: Claude Code scans
 `.claude/skills` and Codex `.agents/skills`, both walking up from the working
 directory, and opencode reads a `skills.paths` config key. Nothing is written
-to a home directory. Both memory buckets sit under `agents/` because a chat
+to a home directory. Both memory buckets sit under the workspace because a chat
 thread may write it, and a subject's `.oculus/` is protected
 ([harness.md](./harness.md)).
 

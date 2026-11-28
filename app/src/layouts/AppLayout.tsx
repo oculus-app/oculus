@@ -17,6 +17,8 @@ import { useJobAudit } from "@/hooks/agents/useJobAudit";
 import { useBrowserTabs } from "@/hooks/shell/useBrowserTabs";
 import { useBrowserDownloads } from "@/hooks/shell/useBrowserDownloads";
 import { BrowserDownloadDialog } from "@/pages/tools/browser/downloads/BrowserDownloadDialog";
+import { DrivePickerHost } from "@/components/drive/picker/DrivePickerHost";
+import { DeleteToast } from "@/components/drive/toast/DeleteToast";
 import { useTauriEvent, useWindowEvent } from "@/hooks/backend/useEvents";
 import { routeEdit, routeSelectAll } from "@/lib/menu/editRouting";
 import { routeFind } from "@/lib/menu/find";
@@ -188,6 +190,8 @@ export default function AppLayout() {
         <LeaveLectureDialog />
         <EventDialog />
         <BrowserDownloadDialog />
+        <DrivePickerHost />
+        <DeleteToast />
         {/* ⌘K; listens for its menu event itself. */}
         <CommandPalette />
       </div>

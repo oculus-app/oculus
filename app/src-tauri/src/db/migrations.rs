@@ -1054,6 +1054,68 @@ UPDATE chat_proposals SET told_run_id = (
                         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 68,
+            description: "subjects: the reserved row top-level files hang off",
+            // `files.subject_id` is NOT NULL, so a file at the data dir's top
+            // level hangs off one row that is no subject (`store::subjects`).
+            // It gets no revision topic and cannot be deleted: `files` cascades.
+            sql: r#"
+ALTER TABLE subjects ADD COLUMN kind TEXT NOT NULL DEFAULT 'subject';
+DROP TRIGGER IF EXISTS revision_topics_subject_insert;
+CREATE TRIGGER revision_topics_subject_insert AFTER INSERT ON subjects
+WHEN NEW.kind = 'subject'
+BEGIN INSERT INTO revision_topics(subject_id,name,is_unsorted) VALUES(NEW.id,'Unsorted',1); END;
+INSERT INTO subjects (id, code, name, is_current, workflow_state, selected, kind)
+VALUES (-100, 'My Drive', 'My Drive', 0, 'reserved', 0, 'top');
+CREATE TRIGGER subjects_top_level_stays BEFORE DELETE ON subjects
+WHEN OLD.kind = 'top'
+BEGIN SELECT RAISE(ABORT, 'the top-level row cannot be deleted'); END;
+                        "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 69,
+            description: "studio_exports: the Drive file each video's Final and Small render to",
+            // Keyed by the file's row id, so a re-render finds the file
+            // wherever the student moved or renamed it. Deleting the file in
+            // Drive removes the link (`store::studio_exports` says how). The
+            // size and time the export wrote tell its file from another one
+            // put under the same name; `captions` is whether it wrote the
+            // `.vtt` beside it.
+            sql: r#"
+CREATE TABLE studio_exports (
+    slug TEXT NOT NULL,
+    preset TEXT NOT NULL,
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    size INTEGER NOT NULL,
+    modified_ms INTEGER NOT NULL,
+    captions INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (slug, preset)
+);
+CREATE INDEX idx_studio_exports_file ON studio_exports(file_id);
+                        "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 70,
+            description: "chat_saves: the Drive copy of each chat output the student saved",
+            // Keyed by the workspace path (`.oculus/agents/…`); the copy counts
+            // only while the source still has the stamp it was saved with. Every
+            // `files` delete also clears its row here, since the cascade needs
+            // `foreign_keys`.
+            sql: r#"
+CREATE TABLE IF NOT EXISTS chat_saves (
+    source       TEXT    PRIMARY KEY,
+    file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    source_size  INTEGER NOT NULL,
+    source_mtime INTEGER NOT NULL,
+    saved_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_saves_file ON chat_saves(file_id);
+                        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

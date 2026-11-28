@@ -97,12 +97,12 @@ fn sniff_file(bytes: &[u8], claimed: Option<&str>) -> Option<&'static str> {
     )
 }
 
-/// `attachments/` inside the library's `agents/`, without touching disk.
+/// `attachments/` inside the agents' workspace, without touching disk.
 fn attachments_dir(data_dir: &Path) -> PathBuf {
     crate::agents::agents_dir(data_dir).join("attachments")
 }
 
-/// The real attachments folder: it must be `agents/attachments` itself once
+/// The real attachments folder: it must be the workspace's `attachments` itself once
 /// links are resolved, so a link planted there cannot send a write elsewhere.
 fn verified_dir(data_dir: &Path) -> Result<PathBuf, String> {
     let agents = crate::agents::agents_dir(data_dir)
@@ -124,12 +124,22 @@ fn attachments_root(data_dir: &Path) -> Result<PathBuf, String> {
     verified_dir(data_dir)
 }
 
-/// The file an `agents/attachments/<name>` path names, inside `root` (a
-/// [`verified_dir`]). Refused: an absolute path, any other folder, a `..` or
-/// empty name, and a link that resolves out of `root`.
+/// `.oculus/agents/attachments/`, the folder as a data-dir-relative path
+/// spells it.
+fn attachments_rel() -> String {
+    format!("{}/attachments/", crate::agents::agents_rel())
+}
+
+/// The folder's spelling before the state folder, which old chats still hold.
+const OLD_ATTACHMENTS_REL: &str = "agents/attachments/";
+
+/// The file a `.oculus/agents/attachments/<name>` path names, inside `root`
+/// (a [`verified_dir`]). Refused: an absolute path, any other folder, a `..`
+/// or empty name, and a link that resolves out of `root`.
 fn resolve_attachment(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let name = rel
-        .strip_prefix("agents/attachments/")
+        .strip_prefix(&attachments_rel())
+        .or_else(|| rel.strip_prefix(OLD_ATTACHMENTS_REL))
         .ok_or_else(|| format!("{rel}: not an attachment path"))?;
     if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') {
         return Err(format!("{rel}: not an attachment path"));
@@ -281,7 +291,7 @@ pub async fn harness_attachments_exist(paths: Vec<String>) -> Result<Vec<bool>, 
     .await
 }
 
-/// The attachments a message names, as `agents/attachments/<name>`, in first
+/// The attachments a message names, as `.oculus/agents/attachments/<name>`, in first
 /// mention order. Only this app's stamped names ([`filename`]) count, so a
 /// file the agent wrote into the folder under a name of its own is never
 /// taken for something the student attached.
@@ -291,7 +301,7 @@ pub fn attachment_paths(text: &str) -> Vec<String> {
     });
     let mut paths: Vec<String> = Vec::new();
     for found in STAMPED.captures_iter(text) {
-        let path = format!("agents/attachments/{}", &found[1]);
+        let path = format!("{}{}", attachments_rel(), &found[1]);
         if !paths.contains(&path) {
             paths.push(path);
         }
@@ -299,7 +309,7 @@ pub fn attachment_paths(text: &str) -> Vec<String> {
     paths
 }
 
-/// Delete each `agents/attachments/<name>` file, returning the paths it
+/// Delete each `.oculus/agents/attachments/<name>` file, returning the paths it
 /// removed. A path [`resolve_attachment`] refuses, or one already gone, is
 /// skipped; any other failure stops and surfaces.
 pub fn remove_attachments(data_dir: &Path, paths: &[String]) -> Result<Vec<String>, String> {
@@ -336,8 +346,8 @@ mod tests {
         assert_eq!(
             attachment_paths(text),
             vec![
-                "agents/attachments/20261120-063301-0a1b2c3d.png".to_string(),
-                "agents/attachments/20261120-063302-00ff00ff.pdf".to_string(),
+                ".oculus/agents/attachments/20261120-063301-0a1b2c3d.png".to_string(),
+                ".oculus/agents/attachments/20261120-063302-00ff00ff.pdf".to_string(),
             ]
         );
     }
@@ -347,24 +357,27 @@ mod tests {
         let data = crate::test_support::Scratch::new("attach-remove");
         let root = attachments_root(&data).unwrap();
         std::fs::write(root.join("a.png"), b"a").unwrap();
-        std::fs::write(data.join("agents").join("keep.txt"), b"k").unwrap();
+        std::fs::write(crate::agents::agents_dir(&data).join("keep.txt"), b"k").unwrap();
         let removed = remove_attachments(
             &data,
             &[
-                "agents/attachments/a.png".into(),
-                "agents/attachments/gone.png".into(),
-                "agents/attachments/../keep.txt".into(),
-                "agents/keep.txt".into(),
+                ".oculus/agents/attachments/a.png".into(),
+                ".oculus/agents/attachments/gone.png".into(),
+                ".oculus/agents/attachments/../keep.txt".into(),
+                ".oculus/agents/keep.txt".into(),
             ],
         )
         .unwrap();
-        assert_eq!(removed, vec!["agents/attachments/a.png".to_string()]);
+        assert_eq!(
+            removed,
+            vec![".oculus/agents/attachments/a.png".to_string()]
+        );
         assert!(!root.join("a.png").exists());
-        assert!(data.join("agents").join("keep.txt").exists());
+        assert!(crate::agents::agents_dir(&data).join("keep.txt").exists());
 
         let empty = crate::test_support::Scratch::new("attach-remove-none");
         assert_eq!(
-            remove_attachments(&empty, &["agents/attachments/a.png".into()]).unwrap(),
+            remove_attachments(&empty, &[".oculus/agents/attachments/a.png".into()]).unwrap(),
             Vec::<String>::new()
         );
     }
@@ -457,17 +470,17 @@ mod tests {
         let data = crate::test_support::Scratch::new("attach-exist");
         let root = attachments_root(&data).unwrap();
         let name = write_file(&root, b"hello", Some("a.txt")).unwrap();
-        std::fs::write(data.join("agents").join("secret.txt"), b"s").unwrap();
+        std::fs::write(crate::agents::agents_dir(&data).join("secret.txt"), b"s").unwrap();
         std::fs::write(data.join("outside.txt"), b"o").unwrap();
         let paths = [
-            format!("agents/attachments/{name}"),
-            "agents/attachments/gone.png".to_string(),
-            "agents/attachments/../secret.txt".to_string(),
-            "agents/attachments/..".to_string(),
-            "agents/secret.txt".to_string(),
+            format!(".oculus/agents/attachments/{name}"),
+            ".oculus/agents/attachments/gone.png".to_string(),
+            ".oculus/agents/attachments/../secret.txt".to_string(),
+            ".oculus/agents/attachments/..".to_string(),
+            ".oculus/agents/secret.txt".to_string(),
             data.join("outside.txt").to_string_lossy().into_owned(),
             "../outside.txt".to_string(),
-            "agents/attachments/".to_string(),
+            ".oculus/agents/attachments/".to_string(),
         ];
         assert_eq!(
             attachments_exist(&data, &paths),
@@ -476,6 +489,11 @@ mod tests {
         for refused in &paths[2..] {
             assert!(resolve_attachment(&root, refused).is_err(), "{refused}");
         }
+        // The spelling from before the state folder, which old chats hold.
+        assert_eq!(
+            attachments_exist(&data, &[format!("agents/attachments/{name}")]),
+            vec![true]
+        );
     }
 
     #[cfg(unix)]
@@ -486,19 +504,23 @@ mod tests {
         std::fs::write(elsewhere.join("secret.txt"), b"s").unwrap();
         let root = attachments_root(&data).unwrap();
         std::os::unix::fs::symlink(elsewhere.join("secret.txt"), root.join("leak.txt")).unwrap();
-        assert!(resolve_attachment(&root, "agents/attachments/leak.txt").is_err());
+        assert!(resolve_attachment(&root, ".oculus/agents/attachments/leak.txt").is_err());
         assert_eq!(
-            attachments_exist(&data, &["agents/attachments/leak.txt".into()]),
+            attachments_exist(&data, &[".oculus/agents/attachments/leak.txt".into()]),
             vec![false]
         );
 
         // The folder itself linked elsewhere: nothing is written or read there.
         let linked = crate::test_support::Scratch::new("attach-linked");
-        std::fs::create_dir_all(linked.join("agents")).unwrap();
-        std::os::unix::fs::symlink(&*elsewhere, linked.join("agents").join("attachments")).unwrap();
+        std::fs::create_dir_all(crate::agents::agents_dir(&linked)).unwrap();
+        std::os::unix::fs::symlink(
+            &*elsewhere,
+            crate::agents::agents_dir(&linked).join("attachments"),
+        )
+        .unwrap();
         assert!(attachments_root(&linked).is_err());
         assert_eq!(
-            attachments_exist(&linked, &["agents/attachments/secret.txt".into()]),
+            attachments_exist(&linked, &[".oculus/agents/attachments/secret.txt".into()]),
             vec![false]
         );
     }

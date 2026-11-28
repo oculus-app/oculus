@@ -4,11 +4,14 @@ import { parseFile } from "@/lib/files/courseFiles";
 import { isPipelineFile } from "@/lib/files/fileTypes";
 import { copyToOwn, createFolder, deleteEntries, driveErrorText, moveEntries, renameEntry } from "./commands";
 import { announceDriveChange, listFolder } from "./listing";
-import { baseName, freeName, subjectFolderOf, subjectForFolder } from "./paths";
+import { homeOf } from "./home";
+import { usePendingDeleteStore } from "@/stores/drive/pendingDeleteStore";
+import { baseName, freeName } from "./paths";
 
 /**
  * What Drive does to the library, each followed by `announceDriveChange` so
- * every listing, tree and file list of the subject reloads. A failure is
+ * every listing, tree and file list of the subject (or of the top level)
+ * reloads. A failure is
  * reported through {@link reportDriveProblem}; the browser shows it in a line
  * above its entries (no toasts).
  */
@@ -19,12 +22,6 @@ export function reportDriveProblem(text: string): void {
   window.dispatchEvent(new CustomEvent(DRIVE_PROBLEM_EVENT, { detail: text }));
 }
 
-/** The subject `rel` is in, from the subject list. */
-export const subjectOf = (rel: string, subjects: readonly Subject[]): Subject | undefined => {
-  const folder = subjectFolderOf(rel);
-  return folder ? subjectForFolder(folder, subjects) : undefined;
-};
-
 async function attempt<T>(rel: string, subjects: readonly Subject[], run: () => Promise<T>): Promise<T | null> {
   try {
     return await run();
@@ -32,16 +29,16 @@ async function attempt<T>(rel: string, subjects: readonly Subject[], run: () => 
     reportDriveProblem(driveErrorText(error));
     return null;
   } finally {
-    announceDriveChange(subjectOf(rel, subjects)?.id);
+    announceDriveChange(homeOf(rel, subjects)?.id);
   }
 }
 
 /** Finder files or folders copied into `targetDir`. */
 export async function importInto(paths: string[], targetDir: string, subjects: readonly Subject[]): Promise<void> {
-  const subject = subjectOf(targetDir, subjects);
-  if (!subject) return reportDriveProblem("Files can only be added inside a subject");
+  const home = homeOf(targetDir, subjects);
+  if (!home) return reportDriveProblem("Files can't be added here");
   await attempt(targetDir, subjects, async () => {
-    const outcomes = await addUploads(subject, paths, targetDir);
+    const outcomes = await addUploads(home, paths, targetDir);
     const failed = outcomes.filter((o) => o.error).map((o) => `${o.source}: ${o.error}`);
     if (failed.length) reportDriveProblem(failed.join("\n"));
   });
@@ -62,11 +59,11 @@ export async function dropInto(
 
 async function copyInto(rels: string[], targetDir: string, subjects: readonly Subject[]): Promise<void> {
   const copies = await copyToOwn(rels, targetDir);
-  const subject = subjectOf(targetDir, subjects);
-  if (!subject) return;
+  const home = homeOf(targetDir, subjects);
+  if (!home) return;
   for (const rel of await filesOf(copies)) {
     if (isPipelineFile(baseName(rel))) {
-      parseFile(subject.id, subject.code, rel).catch((e) => console.warn(`[drive] parse ${rel}: ${e}`));
+      parseFile(home.id, home.code, rel).catch((e) => console.warn(`[drive] parse ${rel}: ${e}`));
     }
   }
 }
@@ -99,11 +96,16 @@ export function renameTo(rel: string, name: string, subjects: readonly Subject[]
   return attempt(rel, subjects, () => renameEntry(rel, name.trim()));
 }
 
+/** To the system Trash, with the Undo toast; true once it went. */
 export async function deleteAll(rels: string[], subjects: readonly Subject[]): Promise<boolean> {
-  return (await attempt(rels[0] ?? "", subjects, async () => { await deleteEntries(rels); return true; })) ?? false;
+  return (await attempt(rels[0] ?? "", subjects, async () => {
+    usePendingDeleteStore.getState().show(await deleteEntries(rels));
+    return true;
+  })) ?? false;
 }
 
 /** A new folder in `dir`, named clear of `taken`; its path, or null. */
 export function newFolderIn(dir: string, taken: Iterable<string>, subjects: readonly Subject[]): Promise<string | null> {
-  return attempt(dir, subjects, () => createFolder(`${dir}/${freeName("Untitled folder", taken)}`));
+  const name = freeName("Untitled folder", taken);
+  return attempt(dir, subjects, () => createFolder(dir ? `${dir}/${name}` : name));
 }

@@ -17,6 +17,7 @@ export function LightboxToolbar({
   onOut,
   onReset,
   onClose,
+  lead,
 }: {
   readout: React.RefObject<HTMLSpanElement | null>;
   limit: Limit;
@@ -24,10 +25,19 @@ export function LightboxToolbar({
   onOut: () => void;
   onReset: () => void;
   onClose: () => void;
+  /** An action for what is shown (Save to Drive…), before the zoom; with
+   *  its divider, drawn only once it renders a button. */
+  lead?: React.ReactNode;
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
       <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-card/90 p-1 text-xs text-muted-foreground shadow-md backdrop-blur-sm">
+        {lead && (
+          <div className="hidden items-center gap-0.5 has-[button]:flex">
+            {lead}
+            <div className="mx-1 h-4 w-px bg-border" />
+          </div>
+        )}
         <Action label="Zoom out" onClick={onOut} disabled={limit === "min"}>
           <MagnifyingGlassMinus size={14} />
         </Action>

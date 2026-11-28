@@ -18,7 +18,7 @@ video starts that chat. The renderer, the commands and the thread link are
 | Series grouping, outline navigation, and the chat each part is made in | `app/src/lib/studio/series.ts`, `app/src/lib/studio/seriesRequest.ts`, `app/src/lib/studio/threadRunning.ts`, `app/src/hooks/studio/useMakeSeriesPart.ts`, `app/src/stores/studio/seriesMakeStore.ts`, `app/src/stores/studio/seriesMakeState.ts` |
 | A series' part on the video page and in the chat card: the series bar, the Parts outline, the frame of a part not made, and what each decides (`seriesView.ts`) | `app/src/components/studio/series/` (`SeriesBar.tsx`, `PartsOutline.tsx`, `UnmadePart.tsx`), `app/src/lib/studio/seriesView.ts` |
 | The style chip in Chat's composer: theme, format, length, voice | `app/src/components/harness/composer/useStudioStyle.tsx`, `app/src/components/studio/style/`, `app/src/hooks/studio/useThemes.ts`, `app/src/hooks/studio/useThemeDefaults.ts`, `app/src/lib/studio/themes.ts`, `app/src/lib/studio/length.ts`, `app/src/lib/studio/voice.ts`, `app/src/lib/studio/setup.ts` |
-| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu, the ⋯ menu that deletes the video and what a delete decides | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`, `VideoMenu.tsx`), `app/src/lib/studio/videoActions.ts`, `app/src/hooks/studio/useExportStatus.ts`, `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
+| Player, render bar, the detail's dock (script, scene grid), facts, Render draft, the Export menu, the ⋯ menu that deletes the video and what a delete decides | `app/src/components/studio/video/` (`VideoDetailStage.tsx`, `VideoDock.tsx`, `RenderDraftButton.tsx`, `ExportMenu.tsx`, `VideoMenu.tsx`), `app/src/lib/studio/videoActions.ts`, `app/src/hooks/studio/useExportStatus.ts`, `app/src/hooks/studio/useVideoPlayback.ts`, `app/src/hooks/studio/useDockedFrameHeight.ts`, `app/src/hooks/studio/useSceneStill.ts`, `app/src/hooks/studio/useVideoDetail.ts`, `app/src/lib/studio/exports.ts`, `app/src/lib/studio/renderToDrive.ts`, `app/src/lib/studio/subjectCode.ts`, `app/src/hooks/studio/useSubjectCode.ts` |
 | The Videos grid, its cards, series folders and subject pills | `app/src/components/studio/videos/` (`series/` for the folder and part cards), `app/src/lib/studio/seriesGrid.ts`, `app/src/hooks/studio/useOpenSeries.ts`, `app/src/components/ui/layout/MediaGrid.tsx`, `app/src/components/ui/layout/MediaRunCell.tsx`, `app/src/lib/ui/gridRun.ts`, `app/src/hooks/ui/useGridColumns.ts`, `app/src/hooks/ui/useGridMotion.ts`, `app/src/lib/ui/gridMotion.ts` |
 | The theme and voice pickers, narrating from the page, the out-of-date note, and what each decides (`videoControls.ts`) | `app/src/components/studio/video/` (`PickerPill.tsx`, `ThemePicker.tsx`, `VoicePicker.tsx`, `RenderBar.tsx`), `app/src/lib/studio/videoControls.ts`, `app/src/lib/studio/narration.ts`, `app/src/hooks/studio/useNarrationStatus.ts` |
 | Stills (`studio_frame`, `studio_thumbnail`) as object URLs | `app/src/lib/studio/stills.ts`, `app/src/hooks/studio/useStill.ts` |
@@ -334,8 +334,11 @@ any render of the folder runs, and is off while a narration does), and
   runs, or while the narration status gives a reason it cannot run, which is
   then its tooltip (`narrateBlocker`). Rust's own sentence for a preset that cannot
   render stays in the Export menu. A render in flight, of any preset (Render
-  draft, Export and Re-render start them through `renderStore`), takes the
-  bar's place with a bar naming the preset, the percentage and Cancel; a
+  draft, Export and Re-render start them through `renderStore`, Export's and
+  Re-render's through `renderToDrive`, below), takes the
+  bar's place with a bar naming the preset, the percentage and Cancel, and
+  "Saving to Drive" with no Cancel while a Final or Small one is copied there,
+  since nothing stops the copy (`renderingWords`); a
   narration in flight does the same with "Narrating 4/12" (`narratingLabel`).
   A failure shows under the row (`RenderError`, `NarrateError`) and stays
   until the next render or narration starts. Rendering is local (ffmpeg), so
@@ -377,15 +380,45 @@ any render of the folder runs, and is off while a narration does), and
 - **Export** (`ExportMenu`), the row's button once there is a render, is a pill over a popover of the presets, Draft,
   Final and Small ([studio.md](./studio.md#rendering-a-video)): each row names
   the preset and what it makes for this video's shape (`presetHint`), and its
-  state from the export statuses above: a check when its file is current, "Out of date" in the warning colour
+  state from the export statuses above (`menuState`): a check when its file is current, "Out of date" in the warning colour
   when the file is from an older version, the reason when it cannot render
-  now. Render (or Re-render) closes the menu and starts it through
-  `renderStore`, so its progress is the render bar's; while any render or a
-  narration of the video runs the buttons are off and the running row spins. A row with a file
+  now. A Final or Small render is the student's video and lives in Drive
+  ([studio.md](./studio.md#a-final-or-small-render-goes-to-drive)), so such
+  a row counts as made only once it has a Drive file (`drive` in the
+  statuses); until then it offers Render whatever `renders/` holds. Render
+  (or Re-render) closes the menu and starts it through `renderToDrive`, so
+  its progress is the render bar's: a Draft just renders; a Final or Small
+  with a Drive file (read afresh) renders over it without asking, wherever
+  the student moved or renamed it; one without opens the Drive picker
+  (title "Render Final" or "Render Small", action Render) on the suggested
+  folder (`studio_export_suggestion`: `Videos` in the video's subject, else
+  at the top level) with the video's title as the name (`<title>
+  (small).mp4` for Small). A `Videos` that is not there yet is the picker's
+  destination still to make (`makeStart`), made only when the student
+  renders there. Cancel in the picker cancels the render: there is no Final
+  or Small outside Drive. A failure before the render starts shows under the
+  row as a render's does. While any render or a
+  narration of the video runs the buttons are off and the running row spins.
+  A row in Drive has one quiet trail line under its hint (`DriveLine`: the
+  file's folder from its subject, or from My Drive at the top level, and
+  the file's name too once the student has renamed it; a long one fades
+  and glides as `Trail` does) and **Show in Drive** (`ArrowSquareUpRight`),
+  which opens Drive on its folder in a new tab. A row with a file
   has Show in Finder (Show in Explorer on Windows, `revealItemInDir`) and a
   bin, Move to Trash (Move to Recycle Bin), which asks nothing, since the
-  file can be rendered again: `studio_render_delete` moves the mp4 and its
-  `.vtt`, then the detail, the list and the statuses are read again. The
+  file can be rendered again: `studio_render_delete` (`delete_render_at`)
+  makes one delete of the mp4 and its `.vtt` in `renders/` and, on a Final
+  or Small row, the Drive copy while it is still this export
+  (`export::drive_copy`: its row, and the size and time `studio_exports`
+  says the export wrote) with the captions beside it while they are still
+  the render's (the same bytes as its `.vtt`); a Drive file the student
+  changed since stays. All of it goes to the Trash with the toast's Undo
+  ([frontend.md](./frontend.md#a-delete-goes-to-the-system-trash-with-undo-until-its-toast-closes)),
+  which puts all of it back; the render's cache record and the segments
+  only it used go when the delete is final (`forget_render`, which leaves
+  them when a render of the preset is back). Then the detail, the list and
+  the statuses are read again.
+  Show in Finder acts on Studio's copy in `renders/`. The
   player falls back to the render left (`useVideoPlayback` shows the newest
   playable one when the shown one is gone); with none left, the row's
   button becomes Render draft and the popover goes with Export, and a

@@ -32,9 +32,9 @@ use output::*;
 fn main() {
     restore_sigpipe();
     app_lib::bind_layers();
-    app_lib::library::storage::finish_start_over(&paths::data_dir());
     // No credential goes through keyd until it serves the profile's university.
     keyd_core::client::bound::bind(app_lib::sources::institution::bound);
+    // First: `--help`, `--version` and a mistyped command touch nothing.
     let cli = Cli::parse();
     if let Err(e) = agent_guard::check(
         cli.command.as_ref(),
@@ -47,24 +47,17 @@ fn main() {
         }
         std::process::exit(1);
     }
-    // An old library moves into the Drive tree before any command reads or
-    // writes it (docs/library-move.md). `library migrate` runs or previews it
-    // itself. `keyd` touches no library and runs inside `tauri dev`'s
-    // preflight, where a move's failure would read as keyd's; `docs` writes
-    // only the agents' folder, and `docs --stdout` nothing.
-    let skips_move = matches!(
-        cli.command,
-        Some(
-            Command::Library {
-                action: LibraryAction::Migrate(_)
-            } | Command::Keyd { .. }
-                | Command::Docs(_)
-        )
-    );
-    if !skips_move {
-        if let Err(e) = app_lib::library::migrate::at_startup(&paths::data_dir()) {
-            fail(cli.json, &format!("the library move failed: {e}"));
-        }
+    // Like `--help`, `docs --stdout` only renders this binary's help: it
+    // reads and writes nothing in the data dir, so it runs on any library.
+    if writes_nothing(cli.command.as_ref()) {
+        print!("{}", commands::docs::render_cli_docs());
+        return;
+    }
+    // Before any other command opens a file in the data dir: the app's own
+    // files move into the state folder, Start over finishes, and an old
+    // library moves into the Drive tree (docs/library-move.md).
+    if let Err(e) = app_lib::library::at_launch(&paths::data_dir()) {
+        fail(cli.json, &format!("the library move failed: {e}"));
     }
     let ctx = Ctx::new(cli.json);
 
@@ -207,6 +200,11 @@ fn read_secret(prompt: &str) -> Result<String, String> {
 }
 
 /// Rust ignores SIGPIPE, which turns `oculus list | head` into a panic.
+/// `docs --stdout`: the one command that runs before the launch move.
+fn writes_nothing(command: Option<&Command>) -> bool {
+    matches!(command, Some(Command::Docs(args)) if args.stdout)
+}
+
 fn restore_sigpipe() {
     #[cfg(unix)]
     unsafe {
@@ -251,5 +249,22 @@ impl Ctx {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod launch_tests {
+    use super::*;
+
+    fn exempt(args: &[&str]) -> bool {
+        writes_nothing(Cli::try_parse_from(args).unwrap().command.as_ref())
+    }
+
+    #[test]
+    fn only_docs_to_stdout_runs_before_the_launch_move() {
+        assert!(exempt(&["oculus", "docs", "--stdout"]));
+        assert!(!exempt(&["oculus", "docs"]), "writes the library's docs");
+        assert!(!exempt(&["oculus", "status"]));
+        assert!(!exempt(&["oculus"]));
     }
 }

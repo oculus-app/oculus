@@ -110,7 +110,7 @@ fn category_names(course: &serde_json::Value) -> Vec<String> {
 
 /// Canvas course id → the Ed course its launch landed on.
 fn launched_path(data_dir: &Path) -> PathBuf {
-    data_dir.join("ed-courses.json")
+    crate::library::paths::state_dir(data_dir).join("ed-courses.json")
 }
 
 fn read_launched(data_dir: &Path) -> BTreeMap<String, i64> {

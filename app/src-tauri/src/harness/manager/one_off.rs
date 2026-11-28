@@ -114,7 +114,7 @@ impl Harness {
                 let server = self.codex_server()?;
                 let opts = CodexThreadOpts {
                     cwd,
-                    writable_roots: Vec::new(),
+                    writes_library: false,
                     model: Some(sel.model.clone()),
                     reasoning_effort: sel.reasoning_effort.clone(),
                     instructions: instructions.to_string(),

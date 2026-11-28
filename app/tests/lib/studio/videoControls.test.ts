@@ -6,6 +6,7 @@ import {
   narrateHint,
   narratingLabel,
   pillBlocker,
+  renderingWords,
   renderNote,
   renderNoteWords,
 } from "@/lib/studio/videoControls";
@@ -92,5 +93,14 @@ describe("the note beside the render on screen", () => {
   test("the narration bar names the scene once it is known", () => {
     expect(narratingLabel({ n: 0, of: 0 })).toBe("Narrating…");
     expect(narratingLabel({ n: 4, of: 12 })).toBe("Narrating 4/12");
+  });
+});
+
+describe("renderingWords", () => {
+  test("a render can be cancelled until it is saving to Drive", () => {
+    expect(renderingWords("planning", "Final")).toEqual({ label: "Rendering final…", cancellable: true });
+    expect(renderingWords("rendering", "Small")).toEqual({ label: "Rendering small", cancellable: true });
+    expect(renderingWords("muxing", "Final")).toEqual({ label: "Adding the narration", cancellable: true });
+    expect(renderingWords("exporting", "Final")).toEqual({ label: "Saving to Drive", cancellable: false });
   });
 });

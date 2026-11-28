@@ -6,7 +6,7 @@ import { FileChip } from "@/components/markdown/FileChip";
 import { ReferenceLink } from "@/components/markdown/ReferenceLink";
 import { MD_COMPONENTS } from "@/components/markdown/MdComponents";
 import { PDFViewer } from "@/components/files/pdf/PDFViewer";
-import { docPdfRelPath, isCodeFile, isPdfBacked, isSheetFile, isVideoFile, parsedMdRelPath } from "@/lib/files/fileTypes";
+import { docPdfRelPath, isCodeFile, isPdfBacked, isPictureFile, isSheetFile, isVideoFile, parsedMdRelPath } from "@/lib/files/fileTypes";
 import { openLibraryPath, type FileLocate } from "@/lib/files/openFile";
 import { libraryImageSrc, libraryLinkTarget } from "@/lib/files/libraryLinks";
 import { useDataDir } from "@/hooks/backend/useDataDir";
@@ -115,7 +115,7 @@ interface FileViewerProps {
 
 /**
  * Renders one scraped file: markdown pages/announcements, PDFs, spreadsheets
- * (as their text), images, videos (in the media player, `VideoFileViewer`)
+ * (as their text), images and pictures (SVG as an `<img>`), videos (in the media player, `VideoFileViewer`)
  * and source files (read-only in `CodeEditor`, `CodeFileViewer`).
  * Chrome-free — the host owns the header (title + PdfMdToggle).
  */
@@ -145,7 +145,9 @@ export function FileViewer({
     </EmbedSubjectProvider>
   );
 
-  if (file.category === "image") {
+  // A synced image, or a picture of the student's (a chat output saved to
+  // Drive): an `<img>`, so an SVG's scripts never run in the page.
+  if (file.category === "image" || isPictureFile(file.filename)) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-5">
         <img

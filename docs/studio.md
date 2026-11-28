@@ -47,6 +47,7 @@ crops library PDF pages into slides (`slide`), and narrates.
 | The pronunciation review: suggestions stored one file each, the lexicon writer, finding a word in a video's narration; its Tauri commands and wrappers | `app/src-tauri/src/studio/voice/review/` (`key.rs`, `lexicon.rs`, `locate.rs`), `app/src-tauri/src/studio/commands/pronunciations.rs`, `app/src/lib/studio/pronunciations.ts` |
 | Settings -> Studio (Narration, Pronunciation, Word timing): the `voice` row and its engine, the server's model list, Kokoro's packs, voices and sample, the pronunciation review, the aligner download; its Tauri commands | `app/src/pages/settings/studio/`, `app/src/components/settings/voice/` (`pronunciations/`, `voices/`), `app/src/lib/studio/` (`voice.ts`, `voicePacks.ts`, `kokoroVoices.ts`, `aligner.ts`), `app/src-tauri/src/studio/commands/` (`voice.rs`, `kokoro.rs`, `voice_files.rs`, `aligner.rs`, `progress.rs`), `app/src-tauri/src/studio/tts/models.rs` |
 | Rendering a video: the export presets, ffmpeg's toolkit and the encoder choice, plan, workers and the reorder buffer, ffmpeg, the segment cache, the narration track, mux, the `.vtt` beside each narrated render, each preset's status, one render per folder | `app/src-tauri/src/studio/render/` (`preset.rs`, `toolkit.rs`, `settings.rs`, `export.rs`, `status.rs`), `app/src-tauri/crates/oculus-core/build.rs` (`STUDIO_RENDER_BUILD`) |
+| A Final or Small render into Drive: the suggested folder and name, the first copy and its rows, replacing the linked file, the link table | `app/src-tauri/src/studio/export/` (`place.rs`, `rows.rs`, `disk.rs`), `app/src-tauri/src/db/store/studio_exports.rs` |
 | Rendering from the app: `studio_render`, `studio_render_cancel`, `studio_exports`, the `studio-render-progress` event and their wrappers; the page over them is [studio-page.md](./studio-page.md) | `app/src-tauri/src/studio/commands/render.rs`, `app/src/lib/studio/render.ts` |
 | The Studio page's commands: the video list, a video's detail, settings, narration, stills and thumbnails; the `studio_videos` link table; a video thread's brief | `app/src-tauri/src/studio/commands/videos/`, `app/src-tauri/src/db/store/studio_videos.rs`, `app/src-tauri/src/harness/manager/studio.rs`, `app/src/lib/studio/videos.ts` |
 | The playground's and Themes page's commands: the theme and component lists, source, frame, validated write, history, restore and removal, each library's default theme; the shared snapshot listing; a new video's default theme | `app/src-tauri/src/studio/commands/components/`, `commands/themes/`, `commands/levels.rs`, `commands/history.rs`, `app/src-tauri/src/studio/libraries/defaults.rs`, `app/src/lib/studio/components.ts`, `app/src/lib/studio/themes.ts` |
@@ -199,12 +200,14 @@ Everything Studio keeps is under `<app data>/studio/`
 `series/<slug>/` (one outline per series), `library/` (the global library), `subjects/<CODE>/` (each subject's) and
 `pronunciations/` (the readings waiting for the student's review, see
 "The student reviews the agent's suggested readings").
-`courses/` stays read-only to agents, so no library lives there. It is the
+`courses/` stays read-only to agents, so no library lives there. `studio/`
+sits beside `agents/` in the state folder (`library::paths::studio_dir`,
+`<data>/.oculus/studio`), and is the
 one folder besides `agents/` and the database an agent thread may write
 ([harness.md](./harness.md#every-thread-runs-from-agents-it-writes-there-and-in-the-students-own-files)).
 
 - `oculus studio new <slug> [--subject CODE] [--title T] [--theme NAME] [--portrait] [--scratch]`
-  (`studio::videos::create_in`) makes `videos/<slug>/`: `video.json` with
+  (`studio::export::create_video` over `studio::videos::create_in`) makes `videos/<slug>/`: `video.json` with
   `--title` as its `title` (none without it; an empty one is refused), at
   1920x1080 (1080x1920 with `--portrait`), 30 fps, the default theme, the
   subject, no `captions` key, and one silent `TitleCard` scene (`id` `title`, 4 s) whose title
@@ -2144,7 +2147,9 @@ error before any frame renders.
   burned in, for the player's CC. Segments, the track and the output are
   written as `.part` and renamed. After a render, `.cache/renders.json`
   records, under the preset's name, the segments and track it used and the
-  file it wrote; segments and tracks no preset's last render used, and any
+  file it wrote, relative to the video's folder when it is inside it
+  (`recorded_out` in `render/cache.rs`), so whether a render is current does
+  not depend on where the folder is; segments and tracks no preset's last render used, and any
   `.part`, are deleted. A record of a preset since removed is dropped with
   them.
 - **Status** (`status.rs`, `render::exports`). For each preset: the file
@@ -2160,25 +2165,33 @@ error before any frame renders.
 - **Progress.** A sync `&mut dyn FnMut(Progress)`: `Planned` (segments,
   cached, frames to render, threads), `Segment`, `Frame` (frame of frames
   and frames a second), `Done` per segment in video order, `Muxing`.
-- **From the app.** `studio_render(dir, preset)` (a preset's name, to its
-  default path, half the cores) runs `render` on a
+- **From the app.** `studio_render(dir, preset, destination?)` (a preset's
+  name, to its default path, half the cores) runs `render` on a
   blocking thread, finding ffmpeg like the CLI does plus the app's
-  resources. It resolves to the report (`--json`'s `report`), or `null`
-  when cancelled; it rejects with the failure's message. One render per
+  resources, then puts a Final or Small render into Drive (see "A Final or
+  Small render goes to Drive"; `destination` is `{targetDir, name}`, ignored
+  for a Draft). It resolves to the report (`--json`'s `report`) with
+  `drive`, what the export did (`{file: {fileId, rel}, path, captions,
+  replaced}`, null for a Draft), or `null` when cancelled; it rejects with
+  the failure's message, or, when the render was made but the copy into
+  Drive failed, "The final render is made but could not be saved to Drive:
+  …". One render per
   folder (a slug or a video's folder; any other folder is refused, see "The
   Studio page's commands"): `render::RENDERS` maps each canonical folder to its preset and
   an `Arc<AtomicBool>` cancel flag, and a second start for the same folder
   is refused at once ("a draft render of <dir> is already running"), with
   no event. An app render and app narration cannot share a folder. Each
   claims its own registry before checking the other. A guard frees the
-  folder however the render ends, before the last event.
+  folder however the render ends, after the export and before the last
+  event.
   `studio_render_cancel(dir)` sets the flag (false when none runs). Each step is a `studio-render-progress` event `{ dir, preset,
   phase, ... }`, `dir` as given: `planning` at the start and again with `plan:
   {segments, cached, frames, threads}`; `rendering` with `{segment, of,
   scene, frame, frames, fps}` (1-based segment and frame), at most one per
-  100 ms besides each segment's first and last frame; `muxing`; then
-  `complete` with `{path, report}`, `cancelled`, or `error` with `{error}`.
-  Each ending is logged.
+  100 ms besides each segment's first and last frame; `muxing`;
+  `exporting` for a Final or Small render; then `complete` with `{path,
+  report, drive?}`, `cancelled`, or `error` with `{error}`. Each ending is
+  logged.
 - **Measured** (debug build, 18-core M-series Mac, a 15.5 s narrated
   three-scene 1080p video at 30 fps, 465 frames, 9 render threads; the
   spread is other load on the machine): `draft` (960×540) in 1.7 to 1.8 s
@@ -2193,6 +2206,66 @@ error before any frame renders.
   against its neighbour). The scenes were mostly still; motion-blurred
   motion costs up to 32 sub-frames a frame.
 
+## A Final or Small render goes to Drive
+
+A Final or Small render is the student's video, so it is kept in Drive
+(`studio::export::to_drive`, called at the render's success point by
+`studio_render` and `oculus studio render`). A Draft never goes there, and a
+failed or cancelled render never reaches the call, so it changes nothing in
+Drive. `renders/` is still written: the page's player and the out-of-date
+check read it.
+
+- **The link is the row's id.** `studio_exports(slug, preset, file_id)`
+  (migration 69) points each video's preset at the `files` row it was saved
+  to, so a move or rename in Drive, which keeps the id, keeps the link. A
+  link counts (`drive_files`) only while its row is there, the path is the
+  student's (`Zone::Own`) and the file on disk has the size and modification
+  time the export wrote (the link's `size` and `modified_ms`, which a move or
+  rename keeps); otherwise, a file deleted in Finder and another put under
+  its name included, the next Render asks again (a file in the Trash with
+  its Undo still open is not on disk, so it asks then too, and counts again
+  after an Undo). Deleting the file in Drive, once final, deletes the link, by `ON DELETE
+  CASCADE` and by hand beside it
+  ([architecture.md](./architecture.md#the-database-has-one-schema-owner-and-two-writers)). Deleting a video in Studio removes its links and leaves
+  the files: they are the student's exports. A folder deleted outside Studio
+  leaves its links, so `oculus studio new` makes a video through
+  `export::create_video`, which drops any links its slug still has: a new
+  video never replaces an older one's file.
+- **Where it goes.** With a destination (`{targetDir, name}`, the picker's
+  answer), the render is copied there under a free name (`name`, else `name
+  (2).mp4`, free for the captions too) ending in `.mp4`, and the link moves
+  to that file; an older Drive copy stays. With none, it replaces the linked
+  file. With neither, it goes to the suggested place (`suggestion`):
+  `courses/<subject>/Videos` for a video whose subject has a row, else
+  `Videos` at the top level, named `<title>.mp4` (`<title> (small).mp4` for
+  Small, so both fit one folder), its `Videos` made when missing
+  (`make_folder`, which makes every missing level). The target must be a folder new entries may land in
+  (`guard::drive_target`): `Course/`, app state and the folder of subjects
+  are refused.
+- **A first copy** is written beside its destination under a hidden
+  temporary name, the link's own (`.oculus-export-<slug>-<preset>.mp4`, and
+  `.vtt` for captions, `disk::temp_name`), and renamed into place (an APFS
+  clone where the volume allows). One a crash left is replaced by the
+  link's next export into that folder; a dot-name, Drive never lists or
+  rows it. Its `files` row is what an imported file gets
+  (`category_of_path`, the extension as `file_type`), in the target's home,
+  inserted with the link in one transaction; a stale row on the path goes
+  first. If the rows cannot be written, the copied files are removed.
+- **A replacement** writes the same way over the linked file wherever it is
+  now, so a player holding the old file keeps reading it, and updates the
+  row's `size_bytes` and `modified_at`. The name stays the student's: it
+  never follows the video's title.
+- **Captions** are copied to `<name>.vtt`, the shape Transcribe writes and
+  the Drive player reads, with a row as reconcile would give it. Drive lists
+  it as a file beside the video; a move in Drive does not carry it. A
+  re-render of a video with no narration removes the old `<name>.vtt` and
+  its row only when an export wrote it (the link's `captions`): captions
+  Transcribe wrote beside the file stay.
+- **Drive hears it.** The app sends `drive-changed` with the home's row and
+  the files written (`added`, a replaced file included) or removed, so
+  listings and an open player reload. The CLI is another process and sends
+  nothing; Drive shows the file on its next read, which reads the disk.
+
 ## The Studio page's commands
 
 `studio::commands::videos` is what the Studio page calls
@@ -2203,8 +2276,8 @@ The list reads both the video folders and the series outlines. Commands on one v
 | --- | --- |
 | `studio_videos(subject?)` | `{videos, series}`. Videos are newest first and include `threadId`, `series`, `part` and nullable `seconds`. Each series has its ordered outline, `modified` (newest outline or matching part time), and a nullable video row per part with `exists` and `made` flags; a part's row carries its own `threadId`. A matching folder has a row before it has a render; `made` means it has an MP4. |
 | `studio_video_detail(slug)` | the row, `fps`, `width`, `height`, `theme`, `voice`, `captions`, `scenes` (each with its `title` prop and whether its component resolves, `built`) and `renders`; `timingProblem`, why a narrated video's scenes have no times; `scriptModified` and `narrationModified`, when `script.md` and the narration manifest were written |
-| `studio_video_delete(slug)` | moves the video folder to the Trash and removes its thread link. Its series outline still lists the part, now without a video. |
-| `studio_render_delete(slug, preset)` | moves the preset's MP4 and any WebVTT sidecar to the Trash, then drops its cache record and deletes segments and tracks unused by the remaining records. A missing MP4 is an error. |
+| `studio_video_delete(slug)` | moves the video folder to the Trash and removes its thread link and its Drive links (the Drive files stay). Its series outline still lists the part, now without a video. |
+| `studio_render_delete(slug, preset)` | moves the preset's MP4 and any WebVTT sidecar to the Trash as one pending delete with a Final or Small's Drive copy while it is still the export, and its captions while they are still the render's; returns that delete for the Undo toast. When it is final, the render's cache record goes with the segments and tracks unused by the remaining records ([studio-page.md](./studio-page.md)). A missing MP4 is an error. |
 | `studio_render_captions(slug, preset)` | the WebVTT text beside that preset's render (`renders/<preset>.vtt`), for the player's CC |
 | `studio_set_theme(slug, theme)` | sets video.json's theme to a name that parses through the video's subject, global and bundled cascade |
 | `studio_set_voice(slug, voice)` | sets the voice id over Settings, or clears it with `null`. The other voice overrides stay, and an empty block is removed. The resulting voice must resolve. |
@@ -2212,14 +2285,15 @@ The list reads both the video folders and the series outlines. Commands on one v
 | `studio_narrate(slug)` | uses the resolved voice to make all missing or stale clips, returning `{scenes, narrated, ms}` or `null` on cancel |
 | `studio_narrate_cancel(slug)` | requests a stop after the scene in flight, returning false when the video has no narration running |
 | `studio_set_captions(slug, on)` | sets video.json's `captions`: the `true`/`false` literal is replaced in the text, or the key is added before `scenes` on a line of its own, so the rest of the file keeps its formatting (`videos::set_captions`) |
-| `studio_exports(dir)` | each preset's status (`render::exports`, see "Rendering a video") as `{preset, path, modified, current, problem}`; it asks ffmpeg for its toolkit, renders nothing and makes no network call |
+| `studio_exports(dir)` | each preset's status (`render::exports`, see "Rendering a video") as `{preset, path, modified, current, problem, drive}`, `drive` the linked Drive file `{fileId, rel}` or null (see "A Final or Small render goes to Drive"); it asks ffmpeg for its toolkit, renders nothing and makes no network call |
+| `studio_export_suggestion(slug, preset)` | `{targetDir, name}`: where a first Final or Small render would go, for the picker (`export::suggestion`) |
 | `studio_frame(slug, at, width)` | a PNG `width` px wide (1 to 4096), the layout of the full-size frame, as bytes through `tauri::ipc::Response` |
 | `studio_thumbnail(slug)` | the video's cached thumbnail PNG |
 | `studio_render`, `studio_render_cancel`, `studio_exports` | see "Rendering a video"; they take a slug or a video's folder and refuse any other |
 
 - **Deletion** requires the video to be idle. The Trash helper in
   `app/src-tauri/src/runtime/trash.rs` uses `NSFileManager` on macOS and
-  the Recycle Bin on Windows.
+  the Recycle Bin on Windows; Drive's deletes go through it too.
 - **Video edits and narration.** Theme and voice edits preserve video.json's
   text outside the edited member and are refused while the app renders or
   narrates the folder. The narration status reads cache keys and model
@@ -2254,7 +2328,7 @@ The list reads both the video folders and the series outlines. Commands on one v
   (``run `oculus studio narrate` ``); it never falls back to a silent frame.
 - **A render plays from the media server.** `lectures/media.rs` serves
   files under `studio/videos/` (Range requests, so a seek works), and the
-  asset protocol's scope in `tauri.conf.json` names `$APPDATA/studio/videos/**`;
+  asset protocol's scope in `tauri.conf.json` names `$APPDATA/.oculus/studio/videos/**`;
   the page reaches `renders/draft.mp4` with `mediaSrc(path)`.
 - **Stills share render slots**, half the cores (`slot.rs`, as the PDF
   viewer's `on_render_slot`), so a page of thumbnails queues without holding
@@ -2572,7 +2646,17 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
 - `oculus studio render <DIR>` writes one export preset's mp4:
   `--preset draft|final|small`, with `--draft` (the
   default) and `--final` for the first two; `-o`, `--threads` for the frame
-  renderers, not the encoder. In a terminal it prints the plan, a frame
+  renderers, not the encoder. A final or small render of a video in
+  Studio's `videos/` then goes into Drive (see "A Final or Small render goes
+  to Drive"): over its linked file, else to the suggested folder, since a
+  terminal can't ask; `--to <FOLDER>` (data-dir-relative, or absolute
+  inside the data folder; made with any missing folder above it, each a
+  name the student could give) puts it there
+  under the suggested name and moves the link. `-o` writes the caller's own
+  file and is not an export (`--to` with `-o`, or with a draft, is refused).
+  The last line is `saved to Drive: <path>` or `replaced in Drive: <path>`,
+  the absolute path; a render made whose copy failed exits non-zero with
+  "wrote <mp4> but could not save it to Drive: …". In a terminal it prints the plan, a frame
   progress line about every two seconds, then per scene `rendered` with
   its frames, seconds and frames a second, or `cached`, then the paths
   written (the mp4, then its `.vtt`) and a summary. When stdout is not a
@@ -2581,7 +2665,8 @@ the `Slide` starter animates it in. Rendering never opens a PDF.
   the mp4 with its length and the render's time; `--json`
   gives `{dir, report: {path, preset, width, height, fps, frames, duration,
   audio, threads, segments: [{scene, id, outcome, frames, ms, fps}],
-  sidecars, pruned, ms}}`. See "Rendering a video".
+  sidecars, pruned, ms}, drive}`, `drive` the export (`{file: {fileId, rel},
+  path, captions, replaced}`) or null. See "Rendering a video".
 - `oculus studio lint <DIR>` (`--scene <ID|N>` for `lint_scene`; the
   voice checks are cut to that scene too) prints the errors, then the
   warnings, then the notes, one problem a line (where, what, the fix), and

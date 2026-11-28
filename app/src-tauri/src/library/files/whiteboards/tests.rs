@@ -263,3 +263,36 @@ fn a_legacy_canvas_is_a_drawing_only_by_its_type_and_only_when_whole() {
         "Board (2).whiteboard"
     );
 }
+
+#[test]
+fn a_drawing_is_made_listed_and_renamed_at_the_top_level() {
+    use crate::library::layout::TOP_LEVEL_CODE;
+    let root = crate::test_support::Scratch::new("whiteboard-top-level");
+    std::fs::create_dir_all(root.join("courses/TEST")).unwrap();
+    let made = create_at(
+        &root,
+        DrawingKind::Whiteboard,
+        TOP_LEVEL_CODE,
+        "Ideas",
+        DOCUMENT,
+    )
+    .unwrap();
+    assert_eq!(made.relative_path, "Ideas.whiteboard");
+    assert_eq!(made.category, "whiteboard");
+    let inside = create_in(&root, DrawingKind::Notebook, "Plans", "Week 3", NOTEBOOK).unwrap();
+    assert_eq!(inside.relative_path, "Plans/Week_3.notebook");
+    assert_eq!(
+        list_at(&root, DrawingKind::Whiteboard, TOP_LEVEL_CODE)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(list_at(&root, DrawingKind::Whiteboard, "TEST")
+        .unwrap()
+        .is_empty());
+    let renamed = rename_at(&root, "Ideas.whiteboard", "Plan").unwrap();
+    assert_eq!(renamed.relative_path, "Plan.whiteboard");
+    assert!(root.join("Plan.whiteboard").is_file());
+    assert!(create_in(&root, DrawingKind::Whiteboard, ".oculus", "x", DOCUMENT).is_err());
+    assert!(create_in(&root, DrawingKind::Whiteboard, "courses", "x", DOCUMENT).is_err());
+}

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::library::migrate::journal::{dir, Kind, Phase, Step};
+use crate::library::migrate::journal::{dir, Kind, Op, Phase, Step};
 use crate::library::migrate::rules::Rule;
 
 const JOURNAL: &str = "whiteboard.json";
@@ -107,7 +107,32 @@ pub fn load(data_dir: &Path) -> Result<Option<Plan>, String> {
             }
         }
     }
+    plan.steps.iter_mut().for_each(follow_state_move);
     Ok(Some(plan))
+}
+
+/// The records folders as a build from before the state folder named them,
+/// at the data dir's top.
+const AT_THE_TOP: [&str; 3] = ["canvas-pages", "whiteboard-pages", "recovery"];
+
+/// A journal such a build left cut short names those folders where they
+/// were; the state move, which runs first, has put them in the state folder.
+fn follow_state_move(step: &mut Step) {
+    let moved = |path: &mut String| {
+        let top = path.split('/').next().unwrap_or_default();
+        if AT_THE_TOP.contains(&top) {
+            *path = crate::library::paths::state_rel(path);
+        }
+    };
+    match &mut step.op {
+        Op::Rename { from, to } => {
+            moved(from);
+            moved(to);
+        }
+        Op::RemoveEmptyTree { path } | Op::RemoveFile { path } | Op::RemoveDirIfEmpty { path } => {
+            moved(path)
+        }
+    }
 }
 
 /// Write the plan whole, and start the done log over.
@@ -118,5 +143,61 @@ pub fn save(data_dir: &Path, plan: &Plan) -> Result<(), String> {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("clear the done log: {e}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::Scratch;
+
+    #[test]
+    fn a_journal_from_before_the_state_folder_follows_its_records_into_it() {
+        let dir = Scratch::new("whiteboard-journal-older");
+        let step = |op: Op| Step {
+            kind: Kind::DrawingRecords,
+            op,
+            done: false,
+        };
+        let rename = |from: &str, to: &str| Op::Rename {
+            from: from.into(),
+            to: to.into(),
+        };
+        let plan = Plan {
+            steps: vec![
+                step(rename("canvas-pages", "whiteboard-pages")),
+                step(rename(
+                    "recovery/canvases/1.json",
+                    "recovery/whiteboards/1.json",
+                )),
+                step(Op::RemoveDirIfEmpty {
+                    path: "recovery/canvases".into(),
+                }),
+                step(rename("courses/X/a.canvas", "courses/X/a.whiteboard")),
+            ],
+            ..Plan::default()
+        };
+        save(&dir, &plan).unwrap();
+        let ops: Vec<Op> = load(&dir)
+            .unwrap()
+            .unwrap()
+            .steps
+            .into_iter()
+            .map(|s| s.op)
+            .collect();
+        assert_eq!(
+            ops,
+            [
+                rename(".oculus/canvas-pages", ".oculus/whiteboard-pages"),
+                rename(
+                    ".oculus/recovery/canvases/1.json",
+                    ".oculus/recovery/whiteboards/1.json"
+                ),
+                Op::RemoveDirIfEmpty {
+                    path: ".oculus/recovery/canvases".into()
+                },
+                rename("courses/X/a.canvas", "courses/X/a.whiteboard"),
+            ]
+        );
     }
 }

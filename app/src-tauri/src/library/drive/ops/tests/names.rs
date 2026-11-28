@@ -9,14 +9,31 @@ fn picked_names_are_kept_readable_and_safe() {
     assert_eq!(entry_name("trailing. "), "trailing");
     assert_eq!(entry_name("CON.txt"), "_CON.txt");
     assert_eq!(entry_name(""), "file");
-    assert!(check_name(&entry_name("..."), false).is_ok());
+    assert!(check_name(&entry_name("..."), "courses/X/Notes").is_ok());
 }
 
 #[test]
 fn a_reserved_name_is_refused_only_at_a_subject_s_root() {
-    assert!(check_name("course", true).is_err());
-    assert!(check_name("Course", false).is_ok());
-    assert!(check_name(".oculus", false).is_err());
+    assert!(check_name("course", "courses/X").is_err());
+    assert!(check_name("Course", "courses/X/Notes").is_ok());
+    assert!(check_name(".oculus", "courses/X/Notes").is_err());
+}
+
+#[test]
+fn the_top_level_keeps_the_folder_of_subjects_and_the_old_app_folder_names() {
+    for name in ["courses", "Courses", "agents", "Lectures", "canvas-pages"] {
+        assert!(check_name(name, "").is_err(), "{name}");
+    }
+    for name in ["Course", "Videos", "agents 2", "models"] {
+        assert!(check_name(name, "").is_ok(), "{name}");
+    }
+    assert!(check_name("agents", "Videos").is_ok());
+    assert!(check_name("courses", "Videos").is_ok());
+    assert!(check_name("courses", "courses/X").is_ok());
+    assert!(
+        check_name(".oculus", "").is_err(),
+        "a dot-name is the app's"
+    );
 }
 
 #[test]

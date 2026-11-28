@@ -19,16 +19,16 @@ export type DownloadState =
 
 /** The student's answer to the Save dialog. */
 export type Dest =
-  /** `target_dir`: a data-dir-relative folder of the student's own in that
-   *  subject; the subject's root when absent. */
-  | { kind: "oculus"; subject_code: string; target_dir?: string }
+  /** A folder in Drive, data-dir-relative (`""` is the top level); `name`
+   *  only when the student edited the file's. */
+  | { kind: "drive"; target_dir: string; name?: string }
   | { kind: "path"; path: string }
   | { kind: "discard" };
 
-/** Where a saved download landed. For `oculus` the frontend writes the
- *  `files` row from `outcome.file`. */
+/** Where a saved download landed. For `drive` the frontend writes the
+ *  `files` row from `outcome.file`, under the subject its path is in. */
 export type SavedTo =
-  | { kind: "oculus"; subject_code: string; outcome: ImportOutcome }
+  | { kind: "drive"; outcome: ImportOutcome }
   | { kind: "path"; path: string };
 
 export interface Download {
@@ -39,7 +39,8 @@ export interface Download {
    *  belongs to the tab that opened it, or with no opener to the closed tab
    *  itself. Any tab may be closed by now. */
   tab: number;
-  /** A safe file name: what the dialog shows and the save panel suggests. */
+  /** A safe file name: what the dialog shows and the save panel suggests;
+   *  once saved, the name it landed under. */
   name: string;
   /** Null for a `data:` download; a `blob:` gives its page's host. */
   host: string | null;
@@ -58,8 +59,8 @@ export interface DownloadsSnapshot {
   downloads: Download[];
 }
 
-/** Where the dialog last sent a download, kept as a browser pref. */
-export type LastDestination = "oculus" | "mac";
+/** Which of the dialog's two answers it last gave, kept as a browser pref. */
+export type LastDestination = "drive" | "mac";
 
 /** Waiting for the student: no choice yet, so the dialog can ask. */
 export function isWaiting(d: Download): boolean {

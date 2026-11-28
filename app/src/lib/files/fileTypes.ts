@@ -96,6 +96,15 @@ export function isVideoFile(filename: string): boolean {
   return VIDEO_EXTS.includes(ext(filename));
 }
 
+/** Pictures the file page draws itself, as an `<img>`: an SVG too, which
+ *  is active content and so never inlined into the page. */
+const PICTURE_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"];
+
+/** True for a picture the file page shows. */
+export function isPictureFile(filename: string): boolean {
+  return PICTURE_EXTS.includes(ext(filename));
+}
+
 /** Source files that open in the code viewer (`CodeEditor`, read-only)
  *  rather than as markdown. Each names a grammar `fileLanguage` knows
  *  (`codeLanguages.ts`, held to it by a test); kept here so the file page

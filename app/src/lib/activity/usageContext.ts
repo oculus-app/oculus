@@ -1,3 +1,4 @@
+import { TOP_LEVEL_FILE_ROUTE } from "@/lib/files/labels";
 import { browseId } from "@/lib/browser";
 import { isOwnPath } from "@/lib/files/libraryLayout";
 import { pathFile } from "@/lib/files/pathCategory";
@@ -30,6 +31,11 @@ export function usageContext(path: string): UsageContext {
   if (pathname.startsWith("/chat")) return { kind: "chat", subjectId: null };
   if (/^\/(projects|tasks|calendar)(\/|$)/.test(pathname)) return { kind: "planning", subjectId: null };
 
+  // A top-level file belongs to no subject.
+  if (pathname === TOP_LEVEL_FILE_ROUTE) {
+    const rel = new URLSearchParams(search).get("path") ?? "";
+    return { kind: pathFile(rel).category === "document" ? "document" : "file", subjectId: null };
+  }
   const m = /^\/subjects\/(\d+)(?:\/([\w-]+))?/.exec(pathname);
   if (!m) return { kind: "other", subjectId: null };
   const subjectId = Number(m[1]);

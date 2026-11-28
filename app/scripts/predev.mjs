@@ -3,7 +3,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { buildKeyd, crate as keydCrate, installFromMainCheckout } from "./keyd-build.mjs";
+import { buildKeyd, crate as keydCrate, installFromMainCheckout, isMainCheckout } from "./keyd-build.mjs";
 import { app, buildCli, cliPath, rust, stageCli } from "./runtime.mjs";
 import { endStaleBuilds, nameLockHolder } from "./stale-builds.mjs";
 
@@ -112,6 +112,12 @@ log(`${version} built in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 // tauri dev's own cargo run copies the sidecar over this build, so the sidecar
 // has to be this build too.
 stageCli(cli);
+
+// Only the installed app moves a library's own files into `.oculus/` on its
+// own; any build from a checkout needs telling (docs/library-move.md), and
+// only the main checkout tells it: the CLI calls below then make the move,
+// before the app starts. A worktree's leave an unmoved library as it is.
+if (isMainCheckout()) process.env.OCULUS_STATE_MOVE = "1";
 
 // Installed only from the main checkout and only when its source changed.
 // Install runs the CLI built above.

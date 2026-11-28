@@ -9,7 +9,7 @@ pub struct RawLog(Arc<Mutex<std::fs::File>>);
 
 impl RawLog {
     pub fn open(data_dir: &Path, thread_id: i64) -> Option<RawLog> {
-        let dir = thread_cwd(data_dir).join("threads");
+        let dir = thread_cwd(data_dir).join(crate::agents::THREADS_DIR);
         std::fs::create_dir_all(&dir).ok()?;
         let f = std::fs::OpenOptions::new()
             .create(true)

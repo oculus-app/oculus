@@ -1,5 +1,5 @@
 use super::*;
-use crate::library::drive::ops::delete::delete_entries_at;
+use crate::library::drive::ops::delete::send_at;
 use crate::library::drive::ops::error::Kind;
 use crate::library::drive::ops::moves::move_entries_at;
 use crate::parse::InFlight;
@@ -25,7 +25,8 @@ async fn a_file_being_parsed_or_embedded_is_not_moved_or_deleted() {
     drop(claim);
 
     let claim = InFlight::embedding().claim(&key);
-    let error = delete_entries_at(&lib.dir, &lib.pool, &rels(&[&pdf]))
+    let bin = super::delete::FakeBin::new(&lib);
+    let error = send_at(&lib.dir, &lib.pool, &rels(&[&pdf]), bin)
         .await
         .unwrap_err();
     assert!(

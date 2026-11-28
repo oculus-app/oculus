@@ -17,17 +17,19 @@ pub mod commands;
 mod companions;
 mod copy;
 mod create;
-mod delete;
+pub mod delete;
 pub(crate) mod error;
-mod events;
+pub(crate) mod events;
 pub mod guard;
 mod journal;
 mod moves;
-pub(crate) mod names;
+pub mod names;
 mod pictures;
 pub mod reconcile;
 mod relink;
-mod rows;
+pub(crate) mod rows;
+
+pub use rows::home_id;
 
 #[cfg(test)]
 mod tests;

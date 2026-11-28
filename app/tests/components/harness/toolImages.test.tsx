@@ -60,10 +60,10 @@ function tool(content: string, meta: ToolMeta): HarnessItem {
   return { id: 1, thread_id: 1, kind: "tool", ref_id: null, content, meta: JSON.stringify(meta), created_at: "" };
 }
 
-for (const folder of ["whiteboard-pages", "canvas-pages"]) {
+for (const folder of [".oculus/whiteboard-pages", "whiteboard-pages", "canvas-pages"]) {
   test(`a Read in ${folder} opens the page asset and falls back to its original arguments on error`, async () => {
     const path = `${dir}/${folder}/7/page-004.png`;
-    const asset = "asset://localhost/" + encodeURIComponent(`${dir}/whiteboard-pages/7/page-004.png`);
+    const asset = "asset://localhost/" + encodeURIComponent(`${dir}/.oculus/whiteboard-pages/7/page-004.png`);
     const item = tool("page-004.png", { kind: "read", name: "Read", input: { file_path: path }, ok: true });
     await act(() => root.render(<ToolRow item={item} />));
     await act(() => host.querySelector("button")!.click());
@@ -77,17 +77,53 @@ for (const folder of ["whiteboard-pages", "canvas-pages"]) {
   });
 }
 
-test("only the notebook snapshot subtree is granted and remapped", async () => {
+test("the asset scope grants the notebook snapshot subtree where it is, not the state folder", async () => {
   const config = await Bun.file(new URL("../../../src-tauri/tauri.conf.json", import.meta.url)).json();
   const allow = config.app.security.assetProtocol.scope.allow;
-  expect(allow).toContain("$APPDATA/whiteboard-pages/**");
+  expect(allow).toContain("$APPDATA/.oculus/whiteboard-pages/**");
   expect(allow).not.toContain("$APPDATA/**");
+  expect(allow).not.toContain("$APPDATA/.oculus/**");
+  expect(allow).not.toContain("$APPDATA/whiteboard-pages/**");
   expect(allow).not.toContain("$APPDATA/canvas-pages/**");
-  expect(readPicturePath("../canvas-pages/7/page-004.png", dir)).toBe(dir + "/whiteboard-pages/7/page-004.png");
-  const own = dir + "/agents/outputs/canvas-pages/a.png";
+});
+
+test("every spelling of a notebook page is remapped to the snapshot subtree", () => {
+  const page = dir + "/.oculus/whiteboard-pages/7/page-004.png";
+  for (const raw of [
+    ".oculus/whiteboard-pages/7/page-004.png",
+    "whiteboard-pages/7/page-004.png",
+    "../whiteboard-pages/7/page-004.png",
+    "canvas-pages/7/page-004.png",
+    "../canvas-pages/7/page-004.png",
+  ]) {
+    expect(readPicturePath(raw, dir)).toBe(page);
+  }
+  const own = dir + "/.oculus/agents/outputs/canvas-pages/a.png";
   expect(readPicturePath(own, dir)).toBe(own);
   expect(readPicturePath("canvas-pages/../private/a.png", dir)).toBeNull();
+  expect(readPicturePath("../../whiteboard-pages/7/page-004.png", dir)).toBe(page);
+  expect(readPicturePath("../../../whiteboard-pages/7/page-004.png", dir)).toBeNull();
   expect(readPicturePath("unrecorded/a.png", dir)).toBeNull();
+  expect(readPicturePath("agents/outputs/a.png", dir)).toBeNull();
+});
+
+test("a picture up from the cwd is the data dir's, two steps from the workspace or one in older chats", () => {
+  for (const raw of ["../../courses/X/Course/Images/a.png", "../courses/X/Course/Images/a.png"]) {
+    expect(readPicturePath(raw, dir)).toBe(dir + "/courses/X/Course/Images/a.png");
+  }
+  expect(readPicturePath("../../Receipts/scan.png", dir)).toBe(dir + "/Receipts/scan.png");
+  expect(readPicturePath("../agents/outputs/plot.png", dir)).toBe(dir + "/.oculus/agents/outputs/plot.png");
+  expect(readPicturePath("../../courses/../../etc/a.png", dir)).toBeNull();
+});
+
+test("a picture a stored Read names under the data dir loads from where the file is", () => {
+  expect(readPicturePath(dir + "/agents/outputs/plot.png", dir)).toBe(dir + "/.oculus/agents/outputs/plot.png");
+  expect(readPicturePath(dir + "/agents/attachments/a.jpg", dir)).toBe(dir + "/.oculus/agents/attachments/a.jpg");
+  expect(readPicturePath(dir + "/studio/videos/x/frames/1.png", dir)).toBe(dir + "/.oculus/studio/videos/x/frames/1.png");
+  const course = dir + "/courses/X/Course/Images/a.png";
+  expect(readPicturePath(course, dir)).toBe(course);
+  expect(readPicturePath("/tmp/agents/a.png", dir)).toBe("/tmp/agents/a.png");
+  expect(readPicturePath(dir + "/agents/../oculus.png", dir)).toBeNull();
 });
 
 test("Codex rows use the translated title for the command and CLI wording", async () => {
@@ -112,12 +148,14 @@ test("reply SVGs use the disk path and carry the cache buster on the asset URL",
   for (const [target, file, suffix] of [
     ["outputs/x.svg", "x.svg", ""],
     ["./outputs/x.svg", "x.svg", ""],
+    ["agents/outputs/x.svg", "x.svg", ""],
+    [".oculus/agents/outputs/x.svg", "x.svg", ""],
     ["outputs/x.svg?v=2", "x.svg", "?v=2"],
     ["<outputs/my plot.svg?v=3>", "my plot.svg", "?v=3"],
   ]) {
     await act(() => root.render(<ReactMarkdown components={MD_COMPONENTS}>{`![plot](${target})`}</ReactMarkdown>));
     expect(host.querySelector("img")?.getAttribute("src")).toBe(
-      "asset://localhost/" + encodeURIComponent(`${dir}/agents/outputs/${file}`) + suffix,
+      "asset://localhost/" + encodeURIComponent(`${dir}/.oculus/agents/outputs/${file}`) + suffix,
     );
   }
 });
@@ -131,7 +169,7 @@ test("local markdown refuses traversal and preserves citation locations", async 
   expect(fullCitation("../courses/X/notes.pdf?v=2#page=4")).toMatchObject({ path: "courses/X/notes.pdf", page: 4 });
   expect(fullCitation("courses/X/lecture.mp4?v=2#t=0")).toMatchObject({ path: "courses/X/lecture.mp4", at: 0 });
   expect(fullCitation("courses/X/Files/C#-intro.pdf")).toMatchObject({ path: "courses/X/Files/C#-intro.pdf" });
-  expect(fullCitation("agents/outputs/what?.md")).toMatchObject({ path: "agents/outputs/what?.md" });
+  expect(fullCitation("agents/outputs/what?.md")).toMatchObject({ path: ".oculus/agents/outputs/what?.md" });
 });
 
 test("a stored Codex row with its shell wrapper shows the inner command", async () => {

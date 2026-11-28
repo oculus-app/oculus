@@ -2689,19 +2689,29 @@ when the video is narrated. With video.json's `"captions": true` the captions ar
 burned into the frames. Before anything renders, ffmpeg is asked what it was built with:
 a missing encoder or demuxer is an error naming it.
 
+A final or small render of a Studio video is the student's video, so it also goes into
+Drive, its captions beside it: over the file it went to last time, wherever the student
+has moved or renamed it, else into `--to`, else into `Videos` in the video's subject
+(`Videos` at the top level for a video with no subject), made if missing, named after
+the video's title. A draft, or a render written with `-o`, never goes to Drive.
+
 Render never narrates: run `oculus studio narrate` first, or it stops with the stale
 narration's scene. A frame that fails stops the render, naming its time and scene; an
 ffmpeg failure quotes ffmpeg.
 
 In a terminal it prints the plan, a frame progress line about every two seconds, each
 scene rendered or cached, the files written and a summary. Piped (as an agent runs it)
-it prints only the plan, one line per scene rendered and the mp4 written.
+it prints only the plan, one line per scene rendered and the mp4 written. Last comes
+`saved to Drive:` or `replaced in Drive:` and the file's path: tell the student where it
+is.
 
 oculus studio render lectures/week-4
 
-oculus studio render lectures/week-4 --final -o ~/Desktop/week-4.mp4
+oculus studio render lectures/week-4 --final
 
-oculus studio render lectures/week-4 --preset small
+oculus studio render lectures/week-4 --preset small --to "Videos/Shorts"
+
+oculus studio render lectures/week-4 --final -o ~/Desktop/week-4.mp4
 
 Usage: oculus studio render [OPTIONS] <DIR>
 
@@ -2720,7 +2730,13 @@ Options:
           The export preset: draft, final or small
 
   -o, --out <OUT>
-          Where to write the file (default: `<DIR>/renders/<preset>.mp4`)
+          Where to write the file (default: `<DIR>/renders/<preset>.mp4`). A render
+          written elsewhere is not saved to Drive
+
+      --to <FOLDER>
+          The Drive folder a final or small render goes to (default: the file it went to
+          last time, else `Videos` in the video's subject), relative to the data folder
+          or absolute inside it; made if missing
 
       --threads <T>
           Frame-rendering threads (default: half the cores, capped to keep their memory
@@ -3829,9 +3845,10 @@ Options:
 ```
 Write the agent-facing docs into the library
 
-Fills `agents/` in the data directory: `OCULUS-CLI.md`, rendered from this binary's own
-`--help` so it can never drift from the flags it documents, one `AGENTS.md` symlinked
-into every course folder, and the skills.
+Fills `.oculus/agents/` in the data directory: `OCULUS-CLI.md`, rendered from this
+binary's own `--help` so it can never drift from the flags it documents, the one
+`AGENTS.md` every thread reads there, and the skills. Each course folder's memories are
+linked into that folder's store.
 
 It also brings the two generated-but-shared files up to date. `TASTE.md`'s guidance is
 re-rendered with the preferences you wrote in it carried across — a file that is half

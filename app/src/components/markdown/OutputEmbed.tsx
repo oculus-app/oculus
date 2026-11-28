@@ -3,7 +3,7 @@ import { EmbedPage } from "@/components/markdown/embed/EmbedPage";
 
 /**
  * A picture or HTML page from the library, drawn inline in a reply — what an
- * agent made in `agents/` (a chart, a visual summary) shown where it names it.
+ * agent made in `.oculus/agents/` (a chart, a visual summary) shown where it names it.
  *
  * Every element is a `span` or phrasing content: `![alt](path)` alone on a
  * line parses as `<p><img></p>`, and a `<div>` inside a `<p>` is invalid.
@@ -22,7 +22,7 @@ export function embedKind(path: string): "image" | "html" | null {
   return null;
 }
 
-/** `path` is data-dir-relative (`agents/…`, `courses/…`). */
+/** `path` is data-dir-relative (`.oculus/agents/…`, `courses/…`). */
 export function OutputEmbed({ path, alt, suffix }: { path: string; alt?: string; suffix?: string }) {
   const kind = embedKind(path);
   if (kind === "image") return <EmbedImage path={path} alt={alt} suffix={suffix} />;

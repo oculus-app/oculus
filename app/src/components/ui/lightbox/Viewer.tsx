@@ -24,12 +24,15 @@ export function Viewer({
   children,
   scrollerClassName,
   selectableSelector,
+  actions,
 }: {
   size: LightboxSize;
   onClose: () => void;
   children: React.ReactNode;
   scrollerClassName?: string;
   selectableSelector?: string;
+  /** Leads the toolbar (`LightboxToolbar`'s `lead`). */
+  actions?: React.ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   /** The layout box, sized `natural × zoom` so the scroll extent is right. */
@@ -353,6 +356,7 @@ export function Viewer({
         onOut={() => requestZoom(target.current / STEP)}
         onReset={reset}
         onClose={onClose}
+        lead={actions}
       />
     </>
   );

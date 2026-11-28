@@ -1,15 +1,17 @@
+import { parentRel } from "@/lib/drive/paths";
 import { fmtBytes } from "@/lib/format/format";
 import type { Dest, Download, SavedTo } from "./types";
 
 /**
  * A download's state in words, for its row in the list. A place is returned
- * apart from the words so the row can draw a subject as the rest of the app
- * does (its icon and short code), never the raw Canvas code.
+ * apart from the words so the row can draw it as a trail, a subject as the
+ * rest of the app does (its icon and short code).
  */
 
-/** Where a download is going or went: a subject's Uploads, or a folder. */
+/** Where a download is going or went: a folder in Drive (data-dir-relative),
+ *  or a folder on the Mac by its name. */
 export type Place =
-  | { kind: "subject"; code: string }
+  | { kind: "drive"; rel: string }
   | { kind: "folder"; name: string };
 
 export type Tone = "muted" | "brand" | "success" | "error";
@@ -31,7 +33,11 @@ export function folderOf(path: string): string {
 
 function placeOf(dest: Dest | SavedTo): Place | null {
   switch (dest.kind) {
-    case "oculus": return { kind: "subject", code: dest.subject_code };
+    case "drive": {
+      if ("target_dir" in dest) return { kind: "drive", rel: dest.target_dir };
+      const file = dest.outcome.file;
+      return file ? { kind: "drive", rel: parentRel(file.relative_path) } : null;
+    }
     case "path": return { kind: "folder", name: folderOf(dest.path) };
     case "discard": return null;
   }
@@ -52,7 +58,7 @@ export function stateWords(d: Download): StateWords {
     case "saved": {
       const saved = d.saved_to;
       // It landed even when its conversion for search failed.
-      const problem = saved?.kind === "oculus" ? saved.outcome.error : null;
+      const problem = saved?.kind === "drive" ? saved.outcome.error : null;
       return { text: "Saved to", place: saved ? placeOf(saved) : null, detail: problem, tone: "success" };
     }
     case "discarded":

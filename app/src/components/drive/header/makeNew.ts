@@ -1,4 +1,5 @@
 import type { Subject } from "@/lib/db";
+import type { FileHome } from "@/lib/drive/home";
 import { importInto, newFolderIn, reportDriveProblem } from "@/lib/drive/actions";
 import { driveErrorText } from "@/lib/drive/commands";
 import { announceDriveChange } from "@/lib/drive/listing";
@@ -12,18 +13,19 @@ import type { NewKind } from "./NewMenu";
 /**
  * One pick from the New menu, made in `folder`: a folder (then renamed in
  * place), a note or whiteboard (then opened), a notebook (its dialog asks
- * first), or files and folders chosen from the disk.
+ * first), or files and folders chosen from the disk. `home` is the folder's
+ * subject, or `TOP_LEVEL` at the top level.
  */
 export async function makeNew(kind: NewKind, {
   folder,
-  subject,
+  home: subject,
   subjects,
   taken,
   renameFolder,
   openNotebook,
 }: {
   folder: string;
-  subject: Subject;
+  home: FileHome;
   subjects: readonly Subject[];
   /** Names already in the folder, for the new folder's. */
   taken: Iterable<string>;

@@ -41,14 +41,15 @@ test("subject sync aggregation preserves latest completed runs, term ordering an
   sqlite.exec(`CREATE TABLE subjects (
     id INTEGER PRIMARY KEY, code TEXT, name TEXT, term_name TEXT, term_sort TEXT,
     workflow_state TEXT, selected INTEGER, is_current INTEGER,
-    last_synced_at TEXT, created_at TEXT
+    last_synced_at TEXT, created_at TEXT, kind TEXT NOT NULL DEFAULT 'subject'
   ); CREATE TABLE sync_runs (status TEXT, finished_at TEXT, subject_codes TEXT);
   INSERT INTO subjects VALUES
-    (1, 'A', 'Alpha', '2026 Semester 2', '2026-07', 'available', 0, 0, 'stale', ''),
-    (2, 'B', 'Beta', '2026 Summer Term', '2026-01', 'available', 1, 1, 'stale', ''),
-    (3, 'C', 'Closed', '2027 Semester 1', '2027-03', 'completed', 1, 1, NULL, ''),
-    (4, 'D', 'Delta', '2026 Semester 2', '2026-07', 'available', 1, 0, NULL, ''),
-    (5, 'E', 'Empty', NULL, NULL, 'available', 0, 0, NULL, '');
+    (1, 'A', 'Alpha', '2026 Semester 2', '2026-07', 'available', 0, 0, 'stale', '', 'subject'),
+    (2, 'B', 'Beta', '2026 Summer Term', '2026-01', 'available', 1, 1, 'stale', '', 'subject'),
+    (3, 'C', 'Closed', '2027 Semester 1', '2027-03', 'completed', 1, 1, NULL, '', 'subject'),
+    (4, 'D', 'Delta', '2026 Semester 2', '2026-07', 'available', 1, 0, NULL, '', 'subject'),
+    (5, 'E', 'Empty', NULL, NULL, 'available', 0, 0, NULL, '', 'subject'),
+    (-100, 'My Drive', 'My Drive', NULL, NULL, 'reserved', 0, 0, NULL, '', 'top');
   INSERT INTO sync_runs VALUES
     ('completed', '2026-01-01', '["A", "B"]'),
     ('completed', '2026-02-01', '["A", "A"]'),

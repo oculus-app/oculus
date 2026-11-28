@@ -1,7 +1,9 @@
 //! The move's record on disk, in `<data dir>/.library-move/`: the plan with a
-//! state per step (`journal.json`), the steps done since it was last written
-//! (`done.log`, one index a line, appended as each lands), the lock two
-//! processes take turns on, and the marker that says the move is over.
+//! state per step (`journal.drive.json`), the steps done since it was last
+//! written (`done.log`, one index a line, appended as each lands), the lock
+//! every launch move takes turns on, and the marker that says this move is
+//! over (`drive`). `journal.json` and `done` are the state move's now
+//! (`state::journal`), and stay the files an older build reads.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -11,14 +13,21 @@ use serde::{Deserialize, Serialize};
 
 use super::rules::Rule;
 
-const DIR: &str = ".library-move";
-const JOURNAL: &str = "journal.json";
+/// The folder at the data dir's top every launch move keeps its records in.
+pub const DIR: &str = ".library-move";
+const JOURNAL: &str = "journal.drive.json";
+/// The journal's name before the state move took it.
+const OLDER_JOURNAL: &str = "journal.json";
 const DONE_LOG: &str = "done.log";
 const LOCK: &str = "lock";
-const MARKER: &str = "done";
+/// This move's own marker, holding `DONE`.
+const MARKER: &str = "drive";
+const DONE: &str = "done";
+/// The marker every build reads first. It held `LAYOUT` once this move was
+/// over, until the state move wrote its own word there.
+const SHARED_MARKER: &str = "done";
 
-/// What the marker holds: the layout the library is now in. A later move
-/// would look for its own value here.
+/// What `done` held when this move was the latest one.
 pub const LAYOUT: &str = "drive";
 
 /// The journal's own format, so a resumed run never reads one it does not
@@ -56,6 +65,9 @@ pub enum Kind {
     /// A drawing's page pictures or recovery drafts, to their folder's
     /// whiteboard name (`whiteboard`).
     DrawingRecords,
+    /// A file loose in `courses/`, or what parsing made of it, up to the
+    /// data dir's top (`loose`).
+    Loose,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,16 +181,70 @@ fn done_log_path(data_dir: &Path) -> PathBuf {
     dir(data_dir).join(DONE_LOG)
 }
 
-/// True once a move has finished here (or found nothing to do).
+/// What `done` says, trimmed; `None` when there is none.
+pub fn marker(data_dir: &Path) -> Option<String> {
+    std::fs::read_to_string(dir(data_dir).join(SHARED_MARKER))
+        .ok()
+        .map(|s| s.trim().to_string())
+}
+
+pub fn write_marker(data_dir: &Path, word: &str) -> Result<(), String> {
+    write_file(data_dir, SHARED_MARKER, word)
+}
+
+fn write_file(data_dir: &Path, name: &str, body: &str) -> Result<(), String> {
+    let path = dir(data_dir).join(name);
+    std::fs::create_dir_all(dir(data_dir)).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("tmp");
+    crate::runtime::atomic_write::write(&path, &tmp, body.as_bytes())
+}
+
+/// True once this move has finished here (or found nothing to do): by its
+/// own marker, or by `done` as a build from before the state move left it.
 pub fn is_done(data_dir: &Path) -> bool {
-    std::fs::read_to_string(dir(data_dir).join(MARKER)).is_ok_and(|s| s.trim() == LAYOUT)
+    std::fs::read_to_string(dir(data_dir).join(MARKER)).is_ok_and(|s| s.trim() == DONE)
+        || marker(data_dir).as_deref() == Some(LAYOUT)
 }
 
 pub fn mark_done(data_dir: &Path) -> Result<(), String> {
-    let path = dir(data_dir).join(MARKER);
-    std::fs::create_dir_all(dir(data_dir)).map_err(|e| e.to_string())?;
-    let tmp = path.with_extension("tmp");
-    crate::runtime::atomic_write::write(&path, &tmp, LAYOUT.as_bytes())
+    write_file(data_dir, MARKER, DONE)
+}
+
+/// Before the state move takes `journal.json` and `done`: this move's
+/// journal, as an older build left it (finished or cut short), is copied to
+/// its new name, synced, and a finished move gets its own marker. The old
+/// `journal.json` stays until the state move's guard replaces it in one
+/// rename, so a `journal.json` is there at every instant and an older build
+/// never plans a fresh move over a half-done one. A `journal.json` that is
+/// the state move's own (a guard cut short) is left for it to replace.
+pub fn step_aside(data_dir: &Path) -> Result<(), String> {
+    if marker(data_dir).as_deref() == Some(LAYOUT) {
+        mark_done(data_dir)?;
+    }
+    let (older, kept) = (dir(data_dir).join(OLDER_JOURNAL), journal_path(data_dir));
+    let Ok(raw) = std::fs::read(&older) else {
+        return Ok(());
+    };
+    let format = serde_json::from_slice::<serde_json::Value>(&raw)
+        .ok()
+        .and_then(|journal| journal.get("format")?.as_u64());
+    if format != Some(u64::from(FORMAT)) {
+        return Ok(());
+    }
+    match std::fs::read(&kept) {
+        // A guard cut short after the copy: it is already kept.
+        Ok(copy) if copy == raw => return Ok(()),
+        Ok(_) => {
+            return Err(format!(
+                "{} and {} are both the Drive move's journal; remove the older one",
+                older.display(),
+                kept.display()
+            ))
+        }
+        Err(_) => {}
+    }
+    crate::runtime::atomic_write::write(&kept, &kept.with_extension("json.tmp"), &raw)
+        .map_err(|e| format!("keep {}: {e}", older.display()))
 }
 
 /// Held for the whole move; another process blocks here until it is done.
@@ -191,13 +257,27 @@ pub fn lock(data_dir: &Path) -> Result<keyd_core::platform::files::FileLock, Str
 /// The plan an interrupted run left, with the steps it logged as done since
 /// marked.
 pub fn load(data_dir: &Path) -> Result<Option<Plan>, String> {
-    let path = journal_path(data_dir);
-    let raw = match std::fs::read(&path) {
+    let Some(mut plan) = load_at(&journal_path(data_dir))? else {
+        return Ok(None);
+    };
+    if let Ok(log) = std::fs::read_to_string(done_log_path(data_dir)) {
+        for index in log.lines().filter_map(|l| l.trim().parse::<usize>().ok()) {
+            if let Some(step) = plan.steps.get_mut(index) {
+                step.done = true;
+            }
+        }
+    }
+    Ok(Some(plan))
+}
+
+/// The journal at `path`, refused when its format is not this reader's.
+pub fn load_at(path: &Path) -> Result<Option<Plan>, String> {
+    let raw = match std::fs::read(path) {
         Ok(raw) => raw,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(format!("read {}: {e}", path.display())),
     };
-    let mut plan: Plan =
+    let plan: Plan =
         serde_json::from_slice(&raw).map_err(|e| format!("read {}: {e}", path.display()))?;
     if plan.format != FORMAT {
         return Err(format!(
@@ -205,13 +285,6 @@ pub fn load(data_dir: &Path) -> Result<Option<Plan>, String> {
             path.display(),
             plan.format
         ));
-    }
-    if let Ok(log) = std::fs::read_to_string(done_log_path(data_dir)) {
-        for index in log.lines().filter_map(|l| l.trim().parse::<usize>().ok()) {
-            if let Some(step) = plan.steps.get_mut(index) {
-                step.done = true;
-            }
-        }
     }
     Ok(Some(plan))
 }

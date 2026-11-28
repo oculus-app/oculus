@@ -16,7 +16,10 @@ import {
 } from "@/components/documents/DocumentControls";
 import { FileViewer, PdfMdToggle, usePdfMd } from "@/components/files/FileViewer";
 import { MarkdownUnavailable } from "@/components/files/ParseState";
+import { DriveFileCrumbs } from "@/components/drive/header/DriveFileCrumbs";
 import { SubjectCrumbs, fileCrumbFolder } from "@/components/subjects/SubjectCrumbs";
+import { DRIVE_HREF } from "@/lib/drive/routes";
+import { TOP_LEVEL } from "@/lib/files/libraryLayout";
 import { LessonView } from "@/components/lessons/LessonView";
 import { useLessonIndex } from "@/hooks/data/useLessonIndex";
 import { useSubjectFiles } from "@/hooks/data/useSubjectFiles";
@@ -46,7 +49,7 @@ const DocumentEditor = lazy(() =>
 /**
  * A file as a full page, in a tab or in the side panel (`openFileSmart`).
  * Standalone, not under SubjectLayout; its breadcrumb stands in for the
- * subject chrome. For a student document this page is the editor
+ * subject chrome, or for a top-level file (`/drive/.file`) for Drive's. For a student document this page is the editor
  * (`DocumentEditor`).
  */
 export default function SubjectFilePage() {
@@ -54,7 +57,9 @@ export default function SubjectFilePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const relPath = searchParams.get("path");
-  const id = Number(subjectId);
+  // The Drive route has no subject: a top-level file's row hangs off `TOP_LEVEL`.
+  const topLevel = subjectId == null;
+  const id = topLevel ? TOP_LEVEL.id : Number(subjectId);
   // A cited spot (`openCitation`), from router state: a page in the PDF, or a
   // passage of markdown to highlight.
   const { state: routeState } = useLocation();
@@ -136,7 +141,8 @@ export default function SubjectFilePage() {
     if (threadId != null) markEdViewed("thread", threadId);
   }, [threadId]);
 
-  if (!Number.isFinite(id) || !relPath) return <Navigate to="/subjects" replace />;
+  const gone = topLevel ? DRIVE_HREF : `/subjects/${id}`;
+  if (!Number.isFinite(id) || !relPath) return <Navigate to={topLevel ? DRIVE_HREF : "/subjects"} replace />;
 
   if (!file) {
     if (loading || !loaded) {
@@ -145,7 +151,7 @@ export default function SubjectFilePage() {
       );
     }
     // Files loaded but the path is gone — stale tab after a re-sync.
-    return <Navigate to={`/subjects/${id}`} replace />;
+    return <Navigate to={gone} replace />;
   }
 
   return (
@@ -156,7 +162,9 @@ export default function SubjectFilePage() {
             aria-label="Breadcrumb"
             className="flex shrink-0 items-center gap-2.5 text-[11px] text-muted-foreground"
           >
-            <SubjectCrumbs subjectId={id} folder={fileCrumbFolder(file)} />
+            {topLevel
+              ? <DriveFileCrumbs folder={fileCrumbFolder(file)} />
+              : <SubjectCrumbs subjectId={id} folder={fileCrumbFolder(file)} />}
           </nav>
           <PaneTitle>{fileTitle(file)}</PaneTitle>
         </PaneTrail>

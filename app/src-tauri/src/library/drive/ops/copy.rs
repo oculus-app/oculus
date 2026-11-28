@@ -11,7 +11,7 @@ use std::path::Path;
 use sqlx::SqlitePool;
 
 use super::error::{shown, DriveError, DriveResult};
-use super::guard::{readable_entry, target_folder, Entry, Target};
+use super::guard::{drive_target, readable_entry, Entry, Target};
 use super::journal::Journal;
 use super::moves::blocking;
 use super::names::free_name_where;
@@ -30,10 +30,12 @@ pub async fn copy_to_own_at(
     rels: &[String],
     target_dir: &str,
 ) -> DriveResult<Vec<String>> {
-    let target = target_folder(data_dir, target_dir)?;
-    let subject = rows::subject_id(pool, target.subject_folder())
+    let paths: Vec<std::path::PathBuf> = rels.iter().map(|rel| data_dir.join(rel)).collect();
+    super::delete::finish_touching(pool, data_dir, &paths).await?;
+    let target = drive_target(data_dir, target_dir)?;
+    let subject = rows::home_id(pool, target.home())
         .await?
-        .ok_or_else(|| DriveError::not_found(target.subject_folder()))?;
+        .ok_or_else(|| DriveError::not_found(&target.rel))?;
     let mut entries = Vec::new();
     for rel in rels {
         let entry = readable_entry(data_dir, rel)?;
@@ -79,7 +81,7 @@ fn on_disk(data_dir: &Path, target: &Target, entries: &[Entry]) -> DriveResult<C
     let mut notes = Vec::new();
     for entry in entries {
         let name = copy_name(data_dir, target, shown(&entry.rel), entry.dir);
-        let name = if target.is_subject_root() && layout::reserved_name(&name) {
+        let name = if target.keeps_name(&name) {
             copy_name(data_dir, target, &format!("{name} copy"), entry.dir)
         } else {
             name
@@ -114,7 +116,7 @@ fn on_disk(data_dir: &Path, target: &Target, entries: &[Entry]) -> DriveResult<C
 fn copy_name(data_dir: &Path, target: &Target, name: &str, folder: bool) -> String {
     free_name_where(name, folder, |candidate| {
         let rel = target.child_rel(candidate);
-        let taken = |path: &Path| std::fs::symlink_metadata(path).is_ok();
+        let taken = super::names::is_taken;
         !taken(&data_dir.join(&rel))
             && (folder
                 || crate::library::paths::artifact_at(data_dir, &rel, ArtifactSlot::Converted)

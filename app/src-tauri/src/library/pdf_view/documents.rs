@@ -1,7 +1,7 @@
 //! Library paths the viewer may read, and opening them through
 //! `pdf_render`'s cache of opened documents.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use hayro::hayro_syntax::page::Page;
@@ -10,23 +10,11 @@ use hayro::hayro_syntax::Pdf;
 use super::wire::{OpenedPdf, PageSize};
 use crate::library::pdf_render::{self, OpenError};
 
-/// The roots the viewer may read: the library's (`layout::library_roots`)
-/// and the agents' workspace — the asset-protocol scope in tauri.conf.json.
-fn roots() -> Vec<&'static str> {
-    let mut roots = crate::library::layout::library_roots();
-    roots.push(crate::agents::AGENTS_DIR);
-    roots
-}
-
-/// `relative` under `root`, if it names something inside one of [`roots`].
+/// `relative` under `root`, if it names something the viewer may read
+/// (`agents::readable`).
 pub(super) fn resolve_in(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
-    let mut parts = path.components();
-    let in_root = matches!(
-        parts.next(),
-        Some(Component::Normal(first)) if first.to_str().is_some_and(|first| roots().contains(&first))
-    );
-    if !in_root || !parts.all(|part| matches!(part, Component::Normal(_))) {
+    if !crate::agents::readable(path) {
         return Err("outside-library".into());
     }
     Ok(root.join(path))

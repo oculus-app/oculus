@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::providers::ratelimit::hold;
 
-/// A stand-in `oculus-keyd` on `<dir>/keyd.sock`, speaking its framing: each
+/// A stand-in `oculus-keyd` on `dir`'s endpoint, speaking its framing: each
 /// request's header and body go to `handler`, whose header and body are the
 /// reply. Its thread ends with the test process.
 pub struct FakeKeyd {
@@ -27,6 +27,8 @@ impl FakeKeyd {
     {
         use keyd_core::framing;
 
+        // A data dir as a launch leaves it: the state folder is there.
+        crate::library::paths::ensure_state_dir(dir).unwrap();
         let endpoint = crate::library::paths::keyd_socket_path(dir);
         let listener = keyd_core::platform::Listener::bind(&endpoint).unwrap();
         #[cfg(windows)]

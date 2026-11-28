@@ -2,6 +2,19 @@ use sqlx::{Row, SqlitePool};
 
 use crate::sync::Course;
 
+/// The `subjects` row (`kind = 'top'`, code `layout::TOP_LEVEL_CODE`) every
+/// top-level file's row hangs off. Negative, so no Canvas course id meets
+/// it; not `-1`, which the revision topics' indexes use for "no subject".
+pub const TOP_LEVEL_SUBJECT_ID: i64 = -100;
+
+/// The reserved row's id, read rather than assumed, so a database without
+/// the row gives `None` instead of rows that hang off nothing.
+pub async fn top_level_id(pool: &SqlitePool) -> Result<Option<i64>, sqlx::Error> {
+    sqlx::query_scalar("SELECT id FROM subjects WHERE kind = 'top'")
+        .fetch_optional(pool)
+        .await
+}
+
 #[derive(Debug, Clone)]
 pub struct SubjectRow {
     pub id: i64,
@@ -44,7 +57,8 @@ pub async fn upsert_subjects(pool: &SqlitePool, courses: &[Course]) -> Result<()
 /// next one overwrites these. Returns how many rows got one.
 pub async fn backfill_term_sort(pool: &SqlitePool, southern: bool) -> Result<usize, String> {
     let rows: Vec<(i64, String)> = sqlx::query_as(
-        "SELECT id, term_name FROM subjects WHERE term_sort IS NULL AND term_name IS NOT NULL",
+        "SELECT id, term_name FROM subjects
+         WHERE kind = 'subject' AND term_sort IS NULL AND term_name IS NOT NULL",
     )
     .fetch_all(pool)
     .await
@@ -65,6 +79,7 @@ pub async fn backfill_term_sort(pool: &SqlitePool, southern: bool) -> Result<usi
     Ok(filled)
 }
 
+/// Every subject. The reserved top-level row is never one of them.
 pub async fn subjects(pool: &SqlitePool) -> Result<Vec<SubjectRow>, String> {
     // Derived, not stored: the latest completed run naming the subject. Mirrors
     // `getSubjects` in app/src/lib/db/subjects.ts — keep the two in step.
@@ -74,6 +89,7 @@ pub async fn subjects(pool: &SqlitePool) -> Result<Vec<SubjectRow>, String> {
                  FROM sync_runs r, json_each(r.subject_codes) j
                  WHERE r.status = 'completed' AND j.value = s.code) AS last_synced_at
          FROM subjects s
+         WHERE s.kind = 'subject'
          ORDER BY s.is_current DESC, s.term_sort IS NULL, s.term_sort DESC, s.name ASC",
     )
     .fetch_all(pool)

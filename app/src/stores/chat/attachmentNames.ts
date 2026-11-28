@@ -9,11 +9,17 @@ const KEY = "oculus.chatAttachmentNames";
 
 type Names = Record<string, string>;
 
+/** `names` keyed by where each file is: one stored under the older
+ *  `agents/attachments/…` spelling is read under `.oculus/agents/attachments/…`. */
+export function currentNames(names: Names): Names {
+  return Object.fromEntries(Object.entries(names).map(([path, name]) => [attachmentPath(path) ?? path, name]));
+}
+
 function read(): Names {
   try {
     const parsed = JSON.parse(localStorage.getItem(KEY) ?? "{}") as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return Object.fromEntries(Object.entries(parsed).filter((e): e is [string, string] => typeof e[1] === "string"));
+    return currentNames(Object.fromEntries(Object.entries(parsed).filter((e): e is [string, string] => typeof e[1] === "string")));
   } catch {
     return {};
   }
