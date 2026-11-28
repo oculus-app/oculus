@@ -235,6 +235,9 @@ maximum — except past `WIDGET_HEIGHT_BUDGET` (560 CSS px), where the frame is
 clipped at the budget and the widget shows an overflow error. Content that
 needs more room goes on `Pages`. Before the first report the card shows a
 spinner; the last height per source is kept so a remount starts at its size.
+The runtime draws a committed widget synchronously (`flushSync`) before its
+first report, so a remounted frame never reports its empty root's 0 and
+collapses between its remembered height and its real one.
 
 Expand opens a dialog with a second frame at the inline frame's width (so it
 lays out the same) and its full reported height, scaled with a CSS transform

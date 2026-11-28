@@ -10,6 +10,7 @@
  * requests `oculus/ask` is waiting on.
  */
 import type { ComponentType } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { KIT_FLAG } from "../protocol";
 import { onPublish, replaceState, type State } from "../state/store";
@@ -66,10 +67,15 @@ export function mount(Widget: unknown) {
   }
   try {
     const App = Widget as ComponentType;
-    createRoot(root).render(
-      <Boundary>
-        <App />
-      </Boundary>,
+    const react = createRoot(root);
+    // Drawn before the first measure: a concurrent render lands later, and the
+    // empty root's 0 would collapse a remounted frame from its remembered height.
+    flushSync(() =>
+      react.render(
+        <Boundary>
+          <App />
+        </Boundary>,
+      ),
     );
   } catch (error) {
     post({ kind: "error", phase: "render", message: describe(error) });
